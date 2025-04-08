@@ -104,7 +104,7 @@ The AIC value calculated using the number of parameters and log-likelihood value
 function aic(model::SarimaxModel; offset::Fl = 0.0) where {Fl<:AbstractFloat}
     !hasHyperparametersMethods(typeof(model)) &&
         throw(MissingMethodImplementation("getHyperparametersNumber"))
-    K = Sarimax.getHyperparametersNumber(model)
+    K = SARIMAX.getHyperparametersNumber(model)
     # T = length(model.ϵ)
     # return aic(K, loglike(model))
     # offset = -2 * loglike(model) - length(model.y) * log(model.σ²)

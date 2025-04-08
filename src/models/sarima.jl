@@ -1,3 +1,32 @@
+"""
+The `SARIMAModel` struct represents a SARIMA model. It contains the following fields:
+
+- `y`: The time series data.
+- `p`: The autoregressive order for the non-seasonal part.
+- `d`: The degree of differencing.
+- `q`: The moving average order for the non-seasonal part.
+- `seasonality`: The seasonality period.
+- `P`: The autoregressive order for the seasonal part.
+- `D`: The degree of seasonal differencing.
+- `Q`: The moving average order for the seasonal part.
+- `metadata`: A dictionary containing model metadata.
+- `exog`: Optional exogenous variables.
+- `c`: The constant term.
+- `trend`: The trend term.
+- `ϕ`: The autoregressive coefficients for the non-seasonal part.
+- `θ`: The moving average coefficients for the non-seasonal part.
+- `Φ`: The autoregressive coefficients for the seasonal part.
+- `Θ`: The moving average coefficients for the seasonal part.
+- `ϵ`: The residuals.
+- `exogCoefficients`: The coefficients of the exogenous variables.
+- `σ²`: The variance of the residuals.
+- `fitInSample`: The in-sample fit.
+- `forecast`: The forecast.
+- `silent`: Whether to suppress output.
+- `allowMean`: Whether to include a mean term in the model.
+- `allowDrift`: Whether to include a drift term in the model.
+- `keepProvidedCoefficients`: Whether to keep the provided coefficients.
+"""
 mutable struct SARIMAModel{Fl<:AbstractFloat} <: SarimaxModel
     y::TimeArray
     p::Int
@@ -131,6 +160,22 @@ function Base.show(io::IO, model::SARIMAModel)
     return nothing
 end
 
+"""
+    SARIMA constructor.
+
+    Parameters:
+    - y: TimeArray with the time series.
+    - p: Int with the autoregressive order for the non-seasonal part.
+    - d: Int with the degree of differencing.
+    - q: Int with the moving average order for the non-seasonal part.
+    - seasonality: Int with the seasonality period.
+    - P: Int with the autoregressive order for the seasonal part.
+    - D: Int with the degree of seasonal differencing.
+    - Q: Int with the moving average order for the seasonal part.
+    - silent: Bool to supress output.
+    - allowMean: Bool to include a mean term in the model.
+    - allowDrift: Bool to include a drift term in the model.
+"""
 function SARIMA(
     y::TimeArray,
     p::Int,
@@ -160,6 +205,26 @@ function SARIMA(
     )
 end
 
+"""
+    SARIMA constructor to initialize model with provided coefficients.
+
+    Parameters:
+    - y: TimeArray with the time series.
+    - exog: TimeArray with the exogenous variables.
+    - arCoefficients: Vector with the autoregressive coefficients.
+    - maCoefficients: Vector with the moving average coefficients.
+    - seasonalARCoefficients: Vector with the autoregressive coefficients for the seasonal component.
+    - seasonalMACoefficients: Vector with the moving average coefficients for the seasonal component.
+    - mean: Float with the mean term.
+    - trend: Float with the trend term.
+    - exogCoefficients: Vector with the exogenous coefficients.
+    - d: Int with the degree of differencing.
+    - D: Int with the degree of seasonal differencing.
+    - seasonality: Int with the seasonality period.
+    - silent: Bool to supress output.
+    - allowMean: Bool to include a mean term in the model.
+    - allowDrift: Bool to include a drift term in the model.
+ """
 function SARIMA(
     y::TimeArray;
     exog::Union{TimeArray,Nothing} = nothing,
@@ -247,6 +312,23 @@ function SARIMA(
     )
 end
 
+"""
+    SARIMA constructor.
+
+    Parameters:
+    - y: TimeArray with the time series.
+    - exog: TimeArray with the exogenous variables.
+    - p: Int with the order of the AR component.
+    - d: Int with the degree of differencing.
+    - q: Int with the order of the MA component.
+    - seasonality: Int with the seasonality period.
+    - P: Int with the order of the seasonal AR component.
+    - D: Int with the degree of seasonal differencing.
+    - Q: Int with the order of the seasonal MA component.
+    - silent: Bool to supress output.
+    - allowMean: Bool to include a mean term in the model.
+    - allowDrift: Bool to include a drift term in the model.
+"""
 function SARIMA(
     y::TimeArray,
     exog::Union{TimeArray,Nothing},
@@ -1658,7 +1740,7 @@ function computeModelsICOffset(
         )
     end
     fit!(model)
-    llk_offset = Sarimax.loglike(model)
+    llk_offset = SARIMAX.loglike(model)
     offset = -2 * llk_offset - length(model.y) * log(model.σ²)
     return offset
 end
@@ -1696,9 +1778,9 @@ function detectOutliers(
     showLogs::Bool,
 )
     if D == 0
-        model = Sarimax.SARIMA(y, exog, 0, d, 0; allowMean = true)
+        model = SARIMAX.SARIMA(y, exog, 0, d, 0; allowMean = true)
     else
-        model = Sarimax.SARIMA(
+        model = SARIMAX.SARIMA(
             y,
             exog,
             0,
@@ -1750,7 +1832,7 @@ function detectOutliers(
         dummyDataFrame[!, :date] = copy(filterExogTimestamps)
         dummyTimeArray = TimeArray(dummyDataFrame, timestamp = :date)
         mergeVector::Vector{TimeArray} = [exog, dummyTimeArray]
-        exog = Sarimax.merge(mergeVector)
+        exog = SARIMAX.merge(mergeVector)
     end
 
     return exog

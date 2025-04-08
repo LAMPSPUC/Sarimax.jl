@@ -1,4 +1,24 @@
-module Sarimax
+"""
+SARIMAX
+
+A module for Seasonal Autoregressive Integrated Moving Average with eXogenous regressors
+(SARIMAX) modeling in Julia.
+
+This module provides functionality for time series analysis and forecasting using SARIMAX
+models. It includes tools for model fitting, prediction, and various statistical tests.
+
+Main features:
+- SARIMA model implementation
+- Automatic model selection
+- Exogenous variables support
+- Time series differentiation and integration
+- Statistical tests (e.g., KPSS test)
+- Dataset handling utilities
+
+For more information, see the documentation of individual functions and types.
+"""
+module SARIMAX
+
 
 import Base: show, print, copy, deepcopy, showerror
 
@@ -34,6 +54,7 @@ include("exceptions.jl")
 include("fit.jl")
 include("models/sarima.jl")
 include("utils.jl")
+include("statistical_tests.jl")
 
 
 # Export types
@@ -76,4 +97,4 @@ export toMA
 export differentiatedCoefficients
 
 
-end # module Sarimax
+end # module SARIMAX

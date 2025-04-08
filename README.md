@@ -7,13 +7,13 @@
 [docs-img]: https://img.shields.io/badge/docs-latest-blue.svg
 [docs-url]: https://lampspuc.github.io/SARIMAX.jl/dev/
 
-# Sarimax.jl
+# SARIMAX.jl
 
 | **Build Status** | **Coverage** | **Documentation** |
 |:-----------------:|:-----------------:|:-----------------:|
 | [![Build Status][build-img]][build-url] | [![codecov][codecov-img]][codecov-url]| [![docs][docs-img]][docs-url] |
 
-Introducing Sarimax.jl, a groundbreaking Julia package that redefines SARIMA (Seasonal Autoregressive Integrated Moving Average) modeling by seamlessly integrating the JuMP framework — a powerful optimization modeling language. Unlike traditional SARIMA methods, Sarimax.jl leverages the optimization capabilities of JuMP, allowing for precise and customizable SARIMA models.
+Introducing SARIMAX.jl, a groundbreaking Julia package that redefines SARIMA (Seasonal Autoregressive Integrated Moving Average) modeling by seamlessly integrating the JuMP framework — a powerful optimization modeling language. Unlike traditional SARIMA methods, SARIMAX.jl leverages the optimization capabilities of JuMP, allowing for precise and customizable SARIMA models.
 
 ## Index
 * [Features](#features)
@@ -46,7 +46,7 @@ Since it shows variation that increases with the level of the series, a logarith
 ```julia
 import Pkg
 Pkg.add(url = "https://github.com/LAMPSPUC/SARIMAX.jl")
-using Sarimax
+using SARIMAX
 airp = loadDataset(AIR_PASSENGERS)
 airp_log = log.(airp)
 ```

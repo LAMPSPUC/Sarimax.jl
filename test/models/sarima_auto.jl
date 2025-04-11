@@ -1,7 +1,7 @@
 @testset "auto sarima" begin
     @testset "Constant series" begin
         series = TimeArray(Dates.Date(2019, 1, 1):Dates.Day(1):Dates.Date(2019, 1, 31), ones(31))
-        model = Sarimax.auto(series)
+        model = SARIMAX.auto(series)
         @test model.c == 1
         @test model.p == 0
         @test model.q == 0
@@ -17,37 +17,37 @@
         exog = nothing
 
         # Test case where D > 0 and d == 0
-        model1 = Sarimax.constantDiffSeriesModelSpecification(y, exog, 0, 1, 12, false, true)
-        @test model1 isa Sarimax.SarimaxModel
+        model1 = SARIMAX.constantDiffSeriesModelSpecification(y, exog, 0, 1, 12, false, true)
+        @test model1 isa SARIMAX.SarimaxModel
         @test model1.allowDrift == true
 
         # Test case where D > 0 and d > 0
-        model2 = Sarimax.constantDiffSeriesModelSpecification(y, exog, 1, 1, 12, false, false)
-        @test model2 isa Sarimax.SarimaxModel
+        model2 = SARIMAX.constantDiffSeriesModelSpecification(y, exog, 1, 1, 12, false, false)
+        @test model2 isa SARIMAX.SarimaxModel
         @test model2.allowDrift == false
 
         # Test case where d == 2
-        model3 = Sarimax.constantDiffSeriesModelSpecification(y, exog, 2, 0, 12, false, false)
-        @test model3 isa Sarimax.SarimaxModel
+        model3 = SARIMAX.constantDiffSeriesModelSpecification(y, exog, 2, 0, 12, false, false)
+        @test model3 isa SARIMAX.SarimaxModel
 
         # Test case where d < 2
-        model4 = Sarimax.constantDiffSeriesModelSpecification(y, exog, 1, 0, 12, true, false)
-        @test model4 isa Sarimax.SarimaxModel
+        model4 = SARIMAX.constantDiffSeriesModelSpecification(y, exog, 1, 0, 12, true, false)
+        @test model4 isa SARIMAX.SarimaxModel
         @test model4.allowMean == true
 
         # Test case where data follow a simple polynomial
-        @test_throws ArgumentError Sarimax.constantDiffSeriesModelSpecification(y, exog, 3, 0, 12, true, false)
+        @test_throws ArgumentError SARIMAX.constantDiffSeriesModelSpecification(y, exog, 3, 0, 12, true, false)
 
         # Test case with exog
         exog1 = TimeArray(Dates.Date(2019, 1, 1):Dates.Day(1):Dates.Date(2019, 1, 31), ones(31))
-        model5 = Sarimax.constantDiffSeriesModelSpecification(y, exog1, 1, 0, 12, false, false)
-        @test model5 isa Sarimax.SarimaxModel
+        model5 = SARIMAX.constantDiffSeriesModelSpecification(y, exog1, 1, 0, 12, false, false)
+        @test model5 isa SARIMAX.SarimaxModel
         @test model5.allowDrift == false
         @test model5.allowMean == false
 
         # Test case with exog and D > 0
-        model6 = Sarimax.constantDiffSeriesModelSpecification(y, exog1, 1, 1, 12, false, false)
-        @test model6 isa Sarimax.SarimaxModel
+        model6 = SARIMAX.constantDiffSeriesModelSpecification(y, exog1, 1, 1, 12, false, false)
+        @test model6 isa SARIMAX.SarimaxModel
         @test model6.p == 0
         @test model6.q == 0
         @test model6.P == 0
@@ -55,22 +55,22 @@
     end
 
     @testset "getInformationCriteriaFunction" begin
-        @test_throws ArgumentError Sarimax.getInformationCriteriaFunction("mse")
+        @test_throws ArgumentError SARIMAX.getInformationCriteriaFunction("mse")
 
         # Test AIC
-        func1 = Sarimax.getInformationCriteriaFunction("aic")
+        func1 = SARIMAX.getInformationCriteriaFunction("aic")
         @test func1 isa Function
         @test aic(2, 3.0) ≈ -2.0
         @test aic(3, 4.0) ≈ -2.0
 
         # Test AICC
-        func2 = Sarimax.getInformationCriteriaFunction("aicc")
+        func2 = SARIMAX.getInformationCriteriaFunction("aicc")
         @test func2 isa Function
         @test func2(10, 2, 3.0) ≈ -0.2857142857142858
         @test func2(10, 3, 4.0) ≈ 2.0
 
         # Test BIC
-        func3 = Sarimax.getInformationCriteriaFunction("bic")
+        func3 = SARIMAX.getInformationCriteriaFunction("bic")
         @test func3 isa Function
         @test func3(10, 2, 3.0) ≈ -1.3948298140119082
         @test func3(10, 3, 4.0) ≈ -1.0922447210178623
@@ -78,31 +78,31 @@
 
     @testset "detectOutliers" begin
         series = TimeArray(Dates.Date(2019, 1, 1):Dates.Day(1):Dates.Date(2019, 1, 31), ones(31))
-        outliers = Sarimax.detectOutliers(series, nothing, 0, 0, 1, false)
+        outliers = SARIMAX.detectOutliers(series, nothing, 0, 0, 1, false)
         @test isnothing(outliers)
 
         values(series)[5] = 100
-        outliers = Sarimax.detectOutliers(series, nothing, 0, 0, 1, false)
+        outliers = SARIMAX.detectOutliers(series, nothing, 0, 0, 1, false)
         @test isa(outliers, TimeSeries.TimeArray)
         @test length(colnames(outliers)) == 1
         @test colnames(outliers)[1] == Symbol("outlier_5")
 
         values(series)[5] = 1
         values(series)[10] = 100
-        outliers = Sarimax.detectOutliers(series, nothing, 0, 0, 1, false)
+        outliers = SARIMAX.detectOutliers(series, nothing, 0, 0, 1, false)
         @test isa(outliers, TimeSeries.TimeArray)
         @test length(colnames(outliers)) == 1
         @test colnames(outliers)[1] == Symbol("outlier_10")
 
         values(series)[10] = 1
         values(series)[15] = 100
-        outliers = Sarimax.detectOutliers(series, nothing, 0, 0, 1, false)
+        outliers = SARIMAX.detectOutliers(series, nothing, 0, 0, 1, false)
         @test isa(outliers, TimeSeries.TimeArray)
         @test length(colnames(outliers)) == 1
         @test colnames(outliers)[1] == Symbol("outlier_15")
 
         values(series)[20] = 100
-        outliers = Sarimax.detectOutliers(series, nothing, 0, 0, 1, false)
+        outliers = SARIMAX.detectOutliers(series, nothing, 0, 0, 1, false)
         @test isa(outliers, TimeSeries.TimeArray)
         @test length(colnames(outliers)) == 2
         @test colnames(outliers)[1] == Symbol("outlier_15")
@@ -110,7 +110,7 @@
 
         # test with exog
         exog = TimeArray(Dates.Date(2019, 1, 1):Dates.Day(1):Dates.Date(2019, 1, 31), 2 .* ones(31))
-        outliers = Sarimax.detectOutliers(series, exog, 0, 0, 1, false)
+        outliers = SARIMAX.detectOutliers(series, exog, 0, 0, 1, false)
         @test !isnothing(outliers)
         @test length(colnames(outliers)) == 3
         @test colnames(outliers)[1] == Symbol("A")

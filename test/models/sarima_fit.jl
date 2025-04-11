@@ -44,9 +44,9 @@ end
         modelMSE = SARIMA(ARseries, 1, 1, 0; seasonality = 12, P = 1, D = 0, Q = 0)
         modelML = SARIMA(ARseries, 1, 1, 0; seasonality = 12, P = 1, D = 0, Q = 0)
         modelBILEVEL = SARIMA(ARseries, 1, 1, 0; seasonality = 12, P = 1, D = 0, Q = 0)
-        Sarimax.fit!(modelMSE, objectiveFunction = "mse")
-        Sarimax.fit!(modelML, objectiveFunction = "ml")
-        Sarimax.fit!(modelBILEVEL, objectiveFunction = "bilevel")
+        SARIMAX.fit!(modelMSE, objectiveFunction = "mse")
+        SARIMAX.fit!(modelML, objectiveFunction = "ml")
+        SARIMAX.fit!(modelBILEVEL, objectiveFunction = "bilevel")
         @test seasCoeff ≈ modelMSE.Φ[1] atol = 1e-3
         @test seasCoeff ≈ modelML.Φ[1] atol = 1e-3
         @test seasCoeff ≈ modelBILEVEL.Φ[1] atol = 1e-3

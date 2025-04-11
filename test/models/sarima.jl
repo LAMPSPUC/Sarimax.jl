@@ -7,8 +7,8 @@
     airPassengersLog = log.(airPassengers)
 
     modeloLog = SARIMA(airPassengersLog, 3, 0, 1; seasonality = 12, P = 1, D = 1, Q = 1)
-    @test Sarimax.typeofModelElements(modeloLog) == Float64
-    @test Sarimax.isFitted(modeloLog) == false
+    @test SARIMAX.typeofModelElements(modeloLog) == Float64
+    @test SARIMAX.isFitted(modeloLog) == false
     @test getHyperparametersNumber(modeloLog) == 8
     fit!(modeloLog)
     predict!(modeloLog; stepsAhead = 10, displayConfidenceIntervals = true)
@@ -16,8 +16,8 @@
     @test size(modeloLog.forecast, 2) == 3
 
     modeloLogMAE = SARIMA(airPassengersLog, 3, 0, 1; seasonality = 12, P = 1, D = 1, Q = 1)
-    @test Sarimax.typeofModelElements(modeloLogMAE) == Float64
-    @test Sarimax.isFitted(modeloLogMAE) == false
+    @test SARIMAX.typeofModelElements(modeloLogMAE) == Float64
+    @test SARIMAX.isFitted(modeloLogMAE) == false
     @test getHyperparametersNumber(modeloLogMAE) == 8
     fit!(modeloLogMAE; objectiveFunction = "mae")
     predict!(modeloLogMAE; stepsAhead = 10, displayConfidenceIntervals = true)
@@ -25,7 +25,7 @@
     @test size(modeloLogMAE.forecast, 2) == 3
 
 
-    @test Sarimax.isFitted(modeloLog) == true
+    @test SARIMAX.isFitted(modeloLog) == true
     @test mean(modeloLog.ϵ) ≈ 0 atol = 1e-1
 
     autoModelML = auto(airPassengersLog; seasonality = 12, objectiveFunction = "ml")

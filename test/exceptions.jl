@@ -1,6 +1,6 @@
 using Test
 
-@testset "Sarimax Exceptions" begin
+@testset "SARIMAX Exceptions" begin
     @testset "ModelNotFitted" begin
         e = ModelNotFitted()
         @test e isa ModelNotFitted
@@ -69,7 +69,7 @@ using Test
 
         output = sprint(showerror, e)
         @test output == "The parameters provided are invalid for the model \n$msg"
-        
+
         # Test error message
         buf = IOBuffer()
         showerror(buf, e)

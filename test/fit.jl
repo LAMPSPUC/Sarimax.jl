@@ -1,5 +1,5 @@
 @testset "Fit" begin
-    mutable struct ARIMA_TEST <: Sarimax.SarimaxModel end
+    mutable struct ARIMA_TEST <: SARIMAX.SarimaxModel end
     @testset "hasFitMethods" begin
         @test hasFitMethods(SARIMAModel)
         @test !hasFitMethods(ARIMA_TEST)

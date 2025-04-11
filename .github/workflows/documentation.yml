@@ -18,8 +18,8 @@ jobs:
       - uses: julia-actions/setup-julia@latest
         with:
           # Build documentation on Julia 1.10
-          version: '1.11'
-      - uses: julia-actions/cache@v2
+          version: '1.10'
+      - uses: julia-actions/cache@v4
       - name: Install dependencies
         run: julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
       - name: Build and deploy

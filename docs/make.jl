@@ -1,10 +1,11 @@
 using Documenter
-include("../src/Sarimax.jl")
+using TimeSeries
+include("../src/SARIMAX.jl")
 
-# DocMeta.setdocmeta!(Sarimax, :DocTestSetup, :(using ..Sarimax); recursive=true)
+# DocMeta.setdocmeta!(SARIMAX, :DocTestSetup, :(using ..SARIMAX); recursive=true)
 
 makedocs(;
-    modules=[Sarimax],
+    modules=[SARIMAX],
     doctest=false,
     clean=true,
     checkdocs=:none,
@@ -13,6 +14,8 @@ makedocs(;
     authors="Luiz Fernando Duarte",
     pages=[
         "Home" => "index.md",
+        "API Reference" => "reference.md",
+        "Tutorial" => "tutorial.md",
     ],
 )
 

@@ -163,13 +163,13 @@
     @testset "merge" begin
 
         @testset "Test Merge empty" begin
-            @test Sarimax.merge(Vector{TimeArray}()) == TimeArray(DateTime[], [])
+            @test SARIMAX.merge(Vector{TimeArray}()) == TimeArray(DateTime[], [])
         end
 
         @testset "Test Merge one" begin
             timeArray = loadDataset(NROU)
             timeArrays::Vector{TimeArray} = [timeArray]
-            mergedTimeArray = Sarimax.merge(timeArrays)
+            mergedTimeArray = SARIMAX.merge(timeArrays)
             @test mergedTimeArray == timeArray
         end
 
@@ -178,7 +178,7 @@
             timeArray1 = loadDataset(NROU)
             timeArray2 = loadDataset(GDPC1)
             timeArrays::Vector{TimeArray} = [timeArray1, timeArray2]
-            mergedTimeArray = Sarimax.merge(timeArrays)
+            mergedTimeArray = SARIMAX.merge(timeArrays)
             @test size(mergedTimeArray, 1) == size(timeArray1, 1)
             @test size(mergedTimeArray, 2) == 2
         end
@@ -194,7 +194,7 @@
             )
 
             timeArrays::Vector{TimeArray} = [timeArray1, timeArray2, timeArray3]
-            finalTimeArray = Sarimax.merge(timeArrays)
+            finalTimeArray = SARIMAX.merge(timeArrays)
             @test size(finalTimeArray, 1) == 342
             @test size(finalTimeArray, 2) == 3
         end

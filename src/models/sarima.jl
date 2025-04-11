@@ -130,6 +130,21 @@ end
 
 typeofModelElements(model::SARIMAModel) = eltype(values(model.y))
 
+"""
+    print(model::SARIMAModel)
+
+Prints the SARIMA model.
+
+# Arguments
+- `model::SARIMAModel`: The SARIMA model to print.
+
+# Example
+```jldoctest
+julia> model = SARIMA(1, 0, 1; P=1, D=0, Q=1, seasonality=12, allowMean=true, allowDrift=false)
+
+julia> print(model)
+```
+"""
 function print(model::SARIMAModel)
     println("=================MODEL===============")
     println(
@@ -149,6 +164,22 @@ function print(model::SARIMAModel)
     println("======================================")
 end
 
+"""
+    Base.show(io::IO, model::SARIMAModel)
+
+Prints the SARIMA model.
+
+# Arguments
+- `io::IO`: The output stream.
+- `model::SARIMAModel`: The SARIMA model to print.
+
+# Example
+```jldoctest
+julia> model = SARIMA(1, 0, 1; P=1, D=0, Q=1, seasonality=12, allowMean=true, allowDrift=false)
+
+julia> print(model)
+```
+"""
 function Base.show(io::IO, model::SARIMAModel)
     constant = model.allowMean || model.allowDrift
     zeroMean = ((model.d + model.D == 0) && constant) ? "non zero mean" : "zero mean"

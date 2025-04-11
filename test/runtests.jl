@@ -1,7 +1,7 @@
 using CSV
 using DataFrames
 using Dates
-using Sarimax
+using SARIMAX
 using Statistics
 using Test
 using Random
@@ -30,3 +30,5 @@ include("exceptions.jl")
 include("datasets.jl")
 
 include("fit.jl")
+
+include("test_statistical_tests.jl")

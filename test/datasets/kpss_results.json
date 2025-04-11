@@ -1,0 +1,112 @@
+{
+    "stationary_series_1": {
+        "KPSS Statistic": 0.19481988569078376,
+        "p-value": 0.1,
+        "Lags Used": 15,
+        "Critical Values": {
+            "10%": 0.347,
+            "5%": 0.463,
+            "2.5%": 0.574,
+            "1%": 0.739
+        }
+    },
+    "nonstationary_series_2": {
+        "KPSS Statistic": 0.48057298472235727,
+        "p-value": 0.04604212055802765,
+        "Lags Used": 15,
+        "Critical Values": {
+            "10%": 0.347,
+            "5%": 0.463,
+            "2.5%": 0.574,
+            "1%": 0.739
+        }
+    },
+    "stationary_series_3": {
+        "KPSS Statistic": 0.19481988569078376,
+        "p-value": 0.1,
+        "Lags Used": 15,
+        "Critical Values": {
+            "10%": 0.347,
+            "5%": 0.463,
+            "2.5%": 0.574,
+            "1%": 0.739
+        }
+    },
+    "nonstationary_series_4": {
+        "KPSS Statistic": 0.39648328498259205,
+        "p-value": 0.07867099785233102,
+        "Lags Used": 15,
+        "Critical Values": {
+            "10%": 0.347,
+            "5%": 0.463,
+            "2.5%": 0.574,
+            "1%": 0.739
+        }
+    },
+    "stationary_series_5": {
+        "KPSS Statistic": 0.19481988569078376,
+        "p-value": 0.1,
+        "Lags Used": 15,
+        "Critical Values": {
+            "10%": 0.347,
+            "5%": 0.463,
+            "2.5%": 0.574,
+            "1%": 0.739
+        }
+    },
+    "nonstationary_series_6": {
+        "KPSS Statistic": 0.48057298472235727,
+        "p-value": 0.04604212055802765,
+        "Lags Used": 15,
+        "Critical Values": {
+            "10%": 0.347,
+            "5%": 0.463,
+            "2.5%": 0.574,
+            "1%": 0.739
+        }
+    },
+    "stationary_series_7": {
+        "KPSS Statistic": 0.19481988569078376,
+        "p-value": 0.1,
+        "Lags Used": 15,
+        "Critical Values": {
+            "10%": 0.347,
+            "5%": 0.463,
+            "2.5%": 0.574,
+            "1%": 0.739
+        }
+    },
+    "nonstationary_series_8": {
+        "KPSS Statistic": 0.39648328498259205,
+        "p-value": 0.07867099785233102,
+        "Lags Used": 15,
+        "Critical Values": {
+            "10%": 0.347,
+            "5%": 0.463,
+            "2.5%": 0.574,
+            "1%": 0.739
+        }
+    },
+    "stationary_series_9": {
+        "KPSS Statistic": 0.19481988569078376,
+        "p-value": 0.1,
+        "Lags Used": 15,
+        "Critical Values": {
+            "10%": 0.347,
+            "5%": 0.463,
+            "2.5%": 0.574,
+            "1%": 0.739
+        }
+    },
+    "nonstationary_series_10": {
+        "KPSS Statistic": 0.48057298472235727,
+        "p-value": 0.04604212055802765,
+        "Lags Used": 15,
+        "Critical Values": {
+            "10%": 0.347,
+            "5%": 0.463,
+            "2.5%": 0.574,
+            "1%": 0.739
+        }
+    }
+}

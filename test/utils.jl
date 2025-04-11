@@ -96,38 +96,38 @@
 
     @testset "selectSeasonalIntegrationOrder" begin
         airPassengers = loadDataset(AIR_PASSENGERS)
-        @test Sarimax.selectSeasonalIntegrationOrder(values(airPassengers), 12, "seas") == 1
-        @test Sarimax.selectSeasonalIntegrationOrder(values(airPassengers), 12, "ch") == 0
-        @test_throws ArgumentError Sarimax.selectSeasonalIntegrationOrder(
+        @test SARIMAX.selectSeasonalIntegrationOrder(values(airPassengers), 12, "seas") == 1
+        @test SARIMAX.selectSeasonalIntegrationOrder(values(airPassengers), 12, "ch") == 0
+        @test_throws ArgumentError SARIMAX.selectSeasonalIntegrationOrder(
             values(airPassengers),
             12,
             "hegy",
         )
         # TODO: Fix test of PyCall and RCall
         # @testset "ocsb test without PyCall" begin
-        #     @test Sarimax.selectSeasonalIntegrationOrder(values(airPassengers), 12, "ocsb") == StateSpaceModels.seasonal_strength_test(y, seasonality)
+        #     @test SARIMAX.selectSeasonalIntegrationOrder(values(airPassengers), 12, "ocsb") == StateSpaceModels.seasonal_strength_test(y, seasonality)
         # end
 
         # @testset "ocsbR test without RCall" begin
-        #     @test Sarimax.selectSeasonalIntegrationOrder(values(airPassengers), 12, "ocsbR") == StateSpaceModels.seasonal_strength_test(y, seasonality)
+        #     @test SARIMAX.selectSeasonalIntegrationOrder(values(airPassengers), 12, "ocsbR") == StateSpaceModels.seasonal_strength_test(y, seasonality)
         # end
 
         # @testset "ocsb test with PyCall" begin
         #     # Mock the Pkg.project().dependencies to simulate PyCall being installed
-        #     @test Sarimax.selectSeasonalIntegrationOrder(values(airPassengers), 12, "ocsb") == 1
+        #     @test SARIMAX.selectSeasonalIntegrationOrder(values(airPassengers), 12, "ocsb") == 1
         # end
 
         # @testset "ocsbR test with RCall" begin
         #     # Mock the Pkg.project().dependencies to simulate RCall being installed
 
-        #     @test Sarimax.selectSeasonalIntegrationOrder(values(airPassengers), 12, "ocsbR") == 1
+        #     @test SARIMAX.selectSeasonalIntegrationOrder(values(airPassengers), 12, "ocsbR") == 1
         # end
     end
 
     @testset "selectIntegrationOrder" begin
         airPassengers = loadDataset(AIR_PASSENGERS)
-        @test Sarimax.selectIntegrationOrder(values(airPassengers), 2, 0, 12, "kpss") == 1
-        @test_throws ArgumentError Sarimax.selectIntegrationOrder(
+        @test SARIMAX.selectIntegrationOrder(values(airPassengers), 2, 0, 12, "kpss") == 1
+        @test_throws ArgumentError SARIMAX.selectIntegrationOrder(
             values(airPassengers),
             2,
             0,
@@ -138,14 +138,14 @@
 
     # @testset "selectIntegrationOrderR" begin
     #     airPassengers = loadDataset(AIR_PASSENGERS)
-    #     @test Sarimax.selectIntegrationOrder(values(airPassengers), 2, 0, 12, "kpssR") == 1
+    #     @test SARIMAX.selectIntegrationOrder(values(airPassengers), 2, 0, 12, "kpssR") == 1
     # end
 
     @testset "automaticDifferentiation" begin
         gdpc1Data = loadDataset(GDPC1)
         nrouData = loadDataset(NROU)
         seriesVector::Vector{TimeArray} = [gdpc1Data, nrouData]
-        mergedTimeArray = Sarimax.merge(seriesVector)
+        mergedTimeArray = SARIMAX.merge(seriesVector)
 
         @test_throws AssertionError automaticDifferentiation(
             mergedTimeArray;
@@ -196,22 +196,22 @@
         # Create Dataframe with constant values and one date column
         df = DataFrame(date = Date(2020, 1, 1):Day(1):Date(2020, 1, 10), value = ones(10))
         dataset = loadDataset(df)
-        @test Sarimax.isConstant(dataset) == true
+        @test SARIMAX.isConstant(dataset) == true
 
         # Add a new column with different values
         df[!, "newCol"] = [ones(5); 2 * ones(5)]
         dataset = loadDataset(df)
 
-        @test Sarimax.isConstant(dataset) == true
+        @test SARIMAX.isConstant(dataset) == true
 
         df.value = [ones(5); 2 * ones(5)]
         dataset = loadDataset(df)
 
-        @test Sarimax.isConstant(dataset) == false
+        @test SARIMAX.isConstant(dataset) == false
     end
 
     @testset "logLikelihood and loglike" begin
-        mutable struct TestModelUtil <: Sarimax.SarimaxModel end
+        mutable struct TestModelUtil <: SARIMAX.SarimaxModel end
 
         @test_throws MissingMethodImplementation loglikelihood(TestModelUtil())
         @test_throws MissingMethodImplementation loglike(TestModelUtil())
@@ -232,65 +232,65 @@
     @testset "identifyOutliers Tests" begin
         # Basic test with no outliers
         data1 = [1.0, 2.0, 3.0, 4.0, 5.0]
-        @test Sarimax.identifyOutliers(data1) == [false, false, false, false, false]
+        @test SARIMAX.identifyOutliers(data1) == [false, false, false, false, false]
 
         # Test with a single outlier
         data2 = [1.0, 2.0, 3.0, 100.0]
-        @test Sarimax.identifyOutliers(data2) == [false, false, false, true]
+        @test SARIMAX.identifyOutliers(data2) == [false, false, false, true]
 
         # Test with multiple outliers
         data3 = [1.0, 2.0, 3.0, 100.0, -50.0]
-        @test Sarimax.identifyOutliers(data3) == [false, false, false, true, true]
+        @test SARIMAX.identifyOutliers(data3) == [false, false, false, true, true]
 
         # Test with a different threshold
         data4 = [1.0, 2.0, 3.0, 20, -10.0]
-        @test Sarimax.identifyOutliers(data4, "iqr", 10.0) == [false, false, false, false, false]  # Higher threshold, no outliers
+        @test SARIMAX.identifyOutliers(data4, "iqr", 10.0) == [false, false, false, false, false]  # Higher threshold, no outliers
 
         # Test with an empty vector
         data5 = Float64[]
-        @test Sarimax.identifyOutliers(data5) == Bool[]
+        @test SARIMAX.identifyOutliers(data5) == Bool[]
 
         # Test with identical values (no outliers expected)
         data6 = fill(5.0, 10)
-        @test Sarimax.identifyOutliers(data6) == fill(false, 10)
+        @test SARIMAX.identifyOutliers(data6) == fill(false, 10)
 
         # Test invalid method
-        @test_throws ArgumentError Sarimax.identifyOutliers([1.0, 2.0, 3.0], "unknown")
+        @test_throws ArgumentError SARIMAX.identifyOutliers([1.0, 2.0, 3.0], "unknown")
     end
 
     @testset "createOutliersDummies Tests" begin
         # Test with no outliers
         outliers1 = falses(5)
-        df1 = Sarimax.createOutliersDummies(outliers1)
+        df1 = SARIMAX.createOutliersDummies(outliers1)
         @test size(df1, 2) == 0  # No columns should be created
 
         # Test with a single outlier
         outliers2 = falses(5)
         outliers2[3] = true
-        df2 = Sarimax.createOutliersDummies(outliers2)
+        df2 = SARIMAX.createOutliersDummies(outliers2)
         @test size(df2, 2) == 1  # One column should be created
         @test df2[!, "outlier_3"] == [0, 0, 1, 0, 0]
 
         # Test with multiple outliers
         outliers3::BitVector = [true, false, true, false, true]
-        df3 = Sarimax.createOutliersDummies(outliers3)
+        df3 = SARIMAX.createOutliersDummies(outliers3)
         @test size(df3, 2) == 3  # Three columns should be created
         @test df3[!, "outlier_1"] == [1, 0, 0, 0, 0]
         @test df3[!, "outlier_3"] == [0, 0, 1, 0, 0]
         @test df3[!, "outlier_5"] == [0, 0, 0, 0, 1]
 
         # Test with initial offset
-        df4 = Sarimax.createOutliersDummies(outliers2, 1)
+        df4 = SARIMAX.createOutliersDummies(outliers2, 1)
         @test size(df4, 1) == 6  # One extra row due to offset
         @test df4[!, "outlier_3"] == [0, 0, 0, 1, 0, 0]
 
         # Test with end offset
-        df5 = Sarimax.createOutliersDummies(outliers2, 0, 1)
+        df5 = SARIMAX.createOutliersDummies(outliers2, 0, 1)
         @test size(df5, 1) == 6  # One extra row due to offset
         @test df5[!, "outlier_3"] == [0, 0, 1, 0, 0, 0]
 
         # Test with both initial and end offsets
-        df6 = Sarimax.createOutliersDummies(outliers2, 2, 2)
+        df6 = SARIMAX.createOutliersDummies(outliers2, 2, 2)
         @test size(df6, 1) == 9  # Two extra rows at start and end
         @test df6[!, "outlier_3"] == [0, 0, 0, 0, 1, 0, 0, 0, 0]
     end

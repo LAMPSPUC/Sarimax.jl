@@ -3,19 +3,19 @@
         # Test case for copying TimeArray
         @testset "Test Copy TimeArray" begin
             timeArray = loadDataset(NROU)
-            copyTimeArray = copy(timeArray)
-            @test timeArray != copyTimeArray
-            @test timestamp(timeArray) == timestamp(copyTimeArray)
-            @test values(timeArray) == values(copyTimeArray)
+            copiedArray = copyTimeArray(timeArray)
+            @test timeArray != copiedArray
+            @test timestamp(timeArray) == timestamp(copiedArray)
+            @test values(timeArray) == values(copiedArray)
         end
 
         # Test case for deepcopying TimeArray
         @testset "Test DeepCopy TimeArray" begin
             timeArray = loadDataset(NROU)
-            deepcopyTimeArray = deepcopy(timeArray)
-            @test timeArray != deepcopyTimeArray
-            @test timestamp(timeArray) == timestamp(deepcopyTimeArray)
-            @test values(timeArray) == values(deepcopyTimeArray)
+            deepCopiedArray = deepcopyTimeArray(timeArray)
+            @test timeArray != deepCopiedArray
+            @test timestamp(timeArray) == timestamp(deepCopiedArray)
+            @test values(timeArray) == values(deepCopiedArray)
         end
 
     end

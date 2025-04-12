@@ -1,50 +1,50 @@
 """
-    TimeSeries.copy(y::TimeSeries.TimeArray)
+    copyTimeArray(y::TimeSeries.TimeArray)
 
 Create a shallow copy of a TimeArray object.
 
-This function creates a new TimeArray object with copies of the timestamp and values
-from the input TimeArray. The copy is shallow, meaning that the internal structures
-are not recursively copied.
+This function creates a new TimeArray with copies of the timestamp and values
+from the original TimeArray. The new TimeArray is independent of the original,
+but the elements themselves are not deeply copied.
 
 # Arguments
-- `y::TimeSeries.TimeArray`: The TimeArray object to be copied.
+- `y::TimeSeries.TimeArray`: The TimeArray to copy.
 
 # Returns
-- `TimeArray`: A new TimeArray object with copied timestamp and values.
+- `TimeSeries.TimeArray`: A new TimeArray with copies of the timestamp and values.
 
 # Examples
 ```julia
 original = TimeArray(Date.(2021:2023), [1, 2, 3])
-copied = copy(original)
+copied = copyTimeArray(original)
 ```
 """
-function TimeSeries.copy(y::TimeSeries.TimeArray)
+function copyTimeArray(y::TimeSeries.TimeArray)
     return TimeArray(copy(timestamp(y)), copy(values(y)))
 end
 
 """
-    TimeSeries.deepcopy(y::TimeSeries.TimeArray)
+    deepcopyTimeArray(y::TimeSeries.TimeArray)
 
 Create a deep copy of a TimeArray object.
 
-This function creates a new TimeArray object with deep copies of the timestamp and values
-from the input TimeArray. The copy is deep, meaning that the internal structures
-are recursively copied.
+This function creates a new TimeArray with deep copies of the timestamp and values
+from the original TimeArray. The new TimeArray and all its elements are completely
+independent of the original.
 
 # Arguments
-- `y::TimeSeries.TimeArray`: The TimeArray object to be copied.
+- `y::TimeSeries.TimeArray`: The TimeArray to deep copy.
 
 # Returns
-- `TimeArray`: A new TimeArray object with deep copied timestamp and values.
+- `TimeSeries.TimeArray`: A new TimeArray with deep copies of the timestamp and values.
 
 # Examples
 ```julia
 original = TimeArray(Date.(2021:2023), [1, 2, 3])
-deepCopied = deepcopy(original)
+deepCopied = deepcopyTimeArray(original)
 ```
 """
-function TimeSeries.deepcopy(y::TimeSeries.TimeArray)
+function deepcopyTimeArray(y::TimeSeries.TimeArray)
     return TimeArray(deepcopy(timestamp(y)), deepcopy(values(y)))
 end
 

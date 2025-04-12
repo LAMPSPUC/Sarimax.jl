@@ -20,7 +20,7 @@ For more information, see the documentation of individual functions and types.
 module SARIMAX
 
 
-import Base: show, print, copy, deepcopy, showerror
+import Base: show, print, showerror
 
 using Alpine
 using Combinatorics
@@ -74,7 +74,8 @@ export Datasets
 export automaticDifferentiation
 export splitTrainTest
 export print
-export copy
+export copyTimeArray
+export deepcopyTimeArray
 export fit!
 export predict!
 export SARIMA

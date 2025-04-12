@@ -130,6 +130,6 @@ SARIMAX.print
 ```
 
 ```@docs
-TimeSeries.copy(y::TimeSeries.TimeArray)
-TimeSeries.deepcopy(y::TimeSeries.TimeArray)
+SARIMAX.copyTimeArray(y::TimeSeries.TimeArray)
+SARIMAX.deepcopyTimeArray(y::TimeSeries.TimeArray)
 ```

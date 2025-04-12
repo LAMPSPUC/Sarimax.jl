@@ -1771,7 +1771,7 @@ function computeModelsICOffset(
         )
     end
     fit!(model)
-    llk_offset = SARIMAX.loglike(model)
+    llk_offset = Sarimax.loglike(model)
     offset = -2 * llk_offset - length(model.y) * log(model.σ²)
     return offset
 end
@@ -1809,9 +1809,9 @@ function detectOutliers(
     showLogs::Bool,
 )
     if D == 0
-        model = SARIMAX.SARIMA(y, exog, 0, d, 0; allowMean = true)
+        model = Sarimax.SARIMA(y, exog, 0, d, 0; allowMean = true)
     else
-        model = SARIMAX.SARIMA(
+        model = Sarimax.SARIMA(
             y,
             exog,
             0,
@@ -1863,7 +1863,7 @@ function detectOutliers(
         dummyDataFrame[!, :date] = copy(filterExogTimestamps)
         dummyTimeArray = TimeArray(dummyDataFrame, timestamp = :date)
         mergeVector::Vector{TimeArray} = [exog, dummyTimeArray]
-        exog = SARIMAX.merge(mergeVector)
+        exog = Sarimax.merge(mergeVector)
     end
 
     return exog

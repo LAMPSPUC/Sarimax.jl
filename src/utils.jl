@@ -171,7 +171,7 @@ function selectSeasonalIntegrationOrder(
                 return StateSpaceModels.seasonal_strength_test(y, seasonality)
             end
 
-            return SARIMAX.seasonal_diffs(y, seasonality)
+            return Sarimax.seasonal_diffs(y, seasonality)
         catch e
             println(e)
             throw(
@@ -188,7 +188,7 @@ function selectSeasonalIntegrationOrder(
                 @warn "Using the 'seas' test instead."
                 return StateSpaceModels.seasonal_strength_test(y, seasonality)
             end
-            return SARIMAX.seasonal_diffsR(y, seasonality)
+            return Sarimax.seasonal_diffsR(y, seasonality)
         catch e
             println(e)
             throw(
@@ -238,7 +238,7 @@ function selectIntegrationOrder(
                 return StateSpaceModels.repeated_kpss_test(y, maxd, D, seasonality)
             end
 
-            return SARIMAX.kpssR(y, maxd, D, seasonality)
+            return Sarimax.kpssR(y, maxd, D, seasonality)
         catch e
             println(e)
             throw(
@@ -305,7 +305,7 @@ function automaticDifferentiation(
         end
 
         # Identify integration order
-        integrationOrder = SARIMAX.selectIntegrationOrder(
+        integrationOrder = Sarimax.selectIntegrationOrder(
             values(y),
             maxd,
             seasonalIntegrationOrder,

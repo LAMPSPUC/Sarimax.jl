@@ -1,19 +1,19 @@
-[build-img]: https://github.com/LAMPSPUC/SARIMAX.jl/actions/workflows/ci.yml/badge.svg?branch=master
-[build-url]: https://github.com/LAMPSPUC/SARIMAX.jl/actions/workflows/ci.yml
+[build-img]: https://github.com/LAMPSPUC/Sarimax.jl/actions/workflows/ci.yml/badge.svg?branch=master
+[build-url]: https://github.com/LAMPSPUC/Sarimax.jl/actions/workflows/ci.yml
 
-[codecov-img]: https://codecov.io/gh/LAMPSPUC/SARIMAX.jl/branch/master/graph/badge.svg?token=6Zhd8Jiub3
-[codecov-url]: https://codecov.io/github/LAMPSPUC/SARIMAX.jl
+[codecov-img]: https://codecov.io/gh/LAMPSPUC/Sarimax.jl/branch/master/graph/badge.svg?token=6Zhd8Jiub3
+[codecov-url]: https://codecov.io/github/LAMPSPUC/Sarimax.jl
 
 [docs-img]: https://img.shields.io/badge/docs-latest-blue.svg
-[docs-url]: https://lampspuc.github.io/SARIMAX.jl/dev/
+[docs-url]: https://lampspuc.github.io/Sarimax.jl/dev/
 
-# SARIMAX.jl
+# Sarimax.jl
 
 | **Build Status** | **Coverage** | **Documentation** |
 |:-----------------:|:-----------------:|:-----------------:|
 | [![Build Status][build-img]][build-url] | [![codecov][codecov-img]][codecov-url]| [![docs][docs-img]][docs-url] |
 
-Introducing SARIMAX.jl, a groundbreaking Julia package that redefines SARIMA (Seasonal Autoregressive Integrated Moving Average) modeling by seamlessly integrating the JuMP framework — a powerful optimization modeling language. Unlike traditional SARIMA methods, SARIMAX.jl leverages the optimization capabilities of JuMP, allowing for precise and customizable SARIMA models.
+Introducing Sarimax.jl, a groundbreaking Julia package that redefines SARIMA (Seasonal Autoregressive Integrated Moving Average) modeling by seamlessly integrating the JuMP framework — a powerful optimization modeling language. Unlike traditional SARIMA methods, Sarimax.jl leverages the optimization capabilities of JuMP, allowing for precise and customizable SARIMA models.
 
 ## Index
 * [Features](#features)
@@ -45,8 +45,8 @@ Since it shows variation that increases with the level of the series, a logarith
 
 ```julia
 import Pkg
-Pkg.add(url = "https://github.com/LAMPSPUC/SARIMAX.jl")
-using SARIMAX
+Pkg.add(url = "https://github.com/LAMPSPUC/Sarimax.jl")
+using Sarimax
 airp = loadDataset(AIR_PASSENGERS)
 airp_log = log.(airp)
 ```

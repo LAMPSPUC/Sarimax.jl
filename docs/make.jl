@@ -1,16 +1,16 @@
 using Documenter
 using TimeSeries
-include("../src/SARIMAX.jl")
+include("../src/Sarimax.jl")
 
-# DocMeta.setdocmeta!(SARIMAX, :DocTestSetup, :(using ..SARIMAX); recursive=true)
+# DocMeta.setdocmeta!(Sarimax, :DocTestSetup, :(using ..Sarimax); recursive=true)
 
 makedocs(;
-    modules=[SARIMAX],
+    modules=[Sarimax],
     doctest=false,
     clean=true,
     checkdocs=:none,
     format=Documenter.HTML(; mathengine=Documenter.MathJax2()),
-    sitename="SARIMAX.jl",
+    sitename="Sarimax.jl",
     authors="Luiz Fernando Duarte",
     pages=[
         "Home" => "index.md",
@@ -19,4 +19,4 @@ makedocs(;
     ],
 )
 
-deploydocs(; repo="github.com/LAMPSPUC/SARIMAX.jl.git", push_preview=true)
+deploydocs(; repo="github.com/LAMPSPUC/Sarimax.jl.git", push_preview=true)

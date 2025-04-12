@@ -1,7 +1,7 @@
 using CSV
 using DataFrames
 using Dates
-using SARIMAX
+using Sarimax
 using Statistics
 using Test
 using Random

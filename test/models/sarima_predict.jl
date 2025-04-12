@@ -89,9 +89,9 @@ end
         ARseries = generateARseries(2, 12, ARcoeff, seasCoeff, trend, 1234, false)
         trainingSet, testingSet = splitTrainTest(ARseries)
         modelMSE = SARIMA(trainingSet, 2, 1, 0; seasonality = 12, P = 1, D = 0, Q = 0)
-        SARIMAX.fit!(modelMSE)
+        Sarimax.fit!(modelMSE)
         print(modelMSE)
-        forecastMSE = SARIMAX.predict!(modelMSE; stepsAhead = length(testingSet))
+        forecastMSE = Sarimax.predict!(modelMSE; stepsAhead = length(testingSet))
         maeMSE = MAE(testingSet, forecastMSE)
         mapeMSE = MAPE(testingSet, forecastMSE)
         @test maeMSE ≈ 0 atol = 1e-3
@@ -101,9 +101,9 @@ end
         seriesSin = generateSeries(0, 12, 0, 0, 1234, false)
         trainingSin, testingSin = splitTrainTest(seriesSin)
         modelSin = SARIMA(trainingSin, 0, 0, 0; seasonality = 12, P = 1, D = 0, Q = 0)
-        SARIMAX.fit!(modelSin)
+        Sarimax.fit!(modelSin)
         print(modelSin)
-        forecastSin = SARIMAX.predict!(modelSin; stepsAhead = length(testingSet))
+        forecastSin = Sarimax.predict!(modelSin; stepsAhead = length(testingSet))
         maeSin = MAE(testingSin, forecastSin)
         @test maeSin ≈ 0 atol = 1e-3
     end
@@ -115,14 +115,14 @@ end
         trend = 0.1
         ARseries = generateARseries(2, 12, ARcoeff, seasCoeff, trend, 1234, false)
         trainingSet, testingSet = splitTrainTest(ARseries)
-        modelAuto = SARIMAX.auto(
+        modelAuto = Sarimax.auto(
             trainingSet;
             seasonality = 12,
             objectiveFunction = "mse",
             allowMean = false,
             allowDrift = true,
         )
-        forecastAuto = SARIMAX.predict!(modelAuto; stepsAhead = length(testingSet))
+        forecastAuto = Sarimax.predict!(modelAuto; stepsAhead = length(testingSet))
         mapeAuto = MAPE(testingSet, forecastAuto)
         maeAuto = MAE(testingSet, forecastAuto)
         # @test mapeAuto ≈ 0 atol = 1e-3
@@ -132,8 +132,8 @@ end
         seriesARSeas = generateSeries(2, 12, [0.3, 0.2], 0.1, 1234, false)
         trainingARSeas, testingARSeas = splitTrainTest(seriesARSeas)
         modelARSeasAuto =
-            SARIMAX.auto(trainingARSeas; seasonality = 12, objectiveFunction = "mse")
-        forecastARSeasAuto = SARIMAX.predict!(modelARSeasAuto; stepsAhead = 40)
+            Sarimax.auto(trainingARSeas; seasonality = 12, objectiveFunction = "mse")
+        forecastARSeasAuto = Sarimax.predict!(modelARSeasAuto; stepsAhead = 40)
         mapeARSeasAuto = MAPE(testingARSeas, forecastARSeasAuto)
         maeARSeasAuto = MAE(testingARSeas, forecastARSeasAuto)
         @test mapeARSeasAuto ≈ 0 atol = 1e-3
@@ -150,14 +150,14 @@ end
         series = TimeArray(Date(1991, 7, 1):Month(1):Date(2008, 2, 1), y)
         exogSeries = TimeArray(Date(1991, 7, 1):Month(1):Date(2008, 2, 1), exog)
         trainingSet, testingSet = splitTrainTest(series)
-        modelExog = SARIMAX.auto(
+        modelExog = Sarimax.auto(
             trainingSet;
             exog = exogSeries,
             seasonality = 12,
             objectiveFunction = "lasso",
             seasonalIntegrationTest = "ch"
         )
-        forecastExog = SARIMAX.predict!(modelExog; stepsAhead = length(testingSet))
+        forecastExog = Sarimax.predict!(modelExog; stepsAhead = length(testingSet))
         mapeExog = MAPE(testingSet, forecastExog)
         maeExog = MAE(testingSet, forecastExog)
         @test mapeExog ≈ 0 atol = 1e-1

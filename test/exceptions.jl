@@ -1,6 +1,6 @@
 using Test
 
-@testset "SARIMAX Exceptions" begin
+@testset "Sarimax Exceptions" begin
     @testset "ModelNotFitted" begin
         e = ModelNotFitted()
         @test e isa ModelNotFitted

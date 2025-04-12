@@ -1,6 +1,6 @@
 using Test
 using Random
-using SARIMAX
+using Sarimax
 using JSON
 
 @testset "KPSS Test" begin
@@ -8,7 +8,7 @@ using JSON
         # Test with white noise (should be stationary)
         Random.seed!(123)
         stationary_series = randn(100)
-        result = SARIMAX.kpss_test(stationary_series)
+        result = Sarimax.kpss_test(stationary_series)
         @test haskey(result, "test_statistic")
         @test haskey(result, "p_value")
         @test haskey(result, "critical_values")
@@ -17,13 +17,13 @@ using JSON
 
         # Test with random walk (should be non-stationary)
         random_walk = cumsum(randn(100))
-        result = SARIMAX.kpss_test(random_walk)
+        result = Sarimax.kpss_test(random_walk)
         @test result["test_statistic"] < result["critical_values"][0.05]  # Should be non-stationary
 
         # Test with trend stationary series
         t = 1:100
         trend_stationary = 0.1 .* t .+ randn(100)
-        result = SARIMAX.kpss_test(trend_stationary, regression=:ct)
+        result = Sarimax.kpss_test(trend_stationary, regression=:ct)
         @test result["test_statistic"] < result["critical_values"][0.05]  # Should be trend stationary
     end
 
@@ -32,15 +32,15 @@ using JSON
         data = randn(100)
 
         # Test Float64
-        result64 = SARIMAX.kpss_test(Float64.(data))
+        result64 = Sarimax.kpss_test(Float64.(data))
         @test eltype(Float64.(data)) == Float64
 
         # Test Float32
-        result32 = SARIMAX.kpss_test(Float32.(data))
+        result32 = Sarimax.kpss_test(Float32.(data))
         @test eltype(Float32.(data)) == Float32
 
         # Test BigFloat
-        resultbig = SARIMAX.kpss_test(BigFloat.(data))
+        resultbig = Sarimax.kpss_test(BigFloat.(data))
         @test eltype(BigFloat.(data)) == BigFloat
 
         # Results should be approximately equal across types
@@ -53,17 +53,17 @@ using JSON
         data = randn(100)
 
         # Test constant (:c) regression
-        result_c = SARIMAX.kpss_test(data, regression=:c)
+        result_c = Sarimax.kpss_test(data, regression=:c)
         @test haskey(result_c["critical_values"], 0.10)
         @test result_c["critical_values"][0.05] ≈ 0.463 atol=5e-3
 
         # Test trend (:ct) regression
-        result_ct = SARIMAX.kpss_test(data, regression=:ct)
+        result_ct = Sarimax.kpss_test(data, regression=:ct)
         @test haskey(result_ct["critical_values"], 0.10)
         @test result_ct["critical_values"][0.05] ≈ 0.146 atol=5e-3
 
         # Test invalid regression type
-        @test_throws ArgumentError SARIMAX.kpss_test(data, regression=:invalid)
+        @test_throws ArgumentError Sarimax.kpss_test(data, regression=:invalid)
     end
 
     @testset "Lag Selection" begin
@@ -71,16 +71,16 @@ using JSON
         data = randn(100)
 
         # Test legacy lag selection
-        result_legacy = SARIMAX.kpss_test(data, nlags=:legacy)
+        result_legacy = Sarimax.kpss_test(data, nlags=:legacy)
         @test result_legacy["lags"] == min(Int(ceil(12.0 * (100/100.0)^0.25)), 99)
 
         # Test custom lag
-        result_custom = SARIMAX.kpss_test(data, nlags=5)
+        result_custom = Sarimax.kpss_test(data, nlags=5)
         @test result_custom["lags"] == 5
 
         # Test invalid lag values
-        @test_throws ArgumentError SARIMAX.kpss_test(data, nlags=:invalid)
-        @test_throws ArgumentError SARIMAX.kpss_test(data, nlags=100)  # >= n
+        @test_throws ArgumentError Sarimax.kpss_test(data, nlags=:invalid)
+        @test_throws ArgumentError Sarimax.kpss_test(data, nlags=100)  # >= n
     end
 
     @testset "Comparison with Python statsmodels" begin
@@ -96,7 +96,7 @@ using JSON
             @testset "Stationary Series" begin
                 for (series_name, series_data) in stationary_series
                     python_results = kpss_results[series_name]
-                    julia_results = SARIMAX.kpss_test(series_data, regression=:c, nlags=:legacy)
+                    julia_results = Sarimax.kpss_test(series_data, regression=:c, nlags=:legacy)
 
                     @test isapprox(julia_results["test_statistic"],
                                   python_results["KPSS Statistic"],
@@ -108,7 +108,7 @@ using JSON
             @testset "Non-stationary Series" begin
                 for (series_name, series_data) in nonstationary_series
                     python_results = kpss_results[series_name]
-                    julia_results = SARIMAX.kpss_test(series_data, regression=:c, nlags=:legacy)
+                    julia_results = Sarimax.kpss_test(series_data, regression=:c, nlags=:legacy)
 
                     @test isapprox(julia_results["test_statistic"],
                                   python_results["KPSS Statistic"],
@@ -122,7 +122,7 @@ using JSON
             @testset "Stationary Series" begin
                 for (series_name, series_data) in stationary_series
                     python_results = kpss_results[series_name]
-                    julia_results = SARIMAX.kpss_test(series_data, regression=:c, nlags=:legacy)
+                    julia_results = Sarimax.kpss_test(series_data, regression=:c, nlags=:legacy)
 
                     @test isapprox(julia_results["p_value"],
                                   python_results["p-value"],
@@ -133,7 +133,7 @@ using JSON
             @testset "Non-stationary Series" begin
                 for (series_name, series_data) in nonstationary_series
                     python_results = kpss_results[series_name]
-                    julia_results = SARIMAX.kpss_test(series_data, regression=:c, nlags=:legacy)
+                    julia_results = Sarimax.kpss_test(series_data, regression=:c, nlags=:legacy)
 
                     @test isapprox(julia_results["p_value"],
                                   python_results["p-value"],
@@ -146,7 +146,7 @@ using JSON
             # Critical values should be the same for all series when regression=:c
             series_name, series_data = first(kpss_time_series)
             python_results = kpss_results[series_name]
-            julia_results = SARIMAX.kpss_test(series_data, regression=:c)
+            julia_results = Sarimax.kpss_test(series_data, regression=:c)
 
             # Convert Python's percentage strings to our decimal format
             python_crit = Dict(

@@ -4,7 +4,7 @@
 Check if a given `SarimaxModel` type has the `fit!` method implemented.
 
 # Arguments
-- `modelType::Type{<:SarimaxModel}`: Type of the SARIMAX model to check.
+- `modelType::Type{<:SarimaxModel}`: Type of the Sarimax model to check.
 
 # Returns
 A boolean indicating whether the `fit!` method is implemented for the specified model type.
@@ -21,7 +21,7 @@ end
 Checks if a given `SarimaxModel` type has methods related to hyperparameters.
 
 # Arguments
-- `modelType::Type{<:SarimaxModel}`: Type of the SARIMAX model to check.
+- `modelType::Type{<:SarimaxModel}`: Type of the Sarimax model to check.
 
 # Returns
 A boolean indicating whether the hyperparameter-related methods are implemented for the specified model type.
@@ -88,10 +88,10 @@ end
 """
     aic(model::SarimaxModel; offset::Fl) -> Fl where Fl<:AbstractFloat
 
-Calculate the Akaike Information Criterion (AIC) for a SARIMAX model.
+Calculate the Akaike Information Criterion (AIC) for a Sarimax model.
 
 # Arguments
-- `model::SarimaxModel`: The SARIMAX model for which AIC is calculated.
+- `model::SarimaxModel`: The Sarimax model for which AIC is calculated.
 - `offset::Fl=0.0`: Offset value to be added to the AIC value.
 
 # Returns
@@ -104,7 +104,7 @@ The AIC value calculated using the number of parameters and log-likelihood value
 function aic(model::SarimaxModel; offset::Fl = 0.0) where {Fl<:AbstractFloat}
     !hasHyperparametersMethods(typeof(model)) &&
         throw(MissingMethodImplementation("getHyperparametersNumber"))
-    K = SARIMAX.getHyperparametersNumber(model)
+    K = Sarimax.getHyperparametersNumber(model)
     # T = length(model.ϵ)
     # return aic(K, loglike(model))
     # offset = -2 * loglike(model) - length(model.y) * log(model.σ²)
@@ -116,10 +116,10 @@ end
 """
     aicc(model::SarimaxModel; offset::Fl) -> Fl where Fl<:AbstractFloat
 
-Calculate the Corrected Akaike Information Criterion (AICc) for a SARIMAX model.
+Calculate the Corrected Akaike Information Criterion (AICc) for a Sarimax model.
 
 # Arguments
-- `model::SarimaxModel`: The SARIMAX model for which AICc is calculated.
+- `model::SarimaxModel`: The Sarimax model for which AICc is calculated.
 - `offset::Fl=0.0`: Offset value to be added to the AICc value.
 
 # Returns
@@ -142,10 +142,10 @@ end
 """
     bic(model::SarimaxModel; offset::Fl) -> Fl where Fl<:AbstractFloat
 
-Calculate the Bayesian Information Criterion (BIC) for a SARIMAX model.
+Calculate the Bayesian Information Criterion (BIC) for a Sarimax model.
 
 # Arguments
-- `model::SarimaxModel`: The SARIMAX model for which BIC is calculated.
+- `model::SarimaxModel`: The Sarimax model for which BIC is calculated.
 - `offset::Fl=0.0`: Offset value to be added to the BIC value.
 
 # Returns

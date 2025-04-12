@@ -3,16 +3,16 @@
         border-color:#000;border-radius:10px;text-align:center;background-color:#99DDFF;
         color:#000">
     <h3 style="color: black;">Star us on GitHub!</h3>
-    <a class="github-button" href="https://github.com/LAMPSPUC/SARIMAX.jl" data-icon="octicon-star" data-size="large" data-show-count="true" aria-label="Star LAMPSPUC/SARIMAX.jl on GitHub" style="margin:auto">Star</a>
+    <a class="github-button" href="https://github.com/LAMPSPUC/Sarimax.jl" data-icon="octicon-star" data-size="large" data-show-count="true" aria-label="Star LAMPSPUC/Sarimax.jl on GitHub" style="margin:auto">Star</a>
     <script async defer src="https://buttons.github.io/buttons.js"></script>
 </div>
 ```
 
-# SARIMAX.jl Documentation
+# Sarimax.jl Documentation
 
 ## Introduction
 
-SARIMAX.jl is a groundbreaking Julia package that revolutionizes SARIMA (Seasonal Autoregressive Integrated Moving Average) modeling by seamlessly integrating with the JuMP framework — a powerful optimization modeling language. Unlike traditional SARIMA implementations, SARIMAX.jl leverages JuMP's optimization capabilities to provide precise and highly customizable SARIMA models.
+Sarimax.jl is a groundbreaking Julia package that revolutionizes SARIMA (Seasonal Autoregressive Integrated Moving Average) modeling by seamlessly integrating with the JuMP framework — a powerful optimization modeling language. Unlike traditional SARIMA implementations, Sarimax.jl leverages JuMP's optimization capabilities to provide precise and highly customizable SARIMA models.
 
 ### Key Features
 
@@ -21,49 +21,49 @@ SARIMAX.jl is a groundbreaking Julia package that revolutionizes SARIMA (Seasona
   * Maximum Likelihood estimation
   * Bilevel objective function
 * Auto SARIMA model selection
-* Support for exogenous variables (SARIMAX)
+* Support for exogenous variables (Sarimax)
 * Scenario simulation capabilities
 * Time series integration and differentiation
 * Model evaluation criteria (AIC, AICc, BIC)
 
 ## Installation
 
-SARIMAX.jl can be installed using Julia's built-in package manager. From the Julia REPL, type `]` to enter the Pkg REPL mode and run:
+Sarimax.jl can be installed using Julia's built-in package manager. From the Julia REPL, type `]` to enter the Pkg REPL mode and run:
 
 ```julia
-pkg> add SARIMAX
+pkg> add Sarimax
 ```
 
 Or, you can install it by using `Pkg` directly:
 
 ```julia
 using Pkg
-Pkg.add("SARIMAX")
+Pkg.add("Sarimax")
 ```
 
 To use the development version, you can install directly from the GitHub repository:
 
 ```julia
-Pkg.add(url = "https://github.com/LAMPSPUC/SARIMAX.jl.git")
+Pkg.add(url = "https://github.com/LAMPSPUC/Sarimax.jl.git")
 ```
 
 ## Quick Start
 
-To start using SARIMAX.jl, simply import the package:
+To start using Sarimax.jl, simply import the package:
 
 ```julia
-using SARIMAX
+using Sarimax
 ```
 
 Check out our [Tutorial](#tutorial) section for detailed examples of how to use the package.
 
 ## License
 
-SARIMAX.jl is licensed under the [MIT License](https://opensource.org/licenses/MIT). This means you are free to use, modify, and distribute the code, subject to the terms and conditions of the MIT license.
+Sarimax.jl is licensed under the [MIT License](https://opensource.org/licenses/MIT). This means you are free to use, modify, and distribute the code, subject to the terms and conditions of the MIT license.
 
 ## Contributing
 
-Contributions are welcome! If you find a bug or have a feature request, please open an issue on the [GitHub repository](https://github.com/LAMPSPUC/SARIMAX.jl). Pull requests for bug fixes and new features are also appreciated.
+Contributions are welcome! If you find a bug or have a feature request, please open an issue on the [GitHub repository](https://github.com/LAMPSPUC/Sarimax.jl). Pull requests for bug fixes and new features are also appreciated.
 
 For more detailed information about the package functionality, please refer to the following sections:
 

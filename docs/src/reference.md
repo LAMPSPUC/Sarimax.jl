@@ -5,29 +5,29 @@
 ### Structs
 
 ```@docs
-SARIMAX.SARIMAModel
+Sarimax.SARIMAModel
 ```
 
 ### Enums
 
 ```@docs
-SARIMAX.Datasets
+Sarimax.Datasets
 ```
 
 ### Exceptions
 
 ```@docs
-SARIMAX.ModelNotFitted
-SARIMAX.MissingMethodImplementation
-SARIMAX.MissingExogenousData
-SARIMAX.InconsistentDatePattern
-SARIMAX.InvalidParametersCombination
+Sarimax.ModelNotFitted
+Sarimax.MissingMethodImplementation
+Sarimax.MissingExogenousData
+Sarimax.InconsistentDatePattern
+Sarimax.InvalidParametersCombination
 ```
 
 ## Constructors
 
 ```@docs
-SARIMAX.SARIMA(
+Sarimax.SARIMA(
     y::TimeSeries.TimeArray,
     p::Int,
     d::Int,
@@ -42,7 +42,7 @@ SARIMAX.SARIMA(
 ```
 
 ```@docs
-SARIMAX.SARIMA(
+Sarimax.SARIMA(
     y::TimeSeries.TimeArray;
     exog::Union{TimeSeries.TimeArray,Nothing} = nothing,
     arCoefficients::Union{Vector{Fl},Nothing} = nothing,
@@ -61,7 +61,7 @@ SARIMAX.SARIMA(
 ```
 
 ```@docs
-SARIMAX.SARIMA(
+Sarimax.SARIMA(
     y::TimeSeries.TimeArray,
     exog::Union{TimeSeries.TimeArray,Nothing},
     p::Int,
@@ -81,55 +81,55 @@ SARIMAX.SARIMA(
 ### Model Fitting and Prediction
 
 ```@docs
-SARIMAX.fit!
-SARIMAX.predict!
-SARIMAX.auto
-SARIMAX.simulate
+Sarimax.fit!
+Sarimax.predict!
+Sarimax.auto
+Sarimax.simulate
 ```
 
 ### Model Evaluation
 
 ```@docs
-SARIMAX.loglikelihood
-SARIMAX.loglike
-SARIMAX.aic
-SARIMAX.aicc
-SARIMAX.bic
+Sarimax.loglikelihood
+Sarimax.loglike
+Sarimax.aic
+Sarimax.aicc
+Sarimax.bic
 ```
 
 ### Time Series Operations
 
 ```@docs
-SARIMAX.differentiate
-SARIMAX.integrate
-SARIMAX.differentiatedCoefficients
-SARIMAX.toMA
+Sarimax.differentiate
+Sarimax.integrate
+Sarimax.differentiatedCoefficients
+Sarimax.toMA
 ```
 
 ### Dataset and Utility Functions
 
 ```@docs
-SARIMAX.loadDataset
-SARIMAX.splitTrainTest
-SARIMAX.identifyGranularity
-SARIMAX.buildDatetimes
+Sarimax.loadDataset
+Sarimax.splitTrainTest
+Sarimax.identifyGranularity
+Sarimax.buildDatetimes
 ```
 
 ### Model Information
 
 ```@docs
-SARIMAX.hasFitMethods
-SARIMAX.hasHyperparametersMethods
-SARIMAX.getHyperparametersNumber
+Sarimax.hasFitMethods
+Sarimax.hasHyperparametersMethods
+Sarimax.getHyperparametersNumber
 ```
 
 ### Model Manipulation
 
 ```@docs
-SARIMAX.print
+Sarimax.print
 ```
 
 ```@docs
-SARIMAX.copyTimeArray(y::TimeSeries.TimeArray)
-SARIMAX.deepcopyTimeArray(y::TimeSeries.TimeArray)
+Sarimax.copyTimeArray(y::TimeSeries.TimeArray)
+Sarimax.deepcopyTimeArray(y::TimeSeries.TimeArray)
 ```

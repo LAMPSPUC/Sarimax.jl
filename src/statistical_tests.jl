@@ -143,6 +143,95 @@ function kpss_test(y::Vector{Fl}; regression::Symbol=:c, nlags::Union{Symbol,Int
     )
 end
 
+#######
+
+# Generate lagged matrix (like Python _do_lag/_gen_lags)
+function gen_lags(x::Vector{T}, lag::Int) where T <: AbstractFloat
+    n = length(x)
+
+    if lag <= 0
+        return ones(n) * 0
+    end
+
+    if lag == 1
+        return reshape(x, n, 1)
+    end
+    # Each column is x lagged by k (k=1:lag)
+    out::Matrix{T} = ones(n + lag - 1, lag) * NaN
+    for k in 1:lag
+        # out[i: i + n, i] = y
+        out[k: k + n-1, k] = x
+    end
+    # Remove rows with NaN
+    return out[all(.!isnan.(out), dims=2)[:], :]
+end
+
+# --- Helper functions ---
+# Critical value as in Python/R
+function calc_ocsb_crit_val(m::Int) where T <: AbstractFloat
+    log_m = log(m)
+    return  -0.2937411 * exp(
+            -0.2850853 * (log_m - 0.7656451) + (-0.05983644) * (
+                (log_m - 0.7656451)^2
+            )
+        ) - 1.652202
+end
+
+# --- OCSB regression logic ---
+function fit_ocsb(x::Vector{T}, m::Int, lag::Int, max_lag::Int) where T <: AbstractFloat
+    # Step 1: seasonal difference
+    y_seas = Sarimax.differentiate(x, 0, 1, m)
+    if isempty(y_seas)
+        throw(ArgumentError("No samples after seasonal differencing"))
+    end
+
+    # Step 2: regular difference
+    y = Sarimax.differentiate(y_seas, 1, 0, m)
+    # Step 3: lag matrix for y
+    ylag = gen_lags(y, lag)
+    if max_lag > -1
+        y = y[max_lag+1:end]
+    end
+
+    # Step 4: AR fit (with constant)
+    # mf = ylag[: y.shape[0]]
+    mf = ylag[1:length(y), :]
+    X_ar = hcat(ones(length(mf[:,1])), mf)
+    β_ar = X_ar \ y
+
+    pred(A) = A * β_ar
+
+    # Step 5: Z4 (residuals from AR on seasonal diff)
+    z4_y = y_seas[lag+1:end]
+    z4_lag = gen_lags(y_seas, lag)[1:size(z4_y, 1), :]
+    z4_preds = pred(hcat(ones(size(z4_lag, 1)), z4_lag))
+    z4 = z4_y - z4_preds
+
+    # Step 6: Z5 (residuals from AR on regular diff)
+    z5_y = Sarimax.differentiate(x, 1, 0, m)
+    z5_lag = gen_lags(z5_y, lag)
+    z5_y = z5_y[lag+1:end]
+    z5_lag = z5_lag[1:size(z5_y, 1), :]
+    z5_preds = pred(hcat(ones(size(z5_lag, 1)), z5_lag))
+    z5 = z5_y - z5_preds
+
+    #####
+    data = hcat(
+        mf,
+        vec(z4[1:size(mf, 1)]),
+        vec(z5[1:size(mf, 1)]),
+    )
+
+    β_final = data \ y
+
+    residuals = y - data * β_final
+    σ² = sum(residuals.^2) / (length(y) - size(data, 2))
+    covβ = σ² * LinearAlgebra.pinv(data' * data)
+    std_errors = sqrt.(LinearAlgebra.diag(covβ))
+    t_values = β_final ./ std_errors
+    return (t_values[end], sum(residuals.^2), length(y), size(data)[2])
+end
+
 """
     ocsb_test(y::Vector{T}; m::Int=12, lag_method::Symbol=:aic, max_lag::Int=3) where T <: AbstractFloat
 
@@ -168,129 +257,50 @@ function ocsb_test(y::Vector{T}; m::Int=12, lag_method::Symbol=:aic, max_lag::In
     if m <= 1
         throw(ArgumentError("m must be greater than 1"))
     end
-    
     if !(lag_method in [:fixed, :aic, :bic, :aicc])
         throw(ArgumentError("lag_method must be one of [:fixed, :aic, :bic, :aicc]"))
     end
 
-    # Helper function to calculate OCSB critical value
-    function calc_ocsb_crit_val(m::Int)
-        log_m = log(m)
-        return -0.2937411 * exp(-0.2850853 * (log_m - 0.7656451) + 
-               (-0.05983644) * ((log_m - 0.7656451)^2)) - 1.652202
-    end
-
-    # Helper function to create lags
-    function gen_lags(x::Vector{T}, lag::Int) where T <: AbstractFloat
-        n = length(x)
-        if lag == 0
-            return zeros(T, n)
-        end
-        
-        result = Matrix{T}(undef, n - lag, lag)
-        for i in 1:lag
-            result[:, i] = x[lag-i+1:n-i]
-        end
-        return result
-    end
-
-    # Helper function to fit OCSB model
-    function fit_ocsb(x::Vector{T}, m::Int, lag::Int, max_lag::Int) where T <: AbstractFloat
-        # First order seasonal difference
-        y_seasonal_diff = diff(x, m)
-        
-        if isempty(y_seasonal_diff)
-            throw(ArgumentError("No samples after seasonal differencing"))
-        end
-        
-        # Regular difference
-        y = diff(y_seasonal_diff)
-        ylag = gen_lags(y, lag)
-        
-        if max_lag > -1
-            y = y[max_lag+1:end]
-        end
-        
-        # Fit initial model with constant term
-        X = hcat(ones(size(ylag, 1)), ylag)
-        β = X \ y
-        
-        # Create Z4 (seasonal residuals)
-        z4_y = y_seasonal_diff[lag+1:end]
-        z4_lag = gen_lags(y_seasonal_diff, lag)
-        z4_preds = hcat(ones(size(z4_lag, 1)), z4_lag) * β
-        z4 = z4_y - z4_preds
-        
-        # Create Z5 (regular difference residuals)
-        z5_y = diff(x)
-        z5_lag = gen_lags(z5_y, lag)
-        z5_y = z5_y[lag+1:end]
-        z5_preds = hcat(ones(size(z5_lag, 1)), z5_lag) * β
-        z5 = z5_y - z5_preds
-        
-        # Final regression
-        X_final = hcat(ylag, z4[1:size(ylag,1)], z5[1:size(ylag,1)])
-        β_final = X_final \ y
-        
-        # Compute t-values
-        residuals = y - X_final * β_final
-        σ² = sum(residuals.^2) / (length(y) - size(X_final, 2))
-        std_errors = sqrt.(σ² * diag(inv(X_final'X_final)))
-        t_values = β_final ./ std_errors
-        
-        return t_values[end]  # Return t-value for z5 coefficient
-    end
-
-    # Information criteria functions
+    # --- Information criteria ---
     ic_funcs = Dict(
-        :aic => (n, k, rss) -> n * log(rss/n) + 2k,
-        :bic => (n, k, rss) -> n * log(rss/n) + k * log(n),
-        :aicc => (n, k, rss) -> n * log(rss/n) + 2k * (n/(n-k-1))
+        :aic => (n, k, rss) -> n * log(rss / n) + 2 * k,
+        :bic => (n, k, rss) -> n * log(rss / n) + k * log(n),
+        :aicc => (n, k, rss) -> n * log(rss / n) + 2 * k * (n / (n - k - 1))
     )
 
-    # Main test logic
-    crit_val = calc_ocsb_crit_val(m)
-    
-    # Determine optimal lag if not fixed
     if max_lag > 0 && lag_method != :fixed
-        best_lag = 1
-        best_ic = Inf
-        best_stat = nothing
-        
+        fits = []
+        icvals = []
         for lag in 1:max_lag
             try
-                stat = fit_ocsb(y, m, lag, max_lag)
-                
-                # Calculate residuals and IC
-                n = length(y) - max_lag
-                k = lag + 2  # number of parameters including constant and z4,z5
-                rss = sum((diff(y) .- stat).^2)
-                
-                ic = ic_funcs[lag_method](n, k, rss)
-                
-                if ic < best_ic
-                    best_ic = ic
-                    best_lag = lag
-                    best_stat = stat
-                end
-            catch
+                result = fit_ocsb(y, m, lag, max_lag)
+                ic = ic_funcs[lag_method](result[2], result[3], result[4])
+                push!(fits, result[1])
+                push!(icvals, ic)
+            catch e
+                println(e)
+                push!(fits, nothing)
+                push!(icvals, Inf)
                 continue
             end
         end
-        
-        if best_stat === nothing
-            throw(ErrorException("Could not find valid lag order"))
-        end
-        
-        test_stat = best_stat
-    else
-        test_stat = fit_ocsb(y, m, max_lag, max_lag)
+
+        max_lag = argmin(icvals)
+        index_min = findmin(icvals)[2]
+        best_stat = fits[index_min]
     end
-    
-    # Return results
+
+    try
+        result = fit_ocsb(y, m, max_lag, max_lag)
+        best_stat = result[1]
+    catch
+        throw(ErrorException("Could not find a solution. Try a longer "))
+    end
+
+    crit_val = calc_ocsb_crit_val(m)
     return Dict(
-        "test_statistic" => test_stat,
+        "test_statistic" => best_stat,
         "critical_value" => crit_val,
-        "seasonal_difference" => Int(test_stat > crit_val)
+        "seasonal_difference" => Int(best_stat > crit_val)
     )
 end

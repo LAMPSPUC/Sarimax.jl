@@ -2,11 +2,11 @@
 
     @testset "Differentiate" begin
         airPassengers = loadDataset(AIR_PASSENGERS)
-        diff_0_0 = differentiate(airPassengers, 0, 0, 12)
+        diff_0_0 = differentiate(values(airPassengers), 0, 0, 12)
         @test size(diff_0_0) == (204,)
         @test values(diff_0_0) == values(airPassengers)
 
-        diff_1_0 = differentiate(airPassengers, 1, 0, 12)
+        diff_1_0 = differentiate(values(airPassengers), 1, 0, 12)
         @test size(diff_1_0) == (203,)
         @test values(diff_1_0) ==
               [values(airPassengers)[i] - values(airPassengers)[i-1] for i = 2:204]

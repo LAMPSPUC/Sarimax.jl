@@ -1,0 +1,42 @@
+{
+    "stationary_series_1": {
+        "D": 0,
+        "OCSB test statistic": -10.522332369943875
+    },
+    "nonstationary_series_2": {
+        "D": 0,
+        "OCSB test statistic": -12.903449346884171
+    },
+    "stationary_series_3": {
+        "D": 0,
+        "OCSB test statistic": -10.522332369943875
+    },
+    "nonstationary_series_4": {
+        "D": 0,
+        "OCSB test statistic": -3.759686724651314
+    },
+    "stationary_series_5": {
+        "D": 0,
+        "OCSB test statistic": -10.522332369943875
+    },
+    "nonstationary_series_6": {
+        "D": 0,
+        "OCSB test statistic": -12.903449346884171
+    },
+    "stationary_series_7": {
+        "D": 0,
+        "OCSB test statistic": -10.522332369943875
+    },
+    "nonstationary_series_8": {
+        "D": 0,
+        "OCSB test statistic": -3.759686724651314
+    },
+    "stationary_series_9": {
+        "D": 0,
+        "OCSB test statistic": -10.522332369943875
+    },
+    "nonstationary_series_10": {
+        "D": 0,
+        "OCSB test statistic": -12.903449346884171
+    }
+}

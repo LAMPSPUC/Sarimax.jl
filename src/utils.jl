@@ -42,6 +42,37 @@ function differentiate(series::TimeArray, d::Int = 0, D::Int = 0, s::Int = 1)
 end
 
 """
+    differentiate(series::Vector{Fl}, d::Int = 0, D::Int = 0, s::Int = 1) where Fl <: AbstractFloat
+
+Differentiates a vector of values with `d` non-seasonal differences and `D` seasonal differences of period `s`.
+
+# Arguments
+- `series::Vector{Fl}`: The time series data to differentiate.
+- `d::Int=0`: The number of non-seasonal differences to take.
+- `D::Int=0`: The number of seasonal differences to take.
+- `s::Int=1`: The seasonal period for the differences.
+
+# Returns
+A differentiated vector of values.
+
+# Example
+```julia
+# Differentiate a time series with first-order difference and seasonal difference
+diff_values = differentiate(values, 1, 1, 12)
+```
+"""
+function differentiate(series::Vector{Fl}, d::Int = 0, D::Int = 0, s::Int = 1) where Fl <: AbstractFloat
+    coeffs = differentiatedCoefficients(d, D, s, Fl)
+    lenCoeffs = length(coeffs)
+    diffValues::Vector{Fl} = Vector{Fl}()
+    for i = lenCoeffs:length(series)
+        y_diff = coeffs'series[i:-1:i-lenCoeffs+1]
+        push!(diffValues, y_diff)
+    end
+    return diffValues
+end
+
+"""
     differentiatedCoefficients(d::Int, D::Int, s::Int, Fl::DataType=Float64)
 
 Compute the coefficients for differentiating a time series.

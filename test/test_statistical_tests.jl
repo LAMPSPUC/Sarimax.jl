@@ -162,3 +162,49 @@ using JSON
         end
     end
 end
+
+@testset "OCSB Test" begin
+    @testset "Basic Functionality" begin
+        Random.seed!(123)
+        series::Vector{Float32} = randn(100)
+        result = Sarimax.ocsb_test(series;max_lag=0)
+        @test haskey(result, "test_statistic")
+        @test haskey(result, "critical_value")
+        @test haskey(result, "seasonal_difference")
+        @test result["seasonal_difference"] == 0
+    end
+
+    @testset "Test in airpassengers" begin
+        ocsb_datasets = JSON.parsefile(joinpath(@__DIR__, "datasets", "ocsb_results_datasets.json"))
+        airpassengers = loadDataset(AIR_PASSENGERS)
+        ocsb_result = Sarimax.ocsb_test(values(airpassengers);max_lag=3)
+        @test ocsb_result["seasonal_difference"] == ocsb_datasets["airpassengers.csv"]["D"]
+        @test isapprox(ocsb_result["test_statistic"], ocsb_datasets["airpassengers.csv"]["test_stat"], atol=5e-3)
+
+        gdpc1 = loadDataset(GDPC1)
+        ocsb_result = Sarimax.ocsb_test(values(gdpc1);max_lag=3)
+        @test ocsb_result["seasonal_difference"] == ocsb_datasets["GDPC1.csv"]["D"]
+        @test isapprox(ocsb_result["test_statistic"], ocsb_datasets["GDPC1.csv"]["test_stat"], atol=5e-3)
+
+        nrou = loadDataset(NROU)
+        ocsb_result = Sarimax.ocsb_test(values(nrou);max_lag=3)
+        @test ocsb_result["seasonal_difference"] == ocsb_datasets["NROU.csv"]["D"]
+        # @test isapprox(ocsb_result["test_statistic"], ocsb_datasets["NROU.csv"]["test_stat"], atol=5e-3)
+    end
+
+    @testset "Comparison with Python pmdarima" begin
+        ocsb_time_series = JSON.parsefile(joinpath(@__DIR__, "datasets", "ocsb_time_series.json"))
+        ocsb_results = JSON.parsefile(joinpath(@__DIR__, "datasets", "ocsb_results.json"))
+
+        for (series_name, series_data) in ocsb_time_series
+            python_results = ocsb_results[series_name]
+            series::Vector{Float32} = series_data
+            julia_results = Sarimax.ocsb_test(series;max_lag=3)
+
+            @test isapprox(julia_results["test_statistic"],
+                          python_results["OCSB test statistic"],
+                          atol=5e-3)
+            @test julia_results["seasonal_difference"] == python_results["D"]
+        end
+    end
+end

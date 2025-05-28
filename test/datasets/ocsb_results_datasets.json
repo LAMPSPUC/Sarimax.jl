@@ -10,5 +10,9 @@
     "airpassengers.csv": {
         "test_stat": -1.0402140896188212,
         "D": 1
+    },
+    "log_airpassengers.csv": {
+        "test_stat": -3.247584501115398,
+        "D": 0
     }
 }

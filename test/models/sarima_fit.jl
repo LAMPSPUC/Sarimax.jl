@@ -121,7 +121,8 @@ end
             showLogs = true,
         )
 
-        @test modelAutoExog.D != modelAuto.D
+        @test modelAutoExog.D == 0
+        @test modelAuto.D == 0
 
         modelAutoFixedD = auto(
             airPassengersLog;

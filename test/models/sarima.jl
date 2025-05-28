@@ -29,8 +29,8 @@
     @test mean(modeloLog.ϵ) ≈ 0 atol = 1e-1
 
     autoModelML = auto(airPassengersLog; seasonality = 12, objectiveFunction = "ml")
-    @test autoModelML.d == 0 # Output of forecast package in R
-    @test autoModelML.D == 1 # Output of forecast package in R
+    @test autoModelML.d == 1 # Output of forecast package in R
+    @test autoModelML.D == 0 # Output of forecast package in R
 
     simulation = simulate(modeloLog, 10, 301)
     @test length(simulation) == 301

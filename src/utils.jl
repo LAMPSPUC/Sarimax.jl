@@ -194,40 +194,7 @@ function selectSeasonalIntegrationOrder(
     elseif test == "ch"
         return StateSpaceModels.canova_hansen_test(y, seasonality)
     elseif test == "ocsb"
-        try
-            if !("PyCall" ∈ keys(Pkg.project().dependencies))
-                # Warning message
-                @warn "The PyCall package is not installed. Please install it to use the 'ocsb' test."
-                @warn "Using the 'seas' test instead."
-                return StateSpaceModels.seasonal_strength_test(y, seasonality)
-            end
-
-            return Sarimax.seasonal_diffs(y, seasonality)
-        catch e
-            println(e)
-            throw(
-                Error(
-                    "It seems that the pmdarima package is not installed. Please install it to use the 'ocsb' test.",
-                ),
-            )
-        end
-    elseif test == "ocsbR"
-        try
-            if !("RCall" ∈ keys(Pkg.project().dependencies))
-                # Warning message
-                @warn "The RCall package is not installed. Please install it to use the 'ocsbR' test."
-                @warn "Using the 'seas' test instead."
-                return StateSpaceModels.seasonal_strength_test(y, seasonality)
-            end
-            return Sarimax.seasonal_diffsR(y, seasonality)
-        catch e
-            println(e)
-            throw(
-                Error(
-                    "It seems that the R forecast package is not installed. Please install it to use the 'ocsbR' test.",
-                ),
-            )
-        end
+        return ocsb_test(y;m=seasonality)["seasonal_difference"]
     end
     throw(ArgumentError("The test $test is not supported"))
 end
@@ -260,23 +227,13 @@ function selectIntegrationOrder(
 ) where {Fl<:AbstractFloat}
     if test == "kpss"
         return StateSpaceModels.repeated_kpss_test(y, maxd, D, seasonality)
-    elseif test == "kpssR"
-        try
-            if !("RCall" ∈ keys(Pkg.project().dependencies))
-                # Warning message
-                @warn "The RCall package is not installed. Please install it to use the 'kpssR' test."
-                @warn "Using the 'kpss' test instead."
-                return StateSpaceModels.repeated_kpss_test(y, maxd, D, seasonality)
+    elseif test == "kpssSarimax"
+        for d in 0:maxd
+            diffSeries = differentiate(y, d, D, seasonality)
+            result = kpss_test(diffSeries)
+            if result["p_value"] <= 0.05
+                return d
             end
-
-            return Sarimax.kpssR(y, maxd, D, seasonality)
-        catch e
-            println(e)
-            throw(
-                ArgumentError(
-                    "It seems that the R forecast package is not installed. Please install it to use the 'kpssR' test.",
-                ),
-            )
         end
     end
 
@@ -291,7 +248,7 @@ Automatically applies differentiation to each series in a TimeArray.
 # Arguments
 - `series::TimeArray`: The input TimeArray containing the time series data.
 - `seasonalPeriod::Int=1`: The seasonal period of the time series.
-- `seasonalIntegrationTest::String="seas"`: The test used to select the seasonal integration order.
+- `seasonalIntegrationTest::String="ocsb"`: The test used to select the seasonal integration order.
 - `integrationTest::String="kpss"`: The test used to select the integration order.
 - `maxd::Int=2`: The maximum order of differencing to consider.
 
@@ -307,12 +264,12 @@ Throws an AssertionError if invalid test options or seasonal period are provided
 function automaticDifferentiation(
     series::TimeArray;
     seasonalPeriod::Int = 1,
-    seasonalIntegrationTest::String = "seas",
+    seasonalIntegrationTest::String = "ocsb",
     integrationTest::String = "kpss",
     maxd::Int = 2,
 )
     @assert integrationTest ∈ ["kpss"]
-    @assert seasonalIntegrationTest ∈ ["seas", "ch"]
+    @assert seasonalIntegrationTest ∈ ["seas", "ch", "ocsb"]
     @assert seasonalPeriod ≥ 1
 
     diffSeriesVector::Array{TimeArray} = []

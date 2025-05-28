@@ -1365,7 +1365,7 @@ function auto(
     allowMean::Union{Bool,Nothing} = nothing,
     allowDrift::Union{Bool,Nothing} = nothing,
     integrationTest::String = "kpss",
-    seasonalIntegrationTest::String = "seas",
+    seasonalIntegrationTest::String = "ocsb",
     objectiveFunction::String = "mse",
     assertStationarity::Bool = true,
     assertInvertibility::Bool = true,
@@ -1386,8 +1386,8 @@ function auto(
     @assert maxD >= 0
     @assert maxQ >= 0
     @assert informationCriteria ∈ ["aic", "aicc", "bic"]
-    @assert integrationTest ∈ ["kpss", "kpssR"]
-    @assert seasonalIntegrationTest ∈ ["seas", "ch", "ocsb", "ocsbR"]
+    @assert integrationTest ∈ ["kpss"]
+    @assert seasonalIntegrationTest ∈ ["seas", "ch", "ocsb"]
     @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "lasso", "ridge"]
     @assert searchMethod ∈ ["stepwise", "stepwiseNaive", "grid"]
 

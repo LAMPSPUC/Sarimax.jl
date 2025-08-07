@@ -66,6 +66,30 @@ using JSON
         @test_throws ArgumentError Sarimax.kpss_test(data, regression=:invalid)
     end
 
+    @testset "Test in airpassengers" begin
+        kpss_datasets = JSON.parsefile(joinpath(@__DIR__, "datasets", "kpss_results_datasets.json"))
+        airpassengers = loadDataset(AIR_PASSENGERS)
+        kpss_result = Sarimax.kpss_test(values(airpassengers);regression=:c)
+        @test isapprox(kpss_result["test_statistic"], kpss_datasets["airpassengers.csv"]["test_stat"], atol=5e-3)
+        @test kpss_result["p_value"] == kpss_datasets["airpassengers.csv"]["p_value"]
+
+        airpassengersLog = log.(values(airpassengers))
+        kpss_result = Sarimax.kpss_test(airpassengersLog;regression=:c)
+        @test isapprox(kpss_result["test_statistic"], kpss_datasets["log_airpassengers.csv"]["test_stat"], atol=5e-3)
+        @test kpss_result["p_value"] == kpss_datasets["log_airpassengers.csv"]["p_value"]
+
+        gdpc1 = loadDataset(GDPC1)
+        kpss_result = Sarimax.kpss_test(values(gdpc1);regression=:c)
+        @test isapprox(kpss_result["test_statistic"], kpss_datasets["GDPC1.csv"]["test_stat"], atol=5e-3)
+        @test kpss_result["p_value"] == kpss_datasets["GDPC1.csv"]["p_value"]
+
+        nrou = loadDataset(NROU)
+        kpss_result = Sarimax.kpss_test(values(nrou);regression=:c)
+        @test isapprox(kpss_result["test_statistic"], kpss_datasets["NROU.csv"]["test_stat"], atol=5e-3)
+        @test kpss_result["p_value"] == kpss_datasets["NROU.csv"]["p_value"]
+    end
+
+
     @testset "Lag Selection" begin
         Random.seed!(123)
         data = randn(100)

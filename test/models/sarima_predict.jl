@@ -155,7 +155,7 @@ end
             exog = exogSeries,
             seasonality = 12,
             objectiveFunction = "lasso",
-            seasonalIntegrationTest = "ch"
+            seasonalIntegrationTest = "ocsb"
         )
         forecastExog = Sarimax.predict!(modelExog; stepsAhead = length(testingSet))
         mapeExog = MAPE(testingSet, forecastExog)

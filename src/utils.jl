@@ -225,16 +225,17 @@ function selectIntegrationOrder(
     seasonality::Int,
     test::String,
 ) where {Fl<:AbstractFloat}
-    if test == "kpss"
+    if test == "kpssStateSpace"
         return StateSpaceModels.repeated_kpss_test(y, maxd, D, seasonality)
-    elseif test == "kpssSarimax"
-        for d in 0:maxd
-            diffSeries = differentiate(y, d, D, seasonality)
+    elseif test == "kpss"
+        for i in 0:maxd
+            diffSeries = differentiate(y, i, D, seasonality)
             result = kpss_test(diffSeries)
-            if result["p_value"] <= 0.05
-                return d
+            if result["p_value"] > 0.05
+                return i
             end
         end
+        return maxd
     end
 
     throw(ArgumentError("The test $test is not supported"))

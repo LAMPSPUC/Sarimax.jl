@@ -40,6 +40,39 @@ function interpolate(x::Vector{T}, y::Vector{T}) where T <: AbstractFloat
     end
 end
 
+"""
+    _kpss_autolag(resids::Vector{T}, nobs::Int) where T <: AbstractFloat
+
+Computes the number of lags for covariance matrix estimation in KPSS test
+using method of Hobijn et al (1998). See also Andrews (1991), Newey & West
+(1994), and Schwert (1989). Assumes Bartlett / Newey-West kernel.
+
+# Arguments
+- `resids::Vector{T}`: Residuals from the KPSS regression
+- `nobs::Int`: Number of observations
+
+# Returns
+- `Int`: Number of lags to use in the KPSS test
+"""
+function _kpss_autolag(resids::Vector{T}, nobs::Int) where T <: AbstractFloat
+    covlags = Int(floor(nobs^(2.0/9.0)))
+    s0 = sum(resids.^2) / nobs
+    s0 = s0 > 0 ? s0 : 1e-5
+    s1 = 0.0
+
+    for i in 1:covlags
+        # Calculate dot product of shifted residuals
+        resids_prod = dot(resids[(i+1):end], resids[1:(nobs-i)])
+        resids_prod /= nobs / 2.0
+        s0 += resids_prod
+        s1 += i * resids_prod
+    end
+
+    s_hat = s1 / s0
+    pwr = 1.0 / 3.0
+    gamma_hat = 1.1447 * (s_hat * s_hat)^pwr
+    return max(Int(floor(gamma_hat * nobs^pwr)),1)
+end
 
 """
     kpss_test(y::Vector{T}; regression::Symbol=:c, nlags::Union{Symbol,Int}=:legacy) where T <: AbstractFloat
@@ -71,7 +104,7 @@ Table 1 of Kwiatkowski et al. (1992).
 - Newey & West (1994). Automatic lag selection in covariance matrix estimation. Review of Economic Studies, 61: 631-653.
 - Schwert (1989). Tests for unit roots: A Monte Carlo investigation. Journal of Business and Economic Statistics, 7(2): 147-159.
 """
-function kpss_test(y::Vector{Fl}; regression::Symbol=:c, nlags::Union{Symbol,Int}=:legacy) where Fl
+function kpss_test(y::Vector{Fl}; regression::Symbol=:c, nlags::Union{Symbol,Int}=:auto) where Fl
     nobs = length(y)
 
     # Set critical values based on regression type
@@ -103,12 +136,15 @@ function kpss_test(y::Vector{Fl}; regression::Symbol=:c, nlags::Union{Symbol,Int
     # Compute number of lags
     if nlags == :legacy
         nlags = min(Int(ceil(12.0 * (nobs/100.0)^0.25)), nobs - 1)
+
+    elseif nlags == :auto
+        nlags = _kpss_autolag(residuals, nobs)
     elseif isa(nlags, Integer)
         if nlags >= nobs
             throw(ArgumentError("nlags must be < number of observations"))
         end
     else
-        throw(ArgumentError("nlags must be :legacy or an integer"))
+        throw(ArgumentError("nlags must be :legacy, :auto or an integer"))
     end
 
     # Compute KPSS test statistic
@@ -116,24 +152,26 @@ function kpss_test(y::Vector{Fl}; regression::Symbol=:c, nlags::Union{Symbol,Int
     eta = sum(partial_sums.^2) / (nobs^2)
 
     # Compute s^2 using Newey-West estimator
-    s2 = var(residuals)  # Initial variance (γ₀)
+    s2 = sum(residuals.^2) # Initial variance (γ₀)
 
     # Add autocovariance terms
     for lag in 1:nlags
         w = 1.0 - lag/(nlags + 1)  # Bartlett kernel weights
-        γₖ = sum(residuals[lag+1:end] .* residuals[1:end-lag]) / nobs
+        γₖ = sum(residuals[lag+1:end] .* residuals[1:end-lag])
         s2 += 2.0 * w * γₖ
     end
 
+    s2 = s2 / nobs
+    
     # Compute test statistic
-    kpss_stat::Float32 = eta / s2
+    kpss_stat::Float64 = (s2 == 0.0) ? 0.0 : eta / s2
 
     # Compute p-value using interpolation
-    crit_vals::Vector{Float32} = [critical_values[0.10], critical_values[0.05], critical_values[0.025], critical_values[0.01]]
-    pvals::Vector{Float32} = [0.10, 0.05, 0.025, 0.01]
+    crit_vals::Vector{Float64} = [critical_values[0.10], critical_values[0.05], critical_values[0.025], critical_values[0.01]]
+    pvals::Vector{Float64} = [0.10, 0.05, 0.025, 0.01]
 
     # compute p-value as kpss_stat evaluated at the interpolation of crit_vals and pvals
-    p_value = interpolate(crit_vals, pvals)(kpss_stat)
+    p_value::Float64 = interpolate(crit_vals, pvals)(kpss_stat)
 
     return Dict(
         "test_statistic" => kpss_stat,

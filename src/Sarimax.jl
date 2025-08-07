@@ -43,11 +43,6 @@ using TimeSeries
 
 abstract type SarimaxModel end
 
-function __init__()
-    @require PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0" include("python_init.jl")
-    @require RCall = "6f49c342-dc21-5d91-9882-a32aef131414" include("r_init.jl")
-end
-
 include("datasets.jl")
 include("datetime_utils.jl")
 include("exceptions.jl")

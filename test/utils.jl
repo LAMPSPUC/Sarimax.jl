@@ -103,25 +103,6 @@
             12,
             "hegy",
         )
-        # TODO: Fix test of PyCall and RCall
-        # @testset "ocsb test without PyCall" begin
-        #     @test Sarimax.selectSeasonalIntegrationOrder(values(airPassengers), 12, "ocsb") == StateSpaceModels.seasonal_strength_test(y, seasonality)
-        # end
-
-        # @testset "ocsbR test without RCall" begin
-        #     @test Sarimax.selectSeasonalIntegrationOrder(values(airPassengers), 12, "ocsbR") == StateSpaceModels.seasonal_strength_test(y, seasonality)
-        # end
-
-        # @testset "ocsb test with PyCall" begin
-        #     # Mock the Pkg.project().dependencies to simulate PyCall being installed
-        #     @test Sarimax.selectSeasonalIntegrationOrder(values(airPassengers), 12, "ocsb") == 1
-        # end
-
-        # @testset "ocsbR test with RCall" begin
-        #     # Mock the Pkg.project().dependencies to simulate RCall being installed
-
-        #     @test Sarimax.selectSeasonalIntegrationOrder(values(airPassengers), 12, "ocsbR") == 1
-        # end
     end
 
     @testset "selectIntegrationOrder" begin

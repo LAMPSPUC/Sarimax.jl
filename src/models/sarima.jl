@@ -973,7 +973,8 @@ function completeCoefficientsVector(model::SARIMAModel)
     ModelFl = typeofModelElements(model)
     maCoefficients = model.θ
     if model.Q > 0
-        maCoefficients = zeros(ModelFl, model.Q * model.seasonality)
+        sizeMA = ( model.Q * model.seasonality > model.q) ? model.Q * model.seasonality : model.q
+        maCoefficients = zeros(ModelFl, sizeMA)
         maCoefficients[1:model.q] = model.θ
         for i = 1:model.Q
             maCoefficients[model.seasonality*i] = model.Θ[i]

@@ -848,18 +848,21 @@ function objectiveFunctionDefinition!(
                     auxVariables[i] >= -parametersVectorExtended[i]
                 end
             )
-            λ = 1 / sqrt(T)
-            @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2) + λ * sum(auxVariables))
+            # Make lambda a model parameter
+            @variable(jumpModel, λ in Parameter(1.0))
+            set_parameter_value(jumpModel[:λ], 1 / sqrt(T))
+            @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2) + jumpModel[:λ] * sum(auxVariables))
         end
     elseif objectiveFunction == "ridge"
         if length(parametersVectorExtended) == 0
             @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
         else
-            λ = 1 / sqrt(T)
+            @variable(jumpModel, λ in Parameter(1.0))
+            set_parameter_value(jumpModel[:λ], 1 / sqrt(T))
             @objective(
                 jumpModel,
                 Min,
-                sum(jumpModel[:ϵ] .^ 2) + λ * sum(parametersVectorExtended .^ 2)
+                sum(jumpModel[:ϵ] .^ 2) + jumpModel[:λ] * sum(parametersVectorExtended .^ 2)
             )
         end
     elseif objectiveFunction == "ml"
@@ -893,7 +896,43 @@ Optimizes the SARIMA model using the specified objective function.
 function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction::String)
     JuMP.optimize!(jumpModel)
 
-    if objectiveFunction == "bilevel"
+    if objectiveFunction == "lasso" || objectiveFunction == "ridge"
+        lambdaPath = getLambdaPath(values(model.y), getHyperparametersNumber(model))
+        # Based on the lambda path, select the best lambda value according to the information
+        # criteria BIC
+        bestLambda = 1
+        best_bic = Inf
+        for i in eachindex(lambdaPath)
+            # set the lambda value
+            set_parameter_value(jumpModel[:λ], lambdaPath[i])
+            JuMP.optimize!(jumpModel)
+
+            # Calculate residuals variance for BIC computation
+            model_variance = computeSARIMAModelVariance(
+                jumpModel,
+                objectiveFunction,
+                getHyperparametersNumber(model),
+                1,
+            )
+
+            # Calculate BIC for this lambda
+            T = length(jumpModel[:ϵ])
+            df = sum(value.(jumpModel[:ϵ]) .!= 0) # Effective degrees of freedom
+            current_bic = T * log(model_variance) + log(T) * df
+            if current_bic < best_bic
+                bestLambda = i
+                best_bic = current_bic
+            end
+            aux_variables = all_variables(jumpModel)
+            aux_solutions = value.(aux_variables)
+            set_start_value.(aux_variables, aux_solutions)
+        end
+        @info "Best lambda value: $(lambdaPath[bestLambda])"
+        @info "Best BIC value: $(best_bic)"
+        set_parameter_value(jumpModel[:λ], lambdaPath[bestLambda])
+        JuMP.optimize!(jumpModel)
+
+    elseif objectiveFunction == "bilevel"
 
         function optimizeMA(coefficients)
             maCoefficients = coefficients[1:model.q]
@@ -3817,4 +3856,71 @@ function gridSearch(
         end
     end
     return bestModel
+end
+
+"""
+    getLambdaPath(yValues::Vector{T}, parametersVector::Vector,
+                        nλ::Int=10, λminratio::Union{Nothing,Float64}=nothing) where T <: AbstractFloat
+
+Generates a path of lambda values following the Lasso.jl approach.
+
+# Arguments
+- `yValues`: Vector of response values (differenced time series)
+- `nparameters::Int`: Number of model parameters to be penalized
+- `nλ::Int`: Number of lambda values to try in the path (default: 10)
+- `λminratio::Union{Nothing,Float64}`: Ratio of minimum lambda to maximum lambda (default: 0.0001 for n > p, 0.01 for n ≤ p)
+
+# Returns
+- `Vector{T}`: The path of lambda values
+"""
+function getLambdaPath(yValues::Vector{T}, nparameters::Int;
+                             nλ::Int=10, λminratio::Union{Nothing,Float64}=nothing) where T <: AbstractFloat
+    # Number of observations
+    n = length(yValues)
+
+    # Number of parameters
+    p = nparameters
+
+    # Adjust λminratio based on number of observations vs parameters
+    if isnothing(λminratio)
+        λminratio = n > p ? 0.0001 : 0.01
+    end
+
+    # Calculate mean of series (null model prediction)
+    nullPrediction = mean(yValues)
+
+    # Calculate residuals from null model
+    residuals = yValues .- nullPrediction
+
+    # Create a simple design matrix for AR terms
+    # For time series, we'll use lagged values as predictors
+    X = zeros(T, n-p, p)
+    for i in 1:p
+        for j in 1:(n-p)
+            if j+p-i > 0 && j+p-i <= length(residuals)
+                X[j, i] = residuals[j+p-i]
+            end
+        end
+    end
+
+    # Calculate X'y (correlation between predictors and response)
+    Xy = zeros(T, p)
+    for i in 1:p
+        if p+1 <= length(residuals)
+            Xy[i] = dot(X[:, i], residuals[p+1:end])
+        end
+    end
+
+    # Compute λmax as the maximum absolute correlation
+    λmax = maximum(abs.(Xy)) / n
+
+    # Ensure λmax is not zero
+    if λmax < eps(T)
+        λmax = one(T)
+    end
+
+    # Generate lambda path following Lasso.jl approach
+    logλmax = log(λmax)
+    λpath = exp.(range(logλmax, stop=logλmax + log(λminratio), length=nλ))
+    return λpath
 end

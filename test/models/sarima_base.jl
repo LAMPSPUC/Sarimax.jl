@@ -12,6 +12,10 @@
     @test_throws  Sarimax.InvalidParametersCombination SARIMA(airPassengersLog; seasonalMACoefficients=[0.9])
     @test_throws  Sarimax.InvalidParametersCombination SARIMA(airPassengersLog; exogCoefficients=[0.9])
     @test_throws  Sarimax.InvalidParametersCombination SARIMA(airPassengersLog; exog=airPassengersLog, exogCoefficients=[0.9,0.1,0.3])
+    @test_throws  Sarimax.InvalidParametersCombination SARIMA(airPassengersLog; alpha=-1.0)
+    @test_throws  Sarimax.InvalidParametersCombination SARIMA(airPassengersLog; alpha=10.0)
+    @test_throws  Sarimax.InvalidParametersCombination SARIMA(airPassengersLog; lambda=-1.0)
+
 
     initModel = SARIMA(airPassengersLog; exog=airPassengersLog, seasonalARCoefficients=[0.5], seasonality=12 ,exogCoefficients=[0.5])
     fit!(initModel;automaticExogDifferentiation=true)

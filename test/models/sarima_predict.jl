@@ -154,7 +154,8 @@ end
             trainingSet;
             exog = exogSeries,
             seasonality = 12,
-            objectiveFunction = "lasso",
+            objectiveFunction = "elastic_net",
+            alpha = 1.0,
             seasonalIntegrationTest = "ocsb"
         )
         forecastExog = Sarimax.predict!(modelExog; stepsAhead = length(testingSet))

@@ -26,6 +26,8 @@ The `SARIMAModel` struct represents a SARIMA model. It contains the following fi
 - `allowMean`: Whether to include a mean term in the model.
 - `allowDrift`: Whether to include a drift term in the model.
 - `keepProvidedCoefficients`: Whether to keep the provided coefficients.
+- `lambda`: The regularization strength parameter for lasso, ridge, or elastic net regularization.
+- `alpha`: The mixing parameter for elastic net regularization (0 ≤ alpha ≤ 1). Alpha = 1 is lasso, alpha = 0 is ridge.
 """
 mutable struct SARIMAModel{Fl<:AbstractFloat} <: SarimaxModel
     y::TimeArray
@@ -53,6 +55,8 @@ mutable struct SARIMAModel{Fl<:AbstractFloat} <: SarimaxModel
     allowMean::Bool
     allowDrift::Bool
     keepProvidedCoefficients::Bool
+    lambda::Union{Fl,Nothing}
+    alpha::Union{Fl,Nothing}
     function SARIMAModel{Fl}(
         y::TimeArray,
         p::Int,
@@ -78,6 +82,8 @@ mutable struct SARIMAModel{Fl<:AbstractFloat} <: SarimaxModel
         allowMean::Bool = true,
         allowDrift::Bool = false,
         keepProvidedCoefficients::Bool = false,
+        lambda::Union{Fl,Nothing} = nothing,
+        alpha::Union{Fl,Nothing} = nothing,
     ) where {Fl<:AbstractFloat}
         @assert p >= 0
         @assert d >= 0
@@ -124,6 +130,8 @@ mutable struct SARIMAModel{Fl<:AbstractFloat} <: SarimaxModel
             allowMean,
             allowDrift,
             keepProvidedCoefficients,
+            lambda,
+            alpha,
         )
     end
 end
@@ -219,6 +227,8 @@ function SARIMA(
     silent::Bool = true,
     allowMean::Bool = true,
     allowDrift::Bool = false,
+    lambda::Union{Nothing,<:AbstractFloat} = nothing,
+    alpha::Union{Nothing,<:AbstractFloat} = nothing
 )
     modelFl = eltype(values(y))
     return SARIMAModel{modelFl}(
@@ -233,6 +243,8 @@ function SARIMA(
         silent = silent,
         allowMean = allowMean,
         allowDrift = allowDrift,
+        lambda = lambda,
+        alpha = alpha,
     )
 end
 
@@ -259,20 +271,22 @@ end
 function SARIMA(
     y::TimeArray;
     exog::Union{TimeArray,Nothing} = nothing,
-    arCoefficients::Union{Vector{Fl},Nothing} = nothing,
-    maCoefficients::Union{Vector{Fl},Nothing} = nothing,
-    seasonalARCoefficients::Union{Vector{Fl},Nothing} = nothing,
-    seasonalMACoefficients::Union{Vector{Fl},Nothing} = nothing,
-    mean::Union{Fl,Nothing} = nothing,
-    trend::Union{Fl,Nothing} = nothing,
-    exogCoefficients::Union{Vector{Fl},Nothing} = nothing,
+    arCoefficients::Union{Vector{<:AbstractFloat},Nothing} = nothing,
+    maCoefficients::Union{Vector{<:AbstractFloat},Nothing} = nothing,
+    seasonalARCoefficients::Union{Vector{<:AbstractFloat},Nothing} = nothing,
+    seasonalMACoefficients::Union{Vector{<:AbstractFloat},Nothing} = nothing,
+    mean::Union{<:AbstractFloat,Nothing} = nothing,
+    trend::Union{<:AbstractFloat,Nothing} = nothing,
+    exogCoefficients::Union{Vector{<:AbstractFloat},Nothing} = nothing,
     d::Int = 0,
     D::Int = 0,
     seasonality::Int = 1,
     silent::Bool = true,
     allowMean::Bool = true,
     allowDrift::Bool = false,
-) where {Fl<:AbstractFloat}
+    lambda::Union{<:AbstractFloat,Nothing} = nothing,
+    alpha::Union{<:AbstractFloat,Nothing} = nothing,
+)
 
     if isnothing(arCoefficients) &&
        isnothing(maCoefficients) &&
@@ -310,6 +324,22 @@ function SARIMA(
         )
     end
 
+    if !isnothing(lambda) && lambda < 0
+        throw(
+            InvalidParametersCombination(
+                "The lambda value must be non-negative",
+            ),
+        )
+    end
+
+    if !isnothing(alpha) && (alpha < 0 || alpha > 1)
+        throw(
+            InvalidParametersCombination(
+                "The alpha value must be between 0 and 1",
+            ),
+        )
+    end
+
     p = isnothing(arCoefficients) ? 0 : length(arCoefficients)
     q = isnothing(maCoefficients) ? 0 : length(maCoefficients)
     P = isnothing(seasonalARCoefficients) ? 0 : length(seasonalARCoefficients)
@@ -319,7 +349,8 @@ function SARIMA(
     allowMean = !isnothing(mean) || allowMean
     allowDrift = !isnothing(trend) || allowDrift
 
-    return SARIMAModel{Fl}(
+    modelFl = eltype(values(y))
+    return SARIMAModel{modelFl}(
         y,
         p,
         d,
@@ -340,6 +371,8 @@ function SARIMA(
         allowMean = allowMean,
         allowDrift = allowDrift,
         keepProvidedCoefficients = true,
+        lambda = lambda,
+        alpha = alpha,
     )
 end
 
@@ -373,6 +406,8 @@ function SARIMA(
     silent::Bool = true,
     allowMean::Bool = true,
     allowDrift::Bool = false,
+    lambda::Union{Nothing,<:AbstractFloat} = nothing,
+    alpha::Union{Nothing,<:AbstractFloat} = nothing
 )
     modelFl = eltype(values(y))
     return SARIMAModel{modelFl}(
@@ -388,6 +423,8 @@ function SARIMA(
         silent = silent,
         allowMean = allowMean,
         allowDrift = allowDrift,
+        lambda = lambda,
+        alpha = alpha,
     )
 end
 
@@ -533,11 +570,19 @@ function fit!(
     optimizer::DataType = Ipopt.Optimizer,
     objectiveFunction::String = "mse",
     automaticExogDifferentiation::Bool = false,
+    alpha::Union{Nothing,<:AbstractFloat} = nothing,
+    lambda::Union{Nothing,<:AbstractFloat} = nothing,
 )
     Fl = typeofModelElements(model)
     isFitted(model) &&
         @info("The model has already been fitted. Overwriting the previous results")
-    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "lasso", "ridge"] "The objective function $objectiveFunction is not supported. Please use 'mae', 'mse', 'ml' or 'bilevel'"
+    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net"] "The objective function $objectiveFunction is not supported. Please use 'mae', 'mse', 'ml', 'bilevel' or 'elastic_net'"
+    if objectiveFunction == "elastic_net"
+        @assert (!isnothing(alpha) || !isnothing(model.alpha)) "In elastic net objective function, alpha must be specified"
+    end
+
+    isnothing(lambda) || (model.lambda = lambda)
+    isnothing(alpha) || (model.alpha = alpha)
 
     diffY = differentiate(model.y, model.d, model.D, model.seasonality)
 
@@ -834,10 +879,11 @@ function objectiveFunctionDefinition!(
     elseif objectiveFunction == "bilevel"
         @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
         set_time_limit_sec(jumpModel, 1.0)
-    elseif objectiveFunction == "lasso"
+    elseif objectiveFunction == "elastic_net"
         if length(parametersVectorExtended) == 0
             @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
         else
+            # L1 norm components (for lasso part)
             auxVariables = @variable(jumpModel, [i = 1:length(parametersVectorExtended)])
             @constraints(
                 jumpModel,
@@ -848,21 +894,25 @@ function objectiveFunctionDefinition!(
                     auxVariables[i] >= -parametersVectorExtended[i]
                 end
             )
-            # Make lambda a model parameter
+
+            # Set up lambda and alpha parameters
             @variable(jumpModel, λ in Parameter(1.0))
-            set_parameter_value(jumpModel[:λ], 1 / sqrt(T))
-            @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2) + jumpModel[:λ] * sum(auxVariables))
-        end
-    elseif objectiveFunction == "ridge"
-        if length(parametersVectorExtended) == 0
-            @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
-        else
-            @variable(jumpModel, λ in Parameter(1.0))
-            set_parameter_value(jumpModel[:λ], 1 / sqrt(T))
+            @variable(jumpModel, α in Parameter(0.5))
+
+            # Use model's lambda and alpha if provided, otherwise use defaults
+            lambda_value = isnothing(model.lambda) ? 1 / sqrt(T) : model.lambda
+            alpha_value = isnothing(model.alpha) ? 0.5 : model.alpha
+
+            set_parameter_value(jumpModel[:λ], lambda_value)
+            set_parameter_value(jumpModel[:α], alpha_value)
+
+            # Elastic net objective: MSE + λ * [α * L1 + (1-α) * L2]
             @objective(
                 jumpModel,
                 Min,
-                sum(jumpModel[:ϵ] .^ 2) + jumpModel[:λ] * sum(parametersVectorExtended .^ 2)
+                sum(jumpModel[:ϵ] .^ 2) +
+                jumpModel[:λ] * (jumpModel[:α] * sum(auxVariables) +
+                               (1 - jumpModel[:α]) * sum(parametersVectorExtended .^ 2))
             )
         end
     elseif objectiveFunction == "ml"
@@ -896,7 +946,7 @@ Optimizes the SARIMA model using the specified objective function.
 function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction::String)
     JuMP.optimize!(jumpModel)
 
-    if objectiveFunction == "lasso" || objectiveFunction == "ridge"
+    if objectiveFunction == "elastic_net" && isnothing(model.lambda)
         lambdaPath = getLambdaPath(values(model.y), getHyperparametersNumber(model))
         # Based on the lambda path, select the best lambda value according to the information
         # criteria BIC
@@ -927,8 +977,7 @@ function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction:
             aux_solutions = value.(aux_variables)
             set_start_value.(aux_variables, aux_solutions)
         end
-        @info "Best lambda value: $(lambdaPath[bestLambda])"
-        @info "Best BIC value: $(best_bic)"
+        model.lambda = lambdaPath[bestLambda]
         set_parameter_value(jumpModel[:λ], lambdaPath[bestLambda])
         JuMP.optimize!(jumpModel)
 
@@ -1412,6 +1461,8 @@ function auto(
     showLogs::Bool = false,
     outlierDetection::Bool = false,
     searchMethod::String = "stepwise",
+    lambda::Union{Float64,Nothing} = nothing,
+    alpha::Union{Float64,Nothing} = nothing,
 )
     # Parameter validation
     @assert seasonality >= 1 "seasonality must be greater than 1. Use 1 for non-seasonal models"
@@ -1425,10 +1476,14 @@ function auto(
     @assert maxP >= 0
     @assert maxD >= 0
     @assert maxQ >= 0
+    @assert isnothing(lambda) || (lambda > 0)
+    @assert isnothing(alpha) || (alpha >= 0 && alpha <= 1)
     @assert informationCriteria ∈ ["aic", "aicc", "bic"]
     @assert integrationTest ∈ ["kpss"]
     @assert seasonalIntegrationTest ∈ ["seas", "ch", "ocsb"]
-    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "lasso", "ridge"]
+    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net"]
+    @assert objectiveFunction == "elastic_net" || isnothing(lambda)
+    @assert objectiveFunction == "elastic_net" || isnothing(alpha)
     @assert searchMethod ∈ ["stepwise", "stepwiseNaive", "grid"]
 
     ModelFl = eltype(values(y))
@@ -1558,6 +1613,8 @@ function auto(
             icOffset = offset,
             allowMean = allowMean,
             allowDrift = allowDrift,
+            alpha = alpha,
+            lambda = lambda,
         )
     elseif searchMethod == "stepwiseNaive"
         bestModel = stepWiseSearchNaive(
@@ -1579,7 +1636,9 @@ function auto(
             icOffset = offset,
             allowMean = allowMean,
             allowDrift = allowDrift,
-            fixConstant = fixConstant
+            fixConstant = fixConstant,
+            alpha = alpha,
+            lambda = lambda,
         )
     elseif searchMethod == "grid"
         bestModel = gridSearch(
@@ -1601,6 +1660,8 @@ function auto(
             icOffset = offset,
             allowMean = allowMean,
             allowDrift = allowDrift,
+            alpha = alpha,
+            lambda = lambda,
         )
     end
 
@@ -1947,20 +2008,22 @@ function initialNonSeasonalModels!(
     maxq::Int,
     allowMean::Bool,
     allowDrift::Bool,
+    alpha::Union{Nothing,Float64} = nothing,
+    lambda::Union{Nothing,Float64} = nothing,
 )
-    push!(models, SARIMA(y, exog, 0, d, 0; allowMean = false, allowDrift = false))
-    push!(models, SARIMA(y, exog, 0, d, 0; allowMean = allowMean, allowDrift = allowDrift))
+    push!(models, SARIMA(y, exog, 0, d, 0; allowMean = false, allowDrift = false, alpha = alpha, lambda = lambda))
+    push!(models, SARIMA(y, exog, 0, d, 0; allowMean = allowMean, allowDrift = allowDrift, alpha = alpha, lambda = lambda))
     (maxp >= 1) && push!(
         models,
-        SARIMA(y, exog, 1, d, 0; allowMean = allowMean, allowDrift = allowDrift),
+        SARIMA(y, exog, 1, d, 0; allowMean = allowMean, allowDrift = allowDrift, alpha = alpha, lambda = lambda),
     )
     (maxq >= 1) && push!(
         models,
-        SARIMA(y, exog, 0, d, 1; allowMean = allowMean, allowDrift = allowDrift),
+        SARIMA(y, exog, 0, d, 1; allowMean = allowMean, allowDrift = allowDrift, alpha = alpha, lambda = lambda),
     )
     (maxp >= 2 && maxq >= 2) && push!(
         models,
-        SARIMA(y, exog, 2, d, 2; allowMean = allowMean, allowDrift = allowDrift),
+        SARIMA(y, exog, 2, d, 2; allowMean = allowMean, allowDrift = allowDrift, alpha = alpha, lambda = lambda),
     )
 end
 
@@ -2014,6 +2077,8 @@ function initialSeasonalModels!(
     seasonality::Int,
     allowMean::Bool,
     allowDrift::Bool,
+    alpha::Union{Nothing,Float64} = nothing,
+    lambda::Union{Nothing,Float64} = nothing,
 )
     push!(
         models,
@@ -2029,6 +2094,8 @@ function initialSeasonalModels!(
             Q = 0,
             allowMean = false,
             allowDrift = false,
+            alpha = alpha,
+            lambda = lambda,
         ),
     )
     push!(
@@ -2045,6 +2112,8 @@ function initialSeasonalModels!(
             Q = 0,
             allowMean = allowMean,
             allowDrift = allowDrift,
+            alpha = alpha,
+            lambda = lambda,
         ),
     )
 
@@ -2063,6 +2132,8 @@ function initialSeasonalModels!(
             Q = 0,
             allowMean = allowMean,
             allowDrift = allowDrift,
+            alpha = alpha,
+            lambda = lambda,
         ),
     )
     (maxq >= 1) && push!(
@@ -2079,6 +2150,8 @@ function initialSeasonalModels!(
             Q = 0,
             allowMean = allowMean,
             allowDrift = allowDrift,
+            alpha = alpha,
+            lambda = lambda,
         ),
     )
     (maxp >= 2 && maxq >= 2) && push!(
@@ -2095,6 +2168,8 @@ function initialSeasonalModels!(
             Q = 0,
             allowMean = allowMean,
             allowDrift = allowDrift,
+            alpha = alpha,
+            lambda = lambda,
         ),
     )
 
@@ -2113,6 +2188,8 @@ function initialSeasonalModels!(
             Q = 0,
             allowMean = allowMean,
             allowDrift = allowDrift,
+            alpha = alpha,
+            lambda = lambda,
         ),
     )
     (maxq >= 1 && maxQ >= 1) && push!(
@@ -2129,6 +2206,8 @@ function initialSeasonalModels!(
             Q = 1,
             allowMean = allowMean,
             allowDrift = allowDrift,
+            alpha = alpha,
+            lambda = lambda,
         ),
     )
     (maxp >= 2 && maxq >= 2 && maxP >= 1 && maxQ >= 1) && push!(
@@ -2145,6 +2224,8 @@ function initialSeasonalModels!(
             Q = 1,
             allowMean = allowMean,
             allowDrift = allowDrift,
+            alpha = alpha,
+            lambda = lambda,
         ),
     )
 end
@@ -2279,7 +2360,7 @@ function localSearch!(
     assertStationarity::Bool = false,
     assertInvertibility::Bool = false,
     showLogs::Bool = false,
-    icOffset::Fl = 0.0,
+    icOffset::Fl = 0.0
 ) where {Fl<:AbstractFloat}
     ModelFl = Fl#typeofModelElements(candidateModels[1])
     localBestCriteria::ModelFl = Inf
@@ -2345,6 +2426,8 @@ function addNonSeasonalModels!(
     allowMean::Bool,
     allowDrift::Bool,
     fixConstant::Bool,
+    alpha::Union{Nothing,Float64} = nothing,
+    lambda::Union{Nothing,Float64} = nothing,
 )
     for p = -1:1, q = -1:1
         newp = bestModel.p + p
@@ -2369,6 +2452,8 @@ function addNonSeasonalModels!(
             Q = bestModel.Q,
             allowMean = allowMean,
             allowDrift = allowDrift,
+            alpha = alpha,
+            lambda = lambda,
         )
         if !isVisited(newModel, visitedModels)
             push!(candidateModels, newModel)
@@ -2419,6 +2504,8 @@ function addSeasonalModels!(
     allowMean::Bool,
     allowDrift::Bool,
     fixConstant::Bool,
+    alpha::Union{Nothing,Float64} = nothing,
+    lambda::Union{Nothing,Float64} = nothing,
 )
     for P = -1:1, Q = -1:1
         newP = bestModel.P + P
@@ -2447,6 +2534,8 @@ function addSeasonalModels!(
             Q = newQ,
             allowMean = allowMean,
             allowDrift = allowDrift,
+            alpha = alpha,
+            lambda = lambda,
         )
         if !isVisited(newModel, visitedModels)
             push!(candidateModels, newModel)
@@ -2502,6 +2591,8 @@ function addNonSeasonalAndSeasonalModels!(
     allowMean::Bool,
     allowDrift::Bool,
     fixConstant::Bool,
+    alpha::Union{Nothing,Float64} = nothing,
+    lambda::Union{Nothing,Float64} = nothing,
 )
     for p in [-1, 1], q in [-1, 1], P in [-1, 1], Q in [-1, 1]
         newp = bestModel.p + p
@@ -2532,6 +2623,8 @@ function addNonSeasonalAndSeasonalModels!(
             Q = newQ,
             allowMean = allowMean,
             allowDrift = allowDrift,
+            alpha = alpha,
+            lambda = lambda,
         )
         if !isVisited(newModel, visitedModels)
             push!(candidateModels, newModel)
@@ -2574,6 +2667,8 @@ function addChangedConstantModel!(
     candidateModels::Vector{SARIMAModel},
     visitedModels::Dict{String,Dict{String,Any}},
     drift::Bool = false,
+    alpha::Union{Nothing,Float64} = nothing,
+    lambda::Union{Nothing,Float64} = nothing,
 )
     allowDrift = drift && !bestModel.allowDrift
     allowMean = !drift && !bestModel.allowMean
@@ -2589,6 +2684,8 @@ function addChangedConstantModel!(
         Q = bestModel.Q,
         allowMean = allowMean,
         allowDrift = allowDrift,
+        alpha = alpha,
+        lambda = lambda,
     )
     if !isVisited(newModel, visitedModels)
         push!(candidateModels, newModel)
@@ -2666,6 +2763,8 @@ function stepWiseSearchNaive(
     showLogs::Bool = false,
     icOffset::Fl = 0.0,
     fixConstant::Bool = false,
+    alpha::Union{Nothing,Float64} = nothing,
+    lambda::Union{Nothing,Float64} = nothing,
 ) where {Fl<:AbstractFloat}
     # Include initial models
     candidateModels = Vector{SARIMAModel}()
@@ -2861,6 +2960,8 @@ function stepwiseSearch(
     showLogs::Bool = false,
     icOffset::Fl = 0.0,
     maxModels::Int = 94,
+    alpha::Union{Nothing,<:AbstractFloat} = nothing,
+    lambda::Union{Nothing,<:AbstractFloat} = nothing,
 ) where {Fl<:AbstractFloat}
     constant = allowDrift || allowMean
     p = min(startp, maxp)
@@ -2881,6 +2982,8 @@ function stepwiseSearch(
         seasonality = seasonality,
         allowMean = constant,
         allowDrift = false,
+        alpha = alpha,
+        lambda = lambda
     )
     fit!(bestModel; objectiveFunction = objectiveFunction)
     showLogs && @info(
@@ -2908,6 +3011,8 @@ function stepwiseSearch(
         seasonality = seasonality,
         allowMean = constant,
         allowDrift = false,
+        alpha = alpha,
+        lambda = lambda
     )
     fit!(fitModel; objectiveFunction = objectiveFunction)
     showLogs && @info(
@@ -2951,6 +3056,8 @@ function stepwiseSearch(
             seasonality = seasonality,
             allowMean = allowMean,
             allowDrift = allowDrift,
+            alpha = alpha,
+            lambda = lambda
         )
         fit!(fitModel; objectiveFunction = objectiveFunction)
         showLogs && @info(
@@ -2990,6 +3097,8 @@ function stepwiseSearch(
             seasonality = seasonality,
             allowMean = allowMean,
             allowDrift = allowDrift,
+            alpha = alpha,
+            lambda = lambda
         )
         fit!(fitModel; objectiveFunction = objectiveFunction)
         showLogs && @info(
@@ -3027,6 +3136,8 @@ function stepwiseSearch(
             seasonality = seasonality,
             allowMean = false,
             allowDrift = false,
+            alpha = alpha,
+            lambda = lambda
         )
         fit!(fitModel; objectiveFunction = objectiveFunction)
         showLogs && @info(
@@ -3072,6 +3183,8 @@ function stepwiseSearch(
                 seasonality = seasonality,
                 allowMean = allowMean,
                 allowDrift = allowDrift,
+                alpha = alpha,
+                lambda = lambda
             )
             fit!(fitModel; objectiveFunction = objectiveFunction)
             showLogs && @info(
@@ -3111,6 +3224,8 @@ function stepwiseSearch(
                 seasonality = seasonality,
                 allowMean = allowMean,
                 allowDrift = allowDrift,
+                alpha = alpha,
+                lambda = lambda
             )
             fit!(fitModel; objectiveFunction = objectiveFunction)
             showLogs && @info(
@@ -3150,6 +3265,8 @@ function stepwiseSearch(
                 seasonality = seasonality,
                 allowMean = allowMean,
                 allowDrift = allowDrift,
+                alpha = alpha,
+                lambda = lambda
             )
             fit!(fitModel; objectiveFunction = objectiveFunction)
             showLogs && @info(
@@ -3189,6 +3306,8 @@ function stepwiseSearch(
                 seasonality = seasonality,
                 allowMean = allowMean,
                 allowDrift = allowDrift,
+                alpha = alpha,
+                lambda = lambda
             )
             fit!(fitModel; objectiveFunction = objectiveFunction)
             showLogs && @info(
@@ -3229,6 +3348,8 @@ function stepwiseSearch(
                 seasonality = seasonality,
                 allowMean = allowMean,
                 allowDrift = allowDrift,
+                alpha = alpha,
+                lambda = lambda
             )
             fit!(fitModel; objectiveFunction = objectiveFunction)
             showLogs && @info(
@@ -3270,6 +3391,8 @@ function stepwiseSearch(
                 seasonality = seasonality,
                 allowMean = allowMean,
                 allowDrift = allowDrift,
+                alpha = alpha,
+                lambda = lambda
             )
             fit!(fitModel; objectiveFunction = objectiveFunction)
             showLogs && @info(
@@ -3311,6 +3434,8 @@ function stepwiseSearch(
                 seasonality = seasonality,
                 allowMean = allowMean,
                 allowDrift = allowDrift,
+                alpha = alpha,
+                lambda = lambda
             )
             fit!(fitModel; objectiveFunction = objectiveFunction)
             showLogs && @info(
@@ -3352,6 +3477,8 @@ function stepwiseSearch(
                 seasonality = seasonality,
                 allowMean = allowMean,
                 allowDrift = allowDrift,
+                alpha = alpha,
+                lambda = lambda
             )
             fit!(fitModel; objectiveFunction = objectiveFunction)
             showLogs && @info(
@@ -3392,6 +3519,8 @@ function stepwiseSearch(
                 seasonality = seasonality,
                 allowMean = allowMean,
                 allowDrift = allowDrift,
+                alpha = alpha,
+                lambda = lambda
             )
             fit!(fitModel; objectiveFunction = objectiveFunction)
             showLogs && @info(
@@ -3431,6 +3560,8 @@ function stepwiseSearch(
                 seasonality = seasonality,
                 allowMean = allowMean,
                 allowDrift = allowDrift,
+                alpha = alpha,
+                lambda = lambda
             )
             fit!(fitModel; objectiveFunction = objectiveFunction)
             showLogs && @info(
@@ -3470,6 +3601,8 @@ function stepwiseSearch(
                 seasonality = seasonality,
                 allowMean = allowMean,
                 allowDrift = allowDrift,
+                alpha = alpha,
+                lambda = lambda
             )
             fit!(fitModel; objectiveFunction = objectiveFunction)
             showLogs && @info(
@@ -3509,6 +3642,8 @@ function stepwiseSearch(
                 seasonality = seasonality,
                 allowMean = allowMean,
                 allowDrift = allowDrift,
+                alpha = alpha,
+                lambda = lambda
             )
             fit!(fitModel; objectiveFunction = objectiveFunction)
             showLogs && @info(
@@ -3549,6 +3684,8 @@ function stepwiseSearch(
                 seasonality = seasonality,
                 allowMean = allowMean,
                 allowDrift = allowDrift,
+                alpha = alpha,
+                lambda = lambda
             )
             fit!(fitModel; objectiveFunction = objectiveFunction)
             showLogs && @info(
@@ -3590,6 +3727,8 @@ function stepwiseSearch(
                 seasonality = seasonality,
                 allowMean = allowMean,
                 allowDrift = allowDrift,
+                alpha = alpha,
+                lambda = lambda
             )
             fit!(fitModel; objectiveFunction = objectiveFunction)
             showLogs && @info(
@@ -3631,6 +3770,8 @@ function stepwiseSearch(
                 seasonality = seasonality,
                 allowMean = allowMean,
                 allowDrift = allowDrift,
+                alpha = alpha,
+                lambda = lambda
             )
             fit!(fitModel; objectiveFunction = objectiveFunction)
             showLogs && @info(
@@ -3672,6 +3813,8 @@ function stepwiseSearch(
                 seasonality = seasonality,
                 allowMean = allowMean,
                 allowDrift = allowDrift,
+                alpha = alpha,
+                lambda = lambda
             )
             fit!(fitModel; objectiveFunction = objectiveFunction)
             showLogs && @info(
@@ -3710,6 +3853,8 @@ function stepwiseSearch(
                     seasonality = seasonality,
                     allowMean = !constant,
                     allowDrift = false,
+                    alpha = alpha,
+                    lambda = lambda
                 )
                 fit!(fitModel; objectiveFunction = objectiveFunction)
                 showLogs && @info(
@@ -3803,6 +3948,8 @@ function gridSearch(
     allowDrift::Bool = false,
     showLogs::Bool = false,
     icOffset::Fl = 0.0,
+    alpha::Union{Nothing,Float64} = nothing,
+    lambda::Union{Nothing,Float64} = nothing,
 ) where {Fl<:AbstractFloat}
     maxK = (allowMean || allowDrift) ? 1 : 0
     bestModel = SARIMA(
@@ -3817,6 +3964,8 @@ function gridSearch(
         seasonality = seasonality,
         allowMean = allowMean,
         allowDrift = allowDrift,
+        alpha = alpha,
+        lambda = lambda,
     )
     fit!(bestModel; objectiveFunction = objectiveFunction)
     bestIC = informationCriteriaFunction(bestModel; offset = icOffset)
@@ -3837,6 +3986,8 @@ function gridSearch(
             seasonality = seasonality,
             allowMean = (k == 1),
             allowDrift = false,
+            alpha = alpha,
+            lambda = lambda,
         )
         fit!(model; objectiveFunction = objectiveFunction)
         ic = informationCriteriaFunction(model; offset = icOffset)

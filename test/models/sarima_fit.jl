@@ -139,7 +139,7 @@ end
         airPassengers = loadDataset(AIR_PASSENGERS)
         airPassengersLog = log.(airPassengers)
         modelRidge = SARIMA(airPassengersLog, 3, 0, 1; seasonality = 12, P = 1, D = 1, Q = 1)
-        fit!(modelRidge; objectiveFunction = "ridge")
+        fit!(modelRidge; objectiveFunction = "elastic_net", alpha = 0.0)
         modelNoRidge = SARIMA(airPassengersLog, 3, 0, 1; seasonality = 12, P = 1, D = 1, Q = 1)
         fit!(modelNoRidge)
         @test modelRidge.ϕ != modelNoRidge.ϕ
@@ -153,8 +153,9 @@ end
             airPassengersLog;
             exog = exogenous,
             seasonality = 12,
-            objectiveFunction = "ridge",
+            objectiveFunction = "elastic_net",
             showLogs = false,
+            alpha = 0.0
         )
         @test modelRidgeExog.ϕ != modelRidge.ϕ
         @test modelRidgeExog.d == modelRidge.d
@@ -165,7 +166,7 @@ end
         airPassengers = loadDataset(AIR_PASSENGERS)
         airPassengersLog = log.(airPassengers)
         modelLasso = SARIMA(airPassengersLog, 3, 0, 1; seasonality = 12, P = 1, D = 1, Q = 1)
-        fit!(modelLasso; objectiveFunction = "lasso")
+        fit!(modelLasso; objectiveFunction = "elastic_net", alpha = 1.0)
         modelNoLasso = SARIMA(airPassengersLog, 3, 0, 1; seasonality = 12, P = 1, D = 1, Q = 1)
         fit!(modelNoLasso)
         @test modelLasso.ϕ != modelNoLasso.ϕ
@@ -179,8 +180,9 @@ end
             airPassengersLog;
             exog = exogenous,
             seasonality = 12,
-            objectiveFunction = "lasso",
+            objectiveFunction = "elastic_net",
             showLogs = false,
+            alpha = 1.0
         )
         @test modelLassoExog.ϕ != modelLasso.ϕ
         @test modelLassoExog.d == modelLasso.d

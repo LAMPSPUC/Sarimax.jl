@@ -576,7 +576,7 @@ function fit!(
     Fl = typeofModelElements(model)
     isFitted(model) &&
         @info("The model has already been fitted. Overwriting the previous results")
-    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net"] "The objective function $objectiveFunction is not supported. Please use 'mae', 'mse', 'ml', 'bilevel' or 'elastic_net'"
+    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable"] "The objective function $objectiveFunction is not supported. Please use 'mae', 'mse', 'ml', 'bilevel', 'elastic_net' or 'stable'"
     if objectiveFunction == "elastic_net"
         @assert (!isnothing(alpha) || !isnothing(model.alpha)) "In elastic net objective function, alpha must be specified"
     end
@@ -808,6 +808,8 @@ function includeSolverParameters!(model::Model, isSilent::Bool = true)
         highs = optimizer_with_attributes(HiGHS.Optimizer)
         set_optimizer_attribute(model, "nlp_solver", ipopt)
         set_optimizer_attribute(model, "mip_solver", highs)
+    elseif solver_name(model) == "Ipopt"
+        set_optimizer_attribute(model, "warm_start_init_point", "yes")
     end
 end
 
@@ -879,6 +881,14 @@ function objectiveFunctionDefinition!(
     elseif objectiveFunction == "bilevel"
         @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
         set_time_limit_sec(jumpModel, 1.0)
+    elseif objectiveFunction == "stable"
+        lb = max(model.p, model.P * model.seasonality, model.q, model.Q * model.seasonality) + 1
+        @variable(jumpModel, δ >= 0)
+        @variable(jumpModel, u[lb:T] >= 0)
+        @constraint(jumpModel, [t = lb:T], δ + u[t] >= jumpModel[:ϵ][t]^2)
+
+        # 70% CVaR
+        @objective(jumpModel, Min, 0.7*δ + sum(u[t] for t = lb:T))
     elseif objectiveFunction == "elastic_net"
         if length(parametersVectorExtended) == 0
             @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
@@ -946,7 +956,7 @@ Optimizes the SARIMA model using the specified objective function.
 function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction::String)
     JuMP.optimize!(jumpModel)
 
-    if objectiveFunction == "elastic_net" && isnothing(model.lambda)
+    if objectiveFunction == "elastic_net" && isnothing(model.lambda) && getHyperparametersNumber(model) > 1
         lambdaPath = getLambdaPath(values(model.y), getHyperparametersNumber(model))
         # Based on the lambda path, select the best lambda value according to the information
         # criteria BIC
@@ -1481,7 +1491,7 @@ function auto(
     @assert informationCriteria ∈ ["aic", "aicc", "bic"]
     @assert integrationTest ∈ ["kpss"]
     @assert seasonalIntegrationTest ∈ ["seas", "ch", "ocsb"]
-    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net"]
+    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable"]
     @assert objectiveFunction == "elastic_net" || isnothing(lambda)
     @assert objectiveFunction == "elastic_net" || isnothing(alpha)
     @assert searchMethod ∈ ["stepwise", "stepwiseNaive", "grid"]

@@ -984,6 +984,8 @@ function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction:
                 best_bic = current_bic
             end
             aux_variables = all_variables(jumpModel)
+            # Filter the parameters
+            aux_variables = filter(x -> !is_parameter(x), aux_variables)
             aux_solutions = value.(aux_variables)
             set_start_value.(aux_variables, aux_solutions)
         end

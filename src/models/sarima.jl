@@ -1938,7 +1938,7 @@ function detectOutliers(
         )
     end
     fit!(model)
-    residuals = model.ϵ
+    residuals = map(x -> abs(x) < 1e-10 ? 0.0 : x, model.ϵ)
 
     # Detect outliers
     outliers = identifyOutliers(residuals)

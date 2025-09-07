@@ -162,7 +162,7 @@ function kpss_test(y::Vector{Fl}; regression::Symbol=:c, nlags::Union{Symbol,Int
     end
 
     s2 = s2 / nobs
-    
+
     # Compute test statistic
     kpss_stat::Float64 = (s2 == 0.0) ? 0.0 : eta / s2
 
@@ -206,7 +206,7 @@ end
 
 # --- Helper functions ---
 # Critical value as in Python/R
-function calc_ocsb_crit_val(m::Int) where T <: AbstractFloat
+function calc_ocsb_crit_val(m::Int)
     log_m = log(m)
     return  -0.2937411 * exp(
             -0.2850853 * (log_m - 0.7656451) + (-0.05983644) * (

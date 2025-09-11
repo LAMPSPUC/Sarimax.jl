@@ -534,6 +534,27 @@ function getHyperparametersNumber(model::SARIMAModel)
     return model.p + model.q + model.P + model.Q + k + β + 1
 end
 
+function getHyperparametersNumber(model::JuMP.Model)
+    is_solved_and_feasible(model) ||
+        throw(ArgumentError("The model must be solved and feasible"))
+    c = variable_by_name(model, "c")
+    trend = variable_by_name(model, "trend")
+    hyperparametersNumber = (c !== nothing && abs(value(c)) > 1e-6) ? 1 : 0
+    hyperparametersNumber += (trend !== nothing && abs(value(trend)) > 1e-6) ? 1 : 0
+
+    hyperparameters = [:ϕ, :θ, :Φ, :Θ, :exogCoefficients]
+    # Access if the value is near zero (absolute value less than 1e-6)
+    for hyperparameter in hyperparameters
+        hyperparameterValue = variable_by_name(model, string(hyperparameter))
+        if hyperparameterValue === nothing
+            continue
+        end
+        # Count the number of non-zero hyperparameters
+        hyperparametersNumber += length(filter(x-> abs(value(x)) > 1e-6, hyperparameterValue))
+    end
+    return hyperparametersNumber
+end
+
 """
     fit!(
         model::SARIMAModel;
@@ -922,7 +943,7 @@ function objectiveFunctionDefinition!(
                 Min,
                 sum(jumpModel[:ϵ] .^ 2) +
                 jumpModel[:λ] * (jumpModel[:α] * sum(auxVariables) +
-                               (1 - jumpModel[:α]) * sum(parametersVectorExtended .^ 2))
+                               (1 - jumpModel[:α])/2 * sum(parametersVectorExtended .^ 2))
             )
         end
     elseif objectiveFunction == "ml"
@@ -957,7 +978,7 @@ function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction:
     JuMP.optimize!(jumpModel)
 
     if objectiveFunction == "elastic_net" && isnothing(model.lambda) && getHyperparametersNumber(model) > 1
-        lambdaPath = getLambdaPath(values(model.y), getHyperparametersNumber(model))
+        lambdaPath = getLambdaPath(values(model.y), model.seasonality)
         # Based on the lambda path, select the best lambda value according to the information
         # criteria BIC
         bestLambda = 1
@@ -971,14 +992,14 @@ function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction:
             model_variance = computeSARIMAModelVariance(
                 jumpModel,
                 objectiveFunction,
-                getHyperparametersNumber(model),
+                getHyperparametersNumber(jumpModel),
                 1,
             )
 
             # Calculate BIC for this lambda
-            T = length(jumpModel[:ϵ])
-            df = sum(value.(jumpModel[:ϵ]) .!= 0) # Effective degrees of freedom
-            current_bic = T * log(model_variance) + log(T) * df
+            T = length(model.y) - model.d - model.D * model.seasonality
+            K = getHyperparametersNumber(jumpModel) # Effective degrees of freedom
+            current_bic = T * log(model_variance) + log(T-2) * K
             if current_bic < best_bic
                 bestLambda = i
                 best_bic = current_bic
@@ -989,6 +1010,9 @@ function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction:
             aux_solutions = value.(aux_variables)
             set_start_value.(aux_variables, aux_solutions)
         end
+        @info "Maximum lambda: $(lambdaPath[1])"
+        @info "Minimum lambda: $(lambdaPath[end])"
+        @info "Best lambda: $(lambdaPath[bestLambda])"
         model.lambda = lambdaPath[bestLambda]
         set_parameter_value(jumpModel[:λ], lambdaPath[bestLambda])
         JuMP.optimize!(jumpModel)
@@ -4022,68 +4046,57 @@ function gridSearch(
 end
 
 """
-    getLambdaPath(yValues::Vector{T}, parametersVector::Vector,
+    getLambdaPath(yValues::Vector{T}, seasonality::Int;
                         nλ::Int=10, λminratio::Union{Nothing,Float64}=nothing) where T <: AbstractFloat
 
 Generates a path of lambda values following the Lasso.jl approach.
 
 # Arguments
 - `yValues`: Vector of response values (differenced time series)
-- `nparameters::Int`: Number of model parameters to be penalized
+- `seasonality::Int`: Seasonality of the time series
 - `nλ::Int`: Number of lambda values to try in the path (default: 10)
 - `λminratio::Union{Nothing,Float64}`: Ratio of minimum lambda to maximum lambda (default: 0.0001 for n > p, 0.01 for n ≤ p)
 
 # Returns
 - `Vector{T}`: The path of lambda values
 """
-function getLambdaPath(yValues::Vector{T}, nparameters::Int;
-                             nλ::Int=10, λminratio::Union{Nothing,Float64}=nothing) where T <: AbstractFloat
-    # Number of observations
+function getLambdaPath(yValues::Vector{T}, seasonality::Int;
+    nλ::Int=10, λminratio::Union{Nothing,Float64}=nothing) where T <: AbstractFloat
     n = length(yValues)
 
-    # Number of parameters
-    p = nparameters
+    # Define lags: 1:5 plus seasonal multiples
+    if seasonality == 1
+        lags = 1:5
+    else
+        lags = vcat(1:5, seasonality:(seasonality):seasonality*2)
+    end
 
-    # Adjust λminratio based on number of observations vs parameters
+    p = length(lags)
+
+    # λminratio default
     if isnothing(λminratio)
-        λminratio = n > p ? 0.0001 : 0.01
+        λminratio = n > p ? 1e-4 : 1e-2
     end
 
-    # Calculate mean of series (null model prediction)
-    nullPrediction = mean(yValues)
+    # Center y
+    y = yValues
 
-    # Calculate residuals from null model
-    residuals = yValues .- nullPrediction
+    # Maximum lag determines usable sample
+    maxlag = maximum(lags)
 
-    # Create a simple design matrix for AR terms
-    # For time series, we'll use lagged values as predictors
-    X = zeros(T, n-p, p)
-    for i in 1:p
-        for j in 1:(n-p)
-            if j+p-i > 0 && j+p-i <= length(residuals)
-                X[j, i] = residuals[j+p-i]
-            end
-        end
+    # Build design matrix
+    X = zeros(T, n - maxlag, p)
+    for (j, lag) in enumerate(lags)
+        X[:, j] = y[(maxlag - lag + 1):(n - lag)]
     end
+    yresp = y[(maxlag+1):end]
 
-    # Calculate X'y (correlation between predictors and response)
-    Xy = zeros(T, p)
-    for i in 1:p
-        if p+1 <= length(residuals)
-            Xy[i] = dot(X[:, i], residuals[p+1:end])
-        end
-    end
+    # Compute λmax
+    Xy = X' * yresp
+    λmax = maximum(abs.(Xy)) / (n - maxlag)
 
-    # Compute λmax as the maximum absolute correlation
-    λmax = maximum(abs.(Xy)) / n
+    # Generate decreasing λ path
+    λpath = exp.(range(log(λmax), stop=log(λmax * λminratio), length=nλ))
 
-    # Ensure λmax is not zero
-    if λmax < eps(T)
-        λmax = one(T)
-    end
-
-    # Generate lambda path following Lasso.jl approach
-    logλmax = log(λmax)
-    λpath = exp.(range(logλmax, stop=logλmax + log(λminratio), length=nλ))
     return λpath
 end

@@ -215,6 +215,17 @@ end
         @test modelBILEVELExog.D != modelBILEVEL.D
     end
 
+    @testset "stable_fit" begin
+        airPassengers = loadDataset(AIR_PASSENGERS)
+        airPassengersLog = log.(airPassengers)
+        modelStable = SARIMA(airPassengersLog, 3, 0, 1; seasonality = 12, P = 1, D = 1, Q = 1)
+        fit!(modelStable; objectiveFunction = "stable")
+        modelMse = SARIMA(airPassengersLog, 3, 0, 1; seasonality = 12, P = 1, D = 1, Q = 1)
+        fit!(modelMse)
+        @test modelStable.ϕ != modelMse.ϕ
+        @test modelStable.Φ != modelMse.Φ
+    end
+
 
     # @testset "fit M4 series" begin
     #     test_series_json = JSON.parsefile("datasets/series_38351.json")

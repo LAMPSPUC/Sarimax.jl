@@ -57,6 +57,7 @@ mutable struct SARIMAModel{Fl<:AbstractFloat} <: SarimaxModel
     keepProvidedCoefficients::Bool
     lambda::Union{Fl,Nothing}
     alpha::Union{Fl,Nothing}
+    icOffset::Union{Fl,Nothing}
     function SARIMAModel{Fl}(
         y::TimeArray,
         p::Int,
@@ -84,6 +85,7 @@ mutable struct SARIMAModel{Fl<:AbstractFloat} <: SarimaxModel
         keepProvidedCoefficients::Bool = false,
         lambda::Union{Fl,Nothing} = nothing,
         alpha::Union{Fl,Nothing} = nothing,
+        icOffset::Union{Fl,Nothing} = nothing,
     ) where {Fl<:AbstractFloat}
         @assert p >= 0
         @assert d >= 0
@@ -132,6 +134,7 @@ mutable struct SARIMAModel{Fl<:AbstractFloat} <: SarimaxModel
             keepProvidedCoefficients,
             lambda,
             alpha,
+            icOffset,
         )
     end
 end
@@ -228,7 +231,8 @@ function SARIMA(
     allowMean::Bool = true,
     allowDrift::Bool = false,
     lambda::Union{Nothing,<:AbstractFloat} = nothing,
-    alpha::Union{Nothing,<:AbstractFloat} = nothing
+    alpha::Union{Nothing,<:AbstractFloat} = nothing,
+    icOffset::Union{Nothing,<:AbstractFloat} = nothing,
 )
     modelFl = eltype(values(y))
     return SARIMAModel{modelFl}(
@@ -245,6 +249,7 @@ function SARIMA(
         allowDrift = allowDrift,
         lambda = lambda,
         alpha = alpha,
+        icOffset = icOffset,
     )
 end
 
@@ -286,6 +291,7 @@ function SARIMA(
     allowDrift::Bool = false,
     lambda::Union{<:AbstractFloat,Nothing} = nothing,
     alpha::Union{<:AbstractFloat,Nothing} = nothing,
+    icOffset::Union{<:AbstractFloat,Nothing} = nothing,
 )
 
     if isnothing(arCoefficients) &&
@@ -373,6 +379,7 @@ function SARIMA(
         keepProvidedCoefficients = true,
         lambda = lambda,
         alpha = alpha,
+        icOffset = icOffset,
     )
 end
 
@@ -407,7 +414,8 @@ function SARIMA(
     allowMean::Bool = true,
     allowDrift::Bool = false,
     lambda::Union{Nothing,<:AbstractFloat} = nothing,
-    alpha::Union{Nothing,<:AbstractFloat} = nothing
+    alpha::Union{Nothing,<:AbstractFloat} = nothing,
+    icOffset::Union{Nothing,<:AbstractFloat} = nothing,
 )
     modelFl = eltype(values(y))
     return SARIMAModel{modelFl}(
@@ -425,6 +433,7 @@ function SARIMA(
         allowDrift = allowDrift,
         lambda = lambda,
         alpha = alpha,
+        icOffset = icOffset,
     )
 end
 
@@ -915,7 +924,7 @@ function objectiveFunctionDefinition!(
             @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
         else
             # L1 norm components (for lasso part)
-            auxVariables = @variable(jumpModel, [i = 1:length(parametersVectorExtended)])
+            @variable(jumpModel, auxVariables[i = 1:length(parametersVectorExtended)])
             @constraints(
                 jumpModel,
                 begin
@@ -978,43 +987,41 @@ function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction:
     JuMP.optimize!(jumpModel)
 
     if objectiveFunction == "elastic_net" && isnothing(model.lambda) && getHyperparametersNumber(model) > 1
-        lambdaPath = getLambdaPath(values(model.y), model.seasonality)
-        # Based on the lambda path, select the best lambda value according to the information
-        # criteria BIC
-        bestLambda = 1
-        best_bic = Inf
-        for i in eachindex(lambdaPath)
-            # set the lambda value
-            set_parameter_value(jumpModel[:λ], lambdaPath[i])
+        icOffset = computeModelsICOffset(model.y, model.exog, model.d, model.D, model.seasonality)
+        model.icOffset = icOffset
+        function optimizeLambda(λ)
+            set_parameter_value(jumpModel[:λ], λ[1])
             JuMP.optimize!(jumpModel)
-
-            # Calculate residuals variance for BIC computation
+            lb = max(model.p, model.P * model.seasonality, model.q, model.Q * model.seasonality) + 1
             model_variance = computeSARIMAModelVariance(
                 jumpModel,
                 objectiveFunction,
-                getHyperparametersNumber(jumpModel),
-                1,
+                getHyperparametersNumber(model),
+                lb,
             )
-
-            # Calculate BIC for this lambda
-            T = length(model.y) - model.d - model.D * model.seasonality
-            K = getHyperparametersNumber(jumpModel) # Effective degrees of freedom
-            current_bic = T * log(model_variance) + log(T-2) * K
-            if current_bic < best_bic
-                bestLambda = i
-                best_bic = current_bic
-            end
-            aux_variables = all_variables(jumpModel)
-            # Filter the parameters
-            aux_variables = filter(x -> !is_parameter(x), aux_variables)
-            aux_solutions = value.(aux_variables)
-            set_start_value.(aux_variables, aux_solutions)
+            model.σ² = model_variance
+            set_optimal_start_values(jumpModel)
+            return bic(model; offset = model.icOffset)
         end
-        @info "Maximum lambda: $(lambdaPath[1])"
-        @info "Minimum lambda: $(lambdaPath[end])"
-        @info "Best lambda: $(lambdaPath[bestLambda])"
-        model.lambda = lambdaPath[bestLambda]
-        set_parameter_value(jumpModel[:λ], lambdaPath[bestLambda])
+
+        results = Optim.optimize(
+                optimizeLambda,
+                0,
+                10.0;
+                abs_tol = 1e-3,
+                show_trace = false,
+            )
+        # println(results)
+        if !Optim.converged(results)
+            @warn("The optimization did not converge")
+            @warn("Trying another method")
+            results = Optim.optimize(optimizeLambda, Optim.LBFGS())
+            Optim.converged(results) || @warn("The optimization did not converge")
+        end
+
+        # @info "Best lambda: $(results.minimizer)"
+        model.lambda = results.minimizer
+        set_parameter_value(jumpModel[:λ], results.minimizer)
         JuMP.optimize!(jumpModel)
 
     elseif objectiveFunction == "bilevel"
@@ -1702,6 +1709,7 @@ function auto(
     end
 
     bestModel.exog = exog
+    bestModel.icOffset = offset
     showLogs && @info("The best model found is $(getId(bestModel))")
 
     return bestModel

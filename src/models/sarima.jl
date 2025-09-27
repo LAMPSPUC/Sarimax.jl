@@ -1692,7 +1692,7 @@ function auto(
             )
         end
 
-        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = showLogs)
+        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs)
     end
 
     bestModel.exog = exog
@@ -4046,8 +4046,7 @@ function regularizationObjective(jumpModel::Model, model::SARIMAModel, tolerance
         length(parametersVector) == 0 ? [] :
         reduce(vcat, [Vector{VariableRef}([jumpModel[el]...]) for el in parametersVector])
 
-    weights = [1.0/abs(value(el)) for el in parametersVectorExtended]
-    println(weights)
+    weights = [1.0/(abs(value(el)) + 1e-6) for el in parametersVectorExtended]
 
     if length(parametersVectorExtended) == 0
         @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
@@ -4079,7 +4078,7 @@ function regularizationObjective(jumpModel::Model, model::SARIMAModel, tolerance
         @objective(
             jumpModel,
             Min,
-            (jumpModel[:α] * sum(weights .* auxVariables) + (1 - jumpModel[:α])/2 * sum(weights .* parametersVectorExtended .^ 2))
+            (jumpModel[:α] * sum(weights .* auxVariables) + (1 - jumpModel[:α])/2 * sum(weights .* (parametersVectorExtended .^ 2)))
         )
     end
 end

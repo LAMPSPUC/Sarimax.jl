@@ -101,15 +101,16 @@ The AIC value calculated using the number of parameters and log-likelihood value
 - Throws a `MissingMethodImplementation` if the `getHyperparametersNumber` method is not implemented for the given model type.
 
 """
-function aic(model::SarimaxModel; offset::Fl = 0.0) where {Fl<:AbstractFloat}
+function aic(model::SarimaxModel; offset::Union{Fl,Nothing} = nothing, K::Union{Int,Nothing} = nothing) where {Fl<:AbstractFloat}
     !hasHyperparametersMethods(typeof(model)) &&
         throw(MissingMethodImplementation("getHyperparametersNumber"))
-    K = Sarimax.getHyperparametersNumber(model)
+    K = isnothing(K) ? getHyperparametersNumber(model) : K
     # T = length(model.ϵ)
     # return aic(K, loglike(model))
     # offset = -2 * loglike(model) - length(model.y) * log(model.σ²)
     # return offset + T * log(model.σ²) + 2*K
     T = length(model.y) - model.d - model.D * model.seasonality
+    offset = isnothing(offset) ? 0.0 : offset
     isnothing(model.icOffset) || (offset = model.icOffset)
     return 2 * K + T * log(model.σ²) + offset
 end
@@ -130,10 +131,10 @@ The AICc value calculated using the number of parameters, sample size, and log-l
 - Throws a `MissingMethodImplementation` if the `getHyperparametersNumber` method is not implemented for the given model type.
 
 """
-function aicc(model::SarimaxModel; offset::Fl = 0.0) where {Fl<:AbstractFloat}
+function aicc(model::SarimaxModel; offset::Union{Fl,Nothing} = nothing, K::Union{Int,Nothing} = nothing) where {Fl<:AbstractFloat}
     !hasHyperparametersMethods(typeof(model)) &&
         throw(MissingMethodImplementation("getHyperparametersNumber"))
-    K = getHyperparametersNumber(model)
+    K = isnothing(K) ? getHyperparametersNumber(model) : K
     # T = length(model.ϵ)
     # return aicc(T, K, loglike(model))
     T = length(model.y) - model.d - model.D * model.seasonality
@@ -156,10 +157,10 @@ The BIC value calculated using the number of parameters, sample size, and log-li
 - Throws a `MissingMethodImplementation` if the `getHyperparametersNumber` method is not implemented for the given model type.
 
 """
-function bic(model::SarimaxModel; offset::Fl = 0.0) where {Fl<:AbstractFloat}
+function bic(model::SarimaxModel; offset::Union{Fl,Nothing} = nothing, K::Union{Int,Nothing} = nothing) where {Fl<:AbstractFloat}
     !hasHyperparametersMethods(typeof(model)) &&
         throw(MissingMethodImplementation("getHyperparametersNumber"))
-    K = getHyperparametersNumber(model)
+    K = isnothing(K) ? getHyperparametersNumber(model) : K
     # T = length(model.ϵ)
     # return bic(T, K, loglike(model))
     T = length(model.y) - model.d - model.D * model.seasonality

@@ -537,6 +537,17 @@ Returns the number of hyperparameters of a SARIMA model.
 
 """
 function getHyperparametersNumber(model::SARIMAModel)
+    if isFitted(model)
+        hyperparametersNumber = 1
+        fields = [:c, :trend, :ϕ, :θ, :Φ, :Θ, :exogCoefficients]
+        for field in fields
+            fieldValue = getfield(model, field)
+            isnothing(fieldValue) && continue
+            fieldValues = [fieldValue...]
+            length(fieldValues) > 0 && (hyperparametersNumber += length(filter(x-> abs(x) > 1e-5, fieldValues)))
+        end
+        return hyperparametersNumber
+    end
     k = (model.allowMean) ? 1 : 0
     k = (model.allowDrift) ? k + 1 : k
     β = isnothing(model.exogCoefficients) ? 0 : length(model.exogCoefficients)
@@ -544,24 +555,25 @@ function getHyperparametersNumber(model::SARIMAModel)
 end
 
 function getHyperparametersNumber(model::JuMP.Model)
-    is_solved_and_feasible(model) ||
-        throw(ArgumentError("The model must be solved and feasible"))
+    # is_solved_and_feasible(model) ||
+    #     throw(ArgumentError("The model must be solved and feasible"))
     c = variable_by_name(model, "c")
     trend = variable_by_name(model, "trend")
-    hyperparametersNumber = (c !== nothing && abs(value(c)) > 1e-6) ? 1 : 0
-    hyperparametersNumber += (trend !== nothing && abs(value(trend)) > 1e-6) ? 1 : 0
+    hyperparametersNumber = (c !== nothing && abs(value(c)) > 1e-5) ? 1 : 0
+    hyperparametersNumber += (trend !== nothing && abs(value(trend)) > 1e-5) ? 1 : 0
 
     hyperparameters = [:ϕ, :θ, :Φ, :Θ, :exogCoefficients]
     # Access if the value is near zero (absolute value less than 1e-6)
     for hyperparameter in hyperparameters
-        hyperparameterValue = variable_by_name(model, string(hyperparameter))
-        if hyperparameterValue === nothing
+        hyperparameterValue = []
+        try
+            hyperparameterValue = value.(model[hyperparameter])
+        catch
             continue
         end
-        # Count the number of non-zero hyperparameters
-        hyperparametersNumber += length(filter(x-> abs(value(x)) > 1e-6, hyperparameterValue))
+        hyperparametersNumber += length(filter(x-> abs(x) > 1e-5, hyperparameterValue))
     end
-    return hyperparametersNumber
+    return hyperparametersNumber + 1
 end
 
 """
@@ -920,41 +932,7 @@ function objectiveFunctionDefinition!(
         # 70% CVaR
         @objective(jumpModel, Min, 0.7*δ + sum(u[t] for t = lb:T))
     elseif objectiveFunction == "elastic_net"
-        if length(parametersVectorExtended) == 0
-            @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
-        else
-            # L1 norm components (for lasso part)
-            @variable(jumpModel, auxVariables[i = 1:length(parametersVectorExtended)])
-            @constraints(
-                jumpModel,
-                begin
-                    [i = 1:length(parametersVectorExtended)],
-                    auxVariables[i] >= parametersVectorExtended[i]
-                    [i = 1:length(parametersVectorExtended)],
-                    auxVariables[i] >= -parametersVectorExtended[i]
-                end
-            )
-
-            # Set up lambda and alpha parameters
-            @variable(jumpModel, λ in Parameter(1.0))
-            @variable(jumpModel, α in Parameter(0.5))
-
-            # Use model's lambda and alpha if provided, otherwise use defaults
-            lambda_value = isnothing(model.lambda) ? 1 / sqrt(T) : model.lambda
-            alpha_value = isnothing(model.alpha) ? 0.5 : model.alpha
-
-            set_parameter_value(jumpModel[:λ], lambda_value)
-            set_parameter_value(jumpModel[:α], alpha_value)
-
-            # Elastic net objective: MSE + λ * [α * L1 + (1-α) * L2]
-            @objective(
-                jumpModel,
-                Min,
-                sum(jumpModel[:ϵ] .^ 2) +
-                jumpModel[:λ] * (jumpModel[:α] * sum(auxVariables) +
-                               (1 - jumpModel[:α])/2 * sum(parametersVectorExtended .^ 2))
-            )
-        end
+        @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
     elseif objectiveFunction == "ml"
         # llk(ϵ,μ,σ) = logpdf(Normal(μ,abs(σ)),ϵ)
         # register(jumpModel, :llk, 3, llk, autodiff=true)
@@ -987,41 +965,17 @@ function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction:
     JuMP.optimize!(jumpModel)
 
     if objectiveFunction == "elastic_net" && isnothing(model.lambda) && getHyperparametersNumber(model) > 1
-        icOffset = computeModelsICOffset(model.y, model.exog, model.d, model.D, model.seasonality)
-        model.icOffset = icOffset
-        function optimizeLambda(λ)
-            set_parameter_value(jumpModel[:λ], λ[1])
-            JuMP.optimize!(jumpModel)
-            lb = max(model.p, model.P * model.seasonality, model.q, model.Q * model.seasonality) + 1
-            model_variance = computeSARIMAModelVariance(
-                jumpModel,
-                objectiveFunction,
-                getHyperparametersNumber(model),
-                lb,
-            )
-            model.σ² = model_variance
-            set_optimal_start_values(jumpModel)
-            return bic(model; offset = model.icOffset)
-        end
-
-        results = Optim.optimize(
-                optimizeLambda,
-                0,
-                10.0;
-                abs_tol = 1e-3,
-                show_trace = false,
-            )
-        # println(results)
-        if !Optim.converged(results)
-            @warn("The optimization did not converge")
-            @warn("Trying another method")
-            results = Optim.optimize(optimizeLambda, Optim.LBFGS())
-            Optim.converged(results) || @warn("The optimization did not converge")
-        end
-
-        # @info "Best lambda: $(results.minimizer)"
-        model.lambda = results.minimizer
-        set_parameter_value(jumpModel[:λ], results.minimizer)
+        # lb = max(model.p, model.P * model.seasonality, model.q, model.Q * model.seasonality) + 1
+        # K = getHyperparametersNumber(jumpModel)
+        # # println(getHyperparametersNumber(model)," - ", K)
+        # model_variance = computeSARIMAModelVariance(
+        #     jumpModel,
+        #     objectiveFunction,
+        #     K,
+        #     lb,
+        # )
+        tolerance = objective_value(jumpModel) * 1.1
+        regularizationObjective(jumpModel, model, tolerance)
         JuMP.optimize!(jumpModel)
 
     elseif objectiveFunction == "bilevel"
@@ -1074,7 +1028,7 @@ Computes the variance of the SARIMA model's errors.
 
 """
 function computeSARIMAModelVariance(
-    model::Model,
+    model::JuMP.Model,
     objectiveFunction::String,
     nParameters::Int,
     offset::Int,
@@ -1503,7 +1457,7 @@ function auto(
     assertInvertibility::Bool = true,
     showLogs::Bool = false,
     outlierDetection::Bool = false,
-    searchMethod::String = "stepwise",
+    searchMethod::String = "sarimax",
     lambda::Union{Float64,Nothing} = nothing,
     alpha::Union{Float64,Nothing} = nothing,
 )
@@ -1527,7 +1481,7 @@ function auto(
     @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable"]
     @assert objectiveFunction == "elastic_net" || isnothing(lambda)
     @assert objectiveFunction == "elastic_net" || isnothing(alpha)
-    @assert searchMethod ∈ ["stepwise", "stepwiseNaive", "grid"]
+    @assert searchMethod ∈ ["stepwise", "stepwiseNaive", "grid", "sarimax"]
 
     ModelFl = eltype(values(y))
     informationCriteriaFunction = getInformationCriteriaFunction(informationCriteria)
@@ -1706,6 +1660,39 @@ function auto(
             alpha = alpha,
             lambda = lambda,
         )
+    elseif searchMethod == "sarimax"
+        if isnothing(exog)
+            bestModel = SARIMA(
+                y,
+                maxp,
+                d,
+                maxq;
+                P = maxP,
+                D = D,
+                Q = maxQ,
+                seasonality = seasonality,
+                allowMean = allowMean,
+                allowDrift = allowDrift,
+                alpha = alpha
+            )
+        else
+            bestModel = SARIMA(
+                y,
+                exog,
+                maxp,
+                d,
+                maxq;
+                P = maxP,
+                D = D,
+                Q = maxQ,
+                seasonality = seasonality,
+                allowMean = allowMean,
+                allowDrift = allowDrift,
+                alpha = alpha
+            )
+        end
+
+        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = showLogs)
     end
 
     bestModel.exog = exog
@@ -4053,58 +4040,46 @@ function gridSearch(
     return bestModel
 end
 
-"""
-    getLambdaPath(yValues::Vector{T}, seasonality::Int;
-                        nλ::Int=10, λminratio::Union{Nothing,Float64}=nothing) where T <: AbstractFloat
+function regularizationObjective(jumpModel::Model, model::SARIMAModel, tolerance::Float64)
+    parametersVector::Vector{Symbol} = getParametersVector(model)
+    parametersVectorExtended::Vector{VariableRef} =
+        length(parametersVector) == 0 ? [] :
+        reduce(vcat, [Vector{VariableRef}([jumpModel[el]...]) for el in parametersVector])
 
-Generates a path of lambda values following the Lasso.jl approach.
+    weights = [1.0/abs(value(el)) for el in parametersVectorExtended]
+    println(weights)
 
-# Arguments
-- `yValues`: Vector of response values (differenced time series)
-- `seasonality::Int`: Seasonality of the time series
-- `nλ::Int`: Number of lambda values to try in the path (default: 10)
-- `λminratio::Union{Nothing,Float64}`: Ratio of minimum lambda to maximum lambda (default: 0.0001 for n > p, 0.01 for n ≤ p)
-
-# Returns
-- `Vector{T}`: The path of lambda values
-"""
-function getLambdaPath(yValues::Vector{T}, seasonality::Int;
-    nλ::Int=10, λminratio::Union{Nothing,Float64}=nothing) where T <: AbstractFloat
-    n = length(yValues)
-
-    # Define lags: 1:5 plus seasonal multiples
-    if seasonality == 1
-        lags = 1:5
+    if length(parametersVectorExtended) == 0
+        @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
     else
-        lags = vcat(1:5, seasonality:(seasonality):seasonality*2)
+        # L1 norm components (for lasso part)
+        @variable(jumpModel, auxVariables[i = 1:length(parametersVectorExtended)])
+        @constraints(
+            jumpModel,
+            begin
+                [i = 1:length(parametersVectorExtended)],
+                auxVariables[i] >= parametersVectorExtended[i]
+                [i = 1:length(parametersVectorExtended)],
+                auxVariables[i] >= -parametersVectorExtended[i]
+            end
+        )
+
+        # Set up lambda and alpha parameters
+        @variable(jumpModel, α in Parameter(0.5))
+
+        # Use model's lambda and alpha if provided, otherwise use defaults
+        alpha_value = isnothing(model.alpha) ? 0.5 : model.alpha
+
+        set_parameter_value(jumpModel[:α], alpha_value)
+
+        # Set constraints for the regularization
+        @constraint(jumpModel,  sum(jumpModel[:ϵ] .^ 2) <= tolerance)
+
+        # Elastic net objective: [α * L1 + (1-α) * L2]
+        @objective(
+            jumpModel,
+            Min,
+            (jumpModel[:α] * sum(weights .* auxVariables) + (1 - jumpModel[:α])/2 * sum(weights .* parametersVectorExtended .^ 2))
+        )
     end
-
-    p = length(lags)
-
-    # λminratio default
-    if isnothing(λminratio)
-        λminratio = n > p ? 1e-4 : 1e-2
-    end
-
-    # Center y
-    y = yValues
-
-    # Maximum lag determines usable sample
-    maxlag = maximum(lags)
-
-    # Build design matrix
-    X = zeros(T, n - maxlag, p)
-    for (j, lag) in enumerate(lags)
-        X[:, j] = y[(maxlag - lag + 1):(n - lag)]
-    end
-    yresp = y[(maxlag+1):end]
-
-    # Compute λmax
-    Xy = X' * yresp
-    λmax = maximum(abs.(Xy)) / (n - maxlag)
-
-    # Generate decreasing λ path
-    λpath = exp.(range(log(λmax), stop=log(λmax * λminratio), length=nλ))
-
-    return λpath
 end

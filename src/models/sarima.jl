@@ -965,16 +965,20 @@ function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction:
     JuMP.optimize!(jumpModel)
 
     if objectiveFunction == "elastic_net" && isnothing(model.lambda) && getHyperparametersNumber(model) > 1
-        # lb = max(model.p, model.P * model.seasonality, model.q, model.Q * model.seasonality) + 1
-        # K = getHyperparametersNumber(jumpModel)
-        # # println(getHyperparametersNumber(model)," - ", K)
-        # model_variance = computeSARIMAModelVariance(
-        #     jumpModel,
-        #     objectiveFunction,
-        #     K,
-        #     lb,
-        # )
-        tolerance = objective_value(jumpModel) * 1.1
+        lb = max(model.p, model.P * model.seasonality, model.q, model.Q * model.seasonality) + 1
+        K = getHyperparametersNumber(jumpModel)
+        # println(getHyperparametersNumber(model)," - ", K)
+        model_variance = computeSARIMAModelVariance(
+            jumpModel,
+            objectiveFunction,
+            K,
+            lb,
+        )
+
+        nu = length(jumpModel[:ϵ]) - lb - K + 1
+        objective_std = sqrt(2*nu)*model_variance
+
+        tolerance = objective_value(jumpModel) + objective_std
         regularizationObjective(jumpModel, model, tolerance)
         JuMP.optimize!(jumpModel)
 
@@ -1578,7 +1582,9 @@ function auto(
 
     # Set maximum orders
     maxp = min(maxp, floor(Int, length(values(y)) / 3))
+    maxp = (seasonality == 1) ? maxp : min(maxp, seasonality-1) # Avoid overlap with seasonal orders
     maxq = min(maxq, floor(Int, length(values(y)) / 3))
+    maxq = (seasonality == 1) ? maxq : min(maxq, seasonality-1) # Avoid overlap with seasonal orders
     maxP =
         (seasonality == 1) ? 0 : min(maxP, floor(Int, length(values(y)) / 3 * seasonality))
     maxQ =
@@ -1666,10 +1672,10 @@ function auto(
                 y,
                 maxp,
                 d,
-                maxq;
+                2;
                 P = maxP,
                 D = D,
-                Q = maxQ,
+                Q = 1,
                 seasonality = seasonality,
                 allowMean = allowMean,
                 allowDrift = allowDrift,
@@ -4046,7 +4052,25 @@ function regularizationObjective(jumpModel::Model, model::SARIMAModel, tolerance
         length(parametersVector) == 0 ? [] :
         reduce(vcat, [Vector{VariableRef}([jumpModel[el]...]) for el in parametersVector])
 
-    weights = [1.0/(abs(value(el)) + 1e-6) for el in parametersVectorExtended]
+    weights = []
+    for param in parametersVector
+        seasonalOffset = param in [:Φ, :Θ] ? model.seasonality : 1
+        aux_vector = [jumpModel[param]...]
+        aux_weights = []
+        aux_lags = []
+        for (lag,el) in enumerate(aux_vector)
+            push!(aux_weights, min(1/(abs(value(el)) + 1e-6), 1e6))
+            push!(aux_lags, lag * seasonalOffset)
+        end
+
+        # get the median of the aux_weights
+        median_weight = median(aux_weights)
+        aux_weights = [el/median_weight for el in aux_weights]
+        aux_weights = (aux_weights .* aux_lags)
+
+        push!(weights, aux_weights...)
+    end
+    println(weights)
 
     if length(parametersVectorExtended) == 0
         @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))

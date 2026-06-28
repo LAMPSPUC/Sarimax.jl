@@ -583,6 +583,8 @@ end
         optimizer::DataType=Ipopt.Optimizer,
         objectiveFunction::String="mse"
         automaticExogDifferentiation::Bool=false
+        invertible::Bool=false
+        invertibilityMargin::AbstractFloat=0.0
     )
 
 Estimate the SARIMA model parameters via non-linear least squares. The resulting optimal
@@ -596,6 +598,14 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
 - `optimizer::DataType`: The optimizer to be used for optimization. Default is `Ipopt.Optimizer`.
 - `objectiveFunction::String`: The objective function used for estimation. Default is "mse".
 - `automaticExogDifferentiation::Bool`: Whether to automatically differentiate the exogenous variables. Default is `false`.
+- `invertible::Bool`: When `true`, the (seasonal) moving-average coefficients are generated from
+  bounded reflection coefficients `κ` via [`reflectionToMA`](@ref), guaranteeing an invertible MA
+  polynomial by construction instead of imposing only box bounds on `θ`/`Θ`. For `q = Q = 1` this is
+  equivalent to the default box bounds; for higher orders it restricts the estimate to the
+  (non-box) invertibility region. Not compatible with the `"bilevel"` objective. Default is `false`.
+- `invertibilityMargin::AbstractFloat`: Margin `ρ ∈ [0, 1)` that bounds the reflection coefficients to
+  `[-(1-ρ), 1-ρ]`, keeping the solution `ρ` away from the unit circle. Only used when `invertible=true`.
+  Default is `0.0`.
 
 # Example
 ```jldoctest
@@ -614,11 +624,15 @@ function fit!(
     automaticExogDifferentiation::Bool = false,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
     lambda::Union{Nothing,<:AbstractFloat} = nothing,
+    invertible::Bool = false,
+    invertibilityMargin::AbstractFloat = 0.0,
 )
     Fl = typeofModelElements(model)
     isFitted(model) &&
         @info("The model has already been fitted. Overwriting the previous results")
     @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable"] "The objective function $objectiveFunction is not supported. Please use 'mae', 'mse', 'ml', 'bilevel', 'elastic_net' or 'stable'"
+    @assert !(invertible && MACoefficientsAreModelParameters(objectiveFunction)) "The invertible MA parameterization is not compatible with the '$objectiveFunction' objective (MA coefficients are treated as outer parameters there)."
+    @assert 0.0 <= invertibilityMargin < 1.0 "invertibilityMargin (ρ) must lie in [0, 1)."
     if objectiveFunction == "elastic_net"
         @assert (!isnothing(alpha) || !isnothing(model.alpha)) "In elastic net objective function, alpha must be specified"
     end
@@ -673,6 +687,32 @@ function fit!(
     if MACoefficientsAreModelParameters(objectiveFunction)
         @variable(mod, θ[i = 1:model.q] in Parameter(i))
         @variable(mod, Θ[i = 1:model.Q] in Parameter(i))
+    elseif invertible
+        # Invertible MA parameterization: the MA coefficients θ (Θ) are generated
+        # from bounded reflection coefficients κ (κseasonal) through reflectionToMA.
+        # θ/Θ stay registered as variables (so the rest of the code is unchanged)
+        # and are linked to the reflection recursion by equality constraints.
+        ρ = invertibilityMargin
+        @variable(mod, θ[1:model.q])
+        @variable(mod, Θ[1:model.Q])
+        if model.q > 0
+            @variable(mod, -(1 - ρ) <= κ[1:model.q] <= (1 - ρ))
+            θκ = reflectionToMA(κ)
+            @constraint(mod, [j = 1:model.q], θ[j] == θκ[j])
+            for i = 1:model.q
+                set_start_value(κ[i], 0.0)
+                set_start_value(θ[i], 0.0)
+            end
+        end
+        if model.Q > 0
+            @variable(mod, -(1 - ρ) <= κseasonal[1:model.Q] <= (1 - ρ))
+            Θκ = reflectionToMA(κseasonal)
+            @constraint(mod, [j = 1:model.Q], Θ[j] == Θκ[j])
+            for i = 1:model.Q
+                set_start_value(κseasonal[i], 0.0)
+                set_start_value(Θ[i], 0.0)
+            end
+        end
     else
         @variable(mod, -1 <= θ[1:model.q] <= 1)
         @variable(mod, -1 <= Θ[1:model.Q] <= 1)
@@ -785,6 +825,36 @@ Determines if the moving average coefficients are treated as model parameters ba
 """
 function MACoefficientsAreModelParameters(objectiveFunction::String)
     return objectiveFunction == "bilevel"
+end
+
+"""
+    reflectionToMA(κ)
+
+Maps a vector of reflection coefficients `κ = (κ₁,…,κ_q)` to moving-average
+coefficients `θ = (θ₁,…,θ_q)` through the recursion
+
+    θ₁⁽¹⁾ = κ₁
+    θ_m⁽ᵐ⁾ = κ_m,                                  m = 2,…,q
+    θ_i⁽ᵐ⁾ = θ_i⁽ᵐ⁻¹⁾ + κ_m · θ_{m−i}⁽ᵐ⁻¹⁾,        i = 1,…,m−1
+    θ_j    = θ_j⁽q⁾,                                j = 1,…,q
+
+When the reflection coefficients satisfy |κ_m| < 1 the resulting MA polynomial is
+invertible. The entries of `κ` may be numbers or JuMP variables/expressions; the
+returned vector then contains the corresponding (possibly nonlinear) expressions.
+"""
+function reflectionToMA(κ)
+    q = length(κ)
+    q == 0 && return Any[]
+    prev = Any[κ[1]]
+    for m = 2:q
+        cur = Vector{Any}(undef, m)
+        cur[m] = κ[m]
+        for i = 1:(m-1)
+            cur[i] = prev[i] + κ[m] * prev[m-i]
+        end
+        prev = cur
+    end
+    return prev
 end
 
 function getParametersVector(model::SARIMAModel)

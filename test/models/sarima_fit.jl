@@ -236,4 +236,34 @@ end
     #     @test autoModel.d == 1
     #     @test autoModel.D == 1
     # end
+
+    @testset "invertible_fit" begin
+        # reflectionToMA recursion (numeric check): θ₁ = κ₁(1+κ₂), θ₂ = κ₂
+        @test Sarimax.reflectionToMA([0.5]) == [0.5]
+        @test isapprox(Sarimax.reflectionToMA([0.5, 0.3]), [0.5 + 0.3 * 0.5, 0.3]; atol = 1e-12)
+        @test length(Sarimax.reflectionToMA(Float64[])) == 0
+
+        airPassengers = loadDataset(AIR_PASSENGERS)
+
+        # q = 1: the reflection parameterization coincides with the box bounds
+        boxMA1 = SARIMA(airPassengers, 1, 0, 1)
+        fit!(boxMA1; objectiveFunction = "mse")
+        refMA1 = SARIMA(airPassengers, 1, 0, 1)
+        fit!(refMA1; objectiveFunction = "mse", invertible = true)
+        @test isapprox(boxMA1.θ[1], refMA1.θ[1]; atol = 1e-4)
+
+        # airline model: box drives θ to the unit-root boundary (|θ| = 1, non-invertible),
+        # while the reflection parameterization keeps it strictly inside |θ| ≤ 1 - ρ.
+        ρ = 0.05
+        boxAir = SARIMA(airPassengers, 0, 1, 1; seasonality = 12, P = 0, D = 1, Q = 1)
+        fit!(boxAir; objectiveFunction = "mse")
+        refAir = SARIMA(airPassengers, 0, 1, 1; seasonality = 12, P = 0, D = 1, Q = 1)
+        fit!(refAir; objectiveFunction = "mse", invertible = true, invertibilityMargin = ρ)
+        @test abs(boxAir.θ[1]) >= 0.99
+        @test abs(refAir.θ[1]) <= (1 - ρ) + 1e-6
+
+        # invertible parameterization is incompatible with the bilevel objective
+        bilevelModel = SARIMA(airPassengers, 0, 1, 1; seasonality = 12, P = 0, D = 1, Q = 1)
+        @test_throws AssertionError fit!(bilevelModel; objectiveFunction = "bilevel", invertible = true)
+    end
 end

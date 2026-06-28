@@ -37,6 +37,7 @@ using Optim
 using Pkg
 using Random
 using Requires
+using SCIP
 using StateSpaceModels
 using Statistics
 using TimeSeries

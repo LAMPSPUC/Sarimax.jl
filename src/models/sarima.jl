@@ -596,6 +596,11 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
 - `model::SARIMAModel`: The SARIMA model to be fitted.
 - `silent::Bool`: Whether to suppress solver output. Default is `true`.
 - `optimizer::DataType`: The optimizer to be used for optimization. Default is `Ipopt.Optimizer`.
+- `mipSolver::DataType`: The MIP sub-solver used by the Alpine global optimizer for its
+  lower-bounding step. Default is `SCIP.Optimizer`, which can solve the mixed-integer quadratic
+  (MIQP) relaxations arising from quadratic objectives such as `"mse"`. If `HiGHS.Optimizer` is
+  supplied it only works with the linear `"mae"` objective; a warning is issued otherwise. Only
+  relevant when `optimizer = Alpine.Optimizer`.
 - `objectiveFunction::String`: The objective function used for estimation. Default is "mse".
 - `automaticExogDifferentiation::Bool`: Whether to automatically differentiate the exogenous variables. Default is `false`.
 - `invertible::Bool`: When `true`, the (seasonal) moving-average coefficients are generated from
@@ -620,6 +625,7 @@ function fit!(
     model::SARIMAModel;
     silent::Bool = true,
     optimizer::DataType = Ipopt.Optimizer,
+    mipSolver::DataType = SCIP.Optimizer,
     objectiveFunction::String = "mse",
     automaticExogDifferentiation::Bool = false,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
@@ -726,7 +732,7 @@ function fit!(
     end
 
     model.keepProvidedCoefficients && setProvidedCoefficients!(mod, model)
-    includeSolverParameters!(mod, silent)
+    includeSolverParameters!(mod, silent; mipSolver = mipSolver, objectiveFunction = objectiveFunction)
 
     if model.seasonality > 1
         @expression(
@@ -911,15 +917,38 @@ Includes solver-specific parameters in the JuMP model.
 - `model::Model`: The JuMP model to which solver parameters will be included.
 
 """
-function includeSolverParameters!(model::Model, isSilent::Bool = true)
+function includeSolverParameters!(
+    model::Model,
+    isSilent::Bool = true;
+    mipSolver::DataType = SCIP.Optimizer,
+    objectiveFunction::String = "mse",
+)
     isSilent && solver_name(model) != "Alpine" && set_silent(model)
     if solver_name(model) == "Gurobi"
         set_optimizer_attribute(model, "NonConvex", 2)
     elseif solver_name(model) == "Alpine"
-        ipopt = optimizer_with_attributes(Ipopt.Optimizer)
-        highs = optimizer_with_attributes(HiGHS.Optimizer)
+        # Alpine relaxes the (bilinear/quadratic) SARIMAX model into a sub-problem that is
+        # passed to a MIP sub-solver. SCIP is the default because it can solve the
+        # mixed-integer quadratic (MIQP) relaxations produced by quadratic objectives
+        # such as "mse". HiGHS only handles the linear (MILP) relaxation of the "mae"
+        # objective; warn if it is requested for a quadratic objective.
+        if occursin("HiGHS", string(mipSolver)) && objectiveFunction != "mae"
+            @warn(
+                "The HiGHS MIP sub-solver cannot solve the mixed-integer quadratic (MIQP) " *
+                "relaxation that Alpine builds for the '$objectiveFunction' objective. " *
+                "Use objectiveFunction=\"mae\" (linear) with HiGHS, or keep the default " *
+                "SCIP mip_solver for quadratic objectives such as 'mse'."
+            )
+        end
+        ipopt =
+            isSilent ? optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0) :
+            optimizer_with_attributes(Ipopt.Optimizer)
+        mip =
+            (isSilent && occursin("SCIP", string(mipSolver))) ?
+            optimizer_with_attributes(mipSolver, "display/verblevel" => 0) :
+            optimizer_with_attributes(mipSolver)
         set_optimizer_attribute(model, "nlp_solver", ipopt)
-        set_optimizer_attribute(model, "mip_solver", highs)
+        set_optimizer_attribute(model, "mip_solver", mip)
     elseif solver_name(model) == "Ipopt"
         set_optimizer_attribute(model, "warm_start_init_point", "yes")
     end

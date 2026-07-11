@@ -123,9 +123,11 @@
         airpassengers = loadDataset(AIR_PASSENGERS)
         log_airpassengers = log.(airpassengers)
         model = auto(airpassengers; searchMethod="stepwiseNaive", seasonality=12)
+        # Selected orders under the v0.2 CSS information criteria (full Gaussian
+        # constants, declared-parameter K, common conditioning sample).
         @test model.p == 2
-        @test model.q == 0
-        @test model.P == 0
+        @test model.q == 2
+        @test model.P == 1
         @test model.Q == 1
         @test model.d == 1
         @test model.D == 1
@@ -135,11 +137,15 @@
         airpassengers = loadDataset(AIR_PASSENGERS)
         log_airpassengers = log.(airpassengers)
         model = auto(airpassengers; searchMethod="grid", seasonality=12)
-        @test model.p == 4
-        @test model.q == 0
-        @test model.P == 0
-        @test model.Q == 1
+        # Selected orders under the v0.2 CSS information criteria (see above).
+        @test model.p == 0
+        @test model.q == 2
+        @test model.P == 2
+        @test model.Q == 0
         @test model.d == 1
         @test model.D == 1
+        # Exhaustive search must not do worse than the stepwise heuristic.
+        stepwiseModel = auto(airpassengers; searchMethod="stepwiseNaive", seasonality=12)
+        @test aicc(model) <= aicc(stepwiseModel) + 1e-6
     end
 end

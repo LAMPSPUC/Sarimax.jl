@@ -403,52 +403,41 @@ function createOutliersDummies(
 end
 
 """
-    loglikelihood(model::SarimaxModel)
-
-Calculate the log-likelihood of a SARIMAModel.
-The log-likelihood is calculated based on the formula
-`-0.5 * (T * log(2π) + T * log(σ²) + sum(ϵ.^2 ./ σ²))`
-where:
-- T is the length of the residuals vector (ϵ).
-- σ² is the estimated variance of the model.
-
-# Arguments
-- `model::SarimaxModel`: A SARIMAModel object.
-
-# Returns
-- The log-likelihood of the SARIMAModel.
-
-# Errors
-- `MissingMethodImplementation("fit!")`: Thrown if the `fit!` method is not implemented for the given model type.
-- `ModelNotFitted()`: Thrown if the model has not been fitted.
-
-"""
-function loglikelihood(model::SarimaxModel)
-    !hasFitMethods(typeof(model)) && throw(MissingMethodImplementation("fit!"))
-    !isFitted(model) && throw(ModelNotFitted())
-    T = length(model.ϵ)
-    return -0.5 * (T * log(2π) + T * log(model.σ²) + sum(model.ϵ .^ 2 ./ model.σ²))
-end
-
-"""
     loglike(model::SarimaxModel)
 
-Calculate the log-likelihood of a SARIMAModel using the normal probability density function.
-The log-likelihood is calculated by summing the logarithm of the probability density function (PDF) of each data point under the assumption of a normal distribution with mean 0 and standard deviation equal to the square root of the estimated variance (σ²) of the model.
+Conditional (CSS) Gaussian log-likelihood of a fitted model, evaluated at the
+maximum-likelihood variance `σ̂² = RSS / n`, with full Gaussian constants:
+
+`ℓ = -n/2 * (log(2π) + 1 + log(RSS / n))`
+
+where `n` is the number of effective residuals (the observations used after
+differencing and conditioning on the pre-sample values). This is the likelihood
+convention of conditional least squares — comparable to R's
+`arima(..., method = "CSS")`, NOT to the exact (Kalman-filter) likelihood
+reported by default by R and statsmodels.
 
 # Arguments
-- `model::SarimaxModel`: A SARIMAModel object.
+- `model::SarimaxModel`: A fitted SARIMAModel object.
 
 # Returns
-- The log-likelihood of the SARIMAModel.
+- The conditional Gaussian log-likelihood.
 
 # Errors
 - `MissingMethodImplementation("fit!")`: Thrown if the `fit!` method is not implemented for the given model type.
 - `ModelNotFitted()`: Thrown if the model has not been fitted.
-
 """
 function loglike(model::SarimaxModel)
     !hasFitMethods(typeof(model)) && throw(MissingMethodImplementation("fit!"))
     !isFitted(model) && throw(ModelNotFitted())
-    return sum(logpdf.(Normal(0, sqrt(model.σ²)), model.ϵ))
+    n = length(model.ϵ)
+    rss = sum(abs2, model.ϵ)
+    σ² = rss / n
+    return -n / 2 * (log(2π) + 1 + log(σ²))
 end
+
+"""
+    loglikelihood(model::SarimaxModel)
+
+Alias for [`loglike`](@ref): the conditional (CSS) Gaussian log-likelihood.
+"""
+loglikelihood(model::SarimaxModel) = loglike(model)

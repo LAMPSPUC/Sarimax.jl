@@ -527,17 +527,25 @@ end
 """
     getHyperparametersNumber(model::SARIMAModel)
 
-Returns the number of hyperparameters of a SARIMA model.
+Returns the number of estimated parameters `K` of a SARIMA model (including σ²),
+as used by the information criteria.
+
+For regular objectives every declared parameter counts, regardless of the
+magnitude of its estimate — a coefficient estimated near zero was still
+estimated. For elastic-net fits (`lambda`/`alpha` set) the count is instead the
+number of ACTIVE coefficients (|coef| > 1e-5), the standard effective-degrees-
+of-freedom estimate for L1-type regularization (Zou, Hastie & Tibshirani, 2007).
 
 # Arguments
 - `model::SARIMAModel`: The SARIMA model.
 
 # Returns
-- `Int`: The number of hyperparameters.
+- `Int`: The number of parameters `K`.
 
 """
 function getHyperparametersNumber(model::SARIMAModel)
-    if isFitted(model)
+    usesSparseCount = !isnothing(model.lambda) || !isnothing(model.alpha)
+    if isFitted(model) && usesSparseCount
         hyperparametersNumber = 1
         fields = [:c, :trend, :ϕ, :θ, :Φ, :Θ, :exogCoefficients]
         for field in fields
@@ -550,7 +558,7 @@ function getHyperparametersNumber(model::SARIMAModel)
     end
     k = (model.allowMean) ? 1 : 0
     k = (model.allowDrift) ? k + 1 : k
-    β = isnothing(model.exogCoefficients) ? 0 : length(model.exogCoefficients)
+    β = isnothing(model.exog) ? 0 : length(colnames(model.exog))
     return model.p + model.q + model.P + model.Q + k + β + 1
 end
 
@@ -632,6 +640,7 @@ function fit!(
     lambda::Union{Nothing,<:AbstractFloat} = nothing,
     invertible::Bool = false,
     invertibilityMargin::AbstractFloat = 0.0,
+    minConditioningObs::Int = 0,
 )
     Fl = typeofModelElements(model)
     isFitted(model) &&
@@ -665,7 +674,7 @@ function fit!(
     nExog = isnothing(model.exog) ? 0 : size(values(diffY), 2) - 1
     exogValues = isnothing(model.exog) ? [] : values(diffY)[:, 2:end]
 
-    lb = max(model.p, model.P * model.seasonality, model.q, model.Q * model.seasonality) + 1
+    lb = max(model.p, model.P * model.seasonality, model.q, model.Q * model.seasonality, minConditioningObs) + 1
 
     mod = Model(optimizer)
 
@@ -763,9 +772,9 @@ function fit!(
 
     includeModelConstraints!(mod, yValues, T, objectiveFunction, lb)
 
-    objectiveFunctionDefinition!(mod, model, objectiveFunction, T)
+    objectiveFunctionDefinition!(mod, model, objectiveFunction, T, lb)
 
-    optimizeModel!(mod, model, objectiveFunction)
+    optimizeModel!(mod, model, objectiveFunction, lb)
     model.metadata["solverStatus"] = string(termination_status(mod))
     silent || @info(
         "The model has been fitted with the objective function $objectiveFunction: $(objective_value(mod))"
@@ -1011,6 +1020,7 @@ function objectiveFunctionDefinition!(
     model::SARIMAModel,
     objectiveFunction::String,
     T::Int,
+    lb::Int,
 )
     parametersVector::Vector{Symbol} = getParametersVector(model)
     parametersVectorExtended::Vector{VariableRef} =
@@ -1024,7 +1034,6 @@ function objectiveFunctionDefinition!(
         @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
         set_time_limit_sec(jumpModel, 1.0)
     elseif objectiveFunction == "stable"
-        lb = max(model.p, model.P * model.seasonality, model.q, model.Q * model.seasonality) + 1
         @variable(jumpModel, δ >= 0)
         @variable(jumpModel, u[lb:T] >= 0)
         @constraint(jumpModel, [t = lb:T], δ + u[t] >= jumpModel[:ϵ][t]^2)
@@ -1034,19 +1043,12 @@ function objectiveFunctionDefinition!(
     elseif objectiveFunction == "elastic_net"
         @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
     elseif objectiveFunction == "ml"
-        # llk(ϵ,μ,σ) = logpdf(Normal(μ,abs(σ)),ϵ)
-        # register(jumpModel, :llk, 3, llk, autodiff=true)
-        # @NLobjective( jumpModel, Max, sum(llk(ϵ[t],μ,σ) for t=lb:T))
-        @variable(jumpModel, μ, start = 0.0)
-        @variable(jumpModel, σ >= 0.0, start = 1.0)
-        @constraint(jumpModel, 0 <= μ <= 0.0)
-        # TODO: sum(logpdf(Normal(ŷ[t],σ),yValues[t]) for t in 1:T)
-        @objective(
-            jumpModel,
-            Max,
-            (T / 2) * log(1 / (2 * π * σ * σ)) -
-            sum((jumpModel[:ϵ][t] - μ)^2 for t = 1:T) / (2 * σ * σ)
-        )
+        # Concentrated conditional (CSS) Gaussian likelihood: profiling sigma out
+        # analytically (sigma2 = RSS/n) makes maximizing the likelihood equivalent
+        # to minimizing the sum of squared residuals over the effective sample.
+        # Keeping sigma as a decision variable is degenerate when RSS -> 0
+        # (noise-free data drives sigma -> 0 and the objective to +Inf).
+        @objective(jumpModel, Min, sum(jumpModel[:ϵ][t]^2 for t = lb:T))
     end
 end
 
@@ -1073,12 +1075,11 @@ Optimizes the SARIMA model using the specified objective function.
 - `objectiveFunction::String`: The objective function used for optimization.
 
 """
-function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction::String)
+function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction::String, lb::Int)
     JuMP.optimize!(jumpModel)
     checkSolverStatus(jumpModel)
 
     if objectiveFunction == "elastic_net" && isnothing(model.lambda) && getHyperparametersNumber(model) > 1
-        lb = max(model.p, model.P * model.seasonality, model.q, model.Q * model.seasonality) + 1
         K = getHyperparametersNumber(jumpModel)
         # println(getHyperparametersNumber(model)," - ", K)
         model_variance = computeSARIMAModelVariance(
@@ -1150,12 +1151,15 @@ function computeSARIMAModelVariance(
     nParameters::Int,
     offset::Int,
 )
+    nstar = length(value.(model[:ϵ])[offset:end])
+    rss = sum(value.(model[:ϵ])[offset:end] .^ 2)
     if objectiveFunction == "ml"
-        return value(model[:σ])^2
+        # ML convention: sigma2 = RSS / n (sigma was concentrated out)
+        return rss / nstar
     end
-    nstar = length(value.(model[:ϵ][offset:end]))
-    return sum(value.(model[:ϵ])[offset:end] .^ 2) / (nstar - nParameters + 1)
+    return rss / (nstar - nParameters + 1)
 end
+
 
 """
     completeCoefficientsVector(model::SARIMAModel)
@@ -1228,26 +1232,67 @@ end
 
 
 """
+    polynomialMultiplication(a::Vector{Fl}, b::Vector{Fl}) where Fl<:AbstractFloat
+
+Multiplies two polynomials given by their coefficient vectors (constant term first).
+"""
+function polynomialMultiplication(a::Vector{Fl}, b::Vector{Fl}) where {Fl<:AbstractFloat}
+    c = zeros(Fl, length(a) + length(b) - 1)
+    for i in eachindex(a), j in eachindex(b)
+        c[i+j-1] += a[i] * b[j]
+    end
+    return c
+end
+
+"""
+    psiWeights(ar::Vector{Fl}, ma::Vector{Fl}, maxLags::Int) where Fl<:AbstractFloat
+
+ψ-weights (MA(∞) representation) of an ARMA process with AR coefficients `ar`
+and MA coefficients `ma`, via the standard recursion (Brockwell & Davis, 2009).
+"""
+function psiWeights(ar::Vector{Fl}, ma::Vector{Fl}, maxLags::Int) where {Fl<:AbstractFloat}
+    p = length(ar)
+    q = length(ma)
+    ψ = zeros(Fl, maxLags)
+    for i = 1:maxLags
+        tmp = (i <= q) ? ma[i] : zero(Fl)
+        for j = 1:min(i, p)
+            tmp += ar[j] * ((i - j > 0) ? ψ[i-j] : one(Fl))
+        end
+        ψ[i] = tmp
+    end
+    return ψ
+end
+
+"""
     forecastErrors(model::SARIMAModel, maxLags::Int=12)
 
-    The function computes the forecast errors for the SARIMA model using the estimated σ² and the MA coefficients.
+Computes the h-step-ahead forecast VARIANCES on the original (integrated)
+scale: the ψ-weights are derived from the AR polynomial composed with the
+differencing operator (1-B)^d (1-B^s)^D, so the uncertainty accumulated by
+re-integration is propagated (e.g. ARIMA(0,1,0) yields σ²·h).
 
-    # Arguments
-    - `model::SARIMAModel`: The SARIMA model.
-    - `maxLags::Int=12`: The maximum number of lags to include in the forecast errors.
-
-    # Returns
-    - `computedForecastErrors::Vector{Fl}`: The computed forecast errors.
-
-    # References
-    - Brockwell, P. J., & Davis, R. A. Time Series: Theory and Methods (page 92). Springer(2009)
+# References
+- Brockwell, P. J., & Davis, R. A. Time Series: Theory and Methods (page 92). Springer(2009)
 """
 function forecastErrors(model::SARIMAModel, maxLags::Int = 12)
-    ψ = toMA(model, maxLags)
-    computedForecastErrors = zeros(maxLags)
+    Fl = typeofModelElements(model)
+    ar, ma = completeCoefficientsVector(model)
+    arVec::Vector{Fl} = isnothing(ar) ? Fl[] : ar
+    maVec::Vector{Fl} = isnothing(ma) ? Fl[] : ma
+    # The forecast is reported on the ORIGINAL (integrated) scale, so the
+    # ψ-weights must come from ϕ*(B) = ϕ(B)·(1-B)^d·(1-B^s)^D — the AR
+    # polynomial composed with the differencing operator. Without this, the
+    # variance of an integrated series (e.g. σ²·h for ARIMA(0,1,0)) is lost.
+    arPoly = vcat(one(Fl), -arVec)
+    diffPoly = differentiatedCoefficients(model.d, model.D, model.seasonality, Fl)
+    fullPoly = polynomialMultiplication(arPoly, diffPoly)
+    φ = -fullPoly[2:end]
+    ψ = psiWeights(φ, maVec, maxLags)
+    computedForecastErrors = zeros(Fl, maxLags)
     computedForecastErrors[1] = model.σ²
     for lag = 2:maxLags
-        computedForecastErrors[lag] = model.σ² * (1 + sum(ψ[i]^2 for i = 1:lag-1))
+        computedForecastErrors[lag] = model.σ² * (1 + sum(abs2, ψ[1:lag-1]))
     end
     return computedForecastErrors
 end
@@ -1706,7 +1751,10 @@ function auto(
     maxQ =
         (seasonality == 1) ? 0 : min(maxQ, floor(Int, length(values(y)) / 3 * seasonality))
 
-    offset = computeModelsICOffset(y, exog, d, D, seasonality)
+    # All search candidates are conditioned on the same pre-sample length so
+    # that their CSS likelihoods (and hence information criteria) are computed
+    # on the same effective sample.
+    searchLb = max(maxp, seasonality * maxP, maxq, seasonality * maxQ)
 
     if outlierDetection
         exog = detectOutliers(y, exog, d, D, seasonality, showLogs)
@@ -1729,7 +1777,7 @@ function auto(
             assertStationarity = assertStationarity,
             assertInvertibility = assertInvertibility,
             showLogs = showLogs,
-            icOffset = offset,
+            minConditioningObs = searchLb,
             allowMean = allowMean,
             allowDrift = allowDrift,
             alpha = alpha,
@@ -1752,7 +1800,7 @@ function auto(
             assertStationarity = assertStationarity,
             assertInvertibility = assertInvertibility,
             showLogs = showLogs,
-            icOffset = offset,
+            minConditioningObs = searchLb,
             allowMean = allowMean,
             allowDrift = allowDrift,
             fixConstant = fixConstant,
@@ -1776,7 +1824,7 @@ function auto(
             assertStationarity = assertStationarity,
             assertInvertibility = assertInvertibility,
             showLogs = showLogs,
-            icOffset = offset,
+            minConditioningObs = searchLb,
             allowMean = allowMean,
             allowDrift = allowDrift,
             alpha = alpha,
@@ -1814,11 +1862,10 @@ function auto(
             )
         end
 
-        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs)
+        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs, minConditioningObs = searchLb)
     end
 
     bestModel.exog = exog
-    bestModel.icOffset = offset
     showLogs && @info("The best model found is $(getId(bestModel))")
 
     return bestModel
@@ -1977,57 +2024,6 @@ function constantDiffSeriesModelSpecification(
     fit!(model)
 
     return model
-end
-
-"""
-    computeModelsICOffset(
-        y::TimeArray,
-        exog::Union{TimeArray,Nothing},
-        d::Int,
-        D::Int,
-        seasonality::Int
-    )
-
-Computes the offset value for the SARIMA model.
-
-# Arguments
-
-- `y::TimeArray`: The time series data.
-- `exog::Union{TimeArray,Nothing}`: Optional exogenous variables. If `Nothing`, no exogenous variables are used.
-- `d::Int`: The degree of differencing.
-- `D::Int`: The degree of seasonal differencing.
-- `seasonality::Int`: The seasonality period.
-
-# Returns
-- `AbstractFloat`: The computed offset value.
-"""
-function computeModelsICOffset(
-    y::TimeArray,
-    exog::Union{TimeArray,Nothing},
-    d::Int,
-    D::Int,
-    seasonality::Int,
-)
-    if D == 0
-        model = SARIMA(y, exog, 0, d, 0; allowMean = true)
-    else
-        model = SARIMA(
-            y,
-            exog,
-            0,
-            d,
-            0;
-            P = 0,
-            D = D,
-            Q = 0,
-            seasonality = seasonality,
-            allowMean = true,
-        )
-    end
-    fit!(model)
-    llk_offset = Sarimax.loglike(model)
-    offset = -2 * llk_offset - length(model.y) * log(model.σ²)
-    return offset
 end
 
 """
@@ -2513,14 +2509,15 @@ function localSearch!(
     assertStationarity::Bool = false,
     assertInvertibility::Bool = false,
     showLogs::Bool = false,
-    icOffset::Fl = 0.0
+    icOffset::Fl = 0.0,
+    minConditioningObs::Int = 0,
 ) where {Fl<:AbstractFloat}
     ModelFl = Fl#typeofModelElements(candidateModels[1])
     localBestCriteria::ModelFl = Inf
     localBestModel = nothing
     foreach(
         model -> if !isFitted(model)
-            fit!(model; objectiveFunction = objectiveFunction)
+            fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
             criteria = informationCriteriaFunction(model; offset = icOffset)
             showLogs && @info("Fitted $(getId(model)) with $(criteria)")
             visitedModels[getId(model)] = Dict("criteria" => criteria)
@@ -2915,6 +2912,7 @@ function stepWiseSearchNaive(
     allowDrift::Bool = false,
     showLogs::Bool = false,
     icOffset::Fl = 0.0,
+    minConditioningObs::Int = 0,
     fixConstant::Bool = false,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,Float64} = nothing,
@@ -2961,6 +2959,7 @@ function stepWiseSearchNaive(
         assertInvertibility,
         showLogs,
         icOffset,
+        minConditioningObs,
     )
 
     if isnothing(bestModel)
@@ -3122,6 +3121,7 @@ function stepwiseSearch(
     allowDrift::Bool = false,
     showLogs::Bool = false,
     icOffset::Fl = 0.0,
+    minConditioningObs::Int = 0,
     maxModels::Int = 94,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
     lambda::Union{Nothing,<:AbstractFloat} = nothing,
@@ -3148,7 +3148,7 @@ function stepwiseSearch(
         alpha = alpha,
         lambda = lambda
     )
-    fit!(bestModel; objectiveFunction = objectiveFunction)
+    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
     showLogs && @info(
         "Fitted $(getId(bestModel)) with $(informationCriteriaFunction(bestModel; offset=icOffset)) criteria"
     )
@@ -3177,7 +3177,7 @@ function stepwiseSearch(
         alpha = alpha,
         lambda = lambda
     )
-    fit!(fitModel; objectiveFunction = objectiveFunction)
+    fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
     showLogs && @info(
         "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
     )
@@ -3222,7 +3222,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -3263,7 +3263,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -3302,7 +3302,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -3349,7 +3349,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3390,7 +3390,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3431,7 +3431,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3472,7 +3472,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3514,7 +3514,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3557,7 +3557,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3600,7 +3600,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3643,7 +3643,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3685,7 +3685,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3726,7 +3726,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3767,7 +3767,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3808,7 +3808,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3850,7 +3850,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3893,7 +3893,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3936,7 +3936,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3979,7 +3979,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -4019,7 +4019,7 @@ function stepwiseSearch(
                     alpha = alpha,
                     lambda = lambda
                 )
-                fit!(fitModel; objectiveFunction = objectiveFunction)
+                fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
                 showLogs && @info(
                     "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
                 )
@@ -4111,6 +4111,7 @@ function gridSearch(
     allowDrift::Bool = false,
     showLogs::Bool = false,
     icOffset::Fl = 0.0,
+    minConditioningObs::Int = 0,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,Float64} = nothing,
 ) where {Fl<:AbstractFloat}
@@ -4130,7 +4131,7 @@ function gridSearch(
         alpha = alpha,
         lambda = lambda,
     )
-    fit!(bestModel; objectiveFunction = objectiveFunction)
+    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
     bestIC = informationCriteriaFunction(bestModel; offset = icOffset)
 
     for p = 0:maxp, q = 0:maxq, P = 0:maxP, Q = 0:maxQ, k = 0:maxK
@@ -4152,7 +4153,7 @@ function gridSearch(
             alpha = alpha,
             lambda = lambda,
         )
-        fit!(model; objectiveFunction = objectiveFunction)
+        fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
         ic = informationCriteriaFunction(model; offset = icOffset)
         showLogs && @info(
             "Fitted $(getId(model)) with $(informationCriteriaFunction(model; offset=icOffset)) criteria"

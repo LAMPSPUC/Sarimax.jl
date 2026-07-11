@@ -88,11 +88,15 @@ end
 """
     aic(model::SarimaxModel; offset::Fl) -> Fl where Fl<:AbstractFloat
 
-Calculate the Akaike Information Criterion (AIC) for a Sarimax model.
+Calculate the Akaike Information Criterion (AIC) for a Sarimax model:
+`AIC = 2K - 2ℓ`, where `ℓ` is the conditional (CSS) Gaussian log-likelihood
+([`loglike`](@ref)) and `K` the number of estimated parameters. Comparable to
+R's `arima(..., method = "CSS")` convention, not to exact-likelihood AICs.
 
 # Arguments
 - `model::SarimaxModel`: The Sarimax model for which AIC is calculated.
-- `offset::Fl=0.0`: Offset value to be added to the AIC value.
+- `offset::Fl`: Optional value added to the AIC (kept for call compatibility).
+- `K::Int`: Optional parameter-count override.
 
 # Returns
 The AIC value calculated using the number of parameters and log-likelihood value of the model.
@@ -105,14 +109,8 @@ function aic(model::SarimaxModel; offset::Union{Fl,Nothing} = nothing, K::Union{
     !hasHyperparametersMethods(typeof(model)) &&
         throw(MissingMethodImplementation("getHyperparametersNumber"))
     K = isnothing(K) ? getHyperparametersNumber(model) : K
-    # T = length(model.ϵ)
-    # return aic(K, loglike(model))
-    # offset = -2 * loglike(model) - length(model.y) * log(model.σ²)
-    # return offset + T * log(model.σ²) + 2*K
-    T = length(model.y) - model.d - model.D * model.seasonality
-    offset = isnothing(offset) ? 0.0 : offset
-    isnothing(model.icOffset) || (offset = model.icOffset)
-    return 2 * K + T * log(model.σ²) + offset
+    offsetValue = isnothing(offset) ? 0.0 : offset
+    return 2 * K - 2 * loglike(model) + offsetValue
 end
 
 """
@@ -135,10 +133,8 @@ function aicc(model::SarimaxModel; offset::Union{Fl,Nothing} = nothing, K::Union
     !hasHyperparametersMethods(typeof(model)) &&
         throw(MissingMethodImplementation("getHyperparametersNumber"))
     K = isnothing(K) ? getHyperparametersNumber(model) : K
-    # T = length(model.ϵ)
-    # return aicc(T, K, loglike(model))
-    T = length(model.y) - model.d - model.D * model.seasonality
-    return aic(model; offset = offset) + ((2 * K * K + 2 * K) / (T - K - 1))
+    n = length(model.ϵ)
+    return aic(model; offset = offset, K = K) + ((2 * K * K + 2 * K) / (n - K - 1))
 end
 
 """
@@ -161,10 +157,9 @@ function bic(model::SarimaxModel; offset::Union{Fl,Nothing} = nothing, K::Union{
     !hasHyperparametersMethods(typeof(model)) &&
         throw(MissingMethodImplementation("getHyperparametersNumber"))
     K = isnothing(K) ? getHyperparametersNumber(model) : K
-    # T = length(model.ϵ)
-    # return bic(T, K, loglike(model))
-    T = length(model.y) - model.d - model.D * model.seasonality
-    return aic(model; offset = offset) + K * (log(T) - 2)
+    n = length(model.ϵ)
+    offsetValue = isnothing(offset) ? 0.0 : offset
+    return K * log(n) - 2 * loglike(model) + offsetValue
 end
 
 

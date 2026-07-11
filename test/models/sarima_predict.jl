@@ -187,6 +187,28 @@ end
         end
     end
 
+    @testset "forecast variances propagate through integration" begin
+        # ARIMA(0,1,0): Var[h] = σ²·h on the original scale — the ψ-weights must
+        # include the differencing operator (1-B)^d (1-B^s)^D.
+        Random.seed!(42)
+        varDates = Date(2000, 1, 1):Month(1):Date(2004, 12, 1)
+        rw = TimeArray(collect(varDates), cumsum(randn(60)))
+        mRW = SARIMA(rw, 0, 1, 0; allowMean = false)
+        fit!(mRW)
+        feRW = Sarimax.forecastErrors(mRW, 5)
+        @test feRW ./ mRW.σ² ≈ [1.0, 2.0, 3.0, 4.0, 5.0] rtol = 1e-8
+
+        # White noise: constant variance σ².
+        wn = TimeArray(collect(varDates), randn(60))
+        mWN = SARIMA(wn, 0, 0, 0; allowMean = true)
+        fit!(mWN)
+        feWN = Sarimax.forecastErrors(mWN, 4)
+        @test feWN ./ mWN.σ² ≈ ones(4) rtol = 1e-8
+
+        # Polynomial helper: (1-B)² = 1 - 2B + B²
+        @test Sarimax.polynomialMultiplication([1.0, -1.0], [1.0, -1.0]) == [1.0, -2.0, 1.0]
+    end
+
     @testset "short series seasonal predict" begin
         # Regression test: seasonal AR term in `predict` had no bounds guard,
         # so a short series (fewer than P*seasonality observations) threw a

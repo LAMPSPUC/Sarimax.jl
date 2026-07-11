@@ -26,6 +26,15 @@ Sarimax.jl is a groundbreaking Julia package that revolutionizes SARIMA (Seasona
 * Time series integration and differentiation
 * Model evaluation criteria (AIC, AICc, BIC)
 
+## Model formulation and comparability
+
+Before comparing Sarimax.jl outputs with `forecast` (R) or `statsmodels` (Python), be aware of four deliberate design differences:
+
+1. **Seasonal form.** The seasonal polynomial is currently **additive** — cross terms such as ``-\phi_i\Phi_k y'_{t-i-sk}`` are absent, so this is not the Box-Jenkins multiplicative SARIMA. Whenever ``p \cdot P > 0`` or ``q \cdot Q > 0``, coefficients are not comparable with R/statsmodels. A multiplicative mode is planned for v0.3.
+2. **Exogenous variables (ARX).** Regressors enter a dynamic-regression/ARX model: the AR terms act on the observed series. R's `Arima(xreg=)` and statsmodels' `SARIMAX(exog=)` fit regression-with-ARIMA-errors instead. Different model families — exogenous coefficients differ by construction.
+3. **Estimation and information criteria (CSS).** Estimation is conditional least squares / concentrated conditional Gaussian ML formulated as a JuMP optimization problem; there is no Kalman filter. `loglike`, `aic`, `aicc` and `bic` follow the CSS convention with full Gaussian constants — comparable to R's `arima(..., method = "CSS")`, not to exact-ML defaults.
+4. **What the optimization formulation buys.** Swappable objectives (MSE, MAE, CVaR, elastic net), custom constraints, an invertible-MA parameterization (`fit!(model; invertible = true)`), and certified global optima via SCIP.
+
 ## Installation
 
 Sarimax.jl can be installed using Julia's built-in package manager. From the Julia REPL, type `]` to enter the Pkg REPL mode and run:

@@ -1,0 +1,68 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.2.0] - Unreleased
+
+### Fixed
+- **Exogenous forecasting**: `predict` used the exogenous row of the *last* forecast
+  horizon for every step; each step now uses its own row. Multi-step SARIMAX
+  forecasts with non-constant exogenous variables were wrong before this fix.
+- **Forecast variances**: prediction-interval variances are now propagated through
+  re-integration — the ψ-weights include the differencing operator
+  `(1-B)^d (1-B^s)^D`. Intervals for models with `d + D ≥ 1` were previously too
+  narrow (e.g. ARIMA(0,1,0) now correctly yields `Var[h] = σ²·h`).
+- **Stepwise search**: a no-op statement (`constant != constant`) prevented the
+  constant-toggle step from ever updating its state; `stepWiseSearchNaive` no longer
+  crashes when no stationary/invertible initial candidate exists.
+- **Short-series prediction**: the seasonal AR term in `predict` is now bounds-guarded
+  (was a `BoundsError`).
+- **OCSB test**: internal cleanup and debug-logging; the lag-selection information
+  criterion call is kept in the argument order that reproduces pmdarima's selection
+  on all test fixtures (verified — see comment in `src/statistical_tests.jl`).
+
+### Changed
+- **Log-likelihood / information criteria (CSS convention, declared)**: `loglike` /
+  `loglikelihood` now return the conditional (CSS) Gaussian log-likelihood with full
+  constants, `ℓ = -n/2·(log 2π + 1 + log(RSS/n))`, over the `n` effective residuals.
+  `aic = 2K - 2ℓ`, `bic = K·log(n) - 2ℓ`, `aicc` accordingly. These are comparable to
+  R's `arima(..., method = "CSS")`, not to exact-likelihood defaults of R/statsmodels.
+- **Parameter counting**: `getHyperparametersNumber` counts every declared parameter
+  (+ σ²) for regular objectives; the active-coefficient (|coef| > 1e-5) count is now
+  used only for elastic-net fits, where it estimates effective degrees of freedom.
+- **`auto` search comparability**: all candidate models are conditioned on the same
+  pre-sample length (`minConditioningObs`), so their information criteria are computed
+  on the same effective sample. The `icOffset` machinery was removed.
+- **`"ml"` objective**: rewritten as the CONCENTRATED conditional Gaussian likelihood —
+  σ is profiled out analytically (σ̂² = RSS/n), making the coefficient estimation
+  equivalent to least squares over the effective sample. The previous free-σ
+  formulation was degenerate on (near-)noise-free data (RSS → 0 drives σ → 0 and the
+  objective to +∞ — Ipopt returned `OTHER_ERROR` and garbage coefficients; this was
+  the root cause of the historically failing AR-recovery test). The `μ` constraint
+  hack and the pre-sample residual inflation were removed.
+- **Test harness**: `runtests.jl` now wraps all files in one outer `@testset`. Before,
+  the first failing top-level testset aborted the run, so every test file after
+  `sarima_fit.jl` had never actually executed in a full run.
+- Solver termination status is checked after optimization (warning on non-success)
+  and stored in `model.metadata["solverStatus"]`.
+
+- **`auto` default search**: `searchMethod` now defaults to `"stepwise"` (what the
+  documentation always stated). The previous silent default `"sarimax"` performs no
+  search — it fits a single dense specification and is now documented as intended
+  for regularized estimation.
+- Internal `predict` and `predict!` now agree on `isSimulation = false` as default.
+
+### Removed
+- `icOffset` computation in `auto` (a base-model fit used only to shift IC levels; it
+  cancelled in rankings).
+- Unused dependencies `Requires`, `Combinatorics` and `Pkg`; `Revise` removed from the
+  test target. Julia compat corrected from the impossible `"1.0 - 1.11"` to `"1.10"`.
+
+### Documentation
+- New "Model formulation and comparability" section (README and docs): additive
+  seasonal form, ARX exogenous family, CSS estimation/IC conventions, and what the
+  JuMP formulation buys. Factually wrong docstrings fixed (`differentiate` d/D
+  restriction note, `kpss_test` default lag method, NROU dataset description,
+  `fit!` estimation-method description).

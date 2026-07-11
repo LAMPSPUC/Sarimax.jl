@@ -24,7 +24,7 @@ The GDPC1 dataset, it contains the US Real Gross Domestic Product (GDPC1) from 1
 ", GDPC1)
 
 @doc("
-The NROU dataset, it contains the number of new orders received by US manufacturers from 1960 to 2001.
+The NROU dataset: the U.S. Noncyclical Rate of Unemployment (FRED series NROU), quarterly, including FRED's projections.
 ", NROU)
 
 

@@ -595,8 +595,13 @@ end
         invertibilityMargin::AbstractFloat=0.0
     )
 
-Estimate the SARIMA model parameters via non-linear least squares. The resulting optimal
-parameters as well as the residuals and the model's σ² are stored within the model.
+Estimate the SARIMA model parameters via conditional least squares (CSS) formulated
+as a JuMP optimization problem: the residuals are decision variables tied to the data
+by the model dynamics, and the first `lb-1` pre-sample residuals are fixed at zero.
+No Kalman filter / exact likelihood is used; the `"ml"` objective is the concentrated
+conditional Gaussian likelihood (equivalent to least squares in the coefficients).
+The resulting optimal parameters as well as the residuals and the model's σ² are
+stored within the model.
 The default objective function used to estimate the parameters is the mean squared error (MSE),
 but it can be changed to the maximum likelihood (ML) by setting the `objectiveFunction` parameter to "ml".
 
@@ -1405,7 +1410,7 @@ julia> forecastedValues = predict(model, stepsAhead=12)
 function predict(
     model::SARIMAModel,
     stepsAhead::Int = 1,
-    isSimulation::Bool = true,
+    isSimulation::Bool = false,
     automaticExogDifferentiation::Bool = false,
 )
     !isFitted(model) && throw(ModelNotFitted())
@@ -1594,7 +1599,9 @@ Automatically fits the best SARIMA model according to the specified parameters.
 - `assertInvertibility::Bool`: Whether to assert invertibility of the fitted model. Default is true.
 - `showLogs::Bool`: Whether to suppress output. Default is false.
 - `outlierDetection::Bool`: Whether to perform outlier detection. Default is false.
-- searchMethod::String = "stepwise"
+- `searchMethod::String`: The search strategy: "stepwise" (Hyndman-Khandakar style, default),
+  "stepwiseNaive", "grid" (exhaustive), or "sarimax" (no search: fits a single dense
+  specification at the maximum orders, intended for regularized estimation).
 
 # References
 - Hyndman, RJ and Khandakar. "Automatic time series forecasting: The forecast package for R." Journal of Statistical Software, 26(3), 2008.
@@ -1622,7 +1629,7 @@ function auto(
     assertInvertibility::Bool = true,
     showLogs::Bool = false,
     outlierDetection::Bool = false,
-    searchMethod::String = "sarimax",
+    searchMethod::String = "stepwise",
     lambda::Union{Float64,Nothing} = nothing,
     alpha::Union{Float64,Nothing} = nothing,
 )

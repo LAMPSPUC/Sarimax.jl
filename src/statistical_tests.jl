@@ -84,9 +84,10 @@ Kwiatkowski-Phillips-Schmidt-Shin test for stationarity.
 - `regression::Symbol=:c`: The null hypothesis for the KPSS test
     - `:c`: The data is stationary around a constant (default)
     - `:ct`: The data is stationary around a trend
-- `nlags::Union{Symbol,Int}=:legacy`: Number of lags to use
-    - `:legacy`: Uses int(12 * (n/100)^(1/4)) as in Schwert (1989)
-    - Integer value: Uses specified number of lags
+- `nlags::Union{Symbol,Int}=:auto`: Number of lags to use
+    - `:auto` (default): data-dependent selection of Hobijn et al. (1998)
+    - `:legacy`: int(12 * (n/100)^(1/4)) as in Schwert (1989)
+    - Integer value: uses the specified number of lags
 
 # Returns
 - `Dict`: Dictionary containing test results including:

@@ -6,7 +6,6 @@ using Statistics
 using Test
 using Random
 using TimeSeries
-using Revise
 using JSON
 
 # Testes dos modelos

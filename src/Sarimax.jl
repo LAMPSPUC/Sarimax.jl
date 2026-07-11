@@ -23,7 +23,6 @@ module Sarimax
 import Base: show, print, showerror
 
 using Alpine
-using Combinatorics
 using CSV
 using DataFrames
 using Dates
@@ -34,9 +33,7 @@ using LinearAlgebra
 using MathOptInterface
 using OffsetArrays
 using Optim
-using Pkg
 using Random
-using Requires
 using SCIP
 using StateSpaceModels
 using Statistics

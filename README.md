@@ -36,8 +36,19 @@ Introducing Sarimax.jl, a groundbreaking Julia package that redefines SARIMA (Se
 * Integrate and differentiate time series
 * Provide evaluation criteria values (aic, aicc, bic)
 
+## Model formulation and comparability
+
+Sarimax.jl differs from the reference implementations (`forecast`/R, `statsmodels`/Python) in ways you should know before comparing outputs:
+
+1. **Seasonal form.** The seasonal polynomial is currently **additive**:
+   `ŷ_t = c + Σφ_i y'_{t-i} + Σθ_j ε_{t-j} + ΣΦ_k y'_{t-sk} + ΣΘ_w ε_{t-sw}`.
+   This is *not* the Box-Jenkins multiplicative SARIMA — the cross terms (e.g. `-φ_iΦ_k y'_{t-i-sk}`) are absent. Whenever `p·P > 0` or `q·Q > 0`, coefficients are **not comparable** with R/statsmodels. A multiplicative mode is planned for v0.3.
+2. **Exogenous variables (ARX).** Regressors enter a **dynamic-regression/ARX** model — the AR terms act on the *observed* series. R's `Arima(xreg=)` and statsmodels' `SARIMAX(exog=)` fit *regression with ARIMA errors* instead (AR on the regression residual). These are different model families; exogenous coefficients differ by construction.
+3. **Estimation and information criteria (CSS).** Estimation is conditional least squares / conditional Gaussian ML formulated as a JuMP optimization problem — there is no Kalman filter and no exact likelihood. `loglike`, `aic`, `aicc` and `bic` follow the CSS convention with full Gaussian constants: comparable to R's `arima(..., method = "CSS")`, not to the exact-ML defaults of R/statsmodels.
+4. **What the optimization formulation buys.** Swappable objectives (MSE, MAE, CVaR-based "stable", elastic net), custom constraints, an invertible-MA parameterization (`fit!(model; invertible=true)`), and certified global optima via SCIP.
+
 ## Quickstart
-Using the dataset air passsangers, plot the time series to visualize the data and its features. 
+Using the dataset air passengers, plot the time series to visualize the data and its features. 
 Since it shows variation that increases with the level of the series, a logarithmic transformation is useful. 
 
 ![Combined Plot](docs/img/airp_plot.png)
@@ -104,7 +115,7 @@ stepsAhead = length(testingSet)
 
 The function SARIMA generates a model given the hyperparameters: degree of differencing (d,D), autoregressive order (p, P) and moving average order (q,Q). 
 
-The function fit!(model,objectiveFunction) returns the model with the coefficients that minimize the square root error by default.
+The function fit!(model,objectiveFunction) returns the model with the coefficients that minimize the sum of squared errors by default.
 
 The objective funcion could also be the maximum likelihood or bilevel. 
 
@@ -122,12 +133,11 @@ forecast = predict!(model, stepsAhead)
 scenarios = simulate(model, stepsAhead, 200)
 ```
 ![](docs/img/sarimaAirp.png)
-![](docs/img/simulatedScenariosForecast.png)
 ## Auto SARIMA method
 
 The function automatically fits the best SARIMA model according to the specified parameters. The implemented method uses the Hyndman algorithm to adjust the hyperparameters at each iteration.
 
-The coefficients, by default, minimize the squared root error. The best model is the one that minimizes the information criteria. By default, Akaike’s Information Criterion with a correction for small sample sizes (AICc) is used.
+The coefficients, by default, minimize the sum of squared errors. The best model is the one that minimizes the information criteria. By default, Akaike’s Information Criterion with a correction for small sample sizes (AICc) is used.
 
 Another way to evaluate a model is through the log-likelihood; the best model would be the one that maximizes this value. 
 
@@ -162,7 +172,7 @@ Using Gross Domestic Product (GDP) and the noncyclical Rate of Unemployment data
 
 ```julia
 gdp = loadDataset(GDPC1)
-y= gpd[1:300]
+y = gdp[1:300]
 future_y = gdp[301:end]
 
 nrou_x = loadDataset(NROU)

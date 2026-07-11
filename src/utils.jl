@@ -17,9 +17,6 @@ Differentiates a `TimeArray` `series` `d` times and `D` times with a seasonal di
 # Returns
 A differentiated `TimeArray`.
 
-# Errors
-- This method only works with `d` and `D` in the set {0,1}.
-
 # Example
 ```jldoctest
 julia> airPassengers = loadDataset(AIR_PASSENGERS)

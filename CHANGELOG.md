@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - Unreleased
+
+### Changed
+- **BREAKING — multiplicative seasonal form is the new default.** `fit!` and `auto`
+  now estimate the Box-Jenkins multiplicative SARIMA
+  `φ(B)Φ(B^s)y' = θ(B)Θ(B^s)ε` (cross terms included). Models with `p·P > 0` or
+  `q·Q > 0` produce different (now R/statsmodels-comparable) coefficients than
+  v0.2. The previous additive behavior is available via `seasonalForm = :additive`.
+  `toMA`, `forecastErrors`, prediction and the stationarity/invertibility checks
+  are all form-aware. Notably, the airline-model θ no longer piles up at the
+  unit-root boundary — that was an artifact of the additive form.
+- `predict` applies the multiplicative cross terms in the forecast recursion.
+
+### Added
+- `seasonalForm::Symbol` keyword (`:multiplicative` default, `:additive`) on `fit!`
+  and `auto`; `:free` reserved for a future release.
+
 ## [0.2.0] - Unreleased
 
 ### Fixed

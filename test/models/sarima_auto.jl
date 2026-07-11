@@ -123,12 +123,12 @@
         airpassengers = loadDataset(AIR_PASSENGERS)
         log_airpassengers = log.(airpassengers)
         model = auto(airpassengers; searchMethod="stepwiseNaive", seasonality=12)
-        # Selected orders under the v0.2 CSS information criteria (full Gaussian
-        # constants, declared-parameter K, common conditioning sample).
-        @test model.p == 2
-        @test model.q == 2
-        @test model.P == 1
-        @test model.Q == 1
+        # Selected orders under CSS information criteria and the multiplicative
+        # seasonal form (v0.3 default). Identical to the exhaustive grid optimum.
+        @test model.p == 1
+        @test model.q == 1
+        @test model.P == 2
+        @test model.Q == 0
         @test model.d == 1
         @test model.D == 1
     end
@@ -137,9 +137,10 @@
         airpassengers = loadDataset(AIR_PASSENGERS)
         log_airpassengers = log.(airpassengers)
         model = auto(airpassengers; searchMethod="grid", seasonality=12)
-        # Selected orders under the v0.2 CSS information criteria (see above).
-        @test model.p == 0
-        @test model.q == 2
+        # Selected orders under CSS information criteria and the multiplicative
+        # seasonal form (see above).
+        @test model.p == 1
+        @test model.q == 1
         @test model.P == 2
         @test model.Q == 0
         @test model.d == 1

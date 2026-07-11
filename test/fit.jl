@@ -54,11 +54,12 @@
         airPassengersLog = log.(airPassengers)
         testModel = SARIMA(airPassengersLog, 3, 0, 1; seasonality = 12, P = 1, D = 1, Q = 1)
         fit!(testModel)
-        # CSS log-likelihood with full Gaussian constants (v0.2):
-        # aic = 2K - 2ℓ, K counts all declared parameters (+σ²)
-        @test aic(testModel) ≈ -492.0268303720907 atol = 1e-3
-        @test aicc(testModel) ≈ -491.1847251089328 atol = 1e-3
-        @test bic(testModel) ≈ -466.48317556496903 atol = 1e-3
+        # CSS log-likelihood with full Gaussian constants, multiplicative
+        # seasonal form (v0.3 default): aic = 2K - 2ℓ, K counts all declared
+        # parameters (+σ²)
+        @test aic(testModel) ≈ -479.7726772190683 atol = 1e-3
+        @test aicc(testModel) ≈ -478.9155343619255 atol = 1e-3
+        @test bic(testModel) ≈ -454.3634793584777 atol = 1e-3
         K = getHyperparametersNumber(testModel)
         @test K == 8
         @test aic(testModel) ≈ 2 * K - 2 * loglike(testModel) atol = 1e-10

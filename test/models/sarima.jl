@@ -79,6 +79,8 @@ end
         seasonalARCoefficients = [0.1],
         seasonality = 12,
     )
+    # the expected vector below was derived under the additive form
+    thirdModel.metadata["seasonalForm"] = "additive"
     thirdCoefficients = toMA(thirdModel, 15)
     data = [
         7.000000e-01,
@@ -99,4 +101,17 @@ end
     ]
 
     @test thirdCoefficients ≈ data atol = 1e-3
+
+    # Multiplicative cross-term identity: ψ_1 = θ_1, ψ_s = Θ_1, ψ_{s+1} = θ_1Θ_1
+    fourthModel = SARIMA(
+        airPassengersLog;
+        maCoefficients = [0.5],
+        seasonalMACoefficients = [0.4],
+        seasonality = 12,
+    )
+    fourthCoefficients = toMA(fourthModel, 13)
+    @test fourthCoefficients[1] ≈ 0.5 atol = 1e-10
+    @test fourthCoefficients[12] ≈ 0.4 atol = 1e-10
+    @test fourthCoefficients[13] ≈ 0.2 atol = 1e-10
+    @test all(abs.(fourthCoefficients[2:11]) .< 1e-10)
 end

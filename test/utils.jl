@@ -206,8 +206,9 @@
 
         fit!(testModel)
 
-        @test loglikelihood(testModel) ≈ 254.01202403694745 atol = 1e-1
-        @test loglike(testModel) ≈ 254.01202403694745 atol = 1e-1
+        # CSS loglik of the (3,0,1)(1,1,1)12 fit under the multiplicative form
+        @test loglikelihood(testModel) ≈ 247.8863386095342 atol = 1e-1
+        @test loglike(testModel) ≈ 247.8863386095342 atol = 1e-1
     end
 
     @testset "identifyOutliers Tests" begin

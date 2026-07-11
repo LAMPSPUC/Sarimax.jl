@@ -44,9 +44,10 @@ end
         modelMSE = SARIMA(ARseries, 1, 1, 0; seasonality = 12, P = 1, D = 0, Q = 0)
         modelML = SARIMA(ARseries, 1, 1, 0; seasonality = 12, P = 1, D = 0, Q = 0)
         modelBILEVEL = SARIMA(ARseries, 1, 1, 0; seasonality = 12, P = 1, D = 0, Q = 0)
-        Sarimax.fit!(modelMSE, objectiveFunction = "mse")
-        Sarimax.fit!(modelML, objectiveFunction = "ml")
-        Sarimax.fit!(modelBILEVEL, objectiveFunction = "bilevel")
+        # generateARseries is an ADDITIVE DGP -> fit the additive form
+        Sarimax.fit!(modelMSE, objectiveFunction = "mse", seasonalForm = :additive)
+        Sarimax.fit!(modelML, objectiveFunction = "ml", seasonalForm = :additive)
+        Sarimax.fit!(modelBILEVEL, objectiveFunction = "bilevel", seasonalForm = :additive)
         @test seasCoeff ≈ modelMSE.Φ[1] atol = 1e-3
         @test seasCoeff ≈ modelML.Φ[1] atol = 1e-3
         @test seasCoeff ≈ modelBILEVEL.Φ[1] atol = 1e-3
@@ -90,9 +91,10 @@ end
         modelMSE = SARIMA(ARseries, 2, 1, 0; seasonality = 12, P = 1, D = 0, Q = 0)
         modelML = SARIMA(ARseries, 2, 1, 0; seasonality = 12, P = 1, D = 0, Q = 0)
         modelBILEVEL = SARIMA(ARseries, 2, 1, 0; seasonality = 12, P = 1, D = 0, Q = 0)
-        fit!(modelMSE, objectiveFunction = "mse")
-        fit!(modelML, objectiveFunction = "ml")
-        fit!(modelBILEVEL, objectiveFunction = "bilevel")
+        # additive DGP -> additive form
+        fit!(modelMSE, objectiveFunction = "mse", seasonalForm = :additive)
+        fit!(modelML, objectiveFunction = "ml", seasonalForm = :additive)
+        fit!(modelBILEVEL, objectiveFunction = "bilevel", seasonalForm = :additive)
         @test ARcoeff ≈ modelMSE.ϕ atol = 1e-3
         @test seasCoeff ≈ modelMSE.Φ[1] atol = 1e-3
         @test ARcoeff ≈ modelML.ϕ atol = 1e-3
@@ -237,6 +239,32 @@ end
     #     @test autoModel.D == 1
     # end
 
+    @testset "multiplicative_recovery" begin
+        # Noise-free multiplicative DGP: y_t = φy_{t-1} + Φy_{t-12} − φΦy_{t-13}
+        Random.seed!(7)
+        n = 200
+        vals = randn(13) .* 0.1
+        for t = 14:n
+            push!(vals, 0.4 * vals[t-1] + 0.5 * vals[t-12] - 0.4 * 0.5 * vals[t-13])
+        end
+        multDates = Date(2000, 1, 1):Month(1):(Date(2000, 1, 1)+Month(n - 1))
+        yMult = TimeArray(collect(multDates), vals)
+
+        mMult = SARIMA(yMult, 1, 0, 0; seasonality = 12, P = 1, allowMean = false)
+        fit!(mMult)   # default :multiplicative
+        @test mMult.ϕ[1] ≈ 0.4 atol = 1e-3
+        @test mMult.Φ[1] ≈ 0.5 atol = 1e-3
+
+        # The additive form cannot represent this DGP: estimates are distorted.
+        mAdd = SARIMA(yMult, 1, 0, 0; seasonality = 12, P = 1, allowMean = false)
+        fit!(mAdd; seasonalForm = :additive)
+        @test abs(mAdd.ϕ[1] - 0.4) > 1e-2
+
+        # :free is not implemented yet
+        mFree = SARIMA(yMult, 1, 0, 0; seasonality = 12, P = 1, allowMean = false)
+        @test_throws ArgumentError fit!(mFree; seasonalForm = :free)
+    end
+
     @testset "invertible_fit" begin
         # reflectionToMA recursion (numeric check): θ₁ = κ₁(1+κ₂), θ₂ = κ₂
         @test Sarimax.reflectionToMA([0.5]) == [0.5]
@@ -255,10 +283,12 @@ end
         # airline model: box drives θ to the unit-root boundary (|θ| = 1, non-invertible),
         # while the reflection parameterization keeps it strictly inside |θ| ≤ 1 - ρ.
         ρ = 0.05
+        # The unit-root boundary pile-up documented here is a property of the
+        # ADDITIVE-form fit (under :multiplicative the airline θ stays interior).
         boxAir = SARIMA(airPassengers, 0, 1, 1; seasonality = 12, P = 0, D = 1, Q = 1)
-        fit!(boxAir; objectiveFunction = "mse")
+        fit!(boxAir; objectiveFunction = "mse", seasonalForm = :additive)
         refAir = SARIMA(airPassengers, 0, 1, 1; seasonality = 12, P = 0, D = 1, Q = 1)
-        fit!(refAir; objectiveFunction = "mse", invertible = true, invertibilityMargin = ρ)
+        fit!(refAir; objectiveFunction = "mse", invertible = true, invertibilityMargin = ρ, seasonalForm = :additive)
         @test abs(boxAir.θ[1]) >= 0.99
         @test abs(refAir.θ[1]) <= (1 - ρ) + 1e-6
 

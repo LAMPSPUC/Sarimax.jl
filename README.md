@@ -40,9 +40,7 @@ Introducing Sarimax.jl, a groundbreaking Julia package that redefines SARIMA (Se
 
 Sarimax.jl differs from the reference implementations (`forecast`/R, `statsmodels`/Python) in ways you should know before comparing outputs:
 
-1. **Seasonal form.** The seasonal polynomial is currently **additive**:
-   `ŷ_t = c + Σφ_i y'_{t-i} + Σθ_j ε_{t-j} + ΣΦ_k y'_{t-sk} + ΣΘ_w ε_{t-sw}`.
-   This is *not* the Box-Jenkins multiplicative SARIMA — the cross terms (e.g. `-φ_iΦ_k y'_{t-i-sk}`) are absent. Whenever `p·P > 0` or `q·Q > 0`, coefficients are **not comparable** with R/statsmodels. A multiplicative mode is planned for v0.3.
+1. **Seasonal form.** Since v0.3 the default is the **multiplicative** Box-Jenkins SARIMA, `φ(B)Φ(B^s)y'_t = θ(B)Θ(B^s)ε_t` — coefficients are directly comparable with R/statsmodels (given the same estimation method, see item 3). The pre-v0.3 **additive** form (no cross terms) remains available via `fit!(model; seasonalForm = :additive)` / `auto(y; seasonalForm = :additive)`.
 2. **Exogenous variables (ARX).** Regressors enter a **dynamic-regression/ARX** model — the AR terms act on the *observed* series. R's `Arima(xreg=)` and statsmodels' `SARIMAX(exog=)` fit *regression with ARIMA errors* instead (AR on the regression residual). These are different model families; exogenous coefficients differ by construction.
 3. **Estimation and information criteria (CSS).** Estimation is conditional least squares / conditional Gaussian ML formulated as a JuMP optimization problem — there is no Kalman filter and no exact likelihood. `loglike`, `aic`, `aicc` and `bic` follow the CSS convention with full Gaussian constants: comparable to R's `arima(..., method = "CSS")`, not to the exact-ML defaults of R/statsmodels.
 4. **What the optimization formulation buys.** Swappable objectives (MSE, MAE, CVaR-based "stable", elastic net), custom constraints, an invertible-MA parameterization (`fit!(model; invertible=true)`), and certified global optima via SCIP.

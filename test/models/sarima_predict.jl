@@ -89,7 +89,7 @@ end
         ARseries = generateARseries(2, 12, ARcoeff, seasCoeff, trend, 1234, false)
         trainingSet, testingSet = splitTrainTest(ARseries)
         modelMSE = SARIMA(trainingSet, 2, 1, 0; seasonality = 12, P = 1, D = 0, Q = 0)
-        Sarimax.fit!(modelMSE)
+        Sarimax.fit!(modelMSE; seasonalForm = :additive)  # additive DGP
         print(modelMSE)
         forecastMSE = Sarimax.predict!(modelMSE; stepsAhead = length(testingSet))
         maeMSE = MAE(testingSet, forecastMSE)

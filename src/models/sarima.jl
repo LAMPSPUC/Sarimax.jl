@@ -142,6 +142,23 @@ end
 typeofModelElements(model::SARIMAModel) = eltype(values(model.y))
 
 """
+    conditioningLags(p, q, P, Q, s, seasonalForm)
+
+Number of pre-sample observations the CSS recursion must condition on. Under the
+multiplicative form the AR/MA polynomials reach the cross lags `p + s*P` / `q + s*Q`.
+"""
+conditioningLags(p::Int, q::Int, P::Int, Q::Int, s::Int, seasonalForm::Symbol) =
+    seasonalForm === :multiplicative ? max(p + s * P, q + s * Q) : max(p, s * P, q, s * Q)
+
+"""
+    modelSeasonalForm(model::SARIMAModel)
+
+The seasonal form the model was (or will be) fitted with: `:multiplicative`
+(Box-Jenkins, default) or `:additive` (pre-v0.3 behavior).
+"""
+modelSeasonalForm(model::SARIMAModel) = Symbol(get(model.metadata, "seasonalForm", "multiplicative"))
+
+"""
     print(model::SARIMAModel)
 
 Prints the SARIMA model.
@@ -646,6 +663,7 @@ function fit!(
     invertible::Bool = false,
     invertibilityMargin::AbstractFloat = 0.0,
     minConditioningObs::Int = 0,
+    seasonalForm::Symbol = :multiplicative,
 )
     Fl = typeofModelElements(model)
     isFitted(model) &&
@@ -657,8 +675,13 @@ function fit!(
         @assert (!isnothing(alpha) || !isnothing(model.alpha)) "In elastic net objective function, alpha must be specified"
     end
 
+    seasonalForm === :free && throw(ArgumentError("seasonalForm :free is planned for a later release"))
+    seasonalForm in (:multiplicative, :additive) ||
+        throw(ArgumentError("seasonalForm must be :multiplicative or :additive"))
+
     isnothing(lambda) || (model.lambda = lambda)
     isnothing(alpha) || (model.alpha = alpha)
+    model.metadata["seasonalForm"] = String(seasonalForm)
 
     diffY = differentiate(model.y, model.d, model.D, model.seasonality)
 
@@ -679,7 +702,7 @@ function fit!(
     nExog = isnothing(model.exog) ? 0 : size(values(diffY), 2) - 1
     exogValues = isnothing(model.exog) ? [] : values(diffY)[:, 2:end]
 
-    lb = max(model.p, model.P * model.seasonality, model.q, model.Q * model.seasonality, minConditioningObs) + 1
+    lb = max(conditioningLags(model.p, model.q, model.P, model.Q, model.seasonality, seasonalForm), minConditioningObs) + 1
 
     mod = Model(optimizer)
 
@@ -748,7 +771,32 @@ function fit!(
     model.keepProvidedCoefficients && setProvidedCoefficients!(mod, model)
     includeSolverParameters!(mod, silent; mipSolver = mipSolver, objectiveFunction = objectiveFunction)
 
-    if model.seasonality > 1
+    if model.seasonality > 1 && seasonalForm === :multiplicative
+        # Box-Jenkins multiplicative SARIMA: the polynomial products yield the
+        # cross terms -phi_i*Phi_k*y_(t-i-sk) and +theta_j*Theta_w*eps_(t-j-sw).
+        @expression(
+            mod,
+            ŷ[t = lb:T],
+            c +
+            trend +
+            sum(β[i] * exogValues[t, i] for i = 1:nExog) +
+            sum(ϕ[i] * yValues[t-i] for i = 1:model.p if (t - i > 0)) +
+            sum(θ[j] * ϵ[t-j] for j = 1:model.q) +
+            sum(
+                Φ[k] * yValues[t-(model.seasonality*k)] for
+                k = 1:model.P if (t - (model.seasonality * k) > 0)
+            ) +
+            sum(Θ[w] * ϵ[t-(model.seasonality*w)] for w = 1:model.Q) -
+            sum(
+                ϕ[i] * Φ[k] * yValues[t-i-(model.seasonality*k)] for
+                i = 1:model.p, k = 1:model.P if (t - i - (model.seasonality * k) > 0)
+            ) +
+            sum(
+                θ[j] * Θ[w] * ϵ[t-j-(model.seasonality*w)] for
+                j = 1:model.q, w = 1:model.Q
+            )
+        )
+    elseif model.seasonality > 1
         @expression(
             mod,
             ŷ[t = lb:T],
@@ -1182,22 +1230,53 @@ The function handles the seasonal components by zero-padding the coefficient vec
 """
 function completeCoefficientsVector(model::SARIMAModel)
     ModelFl = typeofModelElements(model)
-    maCoefficients = model.θ
+    s = model.seasonality
+    phiV = isnothing(model.ϕ) ? ModelFl[] : model.ϕ
+    thetaV = isnothing(model.θ) ? ModelFl[] : model.θ
+    PhiV = isnothing(model.Φ) ? ModelFl[] : model.Φ
+    ThetaV = isnothing(model.Θ) ? ModelFl[] : model.Θ
+
+    if modelSeasonalForm(model) === :multiplicative
+        # Full polynomials via the products phi(B)*Phi(B^s) and theta(B)*Theta(B^s),
+        # including the cross-lag coefficients.
+        arNS = vcat(one(ModelFl), -phiV)
+        arS = zeros(ModelFl, length(PhiV) * s + 1)
+        arS[1] = one(ModelFl)
+        for k = 1:length(PhiV)
+            arS[k*s+1] = -PhiV[k]
+        end
+        maNS = vcat(one(ModelFl), thetaV)
+        maS = zeros(ModelFl, length(ThetaV) * s + 1)
+        maS[1] = one(ModelFl)
+        for w = 1:length(ThetaV)
+            maS[w*s+1] = ThetaV[w]
+        end
+        arCoefficients = -polynomialMultiplication(arNS, arS)[2:end]
+        maCoefficients = polynomialMultiplication(maNS, maS)[2:end]
+        return arCoefficients, maCoefficients
+    end
+
+    # Additive form: zero-padded merge without cross terms (pre-v0.3 behavior).
+    (model.p >= s && model.P > 0 || model.q >= s && model.Q > 0) && @warn(
+        "Additive seasonal form with p >= s (or q >= s): seasonal coefficients " *
+        "overwrite non-seasonal ones at the colliding lags."
+    )
+    maCoefficients = thetaV
     if model.Q > 0
-        sizeMA = ( model.Q * model.seasonality > model.q) ? model.Q * model.seasonality : model.q
+        sizeMA = (model.Q * s > model.q) ? model.Q * s : model.q
         maCoefficients = zeros(ModelFl, sizeMA)
-        maCoefficients[1:model.q] = model.θ
+        maCoefficients[1:model.q] = thetaV
         for i = 1:model.Q
-            maCoefficients[model.seasonality*i] = model.Θ[i]
+            maCoefficients[s*i] = ThetaV[i]
         end
     end
 
-    arCoefficients = model.ϕ
+    arCoefficients = phiV
     if model.P > 0
-        arCoefficients = zeros(ModelFl, model.P * model.seasonality)
-        arCoefficients[1:model.p] = model.ϕ
+        arCoefficients = zeros(ModelFl, model.P * s)
+        arCoefficients[1:model.p] = phiV
         for i = 1:model.P
-            arCoefficients[model.seasonality*i] = model.Φ[i]
+            arCoefficients[s*i] = PhiV[i]
         end
     end
 
@@ -1475,6 +1554,20 @@ function predict(
                 w = 1:model.Q if (errorsLength - (model.seasonality * w) + 1 > 0)
             )
         end
+        if modelSeasonalForm(model) === :multiplicative
+            if model.p > 0 && model.P > 0
+                for i = 1:model.p, k = 1:model.P
+                    idx = yLength - i - model.seasonality * k + 1
+                    idx > 0 && (forecastedValue -= model.ϕ[i] * model.Φ[k] * yValues[idx])
+                end
+            end
+            if model.q > 0 && model.Q > 0
+                for j = 1:model.q, w = 1:model.Q
+                    idx = errorsLength - j - model.seasonality * w + 1
+                    idx > 0 && (forecastedValue += model.θ[j] * model.Θ[w] * errors[idx])
+                end
+            end
+        end
         if !isnothing(model.exog)
             forecastedValue += valuesExog[T+step, :]'model.exogCoefficients
         end
@@ -1630,6 +1723,7 @@ function auto(
     showLogs::Bool = false,
     outlierDetection::Bool = false,
     searchMethod::String = "stepwise",
+    seasonalForm::Symbol = :multiplicative,
     lambda::Union{Float64,Nothing} = nothing,
     alpha::Union{Float64,Nothing} = nothing,
 )
@@ -1654,6 +1748,7 @@ function auto(
     @assert objectiveFunction == "elastic_net" || isnothing(lambda)
     @assert objectiveFunction == "elastic_net" || isnothing(alpha)
     @assert searchMethod ∈ ["stepwise", "stepwiseNaive", "grid", "sarimax"]
+    @assert seasonalForm in (:multiplicative, :additive) "seasonalForm must be :multiplicative or :additive (:free is planned)"
 
     ModelFl = eltype(values(y))
     informationCriteriaFunction = getInformationCriteriaFunction(informationCriteria)
@@ -1761,7 +1856,7 @@ function auto(
     # All search candidates are conditioned on the same pre-sample length so
     # that their CSS likelihoods (and hence information criteria) are computed
     # on the same effective sample.
-    searchLb = max(maxp, seasonality * maxP, maxq, seasonality * maxQ)
+    searchLb = conditioningLags(maxp, maxq, maxP, maxQ, seasonality, seasonalForm)
 
     if outlierDetection
         exog = detectOutliers(y, exog, d, D, seasonality, showLogs)
@@ -1785,6 +1880,7 @@ function auto(
             assertInvertibility = assertInvertibility,
             showLogs = showLogs,
             minConditioningObs = searchLb,
+            seasonalForm = seasonalForm,
             allowMean = allowMean,
             allowDrift = allowDrift,
             alpha = alpha,
@@ -1808,6 +1904,7 @@ function auto(
             assertInvertibility = assertInvertibility,
             showLogs = showLogs,
             minConditioningObs = searchLb,
+            seasonalForm = seasonalForm,
             allowMean = allowMean,
             allowDrift = allowDrift,
             fixConstant = fixConstant,
@@ -1832,6 +1929,7 @@ function auto(
             assertInvertibility = assertInvertibility,
             showLogs = showLogs,
             minConditioningObs = searchLb,
+            seasonalForm = seasonalForm,
             allowMean = allowMean,
             allowDrift = allowDrift,
             alpha = alpha,
@@ -1869,7 +1967,7 @@ function auto(
             )
         end
 
-        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs, minConditioningObs = searchLb)
+        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs, minConditioningObs = searchLb, seasonalForm = seasonalForm)
     end
 
     bestModel.exog = exog
@@ -2518,13 +2616,14 @@ function localSearch!(
     showLogs::Bool = false,
     icOffset::Fl = 0.0,
     minConditioningObs::Int = 0,
+    seasonalForm::Symbol = :multiplicative,
 ) where {Fl<:AbstractFloat}
     ModelFl = Fl#typeofModelElements(candidateModels[1])
     localBestCriteria::ModelFl = Inf
     localBestModel = nothing
     foreach(
         model -> if !isFitted(model)
-            fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
+            fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm)
             criteria = informationCriteriaFunction(model; offset = icOffset)
             showLogs && @info("Fitted $(getId(model)) with $(criteria)")
             visitedModels[getId(model)] = Dict("criteria" => criteria)
@@ -2920,6 +3019,7 @@ function stepWiseSearchNaive(
     showLogs::Bool = false,
     icOffset::Fl = 0.0,
     minConditioningObs::Int = 0,
+    seasonalForm::Symbol = :multiplicative,
     fixConstant::Bool = false,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,Float64} = nothing,
@@ -2967,6 +3067,7 @@ function stepWiseSearchNaive(
         showLogs,
         icOffset,
         minConditioningObs,
+        seasonalForm,
     )
 
     if isnothing(bestModel)
@@ -3016,6 +3117,8 @@ function stepWiseSearchNaive(
             assertInvertibility,
             showLogs,
             icOffset,
+            minConditioningObs,
+            seasonalForm,
         )
         showLogs && !isnothing(itBestModel) && @info(
             "Iteration $(iterations): Best model found is $(getId(itBestModel)) with $(itBestCriteria) criteria"
@@ -3129,6 +3232,7 @@ function stepwiseSearch(
     showLogs::Bool = false,
     icOffset::Fl = 0.0,
     minConditioningObs::Int = 0,
+    seasonalForm::Symbol = :multiplicative,
     maxModels::Int = 94,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
     lambda::Union{Nothing,<:AbstractFloat} = nothing,
@@ -3155,7 +3259,7 @@ function stepwiseSearch(
         alpha = alpha,
         lambda = lambda
     )
-    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
+    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm)
     showLogs && @info(
         "Fitted $(getId(bestModel)) with $(informationCriteriaFunction(bestModel; offset=icOffset)) criteria"
     )
@@ -3184,7 +3288,7 @@ function stepwiseSearch(
         alpha = alpha,
         lambda = lambda
     )
-    fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
+    fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm)
     showLogs && @info(
         "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
     )
@@ -3229,7 +3333,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -3270,7 +3374,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -3309,7 +3413,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -3356,7 +3460,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3397,7 +3501,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3438,7 +3542,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3479,7 +3583,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3521,7 +3625,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3564,7 +3668,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3607,7 +3711,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3650,7 +3754,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3692,7 +3796,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3733,7 +3837,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3774,7 +3878,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3815,7 +3919,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3857,7 +3961,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3900,7 +4004,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3943,7 +4047,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3986,7 +4090,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -4026,7 +4130,7 @@ function stepwiseSearch(
                     alpha = alpha,
                     lambda = lambda
                 )
-                fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
+                fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm)
                 showLogs && @info(
                     "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
                 )
@@ -4119,6 +4223,7 @@ function gridSearch(
     showLogs::Bool = false,
     icOffset::Fl = 0.0,
     minConditioningObs::Int = 0,
+    seasonalForm::Symbol = :multiplicative,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,Float64} = nothing,
 ) where {Fl<:AbstractFloat}
@@ -4138,7 +4243,7 @@ function gridSearch(
         alpha = alpha,
         lambda = lambda,
     )
-    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
+    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm)
     bestIC = informationCriteriaFunction(bestModel; offset = icOffset)
 
     for p = 0:maxp, q = 0:maxq, P = 0:maxP, Q = 0:maxQ, k = 0:maxK
@@ -4160,7 +4265,7 @@ function gridSearch(
             alpha = alpha,
             lambda = lambda,
         )
-        fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs)
+        fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm)
         ic = informationCriteriaFunction(model; offset = icOffset)
         showLogs && @info(
             "Fitted $(getId(model)) with $(informationCriteriaFunction(model; offset=icOffset)) criteria"

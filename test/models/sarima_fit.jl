@@ -104,7 +104,7 @@ end
     end
 
     @testset "auto with exougenous variable D correction" begin
-        airPassengers = loadDataset(AIR_PASSENGERS)
+        airPassengers = load_dataset(AIR_PASSENGERS)
         airPassengersLog = log.(airPassengers)
         lengthAirPassengers = length(airPassengersLog)
         exogenous =
@@ -138,7 +138,7 @@ end
     end
 
     @testset "ridge_fit" begin
-        airPassengers = loadDataset(AIR_PASSENGERS)
+        airPassengers = load_dataset(AIR_PASSENGERS)
         airPassengersLog = log.(airPassengers)
         modelRidge = SARIMA(airPassengersLog, 3, 0, 1; seasonality = 12, P = 1, D = 1, Q = 1)
         fit!(modelRidge; objectiveFunction = "elastic_net", alpha = 0.0)
@@ -165,7 +165,7 @@ end
     end
 
     @testset "lasso_fit" begin
-        airPassengers = loadDataset(AIR_PASSENGERS)
+        airPassengers = load_dataset(AIR_PASSENGERS)
         airPassengersLog = log.(airPassengers)
         modelLasso = SARIMA(airPassengersLog, 3, 0, 1; seasonality = 12, P = 1, D = 1, Q = 1)
         fit!(modelLasso; objectiveFunction = "elastic_net", alpha = 1.0)
@@ -192,7 +192,7 @@ end
     end
 
     @testset "bilevel_fit" begin
-        airPassengers = loadDataset(AIR_PASSENGERS)
+        airPassengers = load_dataset(AIR_PASSENGERS)
         airPassengersLog = log.(airPassengers)
         modelBILEVEL = SARIMA(airPassengersLog, 3, 0, 1; seasonality = 12, P = 1, D = 1, Q = 1)
         fit!(modelBILEVEL; objectiveFunction = "bilevel")
@@ -218,7 +218,7 @@ end
     end
 
     @testset "stable_fit" begin
-        airPassengers = loadDataset(AIR_PASSENGERS)
+        airPassengers = load_dataset(AIR_PASSENGERS)
         airPassengersLog = log.(airPassengers)
         modelStable = SARIMA(airPassengersLog, 3, 0, 1; seasonality = 12, P = 1, D = 1, Q = 1)
         fit!(modelStable; objectiveFunction = "stable")
@@ -233,7 +233,7 @@ end
     #     test_series_json = JSON.parsefile("datasets/series_38351.json")
     #     train_dict = Dict{String,Vector{Float64}}("train" => test_series_json["train"])
     #     test_series_df = DataFrame(train_dict)
-    #     series = loadDataset(test_series_df)
+    #     series = load_dataset(test_series_df)
     #     autoModel = auto(series; seasonality = 12, seasonalIntegrationTest="ocsb", assertStationarity=true, assertInvertibility=true)
     #     @test autoModel.d == 1
     #     @test autoModel.D == 1
@@ -271,7 +271,7 @@ end
         @test isapprox(Sarimax.reflectionToMA([0.5, 0.3]), [0.5 + 0.3 * 0.5, 0.3]; atol = 1e-12)
         @test length(Sarimax.reflectionToMA(Float64[])) == 0
 
-        airPassengers = loadDataset(AIR_PASSENGERS)
+        airPassengers = load_dataset(AIR_PASSENGERS)
 
         # q = 1: the reflection parameterization coincides with the box bounds
         boxMA1 = SARIMA(airPassengers, 1, 0, 1)

@@ -120,7 +120,7 @@
     end
 
     @testset "auto with stepwise naive" begin
-        airpassengers = loadDataset(AIR_PASSENGERS)
+        airpassengers = load_dataset(AIR_PASSENGERS)
         log_airpassengers = log.(airpassengers)
         model = auto(airpassengers; searchMethod="stepwiseNaive", seasonality=12)
         # Selected orders under CSS information criteria and the multiplicative
@@ -134,7 +134,7 @@
     end
 
     @testset "auto with grid search" begin
-        airpassengers = loadDataset(AIR_PASSENGERS)
+        airpassengers = load_dataset(AIR_PASSENGERS)
         log_airpassengers = log.(airpassengers)
         model = auto(airpassengers; searchMethod="grid", seasonality=12)
         # Selected orders under CSS information criteria and the multiplicative

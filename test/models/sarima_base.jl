@@ -1,5 +1,5 @@
 @testset "Base functions of Sarima model" begin
-    airPassengers = loadDataset(AIR_PASSENGERS)
+    airPassengers = load_dataset(AIR_PASSENGERS)
     airPassengersLog = log.(airPassengers)
 
     modeloLog = SARIMA(airPassengersLog, 3, 0, 1; seasonality = 12, P = 1, D = 1, Q = 1)

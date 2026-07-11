@@ -95,7 +95,7 @@ mutable struct SARIMAModel{Fl<:AbstractFloat} <: SarimaxModel
         @assert Q >= 0
         @assert seasonality >= 1
         yMetadata = Dict()
-        granularityInfo = identifyGranularity(timestamp(y))
+        granularityInfo = identify_granularity(timestamp(y))
         yMetadata["granularity"] = granularityInfo.granularity
         yMetadata["frequency"] = granularityInfo.frequency
         yMetadata["weekDaysOnly"] = granularityInfo.weekdays
@@ -104,7 +104,7 @@ mutable struct SARIMAModel{Fl<:AbstractFloat} <: SarimaxModel
         if !isnothing(exog)
             @assert yMetadata["startDatetime"] == timestamp(exog)[1] "The endogenous and exogenous variables must start at the same timestamp"
             @assert yMetadata["endDatetime"] <= timestamp(exog)[end] "The exogenous variables must end after the endogenous variables"
-            @assert granularityInfo == identifyGranularity(timestamp(exog)) "The endogenous and exogenous variables must have the same granularity, frequency and pattern"
+            @assert granularityInfo == identify_granularity(timestamp(exog)) "The endogenous and exogenous variables must have the same granularity, frequency and pattern"
         end
         return new{Fl}(
             y,
@@ -542,7 +542,7 @@ function isFitted(model::SARIMAModel)
 end
 
 """
-    getHyperparametersNumber(model::SARIMAModel)
+    get_hyperparameters_number(model::SARIMAModel)
 
 Returns the number of estimated parameters `K` of a SARIMA model (including σ²),
 as used by the information criteria.
@@ -560,7 +560,7 @@ of-freedom estimate for L1-type regularization (Zou, Hastie & Tibshirani, 2007).
 - `Int`: The number of parameters `K`.
 
 """
-function getHyperparametersNumber(model::SARIMAModel)
+function get_hyperparameters_number(model::SARIMAModel)
     usesSparseCount = !isnothing(model.lambda) || !isnothing(model.alpha)
     if isFitted(model) && usesSparseCount
         hyperparametersNumber = 1
@@ -579,7 +579,7 @@ function getHyperparametersNumber(model::SARIMAModel)
     return model.p + model.q + model.P + model.Q + k + β + 1
 end
 
-function getHyperparametersNumber(model::JuMP.Model)
+function get_hyperparameters_number(model::JuMP.Model)
     # is_solved_and_feasible(model) ||
     #     throw(ArgumentError("The model must be solved and feasible"))
     c = variable_by_name(model, "c")
@@ -644,7 +644,7 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
 
 # Example
 ```jldoctest
-julia> airPassengers = loadDataset(AIR_PASSENGERS)
+julia> airPassengers = load_dataset(AIR_PASSENGERS)
 
 julia> model = SARIMA(airPassengers,0,1,1;seasonality=12,P=0,D=1,Q=1)
 
@@ -688,7 +688,7 @@ function fit!(
     if !isnothing(model.exog)
         if automaticExogDifferentiation
             diffExog, exogMetadata =
-                automaticDifferentiation(model.exog; seasonalPeriod = model.seasonality)
+                automatic_differentiation(model.exog; seasonalPeriod = model.seasonality)
             model.metadata["exog"] = exogMetadata
             diffY = TimeSeries.merge(diffY, diffExog)
         else
@@ -857,7 +857,7 @@ function fit!(
     residualsVariance = computeSARIMAModelVariance(
         mod,
         objectiveFunction,
-        getHyperparametersNumber(model),
+        get_hyperparameters_number(model),
         lb,
     )
 
@@ -1132,9 +1132,9 @@ function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction:
     JuMP.optimize!(jumpModel)
     checkSolverStatus(jumpModel)
 
-    if objectiveFunction == "elastic_net" && isnothing(model.lambda) && getHyperparametersNumber(model) > 1
-        K = getHyperparametersNumber(jumpModel)
-        # println(getHyperparametersNumber(model)," - ", K)
+    if objectiveFunction == "elastic_net" && isnothing(model.lambda) && get_hyperparameters_number(model) > 1
+        K = get_hyperparameters_number(jumpModel)
+        # println(get_hyperparameters_number(model)," - ", K)
         model_variance = computeSARIMAModelVariance(
             jumpModel,
             objectiveFunction,
@@ -1284,7 +1284,7 @@ function completeCoefficientsVector(model::SARIMAModel)
 end
 
 """
-    toMA(model::SARIMAModel, maxLags::Int=12)
+    to_ma(model::SARIMAModel, maxLags::Int=12)
 
     Convert a SARIMA model to a Moving Average (MA) model.
 
@@ -1298,7 +1298,7 @@ end
     # References
     - Brockwell, P. J., & Davis, R. A. Time Series: Theory and Methods (page 92). Springer(2009)
 """
-function toMA(model::SARIMAModel, maxLags::Int = 12)
+function to_ma(model::SARIMAModel, maxLags::Int = 12)
     arCoefficients, maCoefficients = completeCoefficientsVector(model)
     p = isnothing(arCoefficients) ? 0 : length(arCoefficients)
     q = isnothing(maCoefficients) ? 0 : length(maCoefficients)
@@ -1369,7 +1369,7 @@ function forecastErrors(model::SARIMAModel, maxLags::Int = 12)
     # polynomial composed with the differencing operator. Without this, the
     # variance of an integrated series (e.g. σ²·h for ARIMA(0,1,0)) is lost.
     arPoly = vcat(one(Fl), -arVec)
-    diffPoly = differentiatedCoefficients(model.d, model.D, model.seasonality, Fl)
+    diffPoly = differentiated_coefficients(model.d, model.D, model.seasonality, Fl)
     fullPoly = polynomialMultiplication(arPoly, diffPoly)
     φ = -fullPoly[2:end]
     ψ = psiWeights(φ, maVec, maxLags)
@@ -1406,7 +1406,7 @@ The resulting forecast is stored within the model in the `forecast` field.
 
 # Example
 ```julia
-julia> airPassengers = loadDataset(AIR_PASSENGERS)
+julia> airPassengers = load_dataset(AIR_PASSENGERS)
 
 julia> model = SARIMA(airPassengers, 0, 1, 1; seasonality=12, P=0, D=1, Q=1)
 
@@ -1427,7 +1427,7 @@ function predict!(
     Random.seed!(seed)
     forecastValues::Vector{ModelFl} =
         predict(model, stepsAhead, isSimulation, automaticExogDifferentiation)
-    forecastTimestamps::Vector{TimeType} = buildDatetimes(
+    forecastTimestamps::Vector{TimeType} = build_datetimes(
         timestamp(model.y)[end],
         getproperty(Dates, model.metadata["granularity"])(model.metadata["frequency"]),
         model.metadata["weekDaysOnly"],
@@ -1477,7 +1477,7 @@ Returns the forecasted values.
 
 # Example
 ```jldoctest
-julia> airPassengers = loadDataset(AIR_PASSENGERS)
+julia> airPassengers = load_dataset(AIR_PASSENGERS)
 
 julia> model = SARIMA(airPassengers, 0, 1, 1; seasonality=12, P=0, D=1, Q=1)
 
@@ -1499,7 +1499,7 @@ function predict(
     valuesExog = []
     if !isnothing(model.exog)
         if automaticExogDifferentiation
-            diffExog, _ = automaticDifferentiation(model.exog)
+            diffExog, _ = automatic_differentiation(model.exog)
         else
             diffExog = model.exog
         end
@@ -1614,7 +1614,7 @@ Returns a vector of `numScenarios` scenarios of the forecasted values.
 
 # Example
 ```jldoctest
-julia> airPassengers = loadDataset(AIR_PASSENGERS)
+julia> airPassengers = load_dataset(AIR_PASSENGERS)
 
 julia> model = SARIMA(airPassengers, 0, 1, 1; seasonality=12, P=0, D=1, Q=1)
 

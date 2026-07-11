@@ -56,7 +56,7 @@ Since it shows variation that increases with the level of the series, a logarith
 import Pkg
 Pkg.add(url = "https://github.com/LAMPSPUC/Sarimax.jl")
 using Sarimax
-airp = loadDataset(AIR_PASSENGERS)
+airp = load_dataset(AIR_PASSENGERS)
 airp_log = log.(airp)
 ```
 
@@ -79,13 +79,13 @@ To return the original series through the differentiated one, it is necessary to
 diff_2_1 = differentiate(airp_log,2,1,12)
 values_diff_2_1::Vector{Float64} = values(diff_2_1)
 int_2_1 = integrate(values(airp_log[1:14]), values_diff_2_1,2,1,12)
-coeff_2_1 = differentiatedCoefficients(2, 1, 12)
+coeff_2_1 = differentiated_coefficients(2, 1, 12)
 print(coeff_2_1)
 
 diff_4_1 = differentiate(airp_log,4,1,12)
 values_diff_4_1::Vector{Float64} = values(diff_4_1)
 int_4_1 = integrate(values(airp_log[1:16]), values_diff_4_1,4,1,12)
-coeff_4_1 = differentiatedCoefficients(4, 1, 12)
+coeff_4_1 = differentiated_coefficients(4, 1, 12)
 print(coeff_4_1)
 ```
 
@@ -105,7 +105,7 @@ $$
 Split the data to reserve a portion for testing the forecast: 
 
 ```julia
-trainingSet, testingSet = splitTrainTest(airp_log)
+trainingSet, testingSet = split_train_test(airp_log)
 stepsAhead = length(testingSet)
 
 ```
@@ -169,11 +169,11 @@ Using Gross Domestic Product (GDP) and the noncyclical Rate of Unemployment data
 
 
 ```julia
-gdp = loadDataset(GDPC1)
+gdp = load_dataset(GDPC1)
 y = gdp[1:300]
 future_y = gdp[301:end]
 
-nrou_x = loadDataset(NROU)
+nrou_x = load_dataset(NROU)
 ```
 
 

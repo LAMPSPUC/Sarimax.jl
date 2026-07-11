@@ -19,7 +19,7 @@ A differentiated `TimeArray`.
 
 # Example
 ```jldoctest
-julia> airPassengers = loadDataset(AIR_PASSENGERS)
+julia> airPassengers = load_dataset(AIR_PASSENGERS)
 
 julia> stationaryAirPassengers = differentiate(airPassengers, d=1, D=1, s=12)
 ```
@@ -27,7 +27,7 @@ julia> stationaryAirPassengers = differentiate(airPassengers, d=1, D=1, s=12)
 function differentiate(series::TimeArray, d::Int = 0, D::Int = 0, s::Int = 1)
     Fl = eltype(values(series))
     copiedValues::Vector{Fl} = values(series)
-    coeffs = differentiatedCoefficients(d, D, s, Fl)
+    coeffs = differentiated_coefficients(d, D, s, Fl)
     lenCoeffs = length(coeffs)
     diffValues::Vector{Fl} = Vector{Fl}()
     for i = lenCoeffs:length(copiedValues)
@@ -59,7 +59,7 @@ diff_values = differentiate(values, 1, 1, 12)
 ```
 """
 function differentiate(series::Vector{Fl}, d::Int = 0, D::Int = 0, s::Int = 1) where Fl <: AbstractFloat
-    coeffs = differentiatedCoefficients(d, D, s, Fl)
+    coeffs = differentiated_coefficients(d, D, s, Fl)
     lenCoeffs = length(coeffs)
     diffValues::Vector{Fl} = Vector{Fl}()
     for i = lenCoeffs:length(series)
@@ -70,7 +70,7 @@ function differentiate(series::Vector{Fl}, d::Int = 0, D::Int = 0, s::Int = 1) w
 end
 
 """
-    differentiatedCoefficients(d::Int, D::Int, s::Int, Fl::DataType=Float64)
+    differentiated_coefficients(d::Int, D::Int, s::Int, Fl::DataType=Float64)
 
 Compute the coefficients for differentiating a time series.
 
@@ -83,7 +83,7 @@ Compute the coefficients for differentiating a time series.
 # Returns
 - `coeffs::Vector{AbstractFloat}`: Coefficients for differentiation.
 """
-function differentiatedCoefficients(d::Int, D::Int, s::Int, Fl::DataType = Float64)
+function differentiated_coefficients(d::Int, D::Int, s::Int, Fl::DataType = Float64)
     # Calculate the length of the resulting coefficients array
     lenCoeffs = d + D * s + 1
     # Initialize an array to store the coefficients
@@ -132,7 +132,7 @@ function integrate(
     # D = 1
     # s = 12
     # Fl = Float64
-    coeffs = differentiatedCoefficients(d, D, s, Fl)
+    coeffs = differentiated_coefficients(d, D, s, Fl)
     lenCoeffs = length(coeffs)
 
     # Calculate the length of the original series
@@ -239,7 +239,7 @@ function selectIntegrationOrder(
 end
 
 """
-    automaticDifferentiation(series; seasonalPeriod=1, seasonalIntegrationTest="seas", integrationTest="kpss", maxd=2)
+    automatic_differentiation(series; seasonalPeriod=1, seasonalIntegrationTest="seas", integrationTest="kpss", maxd=2)
 
 Automatically applies differentiation to each series in a TimeArray.
 
@@ -259,7 +259,7 @@ A tuple `(diffSeries, diffSeriesMetadata)` containing:
 Throws an AssertionError if invalid test options or seasonal period are provided.
 
 """
-function automaticDifferentiation(
+function automatic_differentiation(
     series::TimeArray;
     seasonalPeriod::Int = 1,
     seasonalIntegrationTest::String = "ocsb",
@@ -424,7 +424,7 @@ reported by default by R and statsmodels.
 - `ModelNotFitted()`: Thrown if the model has not been fitted.
 """
 function loglike(model::SarimaxModel)
-    !hasFitMethods(typeof(model)) && throw(MissingMethodImplementation("fit!"))
+    !has_fit_methods(typeof(model)) && throw(MissingMethodImplementation("fit!"))
     !isFitted(model) && throw(ModelNotFitted())
     n = length(model.ϵ)
     rss = sum(abs2, model.ϵ)
@@ -437,4 +437,4 @@ end
 
 Alias for [`loglike`](@ref): the conditional (CSS) Gaussian log-likelihood.
 """
-loglikelihood(model::SarimaxModel) = loglike(model)
+StatsAPI.loglikelihood(model::SarimaxModel) = loglike(model)

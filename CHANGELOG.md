@@ -20,6 +20,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `seasonalForm::Symbol` keyword (`:multiplicative` default, `:additive`) on `fit!`
   and `auto`; `:free` reserved for a future release.
+- **StatsAPI interface**: `coef`, `coefnames`, `residuals`, `nobs`, `fitted`,
+  `vcov`, `stderror`; `loglikelihood` now extends the StatsAPI generic.
+- **Standard errors**: CSS asymptotics via a numerical Hessian of the residual sum
+  of squares over a pure-Julia replica of the fit recursion (`Sarimax.cssResiduals`),
+  `Var(θ̂) ≈ 2σ̂²H⁻¹` — validated against the AR(1) theory value.
+
+### Deprecated
+- Public API renamed to snake_case: `load_dataset`, `split_train_test`,
+  `has_fit_methods`, `has_hyperparameters_methods`, `get_hyperparameters_number`,
+  `automatic_differentiation`, `identify_granularity`, `build_datetimes`,
+  `copy_time_array`, `deepcopy_time_array`, `to_ma`, `differentiated_coefficients`.
+  The camelCase names keep working with a deprecation warning until v1.0.
+  Keyword-argument names are unchanged in this release.
 
 ## [0.2.0] - Unreleased
 

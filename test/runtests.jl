@@ -33,4 +33,6 @@ using JSON
     include("fit.jl")
 
     include("test_statistical_tests.jl")
+
+    include("statsapi.jl")
 end

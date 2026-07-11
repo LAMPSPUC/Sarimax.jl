@@ -87,7 +87,7 @@ end
         seasCoeff = 0.4
         trend = 0.1
         ARseries = generateARseries(2, 12, ARcoeff, seasCoeff, trend, 1234, false)
-        trainingSet, testingSet = splitTrainTest(ARseries)
+        trainingSet, testingSet = split_train_test(ARseries)
         modelMSE = SARIMA(trainingSet, 2, 1, 0; seasonality = 12, P = 1, D = 0, Q = 0)
         Sarimax.fit!(modelMSE; seasonalForm = :additive)  # additive DGP
         print(modelMSE)
@@ -99,7 +99,7 @@ end
 
         #sin
         seriesSin = generateSeries(0, 12, 0, 0, 1234, false)
-        trainingSin, testingSin = splitTrainTest(seriesSin)
+        trainingSin, testingSin = split_train_test(seriesSin)
         modelSin = SARIMA(trainingSin, 0, 0, 0; seasonality = 12, P = 1, D = 0, Q = 0)
         Sarimax.fit!(modelSin)
         print(modelSin)
@@ -114,7 +114,7 @@ end
         seasCoeff = 0.5
         trend = 0.1
         ARseries = generateARseries(2, 12, ARcoeff, seasCoeff, trend, 1234, false)
-        trainingSet, testingSet = splitTrainTest(ARseries)
+        trainingSet, testingSet = split_train_test(ARseries)
         modelAuto = Sarimax.auto(
             trainingSet;
             seasonality = 12,
@@ -130,7 +130,7 @@ end
 
         #p=2 sin seasonality trend=0.1
         seriesARSeas = generateSeries(2, 12, [0.3, 0.2], 0.1, 1234, false)
-        trainingARSeas, testingARSeas = splitTrainTest(seriesARSeas)
+        trainingARSeas, testingARSeas = split_train_test(seriesARSeas)
         modelARSeasAuto =
             Sarimax.auto(trainingARSeas; seasonality = 12, objectiveFunction = "mse")
         forecastARSeasAuto = Sarimax.predict!(modelARSeasAuto; stepsAhead = 40)
@@ -149,7 +149,7 @@ end
         exog::Vector{Float64} = [0.15 * i for i in x]
         series = TimeArray(Date(1991, 7, 1):Month(1):Date(2008, 2, 1), y)
         exogSeries = TimeArray(Date(1991, 7, 1):Month(1):Date(2008, 2, 1), exog)
-        trainingSet, testingSet = splitTrainTest(series)
+        trainingSet, testingSet = split_train_test(series)
         modelExog = Sarimax.auto(
             trainingSet;
             exog = exogSeries,

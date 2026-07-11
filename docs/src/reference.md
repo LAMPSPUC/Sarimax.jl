@@ -102,25 +102,25 @@ Sarimax.bic
 ```@docs
 Sarimax.differentiate
 Sarimax.integrate
-Sarimax.differentiatedCoefficients
-Sarimax.toMA
+Sarimax.differentiated_coefficients
+Sarimax.to_ma
 ```
 
 ### Dataset and Utility Functions
 
 ```@docs
-Sarimax.loadDataset
-Sarimax.splitTrainTest
-Sarimax.identifyGranularity
-Sarimax.buildDatetimes
+Sarimax.load_dataset
+Sarimax.split_train_test
+Sarimax.identify_granularity
+Sarimax.build_datetimes
 ```
 
 ### Model Information
 
 ```@docs
-Sarimax.hasFitMethods
-Sarimax.hasHyperparametersMethods
-Sarimax.getHyperparametersNumber
+Sarimax.has_fit_methods
+Sarimax.has_hyperparameters_methods
+Sarimax.get_hyperparameters_number
 ```
 
 ### Model Manipulation
@@ -130,6 +130,6 @@ Sarimax.print
 ```
 
 ```@docs
-Sarimax.copyTimeArray(y::TimeSeries.TimeArray)
-Sarimax.deepcopyTimeArray(y::TimeSeries.TimeArray)
+Sarimax.copy_time_array(y::TimeSeries.TimeArray)
+Sarimax.deepcopy_time_array(y::TimeSeries.TimeArray)
 ```

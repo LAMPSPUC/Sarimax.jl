@@ -1,5 +1,5 @@
 """
-    hasFitMethods(modelType::Type{<:SarimaxModel}) -> Bool
+    has_fit_methods(modelType::Type{<:SarimaxModel}) -> Bool
 
 Check if a given `SarimaxModel` type has the `fit!` method implemented.
 
@@ -10,13 +10,13 @@ Check if a given `SarimaxModel` type has the `fit!` method implemented.
 A boolean indicating whether the `fit!` method is implemented for the specified model type.
 
 """
-function hasFitMethods(modelType::Type{<:SarimaxModel})
+function has_fit_methods(modelType::Type{<:SarimaxModel})
     tupleModelType = Tuple{modelType}
     return hasmethod(fit!, tupleModelType)
 end
 
 """
-    hasHyperparametersMethods(modelType::Type{<:SarimaxModel}) -> Bool
+    has_hyperparameters_methods(modelType::Type{<:SarimaxModel}) -> Bool
 
 Checks if a given `SarimaxModel` type has methods related to hyperparameters.
 
@@ -27,9 +27,9 @@ Checks if a given `SarimaxModel` type has methods related to hyperparameters.
 A boolean indicating whether the hyperparameter-related methods are implemented for the specified model type.
 
 """
-function hasHyperparametersMethods(modelType::Type{<:SarimaxModel})
+function has_hyperparameters_methods(modelType::Type{<:SarimaxModel})
     tupleModelType = Tuple{modelType}
-    return hasmethod(getHyperparametersNumber, tupleModelType)
+    return hasmethod(get_hyperparameters_number, tupleModelType)
 end
 
 """
@@ -102,13 +102,13 @@ R's `arima(..., method = "CSS")` convention, not to exact-likelihood AICs.
 The AIC value calculated using the number of parameters and log-likelihood value of the model.
 
 # Errors
-- Throws a `MissingMethodImplementation` if the `getHyperparametersNumber` method is not implemented for the given model type.
+- Throws a `MissingMethodImplementation` if the `get_hyperparameters_number` method is not implemented for the given model type.
 
 """
 function aic(model::SarimaxModel; offset::Union{Fl,Nothing} = nothing, K::Union{Int,Nothing} = nothing) where {Fl<:AbstractFloat}
-    !hasHyperparametersMethods(typeof(model)) &&
-        throw(MissingMethodImplementation("getHyperparametersNumber"))
-    K = isnothing(K) ? getHyperparametersNumber(model) : K
+    !has_hyperparameters_methods(typeof(model)) &&
+        throw(MissingMethodImplementation("get_hyperparameters_number"))
+    K = isnothing(K) ? get_hyperparameters_number(model) : K
     offsetValue = isnothing(offset) ? 0.0 : offset
     return 2 * K - 2 * loglike(model) + offsetValue
 end
@@ -126,13 +126,13 @@ Calculate the Corrected Akaike Information Criterion (AICc) for a Sarimax model.
 The AICc value calculated using the number of parameters, sample size, and log-likelihood value of the model.
 
 # Errors
-- Throws a `MissingMethodImplementation` if the `getHyperparametersNumber` method is not implemented for the given model type.
+- Throws a `MissingMethodImplementation` if the `get_hyperparameters_number` method is not implemented for the given model type.
 
 """
 function aicc(model::SarimaxModel; offset::Union{Fl,Nothing} = nothing, K::Union{Int,Nothing} = nothing) where {Fl<:AbstractFloat}
-    !hasHyperparametersMethods(typeof(model)) &&
-        throw(MissingMethodImplementation("getHyperparametersNumber"))
-    K = isnothing(K) ? getHyperparametersNumber(model) : K
+    !has_hyperparameters_methods(typeof(model)) &&
+        throw(MissingMethodImplementation("get_hyperparameters_number"))
+    K = isnothing(K) ? get_hyperparameters_number(model) : K
     n = length(model.ϵ)
     return aic(model; offset = offset, K = K) + ((2 * K * K + 2 * K) / (n - K - 1))
 end
@@ -150,13 +150,13 @@ Calculate the Bayesian Information Criterion (BIC) for a Sarimax model.
 The BIC value calculated using the number of parameters, sample size, and log-likelihood value of the model.
 
 # Errors
-- Throws a `MissingMethodImplementation` if the `getHyperparametersNumber` method is not implemented for the given model type.
+- Throws a `MissingMethodImplementation` if the `get_hyperparameters_number` method is not implemented for the given model type.
 
 """
 function bic(model::SarimaxModel; offset::Union{Fl,Nothing} = nothing, K::Union{Int,Nothing} = nothing) where {Fl<:AbstractFloat}
-    !hasHyperparametersMethods(typeof(model)) &&
-        throw(MissingMethodImplementation("getHyperparametersNumber"))
-    K = isnothing(K) ? getHyperparametersNumber(model) : K
+    !has_hyperparameters_methods(typeof(model)) &&
+        throw(MissingMethodImplementation("get_hyperparameters_number"))
+    K = isnothing(K) ? get_hyperparameters_number(model) : K
     n = length(model.ϵ)
     offsetValue = isnothing(offset) ? 0.0 : offset
     return K * log(n) - 2 * loglike(model) + offsetValue

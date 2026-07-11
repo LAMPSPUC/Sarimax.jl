@@ -1,0 +1,10 @@
+
+******************************************************************************
+This program contains Ipopt, a library for large-scale nonlinear optimization.
+ Ipopt is released as open source code under the Eclipse Public License (EPL).
+         For more information visit https://github.com/coin-or/Ipopt
+******************************************************************************
+
+Ipopt (local (fit!)) -> ok
+SCIP (global, direct (300s limit)) -> ok
+energy_solver DONE -> /Users/luizfernandoduarte/Documents/IJF Special Issue/Sarimax.jl/experiments/scripts/../results/raw/energy/solver_results.jsonl

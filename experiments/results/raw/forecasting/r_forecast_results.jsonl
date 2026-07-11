@@ -1,0 +1,2 @@
+{"block":"forecasting","implementation":"R-forecast","dataset":"airpassengers","order":"(1,0,1)(1,0,1)_12","horizon":12,"seasonality":12,"protocol":"rolling-origin","n_origins":5,"n_failures":0,"seed":1234,"status":"ok","mae":1.3256,"rmse":1.5857,"smape":7.4038,"mase":1.3355,"runtime_s":0.499}
+{"block":"forecasting","implementation":"R-forecast","dataset":"GDPC1","order":"(1,1,1) drift","horizon":8,"seasonality":1,"protocol":"rolling-origin","n_origins":5,"n_failures":0,"seed":1234,"status":"ok","mae":273.9182,"rmse":367.3913,"smape":1.483,"mase":3.44,"runtime_s":0.0161}

@@ -1,0 +1,86 @@
+
+******************************************************************************
+This program contains Ipopt, a library for large-scale nonlinear optimization.
+ Ipopt is released as open source code under the Eclipse Public License (EPL).
+         For more information visit https://github.com/coin-or/Ipopt
+******************************************************************************
+
+
+PROBLEM STATISTICS
+  Objective sense = Min
+  # Variables = 10
+  # Bin-Int Variables = 0
+  # Constraints = 8
+  # NL Constraints = 8
+  # Linear Constraints = 0
+  # Detected convex constraints = 1
+  # Detected nonlinear terms = 7
+  # Variables involved in nonlinear terms = 8
+  # Potential variables for partitioning = 1
+SUB-SOLVERS USED BY ALPINE
+  NLP local solver = Ipopt
+  MIP solver = SCIP
+ALPINE CONFIGURATION
+  Alpine version = 0.5.8
+  Maximum iterations (lower-bounding MIPs) = 99
+  Relative global optimality gap = 1.0%
+  Potential variables chosen for partitioning = Minimum vertex cover
+  Partition scaling factor = 10
+  Bound-tightening presolve = true
+  Maximum iterations (OBBT) = 5
+PRESOLVE 
+  Doing local search
+  Local solver returns a feasible point with value 7.3685
+  Starting bound-tightening
+  Actual iterations (OBBT): 5
+  Post-presolve optimality gap: 134.866%
+  Completed presolve in 5.6s
+LOWER-BOUNDING ITERATIONS
+====================================================================================================
+| Iter   | Incumbent       | Best Incumbent      | Lower Bound        | Gap (%)         | Time      
+| 1      | 7.3685          | 7.3685              | 7.235              | 1.812           | 5.9s             
+| finish | 7.3447          | 7.3447              | 7.3008             | 0.598           | 6.31s            
+====================================================================================================
+
+*** Alpine ended with status OPTIMAL ***
+T=8 -> OPTIMAL  gap=0.6%  obj=7.3447  runtime=13.7s
+
+PROBLEM STATISTICS
+  Objective sense = Min
+  # Variables = 12
+  # Bin-Int Variables = 0
+  # Constraints = 10
+  # NL Constraints = 10
+  # Linear Constraints = 0
+  # Detected convex constraints = 1
+  # Detected nonlinear terms = 9
+  # Variables involved in nonlinear terms = 10
+  # Potential variables for partitioning = 1
+SUB-SOLVERS USED BY ALPINE
+  NLP local solver = Ipopt
+  MIP solver = SCIP
+ALPINE CONFIGURATION
+  Alpine version = 0.5.8
+  Maximum iterations (lower-bounding MIPs) = 99
+  Relative global optimality gap = 1.0%
+  Potential variables chosen for partitioning = Minimum vertex cover
+  Partition scaling factor = 10
+  Bound-tightening presolve = true
+  Maximum iterations (OBBT) = 5
+PRESOLVE 
+  Doing local search
+  Local solver returns a feasible point with value 8.5298
+  Starting bound-tightening
+  Actual iterations (OBBT): 5
+  Post-presolve optimality gap: 134.793%
+  Completed presolve in 7.07s
+LOWER-BOUNDING ITERATIONS
+====================================================================================================
+| Iter   | Incumbent       | Best Incumbent      | Lower Bound        | Gap (%)         | Time      
+| 1      | 8.5298          | 8.5298              | 8.3575             | 2.02            | 7.22s            
+| finish | 8.506           | 8.506               | 8.4618             | 0.52            | 7.41s            
+====================================================================================================
+
+*** Alpine ended with status OPTIMAL ***
+T=10 -> OPTIMAL  gap=0.52%  obj=8.506  runtime=7.4s
+alpine_cert DONE -> /Users/luizfernandoduarte/Documents/IJF Special Issue/Sarimax.jl/experiments/scripts/../results/raw/solver/alpine_cert_results.jsonl

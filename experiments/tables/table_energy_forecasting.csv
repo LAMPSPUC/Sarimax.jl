@@ -1,0 +1,5 @@
+Dataset,Model,Implementation,RMSE,MAE,MASE,s/fit
+PJME_daily,"(1,1,1)(1,0,1)_7",R-forecast,2837.04,2354.89,0.7427,0.069
+PJME_daily,"(1,1,1)(1,0,1)_7",SARIMAX.jl,3131.95,2634.93,0.8303,0.277
+PJME_daily,snaive_s7,seasonal-naive,3465.88,2852.99,0.8998,--
+PJME_daily,"(1,1,1)(1,0,1)_7",statsmodels,3177.50,2672.09,0.8420,0.081

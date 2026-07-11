@@ -766,6 +766,7 @@ function fit!(
     objectiveFunctionDefinition!(mod, model, objectiveFunction, T)
 
     optimizeModel!(mod, model, objectiveFunction)
+    model.metadata["solverStatus"] = string(termination_status(mod))
     silent || @info(
         "The model has been fitted with the objective function $objectiveFunction: $(objective_value(mod))"
     )
@@ -1050,6 +1051,18 @@ function objectiveFunctionDefinition!(
 end
 
 """
+    checkSolverStatus(jumpModel::Model)
+
+Checks the termination status of a solved JuMP model and warns if it does not indicate success.
+"""
+function checkSolverStatus(jumpModel::Model)
+    st = termination_status(jumpModel)
+    ok = st in (MOI.OPTIMAL, MOI.LOCALLY_SOLVED, MOI.ALMOST_OPTIMAL, MOI.ALMOST_LOCALLY_SOLVED)
+    ok || @warn("Solver finished with a non-success termination status; estimates may be unreliable.", status = st)
+    return st
+end
+
+"""
     optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction::String)
 
 Optimizes the SARIMA model using the specified objective function.
@@ -1062,6 +1075,7 @@ Optimizes the SARIMA model using the specified objective function.
 """
 function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction::String)
     JuMP.optimize!(jumpModel)
+    checkSolverStatus(jumpModel)
 
     if objectiveFunction == "elastic_net" && isnothing(model.lambda) && getHyperparametersNumber(model) > 1
         lb = max(model.p, model.P * model.seasonality, model.q, model.Q * model.seasonality) + 1
@@ -1080,6 +1094,7 @@ function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction:
         tolerance = objective_value(jumpModel) + objective_std
         regularizationObjective(jumpModel, model, tolerance)
         JuMP.optimize!(jumpModel)
+        checkSolverStatus(jumpModel)
 
     elseif objectiveFunction == "bilevel"
 
@@ -1108,7 +1123,6 @@ function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction:
                 @warn("Trying another method")
                 results =
                     Optim.optimize(optimizeMA, initialCoefficients, Optim.NelderMead())
-                println(Optim.converged(results))
                 Optim.converged(results) || @warn("The optimization did not converge")
             end
         end
@@ -1382,9 +1396,10 @@ function predict(
     yValues::Vector{ModelFl} = deepcopy(values(diffY))
     errors = deepcopy(model.ϵ)
 
-    for _ = 1:stepsAhead
+    for step = 1:stepsAhead
         forecastedValue::ModelFl = 0 + model.c + model.trend # *(T+stepsAhead)
         errorsLength = length(errors)
+        yLength = length(yValues)
         if model.p > 0
             # ∑ϕᵢyₜ -i
             forecastedValue += sum(model.ϕ[i] * yValues[end-i+1] for i = 1:model.p)
@@ -1398,8 +1413,10 @@ function predict(
         end
         if model.P > 0
             # ∑Φₖyₜ-(s*k)
-            forecastedValue +=
-                sum(model.Φ[k] * yValues[end-(model.seasonality*k)+1] for k = 1:model.P)
+            forecastedValue += sum(
+                model.Φ[k] * yValues[end-(model.seasonality*k)+1] for
+                k = 1:model.P if (yLength - model.seasonality * k + 1 > 0)
+            )
         end
         if model.Q > 0
             # ∑Θₖϵₜ-(s*k)
@@ -1409,7 +1426,7 @@ function predict(
             )
         end
         if !isnothing(model.exog)
-            forecastedValue += valuesExog[T+stepsAhead, :]'model.exogCoefficients
+            forecastedValue += valuesExog[T+step, :]'model.exogCoefficients
         end
 
         ϵₜ = isSimulation ? rand(Normal(0, sqrt(model.σ²))) : 0
@@ -2946,6 +2963,16 @@ function stepWiseSearchNaive(
         icOffset,
     )
 
+    if isnothing(bestModel)
+        @warn "No stationary/invertible candidate found among initial models; selecting best by information criterion regardless."
+        fittedModels = filter(isFitted, candidateModels)
+        bestModel = argmin(
+            m -> informationCriteriaFunction(m; offset = icOffset),
+            fittedModels,
+        )
+        bestCriteria = informationCriteriaFunction(bestModel; offset = icOffset)
+    end
+
     ITERATION_LIMIT = 100
     iterations = 1
     while iterations <= ITERATION_LIMIT
@@ -2984,7 +3011,7 @@ function stepWiseSearchNaive(
             showLogs,
             icOffset,
         )
-        showLogs && @info(
+        showLogs && !isnothing(itBestModel) && @info(
             "Iteration $(iterations): Best model found is $(getId(itBestModel)) with $(itBestCriteria) criteria"
         )
 
@@ -4007,7 +4034,7 @@ function stepwiseSearch(
                    informationCriteriaFunction(fitModel; offset = icOffset) <
                    informationCriteriaFunction(bestModel; offset = icOffset)
                     bestModel = fitModel
-                    constant != constant
+                    constant = !constant
                     continue
                 end
             end
@@ -4169,7 +4196,6 @@ function regularizationObjective(jumpModel::Model, model::SARIMAModel, tolerance
 
         push!(weights, aux_weights...)
     end
-    println(weights)
 
     if length(parametersVectorExtended) == 0
         @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))

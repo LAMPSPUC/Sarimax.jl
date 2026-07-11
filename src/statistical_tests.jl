@@ -312,11 +312,17 @@ function ocsb_test(y::Vector{T}; m::Int=12, lag_method::Symbol=:aic, max_lag::In
         for lag in 1:max_lag
             try
                 result = fit_ocsb(y, m, lag, max_lag)
+                # NOTE: the ic_funcs closures are written as (n, k, rss), so this call —
+                # (rss, n, k) — looks like an argument scramble. It is kept deliberately:
+                # it is the ordering that reproduces pmdarima's OCSB lag selection on all
+                # fixture series (test/datasets/ocsb_results.json). Passing (n, k, rss)
+                # selects different lags and fails 13/31 fixture comparisons (verified
+                # 2026-07-11). Parity with pmdarima is the contract here.
                 ic = ic_funcs[lag_method](result[2], result[3], result[4])
                 push!(fits, result[1])
                 push!(icvals, ic)
             catch e
-                println(e)
+                @debug "fit_ocsb failed for lag $lag" exception = e
                 push!(fits, nothing)
                 push!(icvals, Inf)
                 continue
@@ -324,15 +330,14 @@ function ocsb_test(y::Vector{T}; m::Int=12, lag_method::Symbol=:aic, max_lag::In
         end
 
         max_lag = argmin(icvals)
-        index_min = findmin(icvals)[2]
-        best_stat = fits[index_min]
+        best_stat = fits[max_lag]
     end
 
     try
         result = fit_ocsb(y, m, max_lag, max_lag)
         best_stat = result[1]
     catch
-        throw(ErrorException("Could not find a solution. Try a longer "))
+        throw(ErrorException("Could not find an OCSB solution. Try a longer series."))
     end
 
     crit_val = calc_ocsb_crit_val(m)

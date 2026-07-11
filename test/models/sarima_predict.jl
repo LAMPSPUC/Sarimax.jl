@@ -164,4 +164,39 @@ end
         @test mapeExog ≈ 0 atol = 1e-1
         @test maeExog ≈ 0 atol = 1e-1
     end
+
+    @testset "exog forecast uses matching horizon row" begin
+        # Regression test for a bug where the exog forecast loop always used
+        # the LAST horizon's exog row for every forecasted step instead of
+        # the row matching that step.
+        nTrain = 200
+        nTotal = 205
+        dates = Date(1991, 7, 1):Month(1):(Date(1991, 7, 1)+Month(nTotal - 1))
+        xValues::Vector{Float64} = collect(1.0:nTotal)
+        yValues::Vector{Float64} = 2.0 .* xValues[1:nTrain]
+        trainSeries = TimeArray(collect(dates)[1:nTrain], yValues)
+        exogSeries = TimeArray(collect(dates), xValues)
+
+        model = SARIMA(trainSeries, exogSeries, 0, 0, 0; allowMean = false)
+        fit!(model)
+        forecast = Sarimax.predict!(model; stepsAhead = 5)
+
+        forecastedValues = values(model.forecast)
+        for i = 1:5
+            @test forecastedValues[i] ≈ 2.0 * (nTrain + i) rtol = 1e-2
+        end
+    end
+
+    @testset "short series seasonal predict" begin
+        # Regression test: seasonal AR term in `predict` had no bounds guard,
+        # so a short series (fewer than P*seasonality observations) threw a
+        # BoundsError instead of simply skipping unavailable lags.
+        Random.seed!(1234)
+        dates = Date(1991, 7, 1):Month(1):Date(1991, 7, 1)+Month(14)
+        y = TimeArray(collect(dates), randn(15))
+        model = SARIMA(y, 0, 0, 0; seasonality = 12, P = 1)
+        fit!(model)
+        Sarimax.predict!(model; stepsAhead = 3)
+        @test true
+    end
 end

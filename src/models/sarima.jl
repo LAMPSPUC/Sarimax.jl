@@ -161,60 +161,82 @@ modelSeasonalForm(model::SARIMAModel) = Symbol(get(model.metadata, "seasonalForm
 """
     print(model::SARIMAModel)
 
-Prints the SARIMA model.
-
-# Arguments
-- `model::SARIMAModel`: The SARIMA model to print.
-
-# Example
-```jldoctest
-julia> model = SARIMA(1, 0, 1; P=1, D=0, Q=1, seasonality=12, allowMean=true, allowDrift=false)
-
-julia> print(model)
-```
+Prints the full fitted-model summary (alias for `show(stdout, MIME"text/plain"(), model)`).
 """
 function print(model::SARIMAModel)
-    println("=================MODEL===============")
-    println(
-        "SARIMA ($(model.p), $(model.d) ,$(model.q))($(model.P), $(model.D) ,$(model.Q) s=$(model.seasonality))",
-    )
-    !isnothing(model.c) && println("Estimated c       : ", model.c)
-    !isnothing(model.trend) && println("Estimated trend   : ", model.trend)
-    model.p != 0 && println("Estimated ϕ       : ", model.ϕ)
-    model.q != 0 && println("Estimated θ       : ", model.θ)
-    model.P != 0 && println("Estimated Φ       : ", model.Φ)
-    model.Q != 0 && println("Estimated θ       : ", model.Θ)
-    isnothing(model.exog) || println("Exogenous coefficients: ", model.exogCoefficients)
-    println("Residuals σ²      : ", model.σ²)
-    model.keepProvidedCoefficients && println(
-        "The model preserves the provided coefficients. To optimize the whole model, set keepProvidedCoefficients=false",
-    )
-    println("======================================")
+    show(stdout, MIME("text/plain"), model)
+    println()
 end
+
+modelSpecString(model::SARIMAModel) =
+    "SARIMA($(model.p),$(model.d),$(model.q))($(model.P),$(model.D),$(model.Q))[$(model.seasonality)]"
 
 """
     Base.show(io::IO, model::SARIMAModel)
 
-Prints the SARIMA model.
-
-# Arguments
-- `io::IO`: The output stream.
-- `model::SARIMAModel`: The SARIMA model to print.
-
-# Example
-```jldoctest
-julia> model = SARIMA(1, 0, 1; P=1, D=0, Q=1, seasonality=12, allowMean=true, allowDrift=false)
-
-julia> print(model)
-```
+Compact one-line representation: specification and fit status.
 """
 function Base.show(io::IO, model::SARIMAModel)
-    constant = model.allowMean || model.allowDrift
-    zeroMean = ((model.d + model.D == 0) && constant) ? "non zero mean" : "zero mean"
-    zeroDrift = ((model.d + model.D > 0) && constant) ? "non zero drift" : "zero drift"
-    print(
+    Base.print(io, modelSpecString(model), isFitted(model) ? " | fitted" : " | not fitted")
+    return nothing
+end
+
+"""
+    Base.show(io::IO, ::MIME"text/plain", model::SARIMAModel)
+
+Full model summary: specification, seasonal form, estimation convention,
+coefficient table with CSS standard errors, and fit statistics.
+"""
+function Base.show(io::IO, ::MIME"text/plain", model::SARIMAModel)
+    println(io, modelSpecString(model))
+    form = get(model.metadata, "seasonalForm", "multiplicative")
+    init = get(model.metadata, "initialization", "zeroed")
+    deterministic = String[]
+    model.allowMean && push!(deterministic, "mean")
+    model.allowDrift && push!(deterministic, "drift")
+    detStr = isempty(deterministic) ? "none" : join(deterministic, " + ")
+    println(io, "Seasonal form: ", form, " | Estimation: CSS (", init, ") | Deterministic: ", detStr)
+    if !isFitted(model)
+        Base.print(io, "Status: not fitted — run fit!(model)")
+        return nothing
+    end
+    names = StatsAPI.coefnames(model)
+    estimates = StatsAPI.coef(model)
+    ses = try
+        StatsAPI.stderror(model)
+    catch
+        fill(NaN, length(estimates))
+    end
+    if !isempty(names)
+        wname = max(maximum(length.(names)), length("coefficient"))
+        rule = "─"^(wname + 28)
+        println(io, rule)
+        println(io, rpad("coefficient", wname), "  ", lpad("estimate", 12), "  ", lpad("std. error", 12))
+        println(io, rule)
+        for (nm, est, se) in zip(names, estimates, ses)
+            seStr = isnan(se) ? "—" : @sprintf("%.4f", se)
+            println(io, rpad(nm, wname), "  ", lpad(@sprintf("%.4f", est), 12), "  ", lpad(seStr, 12))
+        end
+        println(io, rule)
+    end
+    Base.print(
         io,
-        "SARIMA ($(model.p), $(model.d) ,$(model.q))($(model.P), $(model.D) ,$(model.Q) s=$(model.seasonality)) with $(zeroMean) and $(zeroDrift)",
+        @sprintf(
+            "σ² = %.6g | n = %d | loglik = %.3f | AIC = %.3f | AICc = %.3f | BIC = %.3f",
+            model.σ²,
+            length(model.ϵ),
+            loglike(model),
+            aic(model),
+            aicc(model),
+            bic(model)
+        )
+    )
+    solverStatus = get(model.metadata, "solverStatus", "")
+    solverStatus in ("", "OPTIMAL", "LOCALLY_SOLVED", "ALMOST_OPTIMAL", "ALMOST_LOCALLY_SOLVED") ||
+        Base.print(io, "\n⚠ solver status: ", solverStatus)
+    model.keepProvidedCoefficients && Base.print(
+        io,
+        "\n(provided coefficients kept fixed; set keepProvidedCoefficients = false to re-estimate)",
     )
     return nothing
 end
@@ -642,6 +664,12 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
   `[-(1-ρ), 1-ρ]`, keeping the solution `ρ` away from the unit circle. Only used when `invertible=true`.
   Default is `0.0`.
 - `seasonalForm::Symbol`: `:multiplicative` (Box-Jenkins, default) or `:additive`.
+- `stationary::Bool`: When `true`, the (seasonal) AR coefficients are generated from
+  bounded reflection coefficients (partial autocorrelations) via [`reflectionToAR`](@ref),
+  guaranteeing a stationary AR polynomial by construction (exact under `:multiplicative`;
+  per-block only under `:additive`). Default is `false`.
+- `stationarityMargin::AbstractFloat`: Margin in `[0, 1)` bounding the AR reflection
+  coefficients to `[-(1-margin), 1-margin]`. Only used when `stationary = true`.
 - `initialization::Symbol`: CSS conditioning convention. `:zeroed` (default) fixes the
   pre-sample residuals at zero and drops the first `max(p+sP, q+sQ)` differenced
   observations; `:warmup` conditions only on the AR-side lags and warm-starts the MA
@@ -672,6 +700,8 @@ function fit!(
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
     initialization::Symbol = :zeroed,
+    stationary::Bool = false,
+    stationarityMargin::AbstractFloat = 0.0,
 )
     Fl = typeofModelElements(model)
     isFitted(model) &&
@@ -679,10 +709,18 @@ function fit!(
     @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable"] "The objective function $objectiveFunction is not supported. Please use 'mae', 'mse', 'ml', 'bilevel', 'elastic_net' or 'stable'"
     @assert !(invertible && MACoefficientsAreModelParameters(objectiveFunction)) "The invertible MA parameterization is not compatible with the '$objectiveFunction' objective (MA coefficients are treated as outer parameters there)."
     @assert 0.0 <= invertibilityMargin < 1.0 "invertibilityMargin (ρ) must lie in [0, 1)."
+    @assert 0.0 <= stationarityMargin < 1.0 "stationarityMargin must lie in [0, 1)."
     if objectiveFunction == "elastic_net"
         @assert (!isnothing(alpha) || !isnothing(model.alpha)) "In elastic net objective function, alpha must be specified"
     end
 
+    model.allowMean && model.allowDrift && throw(
+        InvalidParametersCombination(
+            "allowMean and allowDrift are mutually exclusive: in the differenced " *
+            "equation they were perfectly collinear. Use allowMean for d+D == 0 " *
+            "and allowDrift for d+D == 1.",
+        ),
+    )
     seasonalForm === :free && throw(ArgumentError("seasonalForm :free is planned for a later release"))
     seasonalForm in (:multiplicative, :additive) ||
         throw(ArgumentError("seasonalForm must be :multiplicative or :additive"))
@@ -708,6 +746,19 @@ function fit!(
     end
 
     T = length(diffY)
+
+    # Drift enters as the differentiated deterministic-time regressor: for
+    # d + D == 0 it is the linear trend t itself; for d = 1 it reduces to a
+    # constant (classic drift); for d + D > 1 it vanishes (not identifiable).
+    driftValues::Vector{Fl} = if model.allowDrift
+        model.d + model.D > 1 && @warn(
+            "Drift with d + D > 1 is not identifiable (the differenced trend is zero)."
+        )
+        diffT = differentiate(collect(Fl, 1:length(values(model.y))), model.d, model.D, model.seasonality)
+        diffT[end-T+1:end]
+    else
+        ones(Fl, T)
+    end
 
     yValues = values(diffY)[:, 1]
     nExog = isnothing(model.exog) ? 0 : size(values(diffY), 2) - 1
@@ -740,8 +791,37 @@ function fit!(
     end
 
     @variable(mod, β[1:nExog])
-    @variable(mod, -1 <= ϕ[1:model.p] <= 1)
-    @variable(mod, -1 <= Φ[1:model.P] <= 1)
+    if stationary
+        # Stationary-by-construction AR parameterization: the AR coefficients are
+        # generated from bounded reflection coefficients (partial autocorrelations)
+        # via reflectionToAR. Under :multiplicative this guarantees stationarity of
+        # the full polynomial (each factor is stationary); under :additive it
+        # constrains each block's own polynomial only (necessary, not sufficient).
+        ρs = stationarityMargin
+        @variable(mod, ϕ[1:model.p])
+        @variable(mod, Φ[1:model.P])
+        if model.p > 0
+            @variable(mod, -(1 - ρs) <= κAR[1:model.p] <= (1 - ρs))
+            ϕκ = reflectionToAR(κAR)
+            @constraint(mod, [i = 1:model.p], ϕ[i] == ϕκ[i])
+            for i = 1:model.p
+                set_start_value(κAR[i], 0.0)
+                set_start_value(ϕ[i], 0.0)
+            end
+        end
+        if model.P > 0
+            @variable(mod, -(1 - ρs) <= κSAR[1:model.P] <= (1 - ρs))
+            Φκ = reflectionToAR(κSAR)
+            @constraint(mod, [k = 1:model.P], Φ[k] == Φκ[k])
+            for k = 1:model.P
+                set_start_value(κSAR[k], 0.0)
+                set_start_value(Φ[k], 0.0)
+            end
+        end
+    else
+        @variable(mod, -1 <= ϕ[1:model.p] <= 1)
+        @variable(mod, -1 <= Φ[1:model.P] <= 1)
+    end
     @variable(mod, ϵ[1:T])
 
     fix.(ϵ[1:lb-1], 0.0)
@@ -797,7 +877,7 @@ function fit!(
             mod,
             ŷ[t = lb:T],
             c +
-            trend +
+            trend * driftValues[t] +
             sum(β[i] * exogValues[t, i] for i = 1:nExog) +
             sum(ϕ[i] * yValues[t-i] for i = 1:model.p if (t - i > 0)) +
             sum(θ[j] * ϵ[t-j] for j = 1:model.q if (t - j > 0)) +
@@ -820,7 +900,7 @@ function fit!(
             mod,
             ŷ[t = lb:T],
             c +
-            trend +
+            trend * driftValues[t] +
             sum(β[i] * exogValues[t, i] for i = 1:nExog) +
             sum(ϕ[i] * yValues[t-i] for i = 1:model.p if (t - i > 0)) +
             sum(θ[j] * ϵ[t-j] for j = 1:model.q if (t - j > 0)) +
@@ -835,7 +915,7 @@ function fit!(
             mod,
             ŷ[t = lb:T],
             c +
-            trend +
+            trend * driftValues[t] +
             sum(β[i] * exogValues[t, i] for i = 1:nExog) +
             sum(ϕ[i] * yValues[t-i] for i = 1:model.p if (t - i > 0)) +
             sum(θ[j] * ϵ[t-j] for j = 1:model.q if (t - j > 0))
@@ -939,6 +1019,35 @@ function reflectionToMA(κ)
         cur[m] = κ[m]
         for i = 1:(m-1)
             cur[i] = prev[i] + κ[m] * prev[m-i]
+        end
+        prev = cur
+    end
+    return prev
+end
+
+
+"""
+    reflectionToAR(κ)
+
+Maps reflection coefficients (partial autocorrelations) `κ` to AR coefficients
+via the Levinson-Durbin recursion (the AR analogue of [`reflectionToMA`](@ref),
+with the opposite sign):
+
+    φ_m⁽ᵐ⁾ = κ_m
+    φ_i⁽ᵐ⁾ = φ_i⁽ᵐ⁻¹⁾ − κ_m · φ_{m−i}⁽ᵐ⁻¹⁾
+
+When |κ_m| < 1 the resulting AR polynomial is stationary. Entries may be
+numbers or JuMP variables/expressions.
+"""
+function reflectionToAR(κ)
+    p = length(κ)
+    p == 0 && return Any[]
+    prev = Any[κ[1]]
+    for m = 2:p
+        cur = Vector{Any}(undef, m)
+        cur[m] = κ[m]
+        for i = 1:(m-1)
+            cur[i] = prev[i] - κ[m] * prev[m-i]
         end
         prev = cur
     end
@@ -1542,10 +1651,17 @@ function predict(
     end
 
     yValues::Vector{ModelFl} = deepcopy(values(diffY))
+
+    driftFuture::Vector{ModelFl} = model.allowDrift ?
+        differentiate(
+            collect(ModelFl, 1:(length(values(model.y)) + stepsAhead)),
+            model.d, model.D, model.seasonality,
+        ) : ModelFl[]
     errors = deepcopy(model.ϵ)
 
     for step = 1:stepsAhead
-        forecastedValue::ModelFl = 0 + model.c + model.trend # *(T+stepsAhead)
+        forecastedValue::ModelFl =
+            model.c + (model.allowDrift ? model.trend * driftFuture[T+step] : model.trend)
         errorsLength = length(errors)
         yLength = length(yValues)
         if model.p > 0
@@ -1744,6 +1860,8 @@ function auto(
     searchMethod::String = "stepwise",
     seasonalForm::Symbol = :multiplicative,
     initialization::Symbol = :zeroed,
+    stationary::Bool = false,
+    stationarityMargin::AbstractFloat = 0.0,
     lambda::Union{Float64,Nothing} = nothing,
     alpha::Union{Float64,Nothing} = nothing,
 )
@@ -1903,6 +2021,8 @@ function auto(
             minConditioningObs = searchLb,
             seasonalForm = seasonalForm,
             initialization = initialization,
+            stationary = stationary,
+            stationarityMargin = stationarityMargin,
             allowMean = allowMean,
             allowDrift = allowDrift,
             alpha = alpha,
@@ -1928,6 +2048,8 @@ function auto(
             minConditioningObs = searchLb,
             seasonalForm = seasonalForm,
             initialization = initialization,
+            stationary = stationary,
+            stationarityMargin = stationarityMargin,
             allowMean = allowMean,
             allowDrift = allowDrift,
             fixConstant = fixConstant,
@@ -1954,6 +2076,8 @@ function auto(
             minConditioningObs = searchLb,
             seasonalForm = seasonalForm,
             initialization = initialization,
+            stationary = stationary,
+            stationarityMargin = stationarityMargin,
             allowMean = allowMean,
             allowDrift = allowDrift,
             alpha = alpha,
@@ -1991,7 +2115,7 @@ function auto(
             )
         end
 
-        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs, minConditioningObs = searchLb, seasonalForm = seasonalForm, initialization = initialization)
+        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs, minConditioningObs = searchLb, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
     end
 
     bestModel.exog = exog
@@ -2653,13 +2777,15 @@ function localSearch!(
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
     initialization::Symbol = :zeroed,
+    stationary::Bool = false,
+    stationarityMargin::AbstractFloat = 0.0,
 ) where {Fl<:AbstractFloat}
     ModelFl = Fl#typeofModelElements(candidateModels[1])
     localBestCriteria::ModelFl = Inf
     localBestModel = nothing
     foreach(
         model -> if !isFitted(model)
-            fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization)
+            fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
             criteria = informationCriteriaFunction(model; offset = icOffset)
             showLogs && @info("Fitted $(getId(model)) with $(criteria)")
             visitedModels[getId(model)] = Dict("criteria" => criteria)
@@ -3057,6 +3183,8 @@ function stepWiseSearchNaive(
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
     initialization::Symbol = :zeroed,
+    stationary::Bool = false,
+    stationarityMargin::AbstractFloat = 0.0,
     fixConstant::Bool = false,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,Float64} = nothing,
@@ -3106,6 +3234,8 @@ function stepWiseSearchNaive(
         minConditioningObs,
         seasonalForm,
         initialization,
+        stationary,
+        stationarityMargin,
     )
 
     if isnothing(bestModel)
@@ -3158,6 +3288,8 @@ function stepWiseSearchNaive(
             minConditioningObs,
             seasonalForm,
             initialization,
+            stationary,
+            stationarityMargin,
         )
         showLogs && !isnothing(itBestModel) && @info(
             "Iteration $(iterations): Best model found is $(getId(itBestModel)) with $(itBestCriteria) criteria"
@@ -3273,6 +3405,8 @@ function stepwiseSearch(
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
     initialization::Symbol = :zeroed,
+    stationary::Bool = false,
+    stationarityMargin::AbstractFloat = 0.0,
     maxModels::Int = 94,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
     lambda::Union{Nothing,<:AbstractFloat} = nothing,
@@ -3299,7 +3433,7 @@ function stepwiseSearch(
         alpha = alpha,
         lambda = lambda
     )
-    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization)
+    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
     showLogs && @info(
         "Fitted $(getId(bestModel)) with $(informationCriteriaFunction(bestModel; offset=icOffset)) criteria"
     )
@@ -3328,7 +3462,7 @@ function stepwiseSearch(
         alpha = alpha,
         lambda = lambda
     )
-    fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization)
+    fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
     showLogs && @info(
         "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
     )
@@ -3373,7 +3507,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -3414,7 +3548,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -3453,7 +3587,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -3500,7 +3634,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3541,7 +3675,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3582,7 +3716,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3623,7 +3757,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3665,7 +3799,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3708,7 +3842,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3751,7 +3885,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3794,7 +3928,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3836,7 +3970,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3877,7 +4011,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3918,7 +4052,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -3959,7 +4093,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -4001,7 +4135,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -4044,7 +4178,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -4087,7 +4221,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -4130,7 +4264,7 @@ function stepwiseSearch(
                 alpha = alpha,
                 lambda = lambda
             )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization)
+            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
             showLogs && @info(
                 "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
             )
@@ -4170,7 +4304,7 @@ function stepwiseSearch(
                     alpha = alpha,
                     lambda = lambda
                 )
-                fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization)
+                fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
                 showLogs && @info(
                     "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
                 )
@@ -4265,6 +4399,8 @@ function gridSearch(
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
     initialization::Symbol = :zeroed,
+    stationary::Bool = false,
+    stationarityMargin::AbstractFloat = 0.0,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,Float64} = nothing,
 )
@@ -4284,7 +4420,7 @@ function gridSearch(
         alpha = alpha,
         lambda = lambda,
     )
-    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization)
+    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
     bestIC = informationCriteriaFunction(bestModel; offset = icOffset)
 
     for p = 0:maxp, q = 0:maxq, P = 0:maxP, Q = 0:maxQ, k = 0:maxK
@@ -4306,7 +4442,7 @@ function gridSearch(
             alpha = alpha,
             lambda = lambda,
         )
-        fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization)
+        fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
         ic = informationCriteriaFunction(model; offset = icOffset)
         showLogs && @info(
             "Fitted $(getId(model)) with $(informationCriteriaFunction(model; offset=icOffset)) criteria"

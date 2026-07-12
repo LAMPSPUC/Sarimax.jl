@@ -111,11 +111,19 @@ function cssResiduals(model::SARIMAModel, coefficients::Vector{Fl}) where {Fl<:A
     nX = size(Xv, 2)
     exogC = coefficients[idx:idx+nX-1]
 
+    driftV = if model.allowDrift
+        diffT = differentiate(
+            collect(Fl, 1:length(values(model.y))), model.d, model.D, model.seasonality)
+        diffT[end-T+1:end]
+    else
+        Fl[]
+    end
+
     mult = modelSeasonalForm(model) === :multiplicative
     s = model.seasonality
     resid = zeros(Fl, T)
     for t = lb:T
-        fittedValue = c + trend
+        fittedValue = c + (model.allowDrift ? trend * driftV[t] : trend)
         for i = 1:nX
             fittedValue += exogC[i] * Xv[t, i]
         end

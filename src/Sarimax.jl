@@ -32,6 +32,7 @@ using JuMP
 using LinearAlgebra
 using MathOptInterface
 using OffsetArrays
+using Printf
 using Optim
 using Random
 using SCIP
@@ -51,6 +52,9 @@ include("fit.jl")
 include("models/sarima.jl")
 include("utils.jl")
 include("statistical_tests.jl")
+include("diagnostics.jl")
+include("transformations.jl")
+include("cross_validation.jl")
 include("statsapi.jl")
 include("deprecated.jl")
 
@@ -91,6 +95,12 @@ export auto
 export aic
 export aicc
 export bic
+export ljung_box_test
+export jarque_bera_test
+export boxcox_transform
+export inverse_boxcox
+export boxcox_lambda
+export cross_validation
 export build_datetimes
 export to_ma
 export differentiated_coefficients

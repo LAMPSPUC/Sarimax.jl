@@ -239,6 +239,62 @@ end
     #     @test autoModel.D == 1
     # end
 
+    @testset "drift and trend terms" begin
+        n = 80
+        driftDates = Date(2000, 1, 1):Month(1):(Date(2000, 1, 1)+Month(n - 1))
+        yLine = TimeArray(collect(driftDates), 3.0 .+ 0.5 .* collect(1.0:n))
+
+        # d = 1: drift = constant in the differenced equation
+        mDrift = SARIMA(yLine, 0, 1, 0; allowMean = false, allowDrift = true)
+        fit!(mDrift)
+        @test mDrift.trend ≈ 0.5 atol = 1e-4
+        predict!(mDrift; stepsAhead = 3)
+        @test values(mDrift.forecast) ≈ [3.0 + 0.5 * (n + i) for i = 1:3] atol = 1e-3
+
+        # d = 0: drift is a genuine linear trend δ·t (was a duplicated constant before v0.3)
+        yTrend = TimeArray(collect(driftDates), 0.5 .* collect(1.0:n))
+        mTrend = SARIMA(yTrend, 0, 0, 0; allowMean = false, allowDrift = true)
+        fit!(mTrend)
+        @test mTrend.trend ≈ 0.5 atol = 1e-4
+
+        # mean and drift were perfectly collinear: now mutually exclusive
+        mBoth = SARIMA(yLine, 0, 1, 0; allowMean = true, allowDrift = true)
+        @test_throws InvalidParametersCombination fit!(mBoth)
+    end
+
+    @testset "stationary AR parameterization" begin
+        # Levinson recursion: φ₁ = κ₁(1-κ₂), φ₂ = κ₂
+        @test Sarimax.reflectionToAR([0.5]) == [0.5]
+        @test isapprox(Sarimax.reflectionToAR([0.5, 0.3]), [0.5 - 0.3 * 0.5, 0.3]; atol = 1e-12)
+
+        Random.seed!(11)
+        n = 80
+        statDates = Date(2000, 1, 1):Month(1):(Date(2000, 1, 1)+Month(n - 1))
+        rw = TimeArray(collect(statDates), cumsum(randn(n)))
+        mStat = SARIMA(rw, 1, 0, 0; allowMean = false)
+        fit!(mStat; stationary = true, stationarityMargin = 0.02)
+        @test abs(mStat.ϕ[1]) <= 0.98 + 1e-8
+
+        mBad = SARIMA(rw, 1, 0, 0; allowMean = false)
+        @test_throws AssertionError fit!(mBad; stationarityMargin = 1.5)
+    end
+
+    @testset "model display" begin
+        io = IOBuffer()
+        dispDates = Date(2000, 1, 1):Month(1):(Date(2000, 1, 1)+Month(59))
+        Random.seed!(3)
+        mDisp = SARIMA(TimeArray(collect(dispDates), cumsum(randn(60))), 1, 1, 0; allowMean = false)
+        show(io, mDisp)
+        @test occursin("not fitted", String(take!(io)))
+        fit!(mDisp)
+        show(io, MIME("text/plain"), mDisp)
+        str = String(take!(io))
+        @test occursin("coefficient", str)
+        @test occursin("ar_1", str)
+        @test occursin("AIC", str)
+        @test occursin("multiplicative", str)
+    end
+
     @testset "multiplicative_recovery" begin
         # Noise-free multiplicative DGP: y_t = φy_{t-1} + Φy_{t-12} − φΦy_{t-13}
         Random.seed!(7)

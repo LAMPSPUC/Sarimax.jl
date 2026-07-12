@@ -42,5 +42,7 @@ using JSON
 
     include("integrations.jl")
 
+    include("statistical_properties.jl")
+
     include("aqua.jl")
 end

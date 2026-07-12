@@ -38,5 +38,7 @@ using JSON
 
     include("reference_values.jl")
 
+    include("diagnostics.jl")
+
     include("aqua.jl")
 end

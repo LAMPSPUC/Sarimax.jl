@@ -29,6 +29,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (Kalman) initialization remains out of scope by design.
 - **Cross-implementation reference tests**: coefficient fixtures generated from R
   `arima(method = "CSS")` on the AirPassengers dataset, asserted in CI.
+- **Real drift term**: `allowDrift` now adds the differentiated deterministic-time
+  regressor (a genuine linear trend for `d+D = 0`, the classic constant-in-differences
+  for `d = 1`, with a warning for `d+D > 1` where it is not identifiable). `allowMean`
+  and `allowDrift` are now mutually exclusive — they were perfectly collinear before.
+- **`stationary::Bool` keyword** on `fit!`/`auto` (with `stationarityMargin`): AR
+  coefficients generated from bounded reflection coefficients via the Levinson
+  recursion (`reflectionToAR`) — stationarity by construction (exact under
+  `:multiplicative`).
+- **Residual diagnostics**: `ljung_box_test` and `jarque_bera_test` (vector and
+  fitted-model methods).
+- **Box-Cox**: `boxcox_transform`, `inverse_boxcox`, and `boxcox_lambda` (Guerrero's
+  method, as in `forecast::BoxCox.lambda`).
+- **Temporal cross-validation**: `cross_validation` — rolling-origin/expanding-window
+  evaluation with per-horizon MAE/RMSE.
+- **Readable model display**: `show`/`print` now render a summary with the
+  specification, seasonal form, estimation convention, a coefficient table with CSS
+  standard errors, and fit statistics.
 - **Aqua.jl quality checks** in the test suite.
 - `auto` discards candidates whose solver did not terminate successfully.
 - **StatsAPI interface**: `coef`, `coefnames`, `residuals`, `nobs`, `fitted`,

@@ -31,6 +31,9 @@ jobs:
           - version: '1.10'  # oldest supported (julia compat lower bound)
             os: ubuntu-latest
             arch: x64
+          - version: '1'  # The latest point-release (macOS, Apple Silicon)
+            os: macos-latest
+            arch: aarch64
     steps:
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@v1

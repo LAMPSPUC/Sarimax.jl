@@ -48,6 +48,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   standard errors, and fit statistics.
 - **`parallel::Bool` keyword** on `auto` (experimental): fits candidate models
   across Julia threads in the "grid" and "stepwiseNaive" searches.
+- **Tables.jl input**: `load_dataset(table; timestampColumn = :date)` accepts any
+  Tables.jl-compatible source.
+- **Plots.jl recipe** (via RecipesBase): `plot(model)` draws the observed series,
+  in-sample fit and forecast with its confidence band.
+- **MLJ interface**: `SARIMAForecaster` (MLJModelInterface deterministic wrapper;
+  exogenous variables via MLJ not yet supported).
+- CONTRIBUTING.md; CI now also runs on macOS (Apple Silicon).
 - **Aqua.jl quality checks** in the test suite.
 - `auto` discards candidates whose solver did not terminate successfully.
 - **StatsAPI interface**: `coef`, `coefnames`, `residuals`, `nobs`, `fitted`,

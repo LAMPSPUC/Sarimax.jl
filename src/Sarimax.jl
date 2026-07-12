@@ -39,6 +39,10 @@ using SCIP
 using StateSpaceModels
 using Statistics
 using TimeSeries
+using Tables
+
+import MLJModelInterface
+import RecipesBase
 
 import StatsAPI
 import StatsAPI: coef, coefnames, residuals, nobs, fitted, stderror, vcov, loglikelihood
@@ -55,6 +59,8 @@ include("statistical_tests.jl")
 include("diagnostics.jl")
 include("transformations.jl")
 include("cross_validation.jl")
+include("integrations.jl")
+include("mlj.jl")
 include("statsapi.jl")
 include("deprecated.jl")
 
@@ -101,6 +107,7 @@ export boxcox_transform
 export inverse_boxcox
 export boxcox_lambda
 export cross_validation
+export SARIMAForecaster
 export build_datetimes
 export to_ma
 export differentiated_coefficients

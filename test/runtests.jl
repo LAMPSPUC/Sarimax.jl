@@ -40,5 +40,7 @@ using JSON
 
     include("diagnostics.jl")
 
+    include("integrations.jl")
+
     include("aqua.jl")
 end

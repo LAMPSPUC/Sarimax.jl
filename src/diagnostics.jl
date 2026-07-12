@@ -37,7 +37,7 @@ function ljung_box_test(
     Q *= n * (n + 2)
     dof = max(lags - fitdf, 1)
     pValue = 1 - cdf(Chisq(dof), Q)
-    return Dict(
+    return Dict{String,Any}(
         "test_statistic" => Q,
         "p_value" => pValue,
         "lags" => lags,

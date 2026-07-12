@@ -1822,7 +1822,10 @@ Automatically fits the best SARIMA model according to the specified parameters.
 - `allowDrift::Union{Bool,Nothing}`: Whether to include a drift term in the model. Default is nothing.
 - `integrationTest::String`: The integration test to be used for determining the non-seasonal integration order. Default is "kpss".
 - `seasonalIntegrationTest::String`: The integration test to be used for determining the seasonal integration order. Default is "seas".
-- `objectiveFunction::String`: The objective function to be used for model selection. Options are "mse", "ml", or "bilevel". Default is "mse".
+- `objectiveFunction::String`: The objective function to be used for model selection.
+- `parallel::Bool`: Fit candidate models across Julia threads (experimental; applies to
+  the "grid" and "stepwiseNaive" searches; requires starting Julia with multiple
+  threads). Default is `false`. Options are "mse", "ml", or "bilevel". Default is "mse".
 - `assertStationarity::Bool`: Whether to assert stationarity of the fitted model. Default is true.
 - `assertInvertibility::Bool`: Whether to assert invertibility of the fitted model. Default is true.
 - `showLogs::Bool`: Whether to suppress output. Default is false.
@@ -1858,6 +1861,7 @@ function auto(
     showLogs::Bool = false,
     outlierDetection::Bool = false,
     searchMethod::String = "stepwise",
+    parallel::Bool = false,
     seasonalForm::Symbol = :multiplicative,
     initialization::Symbol = :zeroed,
     stationary::Bool = false,
@@ -2050,6 +2054,7 @@ function auto(
             initialization = initialization,
             stationary = stationary,
             stationarityMargin = stationarityMargin,
+            parallel = parallel,
             allowMean = allowMean,
             allowDrift = allowDrift,
             fixConstant = fixConstant,
@@ -2078,6 +2083,7 @@ function auto(
             initialization = initialization,
             stationary = stationary,
             stationarityMargin = stationarityMargin,
+            parallel = parallel,
             allowMean = allowMean,
             allowDrift = allowDrift,
             alpha = alpha,
@@ -2779,31 +2785,40 @@ function localSearch!(
     initialization::Symbol = :zeroed,
     stationary::Bool = false,
     stationarityMargin::AbstractFloat = 0.0,
+    parallel::Bool = false,
 ) where {Fl<:AbstractFloat}
-    ModelFl = Fl#typeofModelElements(candidateModels[1])
+    ModelFl = Fl
     localBestCriteria::ModelFl = Inf
     localBestModel = nothing
-    foreach(
-        model -> if !isFitted(model)
-            fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
-            criteria = informationCriteriaFunction(model; offset = icOffset)
-            showLogs && @info("Fitted $(getId(model)) with $(criteria)")
-            visitedModels[getId(model)] = Dict("criteria" => criteria)
-
-            if criteria < localBestCriteria
-                if checkModelStationarityInvertibility(
-                    model,
-                    assertStationarity,
-                    assertInvertibility,
-                    showLogs,
-                )
-                    localBestCriteria = criteria
-                    localBestModel = model
-                end
+    toFit = filter(m -> !isFitted(m), candidateModels)
+    if parallel
+        Threads.@threads for model in toFit
+            try
+                fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
+            catch e
+                @warn "Parallel candidate fit failed" exception = e
             end
-        end,
-        candidateModels,
-    )
+        end
+    else
+        foreach(model -> fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin), toFit)
+    end
+    for model in toFit
+        isFitted(model) || continue
+        criteria = informationCriteriaFunction(model; offset = icOffset)
+        showLogs && @info("Fitted $(getId(model)) with $(criteria)")
+        visitedModels[getId(model)] = Dict("criteria" => criteria)
+        if criteria < localBestCriteria
+            if checkModelStationarityInvertibility(
+                model,
+                assertStationarity,
+                assertInvertibility,
+                showLogs,
+            )
+                localBestCriteria = criteria
+                localBestModel = model
+            end
+        end
+    end
     return localBestCriteria, localBestModel
 end
 
@@ -3185,6 +3200,7 @@ function stepWiseSearchNaive(
     initialization::Symbol = :zeroed,
     stationary::Bool = false,
     stationarityMargin::AbstractFloat = 0.0,
+    parallel::Bool = false,
     fixConstant::Bool = false,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,Float64} = nothing,
@@ -3236,6 +3252,7 @@ function stepWiseSearchNaive(
         initialization,
         stationary,
         stationarityMargin,
+        parallel,
     )
 
     if isnothing(bestModel)
@@ -3290,6 +3307,7 @@ function stepWiseSearchNaive(
             initialization,
             stationary,
             stationarityMargin,
+            parallel,
         )
         showLogs && !isnothing(itBestModel) && @info(
             "Iteration $(iterations): Best model found is $(getId(itBestModel)) with $(itBestCriteria) criteria"
@@ -3610,719 +3628,88 @@ function stepwiseSearch(
         k += 1
     end
 
+    # Try one neighbour specification; when it improves the information
+    # criterion and passes the admissibility checks, adopt it as the new best.
+    function tryCandidate!(newp::Int, newq::Int, newP::Int, newQ::Int, cAllowMean::Bool, cAllowDrift::Bool)
+        newModel(results, newp, d, newq, newP, D, newQ, seasonality, cAllowMean, cAllowDrift) ||
+            return false
+        k += 1
+        k > maxModels && return false
+        fitModel = SARIMA(
+            y,
+            exog,
+            newp,
+            d,
+            newq;
+            P = newP,
+            D = D,
+            Q = newQ,
+            seasonality = seasonality,
+            allowMean = cAllowMean,
+            allowDrift = cAllowDrift,
+            alpha = alpha,
+            lambda = lambda,
+        )
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
+        showLogs && @info(
+            "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
+        )
+        considerModel = checkModelStationarityInvertibility(
+            fitModel,
+            assertStationarity,
+            assertInvertibility,
+            showLogs,
+        )
+        results[getId(fitModel)] = fitModel
+        if considerModel &&
+           informationCriteriaFunction(fitModel; offset = icOffset) <
+           informationCriteriaFunction(bestModel; offset = icOffset)
+            bestModel = fitModel
+            return true
+        end
+        return false
+    end
+
+    # Hyndman-Khandakar neighbourhood scan. The move order matches the previous
+    # (unrolled) implementation: seasonal singles, seasonal pairs, non-seasonal
+    # singles, non-seasonal pairs; on the first improving move the scan restarts.
+    moves = (
+        (0, 0, -1, 0),
+        (0, 0, 0, -1),
+        (0, 0, 1, 0),
+        (0, 0, 0, 1),
+        (0, 0, -1, -1),
+        (0, 0, -1, 1),
+        (0, 0, 1, -1),
+        (0, 0, 1, 1),
+        (-1, 0, 0, 0),
+        (0, -1, 0, 0),
+        (1, 0, 0, 0),
+        (0, 1, 0, 0),
+        (-1, -1, 0, 0),
+        (-1, 1, 0, 0),
+        (1, -1, 0, 0),
+        (1, 1, 0, 0),
+    )
+
     startk = 0
     while (startk < k && k < maxModels)
         startk = k
-        if (
-            P > 0 &&
-            newModel(results, p, d, q, P - 1, D, Q, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p,
-                d,
-                q;
-                P = P - 1,
-                D = D,
-                Q = Q,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                P -= 1
+        improved = false
+        for (dp, dq, dP, dQ) in moves
+            newp, newq, newP, newQ = p + dp, q + dq, P + dP, Q + dQ
+            (0 <= newp <= maxp && 0 <= newq <= maxq && 0 <= newP <= maxP && 0 <= newQ <= maxQ) ||
                 continue
+            if tryCandidate!(newp, newq, newP, newQ, allowMean, allowDrift)
+                p, q, P, Q = newp, newq, newP, newQ
+                improved = true
+                break
             end
         end
+        improved && continue
 
-        if (
-            Q > 0 &&
-            newModel(results, p, d, q, P, D, Q - 1, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p,
-                d,
-                q;
-                P = P,
-                D = D,
-                Q = Q - 1,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                Q -= 1
-                continue
-            end
-        end
-
-        if (
-            P < maxP &&
-            newModel(results, p, d, q, P + 1, D, Q, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p,
-                d,
-                q;
-                P = P + 1,
-                D = D,
-                Q = Q,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                P += 1
-                continue
-            end
-        end
-
-        if (
-            Q < maxQ &&
-            newModel(results, p, d, q, P, D, Q + 1, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p,
-                d,
-                q;
-                P = P,
-                D = D,
-                Q = Q + 1,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                Q += 1
-                continue
-            end
-        end
-
-        if (
-            Q > 0 &&
-            P > 0 &&
-            newModel(results, p, d, q, P - 1, D, Q - 1, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p,
-                d,
-                q;
-                P = P - 1,
-                D = D,
-                Q = Q - 1,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                P -= 1
-                Q -= 1
-                continue
-            end
-        end
-
-        if (
-            Q < maxQ &&
-            P > 0 &&
-            newModel(results, p, d, q, P - 1, D, Q + 1, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p,
-                d,
-                q;
-                P = P - 1,
-                D = D,
-                Q = Q + 1,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                P -= 1
-                Q += 1
-                continue
-            end
-        end
-
-        if (
-            Q > 0 &&
-            P < maxP &&
-            newModel(results, p, d, q, P + 1, D, Q - 1, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p,
-                d,
-                q;
-                P = P + 1,
-                D = D,
-                Q = Q - 1,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                P += 1
-                Q -= 1
-                continue
-            end
-        end
-
-        if (
-            Q < maxQ &&
-            P < maxP &&
-            newModel(results, p, d, q, P + 1, D, Q + 1, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p,
-                d,
-                q;
-                P = P + 1,
-                D = D,
-                Q = Q + 1,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                P += 1
-                Q += 1
-                continue
-            end
-        end
-
-        if (
-            p > 0 &&
-            newModel(results, p - 1, d, q, P, D, Q, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p - 1,
-                d,
-                q;
-                P = P,
-                D = D,
-                Q = Q,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                p -= 1
-                continue
-            end
-        end
-
-        if (
-            q > 0 &&
-            newModel(results, p, d, q - 1, P, D, Q, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p,
-                d,
-                q - 1;
-                P = P,
-                D = D,
-                Q = Q,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                q -= 1
-                continue
-            end
-        end
-
-        if (
-            p < maxp &&
-            newModel(results, p + 1, d, q, P, D, Q, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p + 1,
-                d,
-                q;
-                P = P,
-                D = D,
-                Q = Q,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                p += 1
-                continue
-            end
-        end
-
-        if (
-            q < maxq &&
-            newModel(results, p, d, q + 1, P, D, Q, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p,
-                d,
-                q + 1;
-                P = P,
-                D = D,
-                Q = Q,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                q += 1
-                continue
-            end
-        end
-
-        if (
-            q > 0 &&
-            p > 0 &&
-            newModel(results, p - 1, d, q - 1, P, D, Q, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p - 1,
-                d,
-                q - 1;
-                P = P,
-                D = D,
-                Q = Q,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                p -= 1
-                q -= 1
-                continue
-            end
-        end
-
-        if (
-            q < maxq &&
-            p > 0 &&
-            newModel(results, p - 1, d, q + 1, P, D, Q, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p - 1,
-                d,
-                q + 1;
-                P = P,
-                D = D,
-                Q = Q,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                p -= 1
-                q += 1
-                continue
-            end
-        end
-
-        if (
-            q > 0 &&
-            p < maxp &&
-            newModel(results, p + 1, d, q - 1, P, D, Q, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p + 1,
-                d,
-                q - 1;
-                P = P,
-                D = D,
-                Q = Q,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                p += 1
-                q -= 1
-                continue
-            end
-        end
-
-        if (
-            q < maxq &&
-            p < maxp &&
-            newModel(results, p + 1, d, q + 1, P, D, Q, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p + 1,
-                d,
-                q + 1;
-                P = P,
-                D = D,
-                Q = Q,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                p += 1
-                q += 1
-                continue
-            end
-        end
-
-        if (allowDrift || allowMean)
-            if (newModel(results, p, d, q, P, D, Q, seasonality, !constant, false))
-                k += 1
-                (k > maxModels) && continue
-                fitModel = SARIMA(
-                    y,
-                    exog,
-                    p,
-                    d,
-                    q;
-                    P = P,
-                    D = D,
-                    Q = Q,
-                    seasonality = seasonality,
-                    allowMean = !constant,
-                    allowDrift = false,
-                    alpha = alpha,
-                    lambda = lambda
-                )
-                fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
-                showLogs && @info(
-                    "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-                )
-                considerModel = checkModelStationarityInvertibility(
-                    fitModel,
-                    assertStationarity,
-                    assertInvertibility,
-                    showLogs,
-                )
-                results[getId(fitModel)] = fitModel
-                if considerModel &&
-                   informationCriteriaFunction(fitModel; offset = icOffset) <
-                   informationCriteriaFunction(bestModel; offset = icOffset)
-                    bestModel = fitModel
-                    constant = !constant
-                    continue
-                end
-            end
+        if (allowDrift || allowMean) && tryCandidate!(p, q, P, Q, !constant, false)
+            constant = !constant
         end
     end
 
@@ -4401,64 +3788,83 @@ function gridSearch(
     initialization::Symbol = :zeroed,
     stationary::Bool = false,
     stationarityMargin::AbstractFloat = 0.0,
+    parallel::Bool = false,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,Float64} = nothing,
 )
     maxK = (allowMean || allowDrift) ? 1 : 0
-    bestModel = SARIMA(
-        y,
-        exog,
-        0,
-        d,
-        0;
-        P = 0,
-        D = D,
-        Q = 0,
-        seasonality = seasonality,
-        allowMean = allowMean,
-        allowDrift = allowDrift,
-        alpha = alpha,
-        lambda = lambda,
-    )
-    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
-    bestIC = informationCriteriaFunction(bestModel; offset = icOffset)
-
-    for p = 0:maxp, q = 0:maxq, P = 0:maxP, Q = 0:maxQ, k = 0:maxK
-        if p + q + P + Q > maxOrder
-            continue
-        end
-        model = SARIMA(
+    candidates = SARIMAModel[]
+    push!(
+        candidates,
+        SARIMA(
             y,
             exog,
-            p,
+            0,
             d,
-            q;
-            P = P,
+            0;
+            P = 0,
             D = D,
-            Q = Q,
+            Q = 0,
             seasonality = seasonality,
-            allowMean = (k == 1),
-            allowDrift = false,
+            allowMean = allowMean,
+            allowDrift = allowDrift,
             alpha = alpha,
             lambda = lambda,
+        ),
+    )
+    for p = 0:maxp, q = 0:maxq, P = 0:maxP, Q = 0:maxQ, kc = 0:maxK
+        p + q + P + Q > maxOrder && continue
+        push!(
+            candidates,
+            SARIMA(
+                y,
+                exog,
+                p,
+                d,
+                q;
+                P = P,
+                D = D,
+                Q = Q,
+                seasonality = seasonality,
+                allowMean = (kc == 1),
+                allowDrift = false,
+                alpha = alpha,
+                lambda = lambda,
+            ),
         )
-        fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
-        ic = informationCriteriaFunction(model; offset = icOffset)
-        showLogs && @info(
-            "Fitted $(getId(model)) with $(informationCriteriaFunction(model; offset=icOffset)) criteria"
-        )
+    end
+
+    fitOne!(m) = fit!(m; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
+    if parallel
+        Threads.@threads for m in candidates
+            try
+                fitOne!(m)
+            catch e
+                @warn "Parallel candidate fit failed" exception = e
+            end
+        end
+    else
+        foreach(fitOne!, candidates)
+    end
+
+    bestModel = nothing
+    bestIC = Inf
+    for m in candidates
+        isFitted(m) || continue
+        ic = informationCriteriaFunction(m; offset = icOffset)
+        showLogs && @info("Fitted $(getId(m)) with $(ic) criteria")
         considerModel = checkModelStationarityInvertibility(
-            model,
+            m,
             assertStationarity,
             assertInvertibility,
             showLogs,
         )
-
         if considerModel && ic < bestIC
-            bestModel = model
+            bestModel = m
             bestIC = ic
         end
     end
+    isnothing(bestModel) && (bestModel = candidates[1])
     return bestModel
 end
 

@@ -46,6 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Readable model display**: `show`/`print` now render a summary with the
   specification, seasonal form, estimation convention, a coefficient table with CSS
   standard errors, and fit statistics.
+- **`parallel::Bool` keyword** on `auto` (experimental): fits candidate models
+  across Julia threads in the "grid" and "stepwiseNaive" searches.
 - **Aqua.jl quality checks** in the test suite.
 - `auto` discards candidates whose solver did not terminate successfully.
 - **StatsAPI interface**: `coef`, `coefnames`, `residuals`, `nobs`, `fitted`,
@@ -53,6 +55,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Standard errors**: CSS asymptotics via a numerical Hessian of the residual sum
   of squares over a pure-Julia replica of the fit recursion (`Sarimax.cssResiduals`),
   `Var(θ̂) ≈ 2σ̂²H⁻¹` — validated against the AR(1) theory value.
+
+### Internal
+- `stepwiseSearch`'s 16 unrolled neighbour blocks (~700 lines of copy-paste)
+  replaced by a `tryCandidate!` closure and an explicit move table — verified
+  selection-equivalent (same model, same AICc) on the AirPassengers benchmark.
+- `gridSearch` restructured (candidate list + fit + selection passes) to support
+  parallel fitting.
 
 ### Deprecated
 - Public API renamed to snake_case: `load_dataset`, `split_train_test`,

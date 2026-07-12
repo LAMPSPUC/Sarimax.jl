@@ -63,9 +63,9 @@ Update the "Current state" and "Next steps" sections after every completed batch
 | 1ff3c94 | I | stepwiseSearch refactor 716→85 lines (bit-for-bit equivalent, pinned), gridSearch restructure, auto(parallel=true) opt-in |
 | 7a4726f | J | Tables.jl input, RecipesBase plot recipe, MLJ SARIMAForecaster, CI macOS, CONTRIBUTING.md, @inferred tests |
 
-## Current state (2026-07-12, batch K IN PROGRESS)
+## Current state (2026-07-12, batches K and L COMPLETE — commits 261ab0d, 3c67521)
 
-**Batch K — test improvements** (implemented, gate suite running):
+**Batch K — test improvements** (DONE, suite green):
 - [x] K1: removed dead `set_optimal_start_values` from src/fit.jl
 - [x] K2: prediction-interval nominal-coverage tests (test/statistical_properties.jl):
       random walk 100 replicas ×4 horizons, estimated AR(1) 50 replicas ×3
@@ -73,7 +73,7 @@ Update the "Current state" and "Next steps" sections after every completed batch
 - [x] K4: SCIP path test — validated standalone: OPTIMAL certificate in ~3s at T=40,
       θ agrees with Ipopt to 4e-4
 
-**Batch L — documentation** (next):
+**Batch L — documentation** (DONE, local Documenter build validated):
 - [x] L1: README rewritten end-to-end: runnable quickstart with REAL output (auto on
       AIR_PASSENGERS → SARIMA(4,1,1)(0,1,1)[12], AICc 465.457), fit-options tour,
       verified-against-R coefficient table, formulation/comparability section,
@@ -84,7 +84,7 @@ Update the "Current state" and "Next steps" sections after every completed batch
 - [x] L4: docs/src/tutorial.md written (was EMPTY): FPP-style identify→estimate→
       diagnose→forecast→validate + SARIMAX section with ARX warning
 - [x] L5: doctests remain OFF (legacy fake jldoctest blocks in docstrings); index.md
-      feature list refreshed. Local docs build validation launched.
+      feature list refreshed. Local docs build passed (only benign git-remote warnings).
 
 ## Next steps after L (prioritized backlog)
 

@@ -105,7 +105,7 @@ The AIC value calculated using the number of parameters and log-likelihood value
 - Throws a `MissingMethodImplementation` if the `get_hyperparameters_number` method is not implemented for the given model type.
 
 """
-function aic(model::SarimaxModel; offset::Union{Fl,Nothing} = nothing, K::Union{Int,Nothing} = nothing) where {Fl<:AbstractFloat}
+function aic(model::SarimaxModel; offset::Union{AbstractFloat,Nothing} = nothing, K::Union{Int,Nothing} = nothing)
     !has_hyperparameters_methods(typeof(model)) &&
         throw(MissingMethodImplementation("get_hyperparameters_number"))
     K = isnothing(K) ? get_hyperparameters_number(model) : K
@@ -129,7 +129,7 @@ The AICc value calculated using the number of parameters, sample size, and log-l
 - Throws a `MissingMethodImplementation` if the `get_hyperparameters_number` method is not implemented for the given model type.
 
 """
-function aicc(model::SarimaxModel; offset::Union{Fl,Nothing} = nothing, K::Union{Int,Nothing} = nothing) where {Fl<:AbstractFloat}
+function aicc(model::SarimaxModel; offset::Union{AbstractFloat,Nothing} = nothing, K::Union{Int,Nothing} = nothing)
     !has_hyperparameters_methods(typeof(model)) &&
         throw(MissingMethodImplementation("get_hyperparameters_number"))
     K = isnothing(K) ? get_hyperparameters_number(model) : K
@@ -153,7 +153,7 @@ The BIC value calculated using the number of parameters, sample size, and log-li
 - Throws a `MissingMethodImplementation` if the `get_hyperparameters_number` method is not implemented for the given model type.
 
 """
-function bic(model::SarimaxModel; offset::Union{Fl,Nothing} = nothing, K::Union{Int,Nothing} = nothing) where {Fl<:AbstractFloat}
+function bic(model::SarimaxModel; offset::Union{AbstractFloat,Nothing} = nothing, K::Union{Int,Nothing} = nothing)
     !has_hyperparameters_methods(typeof(model)) &&
         throw(MissingMethodImplementation("get_hyperparameters_number"))
     K = isnothing(K) ? get_hyperparameters_number(model) : K

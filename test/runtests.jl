@@ -35,4 +35,8 @@ using JSON
     include("test_statistical_tests.jl")
 
     include("statsapi.jl")
+
+    include("reference_values.jl")
+
+    include("aqua.jl")
 end

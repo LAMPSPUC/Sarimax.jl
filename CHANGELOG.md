@@ -20,6 +20,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `seasonalForm::Symbol` keyword (`:multiplicative` default, `:additive`) on `fit!`
   and `auto`; `:free` reserved for a future release.
+- **`initialization::Symbol` keyword** on `fit!`/`auto`: `:zeroed` (default —
+  pre-sample residuals fixed at zero, warm-up observations dropped) or `:warmup`
+  (R-compatible: conditions only on the AR-side lags and warm-starts the MA
+  recursion from the beginning of the differenced sample). Under `:warmup`,
+  coefficients match R's `arima(..., method = "CSS")` to ~1e-5 on the airline and
+  ARIMA(1,1,1) specifications (pinned in `test/reference_values.jl`). Exact
+  (Kalman) initialization remains out of scope by design.
+- **Cross-implementation reference tests**: coefficient fixtures generated from R
+  `arima(method = "CSS")` on the AirPassengers dataset, asserted in CI.
+- **Aqua.jl quality checks** in the test suite.
+- `auto` discards candidates whose solver did not terminate successfully.
 - **StatsAPI interface**: `coef`, `coefnames`, `residuals`, `nobs`, `fitted`,
   `vcov`, `stderror`; `loglikelihood` now extends the StatsAPI generic.
 - **Standard errors**: CSS asymptotics via a numerical Hessian of the residual sum

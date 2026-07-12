@@ -123,13 +123,13 @@ function cssResiduals(model::SARIMAModel, coefficients::Vector{Fl}) where {Fl<:A
             (t - i > 0) && (fittedValue += arC[i] * yv[t-i])
         end
         for j = 1:model.q
-            fittedValue += maC[j] * resid[t-j]
+            (t - j > 0) && (fittedValue += maC[j] * resid[t-j])
         end
         for k = 1:model.P
             (t - s * k > 0) && (fittedValue += sarC[k] * yv[t-s*k])
         end
         for w = 1:model.Q
-            fittedValue += smaC[w] * resid[t-s*w]
+            (t - s * w > 0) && (fittedValue += smaC[w] * resid[t-s*w])
         end
         if mult
             for i = 1:model.p, k = 1:model.P
@@ -137,7 +137,8 @@ function cssResiduals(model::SARIMAModel, coefficients::Vector{Fl}) where {Fl<:A
                     (fittedValue -= arC[i] * sarC[k] * yv[t-i-s*k])
             end
             for j = 1:model.q, w = 1:model.Q
-                fittedValue += maC[j] * smaC[w] * resid[t-j-s*w]
+                (t - j - s * w > 0) &&
+                    (fittedValue += maC[j] * smaC[w] * resid[t-j-s*w])
             end
         end
         resid[t] = yv[t] - fittedValue

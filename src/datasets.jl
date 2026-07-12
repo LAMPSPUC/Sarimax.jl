@@ -116,8 +116,8 @@ Splits the time series in training and testing sets.
 """
 function split_train_test(
     data::TimeArray;
-    trainPercentage::Fl=0.8,
-) where {Fl<:AbstractFloat}
+    trainPercentage::AbstractFloat=0.8,
+)
     trainingSetEndIndex = floor(Int, trainPercentage * length(data))
     trainingSet = TimeArray(
         timestamp(data)[1:trainingSetEndIndex],

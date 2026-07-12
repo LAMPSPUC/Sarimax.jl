@@ -16,15 +16,19 @@ Sarimax.jl is a groundbreaking Julia package that revolutionizes SARIMA (Seasona
 
 ### Key Features
 
-* Fit models using various objective functions:
-  * Mean Squared Errors
-  * Maximum Likelihood estimation
-  * Bilevel objective function
-* Auto SARIMA model selection
-* Support for exogenous variables (Sarimax)
-* Scenario simulation capabilities
-* Time series integration and differentiation
-* Model evaluation criteria (AIC, AICc, BIC)
+* Multiplicative Box-Jenkins SARIMA (additive form available)
+* Swappable objective functions: MSE, MAE (L1), concentrated Gaussian CSS ("ml"),
+  CVaR ("stable"), adaptive elastic net
+* Certified globally optimal estimates via SCIP; any JuMP solver via `fit!(optimizer=…)`
+* Automatic order selection (Hyndman-Khandakar stepwise, grid, opt-in parallel)
+* Stationarity/invertibility **by construction** (reflection-coefficient parameterizations)
+* Exogenous variables (ARX form) and outlier dummies inside `auto`
+* StatsAPI: `coef`, `stderror`, `vcov`, `residuals`, … with CSS standard errors
+* Residual diagnostics (Ljung-Box, Jarque-Bera), Box-Cox (Guerrero λ), temporal
+  cross-validation, scenario simulation
+* Two CSS conditioning conventions; `initialization = :warmup` matches R's
+  `arima(method = "CSS")` to ~1e-5 (pinned in CI)
+* Tables.jl input, Plots.jl recipe, MLJ wrapper
 
 ## Model formulation and comparability
 

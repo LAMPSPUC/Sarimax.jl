@@ -13,196 +13,170 @@
 |:-----------------:|:-----------------:|:-----------------:|
 | [![Build Status][build-img]][build-url] | [![codecov][codecov-img]][codecov-url]| [![docs][docs-img]][docs-url] |
 
-Introducing Sarimax.jl, a groundbreaking Julia package that redefines SARIMA (Seasonal Autoregressive Integrated Moving Average) modeling by seamlessly integrating the JuMP framework — a powerful optimization modeling language. Unlike traditional SARIMA methods, Sarimax.jl leverages the optimization capabilities of JuMP, allowing for precise and customizable SARIMA models.
+Sarimax.jl estimates SARIMA/SARIMAX models by formulating them as **explicit
+JuMP optimization problems**: coefficients and residuals are decision
+variables, the model dynamics are constraints, and the objective function is
+yours to choose. This design makes things that are hard-coded in classical
+implementations — the loss function, coefficient constraints, regularization,
+the solver itself — into swappable arguments of `fit!`, up to and including
+**certified globally optimal estimates** via the SCIP solver.
 
-## Index
-* [Features](#features)
-* [Quickstart](#quickstart)
-    * [Stationarity](#stationarity)
-    * [Sarima model](#sarima-model)
-* [Auto SARIMA method](#auto-sarima-method)
-* [SARIMA models with explanatory variable](#sarima-models-with-explanatory-variable)
-* [Contributing](#contributing)
-* [References](#references)
+## Installation
 
-## Features
+```julia
+using Pkg
+Pkg.add(url = "https://github.com/LAMPSPUC/Sarimax.jl")
+```
 
-* Fit using Mean Squared Errors objective function
-* Fit using Maximum Likelihood estimation
-* Fit using bilevel objective function
-* Auto Sarima Model
-* Auto Sarima Model with exogenous variables 
-* Simulate scenarios
-* Integrate and differentiate time series
-* Provide evaluation criteria values (aic, aicc, bic)
+## Quickstart
+
+```julia
+using Sarimax
+
+airp = load_dataset(AIR_PASSENGERS)          # monthly TimeArray, 204 obs
+
+model = auto(airp; seasonality = 12)         # Hyndman-Khandakar stepwise search
+print(model)
+```
+
+```
+SARIMA(4,1,1)(0,1,1)[12]
+Seasonal form: multiplicative | Estimation: CSS (zeroed) | Deterministic: none
+───────────────────────────────────────
+coefficient      estimate    std. error
+───────────────────────────────────────
+ar_1              -0.4046        0.1751
+ar_2              -0.0415        0.1638
+ar_3               0.0298        0.1142
+ar_4              -0.2752        0.0914
+ma_1              -0.5233        0.1727
+sma_1             -0.4806        0.0696
+───────────────────────────────────────
+σ² = 0.982304 | n = 162 | loglik = -225.365 | AIC = 464.730 | AICc = 465.457 | BIC = 486.343
+```
+
+```julia
+predict!(model; stepsAhead = 12, displayConfidenceIntervals = true)
+model.forecast                               # TimeArray: forecast, lower, upper
+
+using Plots
+plot(model)                                  # observed + fitted + forecast ribbon
+```
+
+Manual specification and estimation options:
+
+```julia
+airp_log = log.(airp)
+m = SARIMA(airp_log, 0, 1, 1; seasonality = 12, P = 0, D = 1, Q = 1, allowMean = false)
+
+fit!(m)                                            # CSS, multiplicative form (defaults)
+fit!(m; initialization = :warmup)                  # R-compatible: matches arima(method="CSS")
+fit!(m; objectiveFunction = "mae")                 # robust L1 loss
+fit!(m; invertible = true, stationary = true)      # constrained-by-construction estimates
+fit!(m; optimizer = Sarimax.SCIP.Optimizer)        # certified global optimum
+
+coef(m), coefnames(m), stderror(m)                 # StatsAPI accessors
+residuals(m), nobs(m), loglike(m), aicc(m)
+```
+
+Diagnostics, Box-Cox and temporal cross-validation:
+
+```julia
+ljung_box_test(m)                            # residual autocorrelation (χ² test)
+jarque_bera_test(m)                          # residual normality
+
+λ = boxcox_lambda(airp; seasonality = 12)    # Guerrero's method (λ ≈ 0.13 here)
+airp_bc = boxcox_transform(airp, λ)
+
+cv = cross_validation(airp; initialTrainSize = 150, stepsAhead = 12,
+                      fitFunction = train -> auto(train; seasonality = 12))
+cv.rmse                                      # RMSE by forecast horizon
+```
 
 ## Model formulation and comparability
 
-Sarimax.jl differs from the reference implementations (`forecast`/R, `statsmodels`/Python) in ways you should know before comparing outputs:
+Sarimax.jl differs from `forecast` (R) and `statsmodels` (Python) in ways you
+should know before comparing outputs:
 
-1. **Seasonal form.** Since v0.3 the default is the **multiplicative** Box-Jenkins SARIMA, `φ(B)Φ(B^s)y'_t = θ(B)Θ(B^s)ε_t` — coefficients are directly comparable with R/statsmodels (given the same estimation method, see item 3). The pre-v0.3 **additive** form (no cross terms) remains available via `fit!(model; seasonalForm = :additive)` / `auto(y; seasonalForm = :additive)`.
-2. **Exogenous variables (ARX).** Regressors enter a **dynamic-regression/ARX** model — the AR terms act on the *observed* series. R's `Arima(xreg=)` and statsmodels' `SARIMAX(exog=)` fit *regression with ARIMA errors* instead (AR on the regression residual). These are different model families; exogenous coefficients differ by construction.
-3. **Estimation and information criteria (CSS).** Estimation is conditional least squares / conditional Gaussian ML formulated as a JuMP optimization problem — there is no Kalman filter and no exact likelihood. `loglike`, `aic`, `aicc` and `bic` follow the CSS convention with full Gaussian constants: comparable to R's `arima(..., method = "CSS")`, not to the exact-ML defaults of R/statsmodels.
-4. **What the optimization formulation buys.** Swappable objectives (MSE, MAE, CVaR-based "stable", elastic net), custom constraints, an invertible-MA parameterization (`fit!(model; invertible=true)`), and certified global optima via SCIP.
+1. **Seasonal form.** The default is the **multiplicative** Box-Jenkins SARIMA,
+   `φ(B)Φ(B^s)y'_t = θ(B)Θ(B^s)ε_t` — coefficients are directly comparable with
+   R/statsmodels given the same estimation method (item 3). The pre-v0.3
+   **additive** form (no cross terms) remains available via
+   `seasonalForm = :additive`.
+2. **Exogenous variables (ARX).** Regressors enter a **dynamic-regression/ARX**
+   model — the AR terms act on the *observed* series. R's `Arima(xreg=)` and
+   statsmodels' `SARIMAX(exog=)` fit *regression with ARIMA errors* instead.
+   These are different model families; exogenous coefficients differ by
+   construction.
+3. **Estimation (CSS, no Kalman filter).** Estimation is conditional least
+   squares / concentrated conditional Gaussian ML as a JuMP problem. Log-likelihood
+   and AIC/AICc/BIC follow the CSS convention with full Gaussian constants —
+   comparable to R's `arima(..., method = "CSS")`, not to exact-ML defaults.
+   Two conditioning conventions are available: `initialization = :zeroed`
+   (default) and `:warmup` (R-compatible).
 
-## Quickstart
-Using the dataset air passengers, plot the time series to visualize the data and its features. 
-Since it shows variation that increases with the level of the series, a logarithmic transformation is useful. 
+**Verified against R** (`arima(log(y), order, seasonal, method = "CSS")`, this
+repository's AirPassengers data, `initialization = :warmup` — pinned in CI):
 
-![Combined Plot](docs/img/airp_plot.png)
+| Specification | Coefficient | Sarimax.jl | R |
+|---|---|---|---|
+| (0,1,1)(0,1,1)[12] | θ | −0.787298 | −0.787298 |
+| (0,1,1)(0,1,1)[12] | Θ | −0.714078 | −0.714076 |
+| (1,1,1) | φ | 0.322774 | 0.322779 |
+| (1,1,1) | θ | −0.824214 | −0.824212 |
 
+## What the optimization formulation buys you
 
-```julia
-import Pkg
-Pkg.add(url = "https://github.com/LAMPSPUC/Sarimax.jl")
-using Sarimax
-airp = load_dataset(AIR_PASSENGERS)
-airp_log = log.(airp)
-```
+- **Swappable objectives**: `"mse"`, `"mae"` (L1), `"ml"` (concentrated Gaussian
+  CSS), `"stable"` (CVaR of squared errors), `"elastic_net"` (adaptive
+  ridge/lasso on the coefficients).
+- **Constraints by construction**: `invertible = true` and `stationary = true`
+  reparameterize the MA/AR coefficients through bounded reflection coefficients
+  (Durbin-Levinson), guaranteeing invertibility/stationarity instead of
+  checking it after the fact; `invertibilityMargin`/`stationarityMargin` keep
+  roots away from the unit circle.
+- **Solver choice**: Ipopt (default, local), SCIP (certified global optimum on
+  small/moderate samples), Alpine, or any JuMP-compatible optimizer — same
+  `fit!` call.
+- **Outlier dummies inside `auto`** (`outlierDetection = true`), objective
+  choice during order selection, and opt-in parallel candidate fitting
+  (`parallel = true` for the grid search).
 
-### Stationarity
-
-In an autoregressive moving averages model, the original series should be stationary. This prevents the predictive variance from increasing without bounds as the forecast horizon increases. In some cases, to achieve stationarity, the series is differentiated seasonally and non-seasonally. Choose the hyperparameters d and D to ensure stationarity.
-
-
-
-```julia
-
-diff_series = differentiate(airp_log,1,1,12)
-values_diff::Vector{Float64} = values(diff_series)
-int_series = integrate(values(airp_log[1:13]), values_diff,1,1,12)
-
-```
-To return the original series through the differentiated one, it is necessary to have s×D+d previous values of the original series. The recovered values are a combination of the previous terms in which the coefficients are the same as Newton's binomial coefficients.  
-
-```julia
-diff_2_1 = differentiate(airp_log,2,1,12)
-values_diff_2_1::Vector{Float64} = values(diff_2_1)
-int_2_1 = integrate(values(airp_log[1:14]), values_diff_2_1,2,1,12)
-coeff_2_1 = differentiated_coefficients(2, 1, 12)
-print(coeff_2_1)
-
-diff_4_1 = differentiate(airp_log,4,1,12)
-values_diff_4_1::Vector{Float64} = values(diff_4_1)
-int_4_1 = integrate(values(airp_log[1:16]), values_diff_4_1,4,1,12)
-coeff_4_1 = differentiated_coefficients(4, 1, 12)
-print(coeff_4_1)
-```
-
-## Sarima model 
-
-A SARIMA model is constructed by adding an autoregressive component and an error moving average component, considering seasonal and non-seasonal behavior.
-
-### Objective Function
-
-$$
-\underset{c, \phi_i, \theta_i, \Phi_i, \Theta_i, \epsilon_t}{\text{minimize}} \quad \sum_{t=1}^{T} \epsilon_t^2 \\
-
-\text{subject to} \quad y'_t = c + \sum_{i=1}^{p} \phi_i y'_{t-i} + \sum_{i=1}^{q} \theta_i \epsilon_{t-i} + \\ \quad \quad \sum_{i=1}^{P} \Phi_i y'_{t-s \times i} + \sum_{i=1}^{Q} \Theta_i \epsilon'_{t-s \times i} + \epsilon_t , \quad \forall t \in \{1,\cdots,T\}
-$$
-
-
-Split the data to reserve a portion for testing the forecast: 
+## Exogenous variables (SARIMAX)
 
 ```julia
-trainingSet, testingSet = split_train_test(airp_log)
-stepsAhead = length(testingSet)
+gdp  = load_dataset(GDPC1)     # US real GDP, quarterly
+nrou = load_dataset(NROU)      # noncyclical rate of unemployment (with projections)
 
+y = gdp[1:300]                 # exog must extend beyond the training window
+m = auto(y; exog = nrou, seasonality = 4)
+predict!(m; stepsAhead = 8)    # uses the future NROU values
 ```
 
+Remember item 2 above: this is an ARX specification, not regression with ARIMA
+errors — see the documentation for the exact model equation.
 
-The function SARIMA generates a model given the hyperparameters: degree of differencing (d,D), autoregressive order (p, P) and moving average order (q,Q). 
+## Ecosystem
 
-The function fit!(model,objectiveFunction) returns the model with the coefficients that minimize the sum of squared errors by default.
-
-The objective funcion could also be the maximum likelihood or bilevel. 
-
-```julia
-model = SARIMA(trainingSet, 1, 0, 1; seasonality=12, P=0, D=1, Q=2, silent=false, allowMean=false)
-fit!(model; objectiveFunction="mse")
-print(model)
-aicc(model)
-```
-
-Predict the SARIMA model for the next  periods. Simulate scenarios and compare to the forecast. 
-
-```julia
-forecast = predict!(model, stepsAhead)
-scenarios = simulate(model, stepsAhead, 200)
-```
-![](docs/img/sarimaAirp.png)
-## Auto SARIMA method
-
-The function automatically fits the best SARIMA model according to the specified parameters. The implemented method uses the Hyndman algorithm to adjust the hyperparameters at each iteration.
-
-The coefficients, by default, minimize the sum of squared errors. The best model is the one that minimizes the information criteria. By default, Akaike’s Information Criterion with a correction for small sample sizes (AICc) is used.
-
-Another way to evaluate a model is through the log-likelihood; the best model would be the one that maximizes this value. 
-
-```julia
-#USING MSE
-autoModelMSE = auto(trainingSet; seasonality=12, objectiveFunction="mse")
-print(autoModelMSE)
-
-#USING ML
-autoModelML = auto(trainingSet; seasonality=12, objectiveFunction="ml")
-bic(autoModelML)
-loglikelihood(autoModelML)
-```
-Predicting the next values: 
-
-```julia
-autoForecast = predict!(autoModelMSE, stepsAhead)
-loglike(autoModelMSE)
-aicc(autoModelMSE)
-```
-![](docs/img/autoSarima.png)
-
-
-## SARIMA models with explanatory variable
-
-This function incorporates an exogenous explanatory variable in the SARIMA model. The exogenous variable should start at the same date as the dependent variable and should have already been predicted for the steps ahead for a forecast to be made. 
-
-###  US GDP using noncyclical Rate of Unemployment
-Using Gross Domestic Product (GDP) and the noncyclical Rate of Unemployment data from the Federal Reserve Economic Data (FRED), both datasets incorporate FRED's forecasts.  The series to be estimated (GDP) is considered up to current time while  FRED's forecast is stored in another variable for comparison with SARIMA's estimation. 
-![](docs/img/gdp_nrou.png)
-
-
-```julia
-gdp = load_dataset(GDPC1)
-y = gdp[1:300]
-future_y = gdp[301:end]
-
-nrou_x = load_dataset(NROU)
-```
-
-
-### SARIMA model
-
-```julia 
-model_exogenous = SARIMA(y,nrou_x, 1, 0, 1; seasonality=4, P=0, D=1, Q=1, silent=false, allowMean=false)
-fit!(model_exogenous;objectiveFunction="mse")
-print(model_exogenous)
-aicc(model_exogenous)
-forecast_exog = predict!(model_exogenous,length(future_y))
-```
-### auto SARIMA model
-
-```julia 
-model_auto_exogenous = auto(y;exog=nrou_x,seasonality=4, objectiveFunction="mse")
-print(model_auto_exogenous)
-aicc(model_auto_exogenous)
-forecast_auto_exog = predict!(model_auto_exogenous,length(future_y))
-```
-![](docs/img/exog_models.png)
-
+- **Tables.jl**: `load_dataset(table; timestampColumn = :date)` accepts any
+  Tables.jl-compatible source.
+- **StatsAPI**: `coef`, `coefnames`, `residuals`, `fitted`, `nobs`, `vcov`,
+  `stderror`, `loglikelihood`.
+- **Plots.jl**: `plot(model)` (RecipesBase recipe).
+- **MLJ**: `SARIMAForecaster` (deterministic wrapper; exogenous variables via
+  MLJ not yet supported).
 
 ## Contributing
 
-* PRs such as adding new models and fixing bugs are very welcome!
-* For nontrivial changes, you'll probably want to first discuss the changes via issue.
+See [CONTRIBUTING.md](CONTRIBUTING.md). PRs are very welcome; for non-trivial
+changes please open an issue first. The changelog lives in
+[CHANGELOG.md](CHANGELOG.md).
 
-## References 
-- Hyndman, RJ and Khandakar. "Automatic time series forecasting: The forecast package for R." Journal of Statistical Software, 26(3), 2008.
+## References
 
-- Hyndman, R. J., & Athanasopoulos, G. (2021). Forecasting: Principles and Practice (3rd ed.). OTexts. ISBN 978-0-6488317-0-5.
+- Hyndman, R.J., & Khandakar, Y. (2008). Automatic time series forecasting:
+  The forecast package for R. *Journal of Statistical Software*, 26(3).
+- Hyndman, R.J., & Athanasopoulos, G. (2021). *Forecasting: Principles and
+  Practice* (3rd ed.). OTexts.
+- Guerrero, V.M. (1993). Time-series analysis supported by power
+  transformations. *Journal of Forecasting*, 12, 37–48.

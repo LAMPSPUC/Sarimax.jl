@@ -1,16 +1,9 @@
-# API Reference {#Reference}
+# API Reference
 
 ## Types
 
-### Structs
-
 ```@docs
 Sarimax.SARIMAModel
-```
-
-### Enums
-
-```@docs
 Sarimax.Datasets
 ```
 
@@ -24,80 +17,79 @@ Sarimax.InconsistentDatePattern
 Sarimax.InvalidParametersCombination
 ```
 
-## Constructors
+## Model specification
 
 ```@docs
-Sarimax.SARIMA(
-    y::TimeSeries.TimeArray,
-    p::Int,
-    d::Int,
-    q::Int;
-    seasonality::Int = 1,
-    P::Int = 0,
-    D::Int = 0,
-    Q::Int = 0,
-    silent::Bool = true,
-    allowMean::Bool = true,
-    allowDrift::Bool = false)
+Sarimax.SARIMA
 ```
 
-```@docs
-Sarimax.SARIMA(
-    y::TimeSeries.TimeArray;
-    exog::Union{TimeSeries.TimeArray,Nothing} = nothing,
-    arCoefficients::Union{Vector{Fl},Nothing} = nothing,
-    maCoefficients::Union{Vector{Fl},Nothing} = nothing,
-    seasonalARCoefficients::Union{Vector{Fl},Nothing} = nothing,
-    seasonalMACoefficients::Union{Vector{Fl},Nothing} = nothing,
-    mean::Union{Fl,Nothing} = nothing,
-    trend::Union{Fl,Nothing} = nothing,
-    exogCoefficients::Union{Vector{Fl},Nothing} = nothing,
-    d::Int = 0,
-    D::Int = 0,
-    seasonality::Int = 1,
-    silent::Bool = true,
-    allowMean::Bool = true,
-    allowDrift::Bool = false)
-```
-
-```@docs
-Sarimax.SARIMA(
-    y::TimeSeries.TimeArray,
-    exog::Union{TimeSeries.TimeArray,Nothing},
-    p::Int,
-    d::Int,
-    q::Int;
-    seasonality::Int = 1,
-    P::Int = 0,
-    D::Int = 0,
-    Q::Int = 0,
-    silent::Bool = true,
-    allowMean::Bool = true,
-    allowDrift::Bool = false)
-```
-
-## Model Functions
-
-### Model Fitting and Prediction
+## Estimation
 
 ```@docs
 Sarimax.fit!
-Sarimax.predict!
 Sarimax.auto
-Sarimax.simulate
 ```
 
-### Model Evaluation
+## Forecasting and simulation
 
 ```@docs
-Sarimax.loglikelihood
+Sarimax.predict!
+Sarimax.simulate
+Sarimax.forecastErrors
+```
+
+## Coefficients, residuals and inference (StatsAPI)
+
+```@docs
+Sarimax.coef(::Sarimax.SARIMAModel)
+Sarimax.coefnames(::Sarimax.SARIMAModel)
+Sarimax.residuals(::Sarimax.SARIMAModel)
+Sarimax.fitted(::Sarimax.SARIMAModel)
+Sarimax.nobs(::Sarimax.SARIMAModel)
+Sarimax.vcov(::Sarimax.SARIMAModel)
+Sarimax.stderror(::Sarimax.SARIMAModel)
+Sarimax.cssResiduals
+```
+
+## Likelihood and information criteria
+
+```@docs
 Sarimax.loglike
 Sarimax.aic
 Sarimax.aicc
 Sarimax.bic
 ```
 
-### Time Series Operations
+## Residual diagnostics
+
+```@docs
+Sarimax.ljung_box_test
+Sarimax.jarque_bera_test
+```
+
+## Transformations
+
+```@docs
+Sarimax.boxcox_transform
+Sarimax.inverse_boxcox
+Sarimax.boxcox_lambda
+```
+
+## Model evaluation
+
+```@docs
+Sarimax.cross_validation
+```
+
+## Stationarity and seasonality tests
+
+```@docs
+Sarimax.kpss_test
+Sarimax.ocsb_test
+Sarimax.automatic_differentiation
+```
+
+## Differencing utilities
 
 ```@docs
 Sarimax.differentiate
@@ -106,30 +98,40 @@ Sarimax.differentiated_coefficients
 Sarimax.to_ma
 ```
 
-### Dataset and Utility Functions
+## Parameterizations
+
+```@docs
+Sarimax.reflectionToMA
+Sarimax.reflectionToAR
+```
+
+## Data handling
 
 ```@docs
 Sarimax.load_dataset
 Sarimax.split_train_test
-Sarimax.identify_granularity
 Sarimax.build_datetimes
+Sarimax.identify_granularity
+Sarimax.copy_time_array
+Sarimax.deepcopy_time_array
 ```
 
-### Model Information
+## MLJ integration
 
 ```@docs
-Sarimax.has_fit_methods
-Sarimax.has_hyperparameters_methods
-Sarimax.get_hyperparameters_number
+Sarimax.SARIMAForecaster
 ```
 
-### Model Manipulation
+## Display
 
 ```@docs
 Sarimax.print
 ```
 
+## Introspection
+
 ```@docs
-Sarimax.copy_time_array(y::TimeSeries.TimeArray)
-Sarimax.deepcopy_time_array(y::TimeSeries.TimeArray)
+Sarimax.has_fit_methods
+Sarimax.has_hyperparameters_methods
+Sarimax.get_hyperparameters_number
 ```

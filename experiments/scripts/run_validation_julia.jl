@@ -11,8 +11,9 @@ sim_arma = loadDataset(CSV.read(joinpath(datadir, "sim_arma.csv"), DataFrame))
 sim_x_df = CSV.read(joinpath(datadir, "sim_sarimax.csv"), DataFrame)
 airp = loadDataset(AIR_PASSENGERS)
 
-function run_one(id, y; p, d, q, P=0, D=0, Q=0, seasonality=1, exog=nothing, orderlabel=nothing)
-    rec = Dict{String,Any}("block"=>"validation", "implementation"=>"SARIMAX.jl",
+function run_one(id, y; p, d, q, P=0, D=0, Q=0, seasonality=1, exog=nothing, orderlabel=nothing,
+                 initialization=:zeroed, implementation="SARIMAX.jl")
+    rec = Dict{String,Any}("block"=>"validation", "implementation"=>implementation,
         "dataset"=>id,
         "order"=> orderlabel === nothing ? "($p,$d,$q)($P,$D,$Q)_$seasonality" : orderlabel,
         "objective"=>"mse", "solver"=>"Ipopt", "seed"=>1234)
@@ -20,7 +21,7 @@ function run_one(id, y; p, d, q, P=0, D=0, Q=0, seasonality=1, exog=nothing, ord
     try
         m = exog === nothing ? SARIMA(y, p, d, q; seasonality=seasonality, P=P, D=D, Q=Q) :
                                SARIMA(y, exog, p, d, q; seasonality=seasonality, P=P, D=D, Q=Q)
-        t = @elapsed fit!(m; objectiveFunction="mse")
+        t = @elapsed fit!(m; objectiveFunction="mse", initialization=initialization)
         rec["status"] = "ok"
         rec["runtime_s"] = t
         rec["estimates"] = extract_estimates(m)
@@ -42,6 +43,17 @@ run_one("sim_arma", sim_arma; p=0, d=0, q=1)
 run_one("sim_arma", sim_arma; p=1, d=0, q=1)
 run_one("airpassengers", airp; p=1, d=0, q=1)
 run_one("airpassengers", airp; p=1, d=0, q=1, P=1, D=0, Q=1, seasonality=12)
+
+# CSS-matched convention (initialization=:warmup reproduces R arima(method="CSS"))
+for spec in [(1,0,0,0,0,0,1), (0,0,1,0,0,0,1), (1,0,1,0,0,0,1)]
+    run_one("sim_arma", sim_arma; p=spec[1], d=spec[2], q=spec[3], P=spec[4], D=spec[5],
+            Q=spec[6], seasonality=spec[7], initialization=:warmup,
+            implementation="SARIMAX.jl (CSS-warmup)")
+end
+run_one("airpassengers", airp; p=1, d=0, q=1, initialization=:warmup,
+        implementation="SARIMAX.jl (CSS-warmup)")
+run_one("airpassengers", airp; p=1, d=0, q=1, P=1, D=0, Q=1, seasonality=12,
+        initialization=:warmup, implementation="SARIMAX.jl (CSS-warmup)")
 
 # SARIMAX with two exogenous regressors
 let

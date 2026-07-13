@@ -93,7 +93,7 @@ run_dataset("airpassengers", airp; m=12, H=12, step=12, init_frac=0.7,
 
 run_dataset("GDPC1", gdp; m=1, H=8, step=20, init_frac=0.7,
             order="(1,1,1) drift",
-            fitfun = tr -> (mm = SARIMA(tr, 1, 1, 1; allowDrift=true);
+            fitfun = tr -> (mm = SARIMA(tr, 1, 1, 1; allowMean=false, allowDrift=true);
                             fit!(mm; objectiveFunction="mse"); mm))
 
 println("forecasting_julia (rolling-origin) DONE -> ", OUT)

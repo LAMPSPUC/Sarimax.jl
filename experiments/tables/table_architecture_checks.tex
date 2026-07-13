@@ -6,18 +6,19 @@
 \hline
 Experiment & Setting & Order & CoefNorm & RSS & ResidMAE & IC(aicc) & Admissible & Detail & runtime\_s & status \\
 \hline
-objective\_swap & squared-error & (1,0,0) & -- & 603.97 & 0.9883 & -- & -- & -- & 7.600 & ok \\
-objective\_swap & absolute-error & (1,0,0) & -- & 616.35 & 0.9732 & -- & -- & -- & 0.188 & ok \\
-regularization & unregularized & -- & 1.9006 & 283.34 & 0.7648 & -- & -- & -- & 0.239 & ok \\
-regularization & ridge & -- & 1.7318 & 306.55 & 0.7960 & -- & -- & -- & 2.259 & ok \\
-regularization & lasso & -- & 1.7741 & 306.55 & 0.7964 & -- & -- & -- & 0.759 & ok \\
-regularization & elastic\_net & -- & 1.7643 & 306.55 & 0.7961 & -- & -- & -- & 1.370 & ok \\
-admissibility & fit! ARIMA(1,0,1) airpassengers & (1,0,1)(0,0,0)\_1 & -- & 789.38 & 1.3894 & -- & stat=N,inv=Y & -- & 0.248 & ok \\
+objective\_swap & squared-error & (1,0,0) & -- & 603.97 & 0.9883 & -- & -- & -- & 7.671 & ok \\
+objective\_swap & absolute-error & (1,0,0) & -- & 616.35 & 0.9732 & -- & -- & -- & 0.199 & ok \\
+regularization & unregularized & -- & 1.9006 & 283.34 & 0.7648 & -- & -- & -- & 0.256 & ok \\
+regularization & ridge & -- & 1.7318 & 306.55 & 0.7960 & -- & -- & -- & 2.764 & ok \\
+regularization & lasso & -- & 1.7741 & 306.55 & 0.7964 & -- & -- & -- & 0.755 & ok \\
+regularization & elastic\_net & -- & 1.7643 & 306.55 & 0.7961 & -- & -- & -- & 1.365 & ok \\
+admissibility & fit! ARIMA(1,0,1) airpassengers & (1,0,1)(0,0,0)\_1 & -- & 789.38 & 1.3894 & -- & stat=N,inv=Y & -- & 0.276 & ok \\
 admissibility & fit! ARIMA(1,0,1) sim\_arma & (1,0,1)(0,0,0)\_1 & -- & 306.99 & 0.8052 & -- & stat=Y,inv=Y & -- & 0.004 & ok \\
-admissibility & admissible-only (assert on) & (2,1,2)(1,1,1)\_12 & -- & 161.52 & 0.6445 & 534.63 & stat=Y,inv=Y & -- & 3.240 & ok \\
-admissibility & unconstrained search (assert off) & (2,1,2)(1,1,1)\_12 & -- & 161.52 & 0.6445 & 534.63 & stat=Y,inv=Y & -- & 0.010 & ok \\
-invertibility & fit! default (box bounds) & (0,1,1)(0,1,1)\_12 & -- & 169.38 & 0.6387 & -- & stat=Y,inv=N & theta=[-1.0], Theta=[-0.2] & 0.009 & ok \\
-invertibility & fit! invertible=true (rho=0.05) & (0,1,1)(0,1,1)\_12 & -- & 173.43 & 0.6473 & -- & stat=Y,inv=N & theta=[-0.95], Theta=[-0.218] & 0.026 & ok \\
+admissibility & admissible-only (assert on) & (1,1,1)(0,1,1)\_12 & -- & 162.45 & 0.6416 & 495.35 & stat=Y,inv=Y & -- & 4.141 & ok \\
+admissibility & unconstrained search (assert off) & (1,1,1)(0,1,1)\_12 & -- & 162.45 & 0.6416 & 495.35 & stat=Y,inv=Y & -- & 0.129 & ok \\
+invertibility & fit! default (multiplicative, box bounds) & (0,1,1)(0,1,1)\_12 & -- & 166.46 & 0.6573 & -- & stat=Y,inv=Y & theta=[-0.813], Theta=[-0.529] & 0.010 & ok \\
+invertibility & fit! additive form (box bounds) & (0,1,1)(0,1,1)\_12 & -- & 169.38 & 0.6387 & -- & stat=Y,inv=N & theta=[-1.0], Theta=[-0.2] & 0.043 & ok \\
+invertibility & fit! invertible=true (rho=0.05) & (0,1,1)(0,1,1)\_12 & -- & 166.46 & 0.6573 & -- & stat=Y,inv=Y & theta=[-0.813], Theta=[-0.529] & 0.031 & ok \\
 \hline
 \end{tabular}
 \end{table}

@@ -14,18 +14,19 @@ if (file.exists(out)) file.remove(out)
 append_rec <- function(rec) cat(toJSON(rec, auto_unbox = TRUE, null = "null"),
                                 "\n", file = out, append = TRUE, sep = "")
 
-run_one <- function(dataset, y, order, seasonal = c(0, 0, 0), period = 1, xreg = NULL) {
-  rec <- list(block = "validation", implementation = "R-forecast",
+run_one <- function(dataset, y, order, seasonal = c(0, 0, 0), period = 1, xreg = NULL,
+                    method = "ML", implementation = "R-forecast") {
+  rec <- list(block = "validation", implementation = implementation,
               dataset = dataset,
               order = sprintf("(%d,%d,%d)(%d,%d,%d)_%d", order[1], order[2], order[3],
                               seasonal[1], seasonal[2], seasonal[3], period),
-              objective = "ml", solver = "css-ml", seed = 1234)
+              objective = tolower(method), solver = method, seed = 1234)
   res <- tryCatch({
     t0 <- Sys.time()
     if (period > 1) y <- ts(y, frequency = period)
     fit <- Arima(y, order = order,
                  seasonal = list(order = seasonal, period = period),
-                 include.mean = TRUE, xreg = xreg, method = "ML")
+                 include.mean = TRUE, xreg = xreg, method = method)
     rec$runtime_s <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
     rec$status <- "ok"
     rec$estimates <- as.list(coef(fit))
@@ -51,6 +52,14 @@ run_one("sim_arma", arma, c(0, 0, 1))
 run_one("sim_arma", arma, c(1, 0, 1))
 run_one("airpassengers", airp_y, c(1, 0, 1))
 run_one("airpassengers", airp_y, c(1, 0, 1), seasonal = c(1, 0, 1), period = 12)
+
+# CSS convention (matches SARIMAX.jl initialization=:warmup)
+run_one("sim_arma", arma, c(1, 0, 0), method = "CSS", implementation = "R-forecast (CSS)")
+run_one("sim_arma", arma, c(0, 0, 1), method = "CSS", implementation = "R-forecast (CSS)")
+run_one("sim_arma", arma, c(1, 0, 1), method = "CSS", implementation = "R-forecast (CSS)")
+run_one("airpassengers", airp_y, c(1, 0, 1), method = "CSS", implementation = "R-forecast (CSS)")
+run_one("airpassengers", airp_y, c(1, 0, 1), seasonal = c(1, 0, 1), period = 12,
+        method = "CSS", implementation = "R-forecast (CSS)")
 # sim_sarimax is an ARX (dynamic-regression) DGP; fit the comparable ARX form
 # (lagged y as a regressor, order (0,0,0)) to match SARIMAX.jl. See B4 / diagnose_exog.py.
 run_arx_sim_sarimax <- function(sx) {

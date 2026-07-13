@@ -1,11 +1,11 @@
 Level,Model,Solver,Obj,Setting,ObjValue,ObjSpread,Detail,Termination,runtime_s,status
-JuMP-direct,MA(1) T=10,SCIP,mse,"global, direct (no decomposition, raw model)",8.5298,--,gap=0.0000,OPTIMAL,1.21,ok
-JuMP-direct,MA(1) T=20,SCIP,mse,"global, direct (no decomposition, raw model)",19.3240,--,gap=0.0000,OPTIMAL,4.31,ok
-JuMP-direct,MA(1) T=40,Ipopt,--,"multistart x25 (random theta,c)",34.8301,0.0000,"25 conv, 1 optima",locally_solved (optimum certified global by SCIP),0.20,ok
-JuMP-direct,MA(1) T=40,SCIP,mse,"global, direct (no decomposition, raw model)",34.8300,--,gap=0.0000,OPTIMAL,14.35,ok
-JuMP-direct,MA(1) T=8,SCIP,mse,"global, direct (no decomposition, raw model)",7.3685,--,gap=0.0000,OPTIMAL,1.71,ok
+JuMP-direct,MA(1) T=10,SCIP,mse,"global, direct (no decomposition, raw model)",8.5298,--,gap=0.0000,OPTIMAL,1.27,ok
+JuMP-direct,MA(1) T=20,SCIP,mse,"global, direct (no decomposition, raw model)",19.3240,--,gap=0.0000,OPTIMAL,4.47,ok
+JuMP-direct,MA(1) T=40,Ipopt,--,"multistart x25 (random theta,c)",34.8301,0.0000,"25 conv, 1 optima",locally_solved (optimum certified global by SCIP),0.21,ok
+JuMP-direct,MA(1) T=40,SCIP,mse,"global, direct (no decomposition, raw model)",34.8300,--,gap=0.0000,OPTIMAL,14.83,ok
+JuMP-direct,MA(1) T=8,SCIP,mse,"global, direct (no decomposition, raw model)",7.3685,--,gap=0.0000,OPTIMAL,1.73,ok
 SARIMAX.jl(fit!),"ARIMA(0,0,1)",Alpine+HiGHS,mae,"warning check, config-level (no solve)",--,--,no warning,config-only,--,ok
 SARIMAX.jl(fit!),"ARIMA(0,0,1)",Alpine+HiGHS,mse,"warning check, config-level (no solve)",--,--,warning emitted,config-only,--,ok
 SARIMAX.jl(fit!),"ARIMA(0,0,1)",Ipopt,mse,local x3 (deterministic starts),19.3241,0.0000,--,locally_solved,0.00,ok
-SARIMAX.jl(fit!),"ARIMA(0,0,1)",SCIP,mse,"global, direct (fit!)",19.3240,--,--,global optimum (matches certified JuMP-level solve),6.42,ok
+SARIMAX.jl(fit!),"ARIMA(0,0,1)",SCIP,mse,"global, direct (fit!)",19.3240,--,--,global optimum (matches certified JuMP-level solve),6.78,ok
 SARIMAX.jl(fit!),"ARIMA(1,0,1)",Ipopt,mse,local x3 (deterministic starts),15.4668,0.0000,--,locally_solved,0.00,ok

@@ -95,9 +95,10 @@ Update the "Current state" and "Next steps" sections after every completed batch
    of stepwiseSearch (IC=Inf pattern instead of considerModel juggling).
 2. auto #5: `lambda = :auto` (Box-Cox integrated into auto + back-transform in predict!).
 3. Convert legacy fake jldoctests to real ones; enable doctest=true.
-4. Re-run the experiments/ manuscript battery on the new code (validation becomes
-   numerical equality vs R-CSS with :warmup; exog forecasting tables were contaminated
-   by the pre-A exog indexing bug). Update final_claims (§4 softened, §5 rewritten:
-   boundary pile-up was an additive-form artifact; test counts now ~620).
+4. [DONE 2026-07-13] Battery re-run on v0.3.0 + manuscript updated (see
+   experiments/final_claims_for_manuscript.md ADDENDUM). Headlines: CSS-matched
+   validation = equality to 4 decimals; PJME RMSE improved ~8%, now ahead of
+   statsmodels; invertibility = additive artifact (constraint inactive under
+   multiplicative); PJME SCIP certificate closes at 900s.
 5. v1.0: remove camelCase shims, rename keyword args, Spec/Fit immutable refactor, JET.
 6. Phase 3: missing-data-as-decision-variable spike (optimization-native imputation).

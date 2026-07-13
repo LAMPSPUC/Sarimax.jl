@@ -1,3 +1,42 @@
+# ADDENDUM 2026-07-13 — battery re-run on Sarimax.jl v0.3.0
+
+The full battery was re-run on package commit `3f68017` (v0.3.0: multiplicative
+Box-Jenkins seasonal form as default, `initialization=:warmup` R-CSS convention,
+real drift term, CSS log-likelihood with full Gaussian constants). Tables in
+`tables/` and the manuscript were regenerated/updated accordingly. Key deltas
+relative to the claims below (which documented the v0.1.3 run at `144fb6e`):
+
+- **Validation upgraded from proximity to equality.** Under the matched CSS
+  convention (R `method="CSS"` vs `initialization=:warmup`) coefficients coincide
+  to 4 decimals on every simulated spec (AR 0.7381; MA 0.7872; ARMA 0.5203/0.5561,
+  identical RSS). The multiplicative seasonal spec is now estimable in matched
+  form: SARIMAX.jl (0.9933, -0.8075, RSS 167.93) sits inside the reference family
+  (statsmodels exact-ML RSS 167.59); the residual gap to R-CSS traces to R's
+  unbounded CSS optimizer accepting an explosive point (phi=1.0011, RSS 139.63).
+- **§4 (AIC/BIC caveat) SOFTENED**: with full Gaussian constants the package's
+  loglik/ICs are on R's CSS scale (still not exact-ML defaults' scale).
+- **§5 (invertibility) REWRITTEN**: the unit-root pile-up (theta=-1.0) was an
+  artifact of the additive seasonal form. Under the multiplicative default the
+  box fit is interior (theta=-0.813) and `invertible=true` returns the identical
+  solution (constraint inactive). The parameterization is a guarantee, not a fix.
+- **PJME forecasting IMPROVED ~8% RMSE** (3131.95 -> 2869.13): now ahead of
+  statsmodels (3177.50), ~1% behind R (2837.04). The (1,1,1)(1,0,1)_7 spec has
+  both seasonal interactions — exactly where the additive form was misspecified.
+- **PJME global-value certificate now CLOSES** (OPTIMAL, 900 s; was gap 1.1e-7 at
+  600 s). All three global-value instances certified; conclusions unchanged
+  (guarantee changes nothing statistically; it buys verification).
+- **AirPassengers/GDPC1 rolling-origin essentially unchanged** (mid-pack /
+  tied with statsmodels); warm per-fit ~11 ms on AirPassengers (multiplicative).
+- **Package tests: ~650 assertions, all passing, 91.5% coverage** (was
+  "42 passed, 1 failed" — and the suite silently never ran past sarima_fit.jl).
+- Scripts changed for the re-run: run_validation_{julia,r} gained CSS-matched
+  records; run_forecasting_julia sets allowMean=false with drift (now mutually
+  exclusive); run_architecture_extensions adds the additive-form invertibility row.
+
+The sections below are retained as the record of the v0.1.3 run.
+
+---
+
 # Final Claims for the Manuscript — SARIMAX.jl
 
 Final empirical battery. Git commit tested: `144fb6e86c2743ff726c9716364407e6f2db12ba`.

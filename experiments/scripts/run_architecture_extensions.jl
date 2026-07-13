@@ -158,7 +158,12 @@ let
     end
     mb = SARIMA(airp, 0, 1, 1; seasonality=12, P=0, D=1, Q=1)
     tb = @elapsed fit!(mb; objectiveFunction="mse")
-    emit_inv("fit! default (box bounds)", mb, tb)
+    emit_inv("fit! default (multiplicative, box bounds)", mb, tb)
+    # Legacy additive form: the unit-root pile-up that motivated invertible=true is a
+    # misspecification artifact of the additive seasonal polynomial (see manuscript).
+    ma = SARIMA(airp, 0, 1, 1; seasonality=12, P=0, D=1, Q=1)
+    ta = @elapsed fit!(ma; objectiveFunction="mse", seasonalForm=:additive)
+    emit_inv("fit! additive form (box bounds)", ma, ta; extra=Dict("seasonalForm"=>"additive"))
     mr = SARIMA(airp, 0, 1, 1; seasonality=12, P=0, D=1, Q=1)
     tr = @elapsed fit!(mr; objectiveFunction="mse", invertible=true, invertibilityMargin=0.05)
     emit_inv("fit! invertible=true (rho=0.05)", mr, tr; extra=Dict("invertibilityMargin"=>0.05))

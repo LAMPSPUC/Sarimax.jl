@@ -113,3 +113,48 @@ Update the "Current state" and "Next steps" sections after every completed batch
    back into model.y so predict works. observedResiduals() helper (src/utils.jl) is the
    single source of truth. STILL TODO: differenced models (d+D>0) need re-integration
    with gaps; exog+missing; auto+missing. See test/missing_data.jl.
+
+## CI incident 2026-07-13: codecov 0.05% + CI red on Julia "1" (latest)
+
+**Symptom 1 — codecov dropped to 0.05%:** transient. `documentation.yml` uploaded a
+coverage report from the `docs/make.jl` build (which barely exercises the package,
+~0% coverage) that landed on codecov before the real `ci.yml` test-job coverage did;
+codecov merged them and briefly showed the ~0% number before correcting itself once
+the real report arrived. Fixed by removing the coverage upload from
+`documentation.yml` entirely (docs builds should not report coverage).
+
+**Symptom 2 — CI failing on Julia "1" (latest) across ubuntu/windows/macOS, only
+Julia 1.10-ubuntu green:** two DISTINCT causes, found by reading actual gh run logs
+(never assume from local repro alone):
+1. The SCIP global-solve unit test (`test/statistical_properties.jl`, batch K)
+   HARD-CRASHES (segfault) the SCIP_jll binary under CI runner resource limits —
+   `try/catch` cannot contain a process crash. Fixed: gated behind
+   `SARIMAX_TEST_SCIP=true` env var (off by default); the claim stays covered by
+   `experiments/run_solver_scip_cert.jl` (brute-force cross-checked).
+2. **Aqua.jl "Piracy" test failure — real, not a false positive.** `"Julia 1"` on
+   GitHub Actions currently resolves to **1.12.6**. CONFIRMED (installed 1.12 locally
+   via `juliaup add 1.12`, ran directly): on Julia 1.12, `Sarimax.SARIMA` and
+   `StateSpaceModels.SARIMA` are THE SAME generic function object
+   (`Sarimax.SARIMA === StateSpaceModels.SARIMA` is `true`;
+   `parentmodule(Sarimax.SARIMA) == StateSpaceModels`). On Julia 1.11 they report as
+   distinct objects (`parentmodule(Sarimax.SARIMA) == Sarimax`). This is a genuine
+   difference in how the two Julia versions unify same-named bindings brought in via
+   `using` (both Sarimax and StateSpaceModels export a name `SARIMA`), NOT an Aqua
+   bug and NOT something we introduced this week — it was latent the whole time,
+   just unmasked by Julia 1.12 becoming "latest". Verified dispatch still resolves
+   correctly in practice (Sarimax's `SARIMA(::TimeArray, ::Int, ::Int, ::Int; kwargs)`
+   signature doesn't overlap with StateSpaceModels', so `fit!` etc. call the right
+   method) — no known functional bug today, but it IS real type piracy under 1.12
+   semantics. Fixed pragmatically via `Aqua.test_all(...; piracies = (treat_as_own =
+   [Sarimax.SARIMA],))` (test/aqua.jl) rather than renaming the public `SARIMA` API
+   under time pressure. Also added `Aqua = "0.8"` to [compat] (was UNBOUNDED — since
+   Manifest.toml is gitignored, every fresh CI resolve can float to a new Aqua
+   release with different checks; this is what let the CI silently pick up whatever
+   changed).
+
+**Follow-up to consider (not urgent, no known bug):** decide whether to rename
+`Sarimax.SARIMA` to something collision-free (e.g. keep `SARIMA` as a deprecated
+alias) to eliminate the shared-identity situation outright, rather than carrying the
+`treat_as_own` exemption forever. Low priority unless a real dispatch conflict is
+ever observed. If `julia +1.12` is used for local dev/testing, prefer
+`import StateSpaceModels` (not `using`) in scripts, per the existing gotcha note.

@@ -50,7 +50,7 @@ The CSS residuals over the effective sample (`t = lb:T`).
 """
 function StatsAPI.residuals(model::SARIMAModel)
     !isFitted(model) && throw(ModelNotFitted())
-    return model.ϵ
+    return observedResiduals(model)
 end
 
 """
@@ -60,7 +60,7 @@ Number of effective observations (residuals) used by the CSS fit.
 """
 function StatsAPI.nobs(model::SARIMAModel)
     !isFitted(model) && throw(ModelNotFitted())
-    return length(model.ϵ)
+    return length(observedResiduals(model))
 end
 
 """
@@ -167,7 +167,9 @@ function StatsAPI.vcov(model::SARIMAModel)
     x0 = StatsAPI.coef(model)
     np = length(x0)
     np == 0 && return zeros(typeofModelElements(model), 0, 0)
-    rss(x) = sum(abs2, cssResiduals(model, x))
+    mask = get(model.metadata, "missingResidualMask", nothing)
+    rss(x) = isnothing(mask) ? sum(abs2, cssResiduals(model, x)) :
+             sum(abs2, cssResiduals(model, x)[.!mask])
 
     h = [eps(Float64)^0.25 * max(1.0, abs(x0[i])) for i = 1:np]
     f0 = rss(x0)

@@ -44,5 +44,7 @@ using JSON
 
     include("statistical_properties.jl")
 
+    include("missing_data.jl")
+
     include("aqua.jl")
 end

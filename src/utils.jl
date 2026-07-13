@@ -426,10 +426,25 @@ reported by default by R and statsmodels.
 function loglike(model::SarimaxModel)
     !has_fit_methods(typeof(model)) && throw(MissingMethodImplementation("fit!"))
     !isFitted(model) && throw(ModelNotFitted())
-    n = length(model.ϵ)
-    rss = sum(abs2, model.ϵ)
+    r = observedResiduals(model)
+    n = length(r)
+    rss = sum(abs2, r)
     σ² = rss / n
     return -n / 2 * (log(2π) + 1 + log(σ²))
+end
+
+"""
+    observedResiduals(model::SarimaxModel)
+
+Residuals corresponding to actually observed data points. When the series was
+fitted with missing observations, the smoothed pseudo-residuals at the imputed
+indices are excluded (they are not real innovations); otherwise this returns the
+full residual vector.
+"""
+function observedResiduals(model::SarimaxModel)
+    ϵ = model.ϵ
+    mask = hasproperty(model, :metadata) ? get(model.metadata, "missingResidualMask", nothing) : nothing
+    return isnothing(mask) ? ϵ : ϵ[.!mask]
 end
 
 """

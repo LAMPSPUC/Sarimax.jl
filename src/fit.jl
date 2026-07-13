@@ -133,7 +133,7 @@ function aicc(model::SarimaxModel; offset::Union{AbstractFloat,Nothing} = nothin
     !has_hyperparameters_methods(typeof(model)) &&
         throw(MissingMethodImplementation("get_hyperparameters_number"))
     K = isnothing(K) ? get_hyperparameters_number(model) : K
-    n = length(model.ϵ)
+    n = length(observedResiduals(model))
     return aic(model; offset = offset, K = K) + ((2 * K * K + 2 * K) / (n - K - 1))
 end
 
@@ -157,7 +157,7 @@ function bic(model::SarimaxModel; offset::Union{AbstractFloat,Nothing} = nothing
     !has_hyperparameters_methods(typeof(model)) &&
         throw(MissingMethodImplementation("get_hyperparameters_number"))
     K = isnothing(K) ? get_hyperparameters_number(model) : K
-    n = length(model.ϵ)
+    n = length(observedResiduals(model))
     offsetValue = isnothing(offset) ? 0.0 : offset
     return K * log(n) - 2 * loglike(model) + offsetValue
 end

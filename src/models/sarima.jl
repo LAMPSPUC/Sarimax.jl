@@ -670,6 +670,12 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
   per-block only under `:additive`). Default is `false`.
 - `stationarityMargin::AbstractFloat`: Margin in `[0, 1)` bounding the AR reflection
   coefficients to `[-(1-margin), 1-margin]`. Only used when `stationary = true`.
+- Missing observations: `NaN` entries in the endogenous series are supported for
+  stationary models (`d = D = 0`, `mse`/`ml` objectives, no exogenous regressors). Each
+  gap becomes a free decision variable whose residual is retained in the objective,
+  yielding the two-sided conditional smoother; σ², the log-likelihood, the effective
+  sample size and the residual diagnostics all exclude the imputed indices. The imputed
+  values are written back into `model.y` and recorded in `model.metadata["nMissing"]`.
 - `initialization::Symbol`: CSS conditioning convention. `:zeroed` (default) fixes the
   pre-sample residuals at zero and drops the first `max(p+sP, q+sQ)` differenced
   observations; `:warmup` conditions only on the AR-side lags and warm-starts the MA
@@ -764,6 +770,29 @@ function fit!(
     nExog = isnothing(model.exog) ? 0 : size(values(diffY), 2) - 1
     exogValues = isnothing(model.exog) ? [] : values(diffY)[:, 2:end]
 
+    # Missing-data support: NaN entries in the (differenced) endogenous series
+    # are treated as free decision variables (Section: missing observations).
+    missingMask::Vector{Bool} = isnan.(yValues)
+    hasMissing = any(missingMask)
+    if hasMissing
+        (model.d + model.D > 0) && throw(
+            ArgumentError(
+                "Missing-data estimation currently supports only stationary " *
+                "models (d = D = 0); differencing propagates gaps and requires " *
+                "re-integration handling that is not implemented yet.",
+            ),
+        )
+        isnothing(model.exog) || throw(
+            ArgumentError("Missing-data estimation with exogenous regressors is not yet supported."),
+        )
+        objectiveFunction in ("mse", "ml") || throw(
+            ArgumentError("Missing-data estimation supports only the 'mse' and 'ml' objectives."),
+        )
+        model.keepProvidedCoefficients && throw(
+            ArgumentError("Missing-data estimation is not compatible with provided fixed coefficients."),
+        )
+    end
+
     residualLags =
         initialization === :warmup ?
         (
@@ -826,6 +855,25 @@ function fit!(
 
     fix.(ϵ[1:lb-1], 0.0)
 
+    # Represent missing endogenous values as free variables so the model
+    # relates each gap to its neighbours; keeping their residuals in the
+    # objective yields the (two-sided) conditional smoother.
+    local yData
+    if hasMissing
+        missIdx = findall(missingMask)
+        @variable(mod, ymiss[missIdx])
+        startVal = any(.!missingMask) ? Statistics.mean(yValues[.!missingMask]) : 0.0
+        for m in missIdx
+            set_start_value(ymiss[m], startVal)
+        end
+        yData = Vector{JuMP.AffExpr}(undef, T)
+        for t = 1:T
+            yData[t] = missingMask[t] ? one(Fl) * ymiss[t] : convert(JuMP.AffExpr, yValues[t])
+        end
+    else
+        yData = yValues
+    end
+
     if MACoefficientsAreModelParameters(objectiveFunction)
         @variable(mod, θ[i = 1:model.q] in Parameter(i))
         @variable(mod, Θ[i = 1:model.Q] in Parameter(i))
@@ -879,15 +927,15 @@ function fit!(
             c +
             trend * driftValues[t] +
             sum(β[i] * exogValues[t, i] for i = 1:nExog) +
-            sum(ϕ[i] * yValues[t-i] for i = 1:model.p if (t - i > 0)) +
+            sum(ϕ[i] * yData[t-i] for i = 1:model.p if (t - i > 0)) +
             sum(θ[j] * ϵ[t-j] for j = 1:model.q if (t - j > 0)) +
             sum(
-                Φ[k] * yValues[t-(model.seasonality*k)] for
+                Φ[k] * yData[t-(model.seasonality*k)] for
                 k = 1:model.P if (t - (model.seasonality * k) > 0)
             ) +
             sum(Θ[w] * ϵ[t-(model.seasonality*w)] for w = 1:model.Q if (t - (model.seasonality * w) > 0)) -
             sum(
-                ϕ[i] * Φ[k] * yValues[t-i-(model.seasonality*k)] for
+                ϕ[i] * Φ[k] * yData[t-i-(model.seasonality*k)] for
                 i = 1:model.p, k = 1:model.P if (t - i - (model.seasonality * k) > 0)
             ) +
             sum(
@@ -902,10 +950,10 @@ function fit!(
             c +
             trend * driftValues[t] +
             sum(β[i] * exogValues[t, i] for i = 1:nExog) +
-            sum(ϕ[i] * yValues[t-i] for i = 1:model.p if (t - i > 0)) +
+            sum(ϕ[i] * yData[t-i] for i = 1:model.p if (t - i > 0)) +
             sum(θ[j] * ϵ[t-j] for j = 1:model.q if (t - j > 0)) +
             sum(
-                Φ[k] * yValues[t-(model.seasonality*k)] for
+                Φ[k] * yData[t-(model.seasonality*k)] for
                 k = 1:model.P if (t - (model.seasonality * k) > 0)
             ) +
             sum(Θ[w] * ϵ[t-(model.seasonality*w)] for w = 1:model.Q if (t - (model.seasonality * w) > 0))
@@ -917,12 +965,12 @@ function fit!(
             c +
             trend * driftValues[t] +
             sum(β[i] * exogValues[t, i] for i = 1:nExog) +
-            sum(ϕ[i] * yValues[t-i] for i = 1:model.p if (t - i > 0)) +
+            sum(ϕ[i] * yData[t-i] for i = 1:model.p if (t - i > 0)) +
             sum(θ[j] * ϵ[t-j] for j = 1:model.q if (t - j > 0))
         )
     end
 
-    includeModelConstraints!(mod, yValues, T, objectiveFunction, lb)
+    includeModelConstraints!(mod, yData, T, objectiveFunction, lb)
 
     objectiveFunctionDefinition!(mod, model, objectiveFunction, T, lb)
 
@@ -953,17 +1001,33 @@ function fit!(
     fitInSample::TimeArray =
         TimeArray(timestamp(model.y)[end-lengthIntegratedFit+1:end], integratedFit)
 
+    residualMissingMask = hasMissing ? missingMask[lb:end] : nothing
     residualsVariance = computeSARIMAModelVariance(
         mod,
         objectiveFunction,
         get_hyperparameters_number(model),
-        lb,
+        lb;
+        missingMask = residualMissingMask,
     )
 
     c = is_valid(mod, c) ? value(c) : 0.0
     trend = is_valid(mod, trend) ? value(trend) : 0.0
     exogCoefficients = isnothing(model.exog) ? nothing : value.(β)
+    # The complete residual vector (including the smoothed values at missing
+    # indices) is stored so the forecast recursion can seed its MA terms; the
+    # mask records which of them are not real innovations.
     residuals::Vector{Fl} = value.(ϵ)[lb:end]
+
+    if hasMissing
+        imputed = copy(yValues)
+        for m in missIdx
+            imputed[m] = value(ymiss[m])
+        end
+        model.y = TimeArray(timestamp(model.y), imputed, colnames(model.y))
+        model.metadata["missingResidualMask"] = residualMissingMask
+        model.metadata["nMissing"] = length(missIdx)
+        model.metadata["imputedIndices"] = missIdx
+    end
 
     fillFitValues!(
         model,
@@ -1159,11 +1223,11 @@ Includes the constraints in the JuMP model for the SARIMA model.
 """
 function includeModelConstraints!(
     jumpModel::Model,
-    yValues::Vector{Fl},
+    yValues::AbstractVector,
     T::Int,
     objectiveFunction::String,
     offset::Int,
-) where {Fl<:AbstractFloat}
+)
     if objectiveFunction == "mae"
         @variable(jumpModel, ϵ_plus[offset:T] >= 0)
         @variable(jumpModel, ϵ_minus[offset:T] >= 0)
@@ -1330,10 +1394,15 @@ function computeSARIMAModelVariance(
     model::JuMP.Model,
     objectiveFunction::String,
     nParameters::Int,
-    offset::Int,
+    offset::Int;
+    missingMask::Union{Nothing,AbstractVector{Bool}} = nothing,
 )
-    nstar = length(value.(model[:ϵ])[offset:end])
-    rss = sum(value.(model[:ϵ])[offset:end] .^ 2)
+    resid = value.(model[:ϵ])[offset:end]
+    # Interpolated residuals at missing indices are not real innovations and
+    # must not enter σ², the log-likelihood, or the effective sample size.
+    isnothing(missingMask) || (resid = resid[.!missingMask])
+    nstar = length(resid)
+    rss = sum(resid .^ 2)
     if objectiveFunction == "ml"
         # ML convention: sigma2 = RSS / n (sigma was concentrated out)
         return rss / nstar
@@ -1870,6 +1939,12 @@ function auto(
     alpha::Union{Float64,Nothing} = nothing,
 )
     # Parameter validation
+    any(isnan, values(y)) && throw(
+        ArgumentError(
+            "Automatic order selection does not support missing data. Fit a " *
+            "specific stationary model with SARIMA(...) + fit! instead, or impute first.",
+        ),
+    )
     @assert seasonality >= 1 "seasonality must be greater than 1. Use 1 for non-seasonal models"
     @assert d >= -1
     @assert d <= maxd

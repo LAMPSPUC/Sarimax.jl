@@ -48,12 +48,12 @@ end
 function ljung_box_test(
     model::SARIMAModel;
     lags::Int = model.seasonality > 1 ?
-                min(2 * model.seasonality, length(model.ϵ) ÷ 5) :
-                min(10, length(model.ϵ) ÷ 5),
+                min(2 * model.seasonality, length(observedResiduals(model)) ÷ 5) :
+                min(10, length(observedResiduals(model)) ÷ 5),
     fitdf::Int = model.p + model.q + model.P + model.Q,
 )
     !isFitted(model) && throw(ModelNotFitted())
-    return ljung_box_test(model.ϵ; lags = lags, fitdf = min(fitdf, lags - 1))
+    return ljung_box_test(observedResiduals(model); lags = lags, fitdf = min(fitdf, lags - 1))
 end
 
 """
@@ -89,5 +89,5 @@ end
 
 function jarque_bera_test(model::SARIMAModel)
     !isFitted(model) && throw(ModelNotFitted())
-    return jarque_bera_test(model.ϵ)
+    return jarque_bera_test(observedResiduals(model))
 end

@@ -18,6 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `predict` applies the multiplicative cross terms in the forecast recursion.
 
 ### Added
+- **Missing-data estimation** (stationary models): `NaN` entries in the endogenous
+  series are treated as free decision variables of the same JuMP problem. Retaining
+  their residuals in the objective yields the two-sided conditional smoother (matching
+  the exact AR(1) interpolation `ϕ(y_{t-1}+y_{t+1})/(1+ϕ²)`); σ², the log-likelihood,
+  the effective sample size, and the Ljung-Box/Jarque-Bera diagnostics exclude the
+  imputed indices. Supported for `d = D = 0`, `mse`/`ml` objectives, without exogenous
+  regressors; other combinations raise a clear error. Imputed values are written back
+  into `model.y` and the gap count is stored in `model.metadata["nMissing"]`.
 - `seasonalForm::Symbol` keyword (`:multiplicative` default, `:additive`) on `fit!`
   and `auto`; `:free` reserved for a future release.
 - **`initialization::Symbol` keyword** on `fit!`/`auto`: `:zeroed` (default —

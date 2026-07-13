@@ -31,6 +31,10 @@ Update the "Current state" and "Next steps" sections after every completed batch
 6. snake_case API with camelCase `@deprecate` shims until v1.0; keyword args stay
    camelCase until v1.0.
 7. `allowMean`/`allowDrift` mutually exclusive; drift = differentiated-t regressor.
+8. Missing data = NaN in endogenous. The missing residual STAYS in the objective (that
+   is the correct two-sided smoother, NOT a bug); "exclusion" applies only to
+   sigma2/loglik/nobs/diagnostics via observedResiduals(). Do not "simplify" by dropping
+   the missing residual from the objective — that gives a wrong one-sided interpolation.
 
 ## Editing gotchas (learned the hard way)
 
@@ -101,4 +105,11 @@ Update the "Current state" and "Next steps" sections after every completed batch
    statsmodels; invertibility = additive artifact (constraint inactive under
    multiplicative); PJME SCIP certificate closes at 900s.
 5. v1.0: remove camelCase shims, rename keyword args, Spec/Fit immutable refactor, JET.
-6. Phase 3: missing-data-as-decision-variable spike (optimization-native imputation).
+6. [PARTIAL 2026-07-13] Phase 3 missing-data (batch M): stationary models (d=D=0,
+   mse/ml, no exog) support NaN in the endogenous series. Gaps become free JuMP
+   variables; residual KEPT in objective => two-sided smoother (verified: isolated
+   AR(1) gap == phi(y_{t-1}+y_{t+1})/(1+phi^2) to 1e-3). sigma2/loglik/nobs/diagnostics
+   exclude imputed indices via metadata["missingResidualMask"]; imputed values written
+   back into model.y so predict works. observedResiduals() helper (src/utils.jl) is the
+   single source of truth. STILL TODO: differenced models (d+D>0) need re-integration
+   with gaps; exog+missing; auto+missing. See test/missing_data.jl.

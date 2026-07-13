@@ -23,7 +23,6 @@ module Sarimax
 import Base: show, print, showerror
 
 using Alpine
-using Combinatorics
 using CSV
 using DataFrames
 using Dates
@@ -33,13 +32,20 @@ using JuMP
 using LinearAlgebra
 using MathOptInterface
 using OffsetArrays
+using Printf
 using Optim
-using Pkg
 using Random
-using Requires
+using SCIP
 using StateSpaceModels
 using Statistics
 using TimeSeries
+using Tables
+
+import MLJModelInterface
+import RecipesBase
+
+import StatsAPI
+import StatsAPI: coef, coefnames, residuals, nobs, fitted, stderror, vcov, loglikelihood
 
 abstract type SarimaxModel end
 
@@ -50,6 +56,13 @@ include("fit.jl")
 include("models/sarima.jl")
 include("utils.jl")
 include("statistical_tests.jl")
+include("diagnostics.jl")
+include("transformations.jl")
+include("cross_validation.jl")
+include("integrations.jl")
+include("mlj.jl")
+include("statsapi.jl")
+include("deprecated.jl")
 
 
 # Export types
@@ -66,29 +79,59 @@ export InvalidParametersCombination
 export Datasets
 
 # Export functions
-export automaticDifferentiation
-export splitTrainTest
+export automatic_differentiation
+export split_train_test
 export print
-export copyTimeArray
-export deepcopyTimeArray
+export copy_time_array
+export deepcopy_time_array
 export fit!
 export predict!
 export SARIMA
 export differentiate
-export identifyGranularity
+export identify_granularity
 export integrate
 export simulate
-export loadDataset
+export load_dataset
 export loglikelihood
 export loglike
-export hasFitMethods
-export hasHyperparametersMethods
-export getHyperparametersNumber
+export has_fit_methods
+export has_hyperparameters_methods
+export get_hyperparameters_number
 export auto
 export aic
 export aicc
 export bic
+export ljung_box_test
+export jarque_bera_test
+export boxcox_transform
+export inverse_boxcox
+export boxcox_lambda
+export cross_validation
+export SARIMAForecaster
+export build_datetimes
+export to_ma
+export differentiated_coefficients
+
+# StatsAPI interface
+export coef
+export coefnames
+export residuals
+export nobs
+export fitted
+export stderror
+export vcov
+
+# Deprecated camelCase names (kept exported until v1.0; see src/deprecated.jl)
+export loadDataset
+export splitTrainTest
+export hasFitMethods
+export hasHyperparametersMethods
+export getHyperparametersNumber
+export automaticDifferentiation
+export identifyGranularity
 export buildDatetimes
+export copyTimeArray
+export deepcopyTimeArray
 export toMA
 export differentiatedCoefficients
 

@@ -1,0 +1,61 @@
+
+******************************************************************************
+This program contains Ipopt, a library for large-scale nonlinear optimization.
+ Ipopt is released as open source code under the Eclipse Public License (EPL).
+         For more information visit https://github.com/coin-or/Ipopt
+******************************************************************************
+
+sim_arma MA(1) T=80 / Ipopt -> LOCALLY_SOLVED  obj=73.6533 rmse_oos=0.5067 rt=0.6s
+sim_arma MA(1) T=80 / SCIP -> OPTIMAL  obj=73.6531 rmse_oos=0.5067 rt=71.6s
+sim_arma ARMA(1,0,1) T=80 / Ipopt -> LOCALLY_SOLVED  obj=60.5257 rmse_oos=0.5499 rt=0.0s
+sim_arma ARMA(1,0,1) T=80 / SCIP -> OPTIMAL  obj=60.5256 rmse_oos=0.5499 rt=393.1s
+pjme_daily(scaled) ARMA(1,0,1) T=80 / Ipopt -> LOCALLY_SOLVED  obj=246.3799 rmse_oos=3.5962 rt=0.0s
+
+[57797] signal 15: Terminated: 15
+in expression starting at /Users/luizfernandoduarte/Documents/IJF Special Issue/Sarimax.jl/experiments/scripts/run_solver_global_value.jl:68
+_ZN6soplex9SVSetBaseIdE9deleteVecEPNS1_5DLPSVE at /Users/luizfernandoduarte/.julia/artifacts/511cfc018d009ab222e5ea8275547aaf9dbe6a2d/lib/libscip.8.0.0.0.dylib (unknown line)
+_ZN6soplex9SVSetBaseIdE6removeEPi at /Users/luizfernandoduarte/.julia/artifacts/511cfc018d009ab222e5ea8275547aaf9dbe6a2d/lib/libscip.8.0.0.0.dylib (unknown line)
+_ZN6soplex12LPRowSetBaseIdE6removeEPi at /Users/luizfernandoduarte/.julia/artifacts/511cfc018d009ab222e5ea8275547aaf9dbe6a2d/lib/libscip.8.0.0.0.dylib (unknown line)
+_ZN6soplex13SPxSolverBaseIdE12doRemoveRowsEPi at /Users/luizfernandoduarte/.julia/artifacts/511cfc018d009ab222e5ea8275547aaf9dbe6a2d/lib/libscip.8.0.0.0.dylib (unknown line)
+SCIPlpiDelRows at /Users/luizfernandoduarte/.julia/artifacts/511cfc018d009ab222e5ea8275547aaf9dbe6a2d/lib/libscip.8.0.0.0.dylib (unknown line)
+SCIPlpFlush at /Users/luizfernandoduarte/.julia/artifacts/511cfc018d009ab222e5ea8275547aaf9dbe6a2d/lib/libscip.8.0.0.0.dylib (unknown line)
+SCIPlpSetState at /Users/luizfernandoduarte/.julia/artifacts/511cfc018d009ab222e5ea8275547aaf9dbe6a2d/lib/libscip.8.0.0.0.dylib (unknown line)
+SCIPtreeLoadLPState at /Users/luizfernandoduarte/.julia/artifacts/511cfc018d009ab222e5ea8275547aaf9dbe6a2d/lib/libscip.8.0.0.0.dylib (unknown line)
+propAndSolve at /Users/luizfernandoduarte/.julia/artifacts/511cfc018d009ab222e5ea8275547aaf9dbe6a2d/lib/libscip.8.0.0.0.dylib (unknown line)
+SCIPsolveCIP at /Users/luizfernandoduarte/.julia/artifacts/511cfc018d009ab222e5ea8275547aaf9dbe6a2d/lib/libscip.8.0.0.0.dylib (unknown line)
+SCIPsolve at /Users/luizfernandoduarte/.julia/artifacts/511cfc018d009ab222e5ea8275547aaf9dbe6a2d/lib/libscip.8.0.0.0.dylib (unknown line)
+SCIPsolve at /Users/luizfernandoduarte/.julia/packages/SCIP/XjNY6/src/LibSCIP.jl:6566 [inlined]
+macro expansion at /Users/luizfernandoduarte/.julia/packages/SCIP/XjNY6/src/wrapper.jl:11 [inlined]
+optimize! at /Users/luizfernandoduarte/.julia/packages/SCIP/XjNY6/src/MOI_wrapper.jl:263
+optimize! at /Users/luizfernandoduarte/.julia/packages/MathOptInterface/iaRBO/src/Bridges/bridge_optimizer.jl:367 [inlined]
+optimize! at /Users/luizfernandoduarte/.julia/packages/MathOptInterface/iaRBO/src/MathOptInterface.jl:122 [inlined]
+optimize! at /Users/luizfernandoduarte/.julia/packages/MathOptInterface/iaRBO/src/Utilities/cachingoptimizer.jl:370
+unknown function (ip: 0x153880317)
+#optimize!#105 at /Users/luizfernandoduarte/.julia/packages/JuMP/EHXNP/src/optimizer_interface.jl:610
+optimize! at /Users/luizfernandoduarte/.julia/packages/JuMP/EHXNP/src/optimizer_interface.jl:560
+unknown function (ip: 0x10a334067)
+macro expansion at ./timing.jl:421 [inlined]
+top-level scope at /Users/luizfernandoduarte/Documents/IJF Special Issue/Sarimax.jl/experiments/scripts/run_solver_global_value.jl:77
+jl_toplevel_eval_flex at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/default-honeycrisp-XC9YQX9HH2.0/build/default-honeycrisp-XC9YQX9HH2-0/julialang/julia-release-1-dot-11/src/toplevel.c:934
+jl_toplevel_eval_flex at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/default-honeycrisp-XC9YQX9HH2.0/build/default-honeycrisp-XC9YQX9HH2-0/julialang/julia-release-1-dot-11/src/toplevel.c:886
+ijl_toplevel_eval at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/default-honeycrisp-XC9YQX9HH2.0/build/default-honeycrisp-XC9YQX9HH2-0/julialang/julia-release-1-dot-11/src/toplevel.c:952 [inlined]
+ijl_toplevel_eval_in at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/default-honeycrisp-XC9YQX9HH2.0/build/default-honeycrisp-XC9YQX9HH2-0/julialang/julia-release-1-dot-11/src/toplevel.c:994
+eval at ./boot.jl:430 [inlined]
+include_string at ./loading.jl:2777
+_include at ./loading.jl:2837
+include at ./Base.jl:562
+jfptr_include_47090.1 at /Users/luizfernandoduarte/.julia/juliaup/julia-1.11.9+0.aarch64.apple.darwin14/lib/julia/sys.dylib (unknown line)
+exec_options at ./client.jl:316
+_start at ./client.jl:524
+jfptr__start_73927.1 at /Users/luizfernandoduarte/.julia/juliaup/julia-1.11.9+0.aarch64.apple.darwin14/lib/julia/sys.dylib (unknown line)
+jl_apply at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/default-honeycrisp-XC9YQX9HH2.0/build/default-honeycrisp-XC9YQX9HH2-0/julialang/julia-release-1-dot-11/src/./julia.h:2157 [inlined]
+true_main at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/default-honeycrisp-XC9YQX9HH2.0/build/default-honeycrisp-XC9YQX9HH2-0/julialang/julia-release-1-dot-11/src/jlapi.c:900
+jl_repl_entrypoint at /Users/julia/.julia/scratchspaces/a66863c6-20e8-4ff4-8a62-49f30b1f605e/agent-cache/default-honeycrisp-XC9YQX9HH2.0/build/default-honeycrisp-XC9YQX9HH2-0/julialang/julia-release-1-dot-11/src/jlapi.c:1059
+unknown function (ip: 0x0)
+Allocations: 37654173 (Pool: 37648061; Big: 6112); GC: 30
+
+[57797] signal 11 (2): Segmentation fault: 11
+in expression starting at /Users/luizfernandoduarte/Documents/IJF Special Issue/Sarimax.jl/experiments/scripts/run_solver_global_value.jl:68
+_ZN6soplex9SVSetBaseIdE9deleteVecEPNS1_5DLPSVE at /Users/luizfernandoduarte/.julia/artifacts/511cfc018d009ab222e5ea8275547aaf9dbe6a2d/lib/libscip.8.0.0.0.dylib (unknown line)
+_ZN6soplex9SVSetBaseIdE6removeEPi at /Users/luizfernandoduarte/.julia/artifacts/511cfc018d009ab222e5ea8275547aaf9dbe6a2d/lib/libscip.8.0.0.0.dylib (unknown line)
+Allocations: 37654173 (Pool: 37648061; Big: 6112); GC: 30

@@ -17,12 +17,9 @@ Differentiates a `TimeArray` `series` `d` times and `D` times with a seasonal di
 # Returns
 A differentiated `TimeArray`.
 
-# Errors
-- This method only works with `d` and `D` in the set {0,1}.
-
 # Example
 ```jldoctest
-julia> airPassengers = loadDataset(AIR_PASSENGERS)
+julia> airPassengers = load_dataset(AIR_PASSENGERS)
 
 julia> stationaryAirPassengers = differentiate(airPassengers, d=1, D=1, s=12)
 ```
@@ -30,7 +27,7 @@ julia> stationaryAirPassengers = differentiate(airPassengers, d=1, D=1, s=12)
 function differentiate(series::TimeArray, d::Int = 0, D::Int = 0, s::Int = 1)
     Fl = eltype(values(series))
     copiedValues::Vector{Fl} = values(series)
-    coeffs = differentiatedCoefficients(d, D, s, Fl)
+    coeffs = differentiated_coefficients(d, D, s, Fl)
     lenCoeffs = length(coeffs)
     diffValues::Vector{Fl} = Vector{Fl}()
     for i = lenCoeffs:length(copiedValues)
@@ -62,7 +59,7 @@ diff_values = differentiate(values, 1, 1, 12)
 ```
 """
 function differentiate(series::Vector{Fl}, d::Int = 0, D::Int = 0, s::Int = 1) where Fl <: AbstractFloat
-    coeffs = differentiatedCoefficients(d, D, s, Fl)
+    coeffs = differentiated_coefficients(d, D, s, Fl)
     lenCoeffs = length(coeffs)
     diffValues::Vector{Fl} = Vector{Fl}()
     for i = lenCoeffs:length(series)
@@ -73,7 +70,7 @@ function differentiate(series::Vector{Fl}, d::Int = 0, D::Int = 0, s::Int = 1) w
 end
 
 """
-    differentiatedCoefficients(d::Int, D::Int, s::Int, Fl::DataType=Float64)
+    differentiated_coefficients(d::Int, D::Int, s::Int, Fl::DataType=Float64)
 
 Compute the coefficients for differentiating a time series.
 
@@ -86,7 +83,7 @@ Compute the coefficients for differentiating a time series.
 # Returns
 - `coeffs::Vector{AbstractFloat}`: Coefficients for differentiation.
 """
-function differentiatedCoefficients(d::Int, D::Int, s::Int, Fl::DataType = Float64)
+function differentiated_coefficients(d::Int, D::Int, s::Int, Fl::DataType = Float64)
     # Calculate the length of the resulting coefficients array
     lenCoeffs = d + D * s + 1
     # Initialize an array to store the coefficients
@@ -135,7 +132,7 @@ function integrate(
     # D = 1
     # s = 12
     # Fl = Float64
-    coeffs = differentiatedCoefficients(d, D, s, Fl)
+    coeffs = differentiated_coefficients(d, D, s, Fl)
     lenCoeffs = length(coeffs)
 
     # Calculate the length of the original series
@@ -242,7 +239,7 @@ function selectIntegrationOrder(
 end
 
 """
-    automaticDifferentiation(series; seasonalPeriod=1, seasonalIntegrationTest="seas", integrationTest="kpss", maxd=2)
+    automatic_differentiation(series; seasonalPeriod=1, seasonalIntegrationTest="seas", integrationTest="kpss", maxd=2)
 
 Automatically applies differentiation to each series in a TimeArray.
 
@@ -262,7 +259,7 @@ A tuple `(diffSeries, diffSeriesMetadata)` containing:
 Throws an AssertionError if invalid test options or seasonal period are provided.
 
 """
-function automaticDifferentiation(
+function automatic_differentiation(
     series::TimeArray;
     seasonalPeriod::Int = 1,
     seasonalIntegrationTest::String = "ocsb",
@@ -403,52 +400,56 @@ function createOutliersDummies(
 end
 
 """
-    loglikelihood(model::SarimaxModel)
-
-Calculate the log-likelihood of a SARIMAModel.
-The log-likelihood is calculated based on the formula
-`-0.5 * (T * log(2π) + T * log(σ²) + sum(ϵ.^2 ./ σ²))`
-where:
-- T is the length of the residuals vector (ϵ).
-- σ² is the estimated variance of the model.
-
-# Arguments
-- `model::SarimaxModel`: A SARIMAModel object.
-
-# Returns
-- The log-likelihood of the SARIMAModel.
-
-# Errors
-- `MissingMethodImplementation("fit!")`: Thrown if the `fit!` method is not implemented for the given model type.
-- `ModelNotFitted()`: Thrown if the model has not been fitted.
-
-"""
-function loglikelihood(model::SarimaxModel)
-    !hasFitMethods(typeof(model)) && throw(MissingMethodImplementation("fit!"))
-    !isFitted(model) && throw(ModelNotFitted())
-    T = length(model.ϵ)
-    return -0.5 * (T * log(2π) + T * log(model.σ²) + sum(model.ϵ .^ 2 ./ model.σ²))
-end
-
-"""
     loglike(model::SarimaxModel)
 
-Calculate the log-likelihood of a SARIMAModel using the normal probability density function.
-The log-likelihood is calculated by summing the logarithm of the probability density function (PDF) of each data point under the assumption of a normal distribution with mean 0 and standard deviation equal to the square root of the estimated variance (σ²) of the model.
+Conditional (CSS) Gaussian log-likelihood of a fitted model, evaluated at the
+maximum-likelihood variance `σ̂² = RSS / n`, with full Gaussian constants:
+
+`ℓ = -n/2 * (log(2π) + 1 + log(RSS / n))`
+
+where `n` is the number of effective residuals (the observations used after
+differencing and conditioning on the pre-sample values). This is the likelihood
+convention of conditional least squares — comparable to R's
+`arima(..., method = "CSS")`, NOT to the exact (Kalman-filter) likelihood
+reported by default by R and statsmodels.
 
 # Arguments
-- `model::SarimaxModel`: A SARIMAModel object.
+- `model::SarimaxModel`: A fitted SARIMAModel object.
 
 # Returns
-- The log-likelihood of the SARIMAModel.
+- The conditional Gaussian log-likelihood.
 
 # Errors
 - `MissingMethodImplementation("fit!")`: Thrown if the `fit!` method is not implemented for the given model type.
 - `ModelNotFitted()`: Thrown if the model has not been fitted.
-
 """
 function loglike(model::SarimaxModel)
-    !hasFitMethods(typeof(model)) && throw(MissingMethodImplementation("fit!"))
+    !has_fit_methods(typeof(model)) && throw(MissingMethodImplementation("fit!"))
     !isFitted(model) && throw(ModelNotFitted())
-    return sum(logpdf.(Normal(0, sqrt(model.σ²)), model.ϵ))
+    r = observedResiduals(model)
+    n = length(r)
+    rss = sum(abs2, r)
+    σ² = rss / n
+    return -n / 2 * (log(2π) + 1 + log(σ²))
 end
+
+"""
+    observedResiduals(model::SarimaxModel)
+
+Residuals corresponding to actually observed data points. When the series was
+fitted with missing observations, the smoothed pseudo-residuals at the imputed
+indices are excluded (they are not real innovations); otherwise this returns the
+full residual vector.
+"""
+function observedResiduals(model::SarimaxModel)
+    ϵ = model.ϵ
+    mask = hasproperty(model, :metadata) ? get(model.metadata, "missingResidualMask", nothing) : nothing
+    return isnothing(mask) ? ϵ : ϵ[.!mask]
+end
+
+"""
+    loglikelihood(model::SarimaxModel)
+
+Alias for [`loglike`](@ref): the conditional (CSS) Gaussian log-likelihood.
+"""
+StatsAPI.loglikelihood(model::SarimaxModel) = loglike(model)

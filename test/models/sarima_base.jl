@@ -1,12 +1,12 @@
 @testset "Base functions of Sarima model" begin
-    airPassengers = loadDataset(AIR_PASSENGERS)
+    airPassengers = load_dataset(AIR_PASSENGERS)
     airPassengersLog = log.(airPassengers)
 
     modeloLog = SARIMA(airPassengersLog, 3, 0, 1; seasonality = 12, P = 1, D = 1, Q = 1)
     io = IOBuffer()
     show(io, modeloLog)
     output = String(take!(io))
-    @test "SARIMA (3, 0 ,1)(1, 1 ,1 s=12) with zero mean and non zero drift" == output
+    @test output == "SARIMA(3,0,1)(1,1,1)[12] | not fitted"
 
     @test_throws  Sarimax.InvalidParametersCombination SARIMA(airPassengersLog)
     @test_throws  Sarimax.InvalidParametersCombination SARIMA(airPassengersLog; seasonalMACoefficients=[0.9])

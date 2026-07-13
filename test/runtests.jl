@@ -6,29 +6,45 @@ using Statistics
 using Test
 using Random
 using TimeSeries
-using Revise
 using JSON
 
 # Testes dos modelos
 
-include("models/sarima_base.jl")
 
-include("models/sarima.jl")
+@testset "Sarimax.jl" begin
+    include("models/sarima_base.jl")
 
-include("models/sarima_auto.jl")
+    include("models/sarima.jl")
 
-include("models/sarima_fit.jl")
+    include("models/sarima_auto.jl")
 
-include("models/sarima_predict.jl")
+    include("models/sarima_fit.jl")
 
-include("datetime_utils.jl")
+    include("models/sarima_predict.jl")
 
-include("utils.jl")
+    include("datetime_utils.jl")
 
-include("exceptions.jl")
+    include("utils.jl")
 
-include("datasets.jl")
+    include("exceptions.jl")
 
-include("fit.jl")
+    include("datasets.jl")
 
-include("test_statistical_tests.jl")
+    include("fit.jl")
+
+    include("test_statistical_tests.jl")
+
+    include("statsapi.jl")
+
+    include("reference_values.jl")
+
+    include("diagnostics.jl")
+
+    include("integrations.jl")
+
+    include("statistical_properties.jl")
+
+    include("missing_data.jl")
+
+    include("aqua.jl")
+end

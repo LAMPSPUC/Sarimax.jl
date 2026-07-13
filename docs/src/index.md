@@ -16,15 +16,28 @@ Sarimax.jl is a groundbreaking Julia package that revolutionizes SARIMA (Seasona
 
 ### Key Features
 
-* Fit models using various objective functions:
-  * Mean Squared Errors
-  * Maximum Likelihood estimation
-  * Bilevel objective function
-* Auto SARIMA model selection
-* Support for exogenous variables (Sarimax)
-* Scenario simulation capabilities
-* Time series integration and differentiation
-* Model evaluation criteria (AIC, AICc, BIC)
+* Multiplicative Box-Jenkins SARIMA (additive form available)
+* Swappable objective functions: MSE, MAE (L1), concentrated Gaussian CSS ("ml"),
+  CVaR ("stable"), adaptive elastic net
+* Certified globally optimal estimates via SCIP; any JuMP solver via `fit!(optimizer=…)`
+* Automatic order selection (Hyndman-Khandakar stepwise, grid, opt-in parallel)
+* Stationarity/invertibility **by construction** (reflection-coefficient parameterizations)
+* Exogenous variables (ARX form) and outlier dummies inside `auto`
+* StatsAPI: `coef`, `stderror`, `vcov`, `residuals`, … with CSS standard errors
+* Residual diagnostics (Ljung-Box, Jarque-Bera), Box-Cox (Guerrero λ), temporal
+  cross-validation, scenario simulation
+* Two CSS conditioning conventions; `initialization = :warmup` matches R's
+  `arima(method = "CSS")` to ~1e-5 (pinned in CI)
+* Tables.jl input, Plots.jl recipe, MLJ wrapper
+
+## Model formulation and comparability
+
+Before comparing Sarimax.jl outputs with `forecast` (R) or `statsmodels` (Python), be aware of four deliberate design differences:
+
+1. **Seasonal form.** Since v0.3 the default is the **multiplicative** Box-Jenkins SARIMA ``\phi(B)\Phi(B^s)y'_t = \theta(B)\Theta(B^s)\epsilon_t`` — coefficients are directly comparable with R/statsmodels given the same estimation method (item 3). The pre-v0.3 additive form (no cross terms) remains available via `seasonalForm = :additive` in `fit!` and `auto`.
+2. **Exogenous variables (ARX).** Regressors enter a dynamic-regression/ARX model: the AR terms act on the observed series. R's `Arima(xreg=)` and statsmodels' `SARIMAX(exog=)` fit regression-with-ARIMA-errors instead. Different model families — exogenous coefficients differ by construction.
+3. **Estimation and information criteria (CSS).** Estimation is conditional least squares / concentrated conditional Gaussian ML formulated as a JuMP optimization problem; there is no Kalman filter. `loglike`, `aic`, `aicc` and `bic` follow the CSS convention with full Gaussian constants — comparable to R's `arima(..., method = "CSS")`, not to exact-ML defaults.
+4. **What the optimization formulation buys.** Swappable objectives (MSE, MAE, CVaR, elastic net), custom constraints, an invertible-MA parameterization (`fit!(model; invertible = true)`), and certified global optima via SCIP.
 
 ## Installation
 

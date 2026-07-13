@@ -68,7 +68,7 @@ using JSON
 
     @testset "Test in airpassengers" begin
         kpss_datasets = JSON.parsefile(joinpath(@__DIR__, "datasets", "kpss_results_datasets.json"))
-        airpassengers = loadDataset(AIR_PASSENGERS)
+        airpassengers = load_dataset(AIR_PASSENGERS)
         kpss_result = Sarimax.kpss_test(values(airpassengers);regression=:c)
         @test isapprox(kpss_result["test_statistic"], kpss_datasets["airpassengers.csv"]["test_stat"], atol=5e-3)
         @test kpss_result["p_value"] == kpss_datasets["airpassengers.csv"]["p_value"]
@@ -78,12 +78,12 @@ using JSON
         @test isapprox(kpss_result["test_statistic"], kpss_datasets["log_airpassengers.csv"]["test_stat"], atol=5e-3)
         @test kpss_result["p_value"] == kpss_datasets["log_airpassengers.csv"]["p_value"]
 
-        gdpc1 = loadDataset(GDPC1)
+        gdpc1 = load_dataset(GDPC1)
         kpss_result = Sarimax.kpss_test(values(gdpc1);regression=:c)
         @test isapprox(kpss_result["test_statistic"], kpss_datasets["GDPC1.csv"]["test_stat"], atol=5e-3)
         @test kpss_result["p_value"] == kpss_datasets["GDPC1.csv"]["p_value"]
 
-        nrou = loadDataset(NROU)
+        nrou = load_dataset(NROU)
         kpss_result = Sarimax.kpss_test(values(nrou);regression=:c)
         @test isapprox(kpss_result["test_statistic"], kpss_datasets["NROU.csv"]["test_stat"], atol=5e-3)
         @test kpss_result["p_value"] == kpss_datasets["NROU.csv"]["p_value"]
@@ -200,7 +200,7 @@ end
 
     @testset "Test in airpassengers" begin
         ocsb_datasets = JSON.parsefile(joinpath(@__DIR__, "datasets", "ocsb_results_datasets.json"))
-        airpassengers = loadDataset(AIR_PASSENGERS)
+        airpassengers = load_dataset(AIR_PASSENGERS)
         ocsb_result = Sarimax.ocsb_test(values(airpassengers);max_lag=3)
         @test ocsb_result["seasonal_difference"] == ocsb_datasets["airpassengers.csv"]["D"]
         @test isapprox(ocsb_result["test_statistic"], ocsb_datasets["airpassengers.csv"]["test_stat"], atol=5e-3)
@@ -210,12 +210,12 @@ end
         @test ocsb_result["seasonal_difference"] == ocsb_datasets["log_airpassengers.csv"]["D"]
         @test isapprox(ocsb_result["test_statistic"], ocsb_datasets["log_airpassengers.csv"]["test_stat"], atol=5e-3)
 
-        gdpc1 = loadDataset(GDPC1)
+        gdpc1 = load_dataset(GDPC1)
         ocsb_result = Sarimax.ocsb_test(values(gdpc1);max_lag=3)
         @test ocsb_result["seasonal_difference"] == ocsb_datasets["GDPC1.csv"]["D"]
         @test isapprox(ocsb_result["test_statistic"], ocsb_datasets["GDPC1.csv"]["test_stat"], atol=5e-3)
 
-        nrou = loadDataset(NROU)
+        nrou = load_dataset(NROU)
         ocsb_result = Sarimax.ocsb_test(values(nrou);max_lag=3)
         @test ocsb_result["seasonal_difference"] == ocsb_datasets["NROU.csv"]["D"]
         # @test isapprox(ocsb_result["test_statistic"], ocsb_datasets["NROU.csv"]["test_stat"], atol=5e-3)

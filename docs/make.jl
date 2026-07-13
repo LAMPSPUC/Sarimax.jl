@@ -1,6 +1,6 @@
 using Documenter
 using TimeSeries
-include("../src/Sarimax.jl")
+using Sarimax
 
 # DocMeta.setdocmeta!(Sarimax, :DocTestSetup, :(using ..Sarimax); recursive=true)
 

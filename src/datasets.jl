@@ -1,5 +1,5 @@
 """
-The Datasets Enum is used to identify the dataset used in the `loadDataset` function.
+The Datasets Enum is used to identify the dataset used in the `load_dataset` function.
 
 The Datasets Enum is defined as follows:
 
@@ -7,7 +7,7 @@ The Datasets Enum is defined as follows:
 - `GDPC1 = 2`
 - `NROU = 3`
 
-The `loadDataset` function uses this Enum to determine the dataset to be loaded.
+The `load_dataset` function uses this Enum to determine the dataset to be loaded.
 """
 @enum Datasets begin
     AIR_PASSENGERS = 1
@@ -24,7 +24,7 @@ The GDPC1 dataset, it contains the US Real Gross Domestic Product (GDPC1) from 1
 ", GDPC1)
 
 @doc("
-The NROU dataset, it contains the number of new orders received by US manufacturers from 1960 to 2001.
+The NROU dataset: the U.S. Noncyclical Rate of Unemployment (FRED series NROU), quarterly, including FRED's projections.
 ", NROU)
 
 
@@ -42,7 +42,7 @@ datasetsPaths = [
 
 
 """
-    loadDataset(
+    load_dataset(
         dataset::Datasets
     )
 
@@ -50,7 +50,7 @@ Loads a dataset from the `Datasets` enum.
 
 # Example
 ```jldoctest
-julia> airPassengers = loadDataset(AIR_PASSENGERS)
+julia> airPassengers = load_dataset(AIR_PASSENGERS)
 204×1 TimeArray{Float64, 1, Date, Vector{Float64}} 1991-07-01 to 2008-06-01
 │            │ value   │
 ├────────────┼─────────┤
@@ -61,7 +61,7 @@ julia> airPassengers = loadDataset(AIR_PASSENGERS)
 
 ```
 """
-function loadDataset(dataset::Datasets)
+function load_dataset(dataset::Datasets)
     datasetIndex = Int(dataset)
     seriesData = CSV.read(datasetsPaths[datasetIndex], DataFrame)
     y = TimeArray(seriesData, timestamp=:date)
@@ -69,7 +69,7 @@ function loadDataset(dataset::Datasets)
 end
 
 """
-    loadDataset(
+    load_dataset(
         df::DataFrame,
         showLogs::Bool=false
     )
@@ -84,7 +84,7 @@ Loads a dataset from a Dataframe. If the DataFrame does not have a column named
 # Example
 ```jldoctest
 julia> airPassengersDf = CSV.File("datasets/airpassengers.csv") |> DataFrame
-julia> airPassengers = loadDataset(airPassengersDf)
+julia> airPassengers = load_dataset(airPassengersDf)
 204×1 TimeArray{Float64, 1, Date, Vector{Float64}} 1991-07-01 to 2008-06-01
 │            │ value   │
 ├────────────┼─────────┤
@@ -95,7 +95,7 @@ julia> airPassengers = loadDataset(airPassengersDf)
 
 ```
 """
-function loadDataset(df::DataFrame, showLogs::Bool=false)
+function load_dataset(df::DataFrame, showLogs::Bool=false)
     auxiliarDF = deepcopy(df)
     if !(:date in propertynames(auxiliarDF))
         showLogs && @info("The DataFrame does not have a column named 'date'.")
@@ -107,17 +107,17 @@ function loadDataset(df::DataFrame, showLogs::Bool=false)
 end
 
 """
-    splitTrainTest(
+    split_train_test(
         data::TimeArray;
         trainSize::Fl=0.8
     ) where Fl<:AbstractFloat
 
 Splits the time series in training and testing sets.
 """
-function splitTrainTest(
+function split_train_test(
     data::TimeArray;
-    trainPercentage::Fl=0.8,
-) where {Fl<:AbstractFloat}
+    trainPercentage::AbstractFloat=0.8,
+)
     trainingSetEndIndex = floor(Int, trainPercentage * length(data))
     trainingSet = TimeArray(
         timestamp(data)[1:trainingSetEndIndex],

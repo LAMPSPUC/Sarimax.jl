@@ -1,0 +1,15 @@
+\begin{table}[t]
+\centering
+\caption{Rolling-origin forecasting on the PJME daily electricity-demand series (external validation; mean over origins).}
+\label{tab:energy_forecasting}
+\begin{tabular}{lllrrrr}
+\hline
+Dataset & Model & Implementation & RMSE & MAE & MASE & s/fit \\
+\hline
+PJME\_daily & (1,1,1)(1,0,1)\_7 & R-forecast & 2837.04 & 2354.89 & 0.7427 & 0.069 \\
+PJME\_daily & (1,1,1)(1,0,1)\_7 & SARIMAX.jl & 2869.13 & 2407.89 & 0.7599 & 0.260 \\
+PJME\_daily & snaive\_s7 & seasonal-naive & 3465.88 & 2852.99 & 0.8998 & -- \\
+PJME\_daily & (1,1,1)(1,0,1)\_7 & statsmodels & 3177.50 & 2672.09 & 0.8420 & 0.080 \\
+\hline
+\end{tabular}
+\end{table}

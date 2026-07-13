@@ -1,7 +1,7 @@
 @testset "utils" begin
 
     @testset "Differentiate" begin
-        airPassengers = loadDataset(AIR_PASSENGERS)
+        airPassengers = load_dataset(AIR_PASSENGERS)
         diff_0_0 = differentiate(values(airPassengers), 0, 0, 12)
         @test size(diff_0_0) == (204,)
         @test values(diff_0_0) == values(airPassengers)
@@ -33,14 +33,14 @@
         D = 0
         s = 1
         expected_output = [1.0, -1.0]
-        @test differentiatedCoefficients(d, D, s) == expected_output
+        @test differentiated_coefficients(d, D, s) == expected_output
 
         # Test case 2
         d = 2
         D = 1
         s = 4
         expected_output = [1.0, -2.0, 1.0, 0.0, -1.0, 2.0, -1.0]
-        @test differentiatedCoefficients(d, D, s) == expected_output
+        @test differentiated_coefficients(d, D, s) == expected_output
 
         # Test case 3
         d = 1
@@ -48,12 +48,12 @@
         s = 12
         expected_output =
             [1.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0, 1.0]
-        @test differentiatedCoefficients(d, D, s) == expected_output
+        @test differentiated_coefficients(d, D, s) == expected_output
     end
 
     @testset "Testing integrate function" begin
         # Load dataset and differentiate series
-        y = loadDataset(AIR_PASSENGERS)
+        y = load_dataset(AIR_PASSENGERS)
         diff_1_1 = differentiate(y, 1, 1, 12)
         diff_0_1 = differentiate(y, 0, 1, 12)
         diff_1_0 = differentiate(y, 1, 0, 12)
@@ -95,7 +95,7 @@
     end
 
     @testset "selectSeasonalIntegrationOrder" begin
-        airPassengers = loadDataset(AIR_PASSENGERS)
+        airPassengers = load_dataset(AIR_PASSENGERS)
         @test Sarimax.selectSeasonalIntegrationOrder(values(airPassengers), 12, "seas") == 1
         @test Sarimax.selectSeasonalIntegrationOrder(values(airPassengers), 12, "ch") == 0
         @test_throws ArgumentError Sarimax.selectSeasonalIntegrationOrder(
@@ -106,7 +106,7 @@
     end
 
     @testset "selectIntegrationOrder" begin
-        airPassengers = loadDataset(AIR_PASSENGERS)
+        airPassengers = load_dataset(AIR_PASSENGERS)
         @test Sarimax.selectIntegrationOrder(values(airPassengers), 2, 0, 12, "kpss") == 1
         @test_throws ArgumentError Sarimax.selectIntegrationOrder(
             values(airPassengers),
@@ -118,30 +118,30 @@
     end
 
     # @testset "selectIntegrationOrderR" begin
-    #     airPassengers = loadDataset(AIR_PASSENGERS)
+    #     airPassengers = load_dataset(AIR_PASSENGERS)
     #     @test Sarimax.selectIntegrationOrder(values(airPassengers), 2, 0, 12, "kpssR") == 1
     # end
 
-    @testset "automaticDifferentiation" begin
-        gdpc1Data = loadDataset(GDPC1)
-        nrouData = loadDataset(NROU)
+    @testset "automatic_differentiation" begin
+        gdpc1Data = load_dataset(GDPC1)
+        nrouData = load_dataset(NROU)
         seriesVector::Vector{TimeArray} = [gdpc1Data, nrouData]
         mergedTimeArray = Sarimax.merge(seriesVector)
 
-        @test_throws AssertionError automaticDifferentiation(
+        @test_throws AssertionError automatic_differentiation(
             mergedTimeArray;
             integrationTest = "test",
         )
-        @test_throws AssertionError automaticDifferentiation(
+        @test_throws AssertionError automatic_differentiation(
             mergedTimeArray;
             seasonalIntegrationTest = "test",
         )
-        @test_throws AssertionError automaticDifferentiation(
+        @test_throws AssertionError automatic_differentiation(
             mergedTimeArray;
             seasonalPeriod = -1,
         )
 
-        mergedDiffSeries, diffMetadata = automaticDifferentiation(
+        mergedDiffSeries, diffMetadata = automatic_differentiation(
             mergedTimeArray;
             integrationTest = "kpss",
             seasonalIntegrationTest = "ch",
@@ -159,14 +159,14 @@
         end
     end
 
-    @testset "automaticDifferentiation Outlier Case" begin
+    @testset "automatic_differentiation Outlier Case" begin
         timestamps = Date(2020, 1, 1):Day(1):Date(2020, 1, 5)
         values = [10.0, 20.0, 30.0, 40.0, 50.0]
         outlier_values = [0, 0, 1, 0, 0]
         data = (datetime = timestamps, data = values, outlier_3 = outlier_values)
         series = TimeArray(data; timestamp = :datetime)
 
-        diffSeries, metadata = automaticDifferentiation(series)
+        diffSeries, metadata = automatic_differentiation(series)
         @test haskey(metadata, :outlier_3)
         @test metadata[:outlier_3][:d] == 0
         @test metadata[:outlier_3][:D] == 0
@@ -176,17 +176,17 @@
     @testset "isConstant" begin
         # Create Dataframe with constant values and one date column
         df = DataFrame(date = Date(2020, 1, 1):Day(1):Date(2020, 1, 10), value = ones(10))
-        dataset = loadDataset(df)
+        dataset = load_dataset(df)
         @test Sarimax.isConstant(dataset) == true
 
         # Add a new column with different values
         df[!, "newCol"] = [ones(5); 2 * ones(5)]
-        dataset = loadDataset(df)
+        dataset = load_dataset(df)
 
         @test Sarimax.isConstant(dataset) == true
 
         df.value = [ones(5); 2 * ones(5)]
-        dataset = loadDataset(df)
+        dataset = load_dataset(df)
 
         @test Sarimax.isConstant(dataset) == false
     end
@@ -197,7 +197,7 @@
         @test_throws MissingMethodImplementation loglikelihood(TestModelUtil())
         @test_throws MissingMethodImplementation loglike(TestModelUtil())
 
-        airPassengers = loadDataset(AIR_PASSENGERS)
+        airPassengers = load_dataset(AIR_PASSENGERS)
         airPassengersLog = log.(airPassengers)
         testModel = SARIMA(airPassengersLog, 3, 0, 1; seasonality = 12, P = 1, D = 1, Q = 1)
 
@@ -206,8 +206,9 @@
 
         fit!(testModel)
 
-        @test loglikelihood(testModel) ≈ 254.01202403694745 atol = 1e-1
-        @test loglike(testModel) ≈ 254.01202403694745 atol = 1e-1
+        # CSS loglik of the (3,0,1)(1,1,1)12 fit under the multiplicative form
+        @test loglikelihood(testModel) ≈ 247.8863386095342 atol = 1e-1
+        @test loglike(testModel) ≈ 247.8863386095342 atol = 1e-1
     end
 
     @testset "identifyOutliers Tests" begin

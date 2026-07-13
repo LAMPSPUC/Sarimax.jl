@@ -95,7 +95,7 @@ mutable struct SARIMAModel{Fl<:AbstractFloat} <: SarimaxModel
         @assert Q >= 0
         @assert seasonality >= 1
         yMetadata = Dict()
-        granularityInfo = identifyGranularity(timestamp(y))
+        granularityInfo = identify_granularity(timestamp(y))
         yMetadata["granularity"] = granularityInfo.granularity
         yMetadata["frequency"] = granularityInfo.frequency
         yMetadata["weekDaysOnly"] = granularityInfo.weekdays
@@ -104,7 +104,7 @@ mutable struct SARIMAModel{Fl<:AbstractFloat} <: SarimaxModel
         if !isnothing(exog)
             @assert yMetadata["startDatetime"] == timestamp(exog)[1] "The endogenous and exogenous variables must start at the same timestamp"
             @assert yMetadata["endDatetime"] <= timestamp(exog)[end] "The exogenous variables must end after the endogenous variables"
-            @assert granularityInfo == identifyGranularity(timestamp(exog)) "The endogenous and exogenous variables must have the same granularity, frequency and pattern"
+            @assert granularityInfo == identify_granularity(timestamp(exog)) "The endogenous and exogenous variables must have the same granularity, frequency and pattern"
         end
         return new{Fl}(
             y,
@@ -142,62 +142,101 @@ end
 typeofModelElements(model::SARIMAModel) = eltype(values(model.y))
 
 """
+    conditioningLags(p, q, P, Q, s, seasonalForm)
+
+Number of pre-sample observations the CSS recursion must condition on. Under the
+multiplicative form the AR/MA polynomials reach the cross lags `p + s*P` / `q + s*Q`.
+"""
+conditioningLags(p::Int, q::Int, P::Int, Q::Int, s::Int, seasonalForm::Symbol) =
+    seasonalForm === :multiplicative ? max(p + s * P, q + s * Q) : max(p, s * P, q, s * Q)
+
+"""
+    modelSeasonalForm(model::SARIMAModel)
+
+The seasonal form the model was (or will be) fitted with: `:multiplicative`
+(Box-Jenkins, default) or `:additive` (pre-v0.3 behavior).
+"""
+modelSeasonalForm(model::SARIMAModel) = Symbol(get(model.metadata, "seasonalForm", "multiplicative"))
+
+"""
     print(model::SARIMAModel)
 
-Prints the SARIMA model.
-
-# Arguments
-- `model::SARIMAModel`: The SARIMA model to print.
-
-# Example
-```jldoctest
-julia> model = SARIMA(1, 0, 1; P=1, D=0, Q=1, seasonality=12, allowMean=true, allowDrift=false)
-
-julia> print(model)
-```
+Prints the full fitted-model summary (alias for `show(stdout, MIME"text/plain"(), model)`).
 """
 function print(model::SARIMAModel)
-    println("=================MODEL===============")
-    println(
-        "SARIMA ($(model.p), $(model.d) ,$(model.q))($(model.P), $(model.D) ,$(model.Q) s=$(model.seasonality))",
-    )
-    !isnothing(model.c) && println("Estimated c       : ", model.c)
-    !isnothing(model.trend) && println("Estimated trend   : ", model.trend)
-    model.p != 0 && println("Estimated ϕ       : ", model.ϕ)
-    model.q != 0 && println("Estimated θ       : ", model.θ)
-    model.P != 0 && println("Estimated Φ       : ", model.Φ)
-    model.Q != 0 && println("Estimated θ       : ", model.Θ)
-    isnothing(model.exog) || println("Exogenous coefficients: ", model.exogCoefficients)
-    println("Residuals σ²      : ", model.σ²)
-    model.keepProvidedCoefficients && println(
-        "The model preserves the provided coefficients. To optimize the whole model, set keepProvidedCoefficients=false",
-    )
-    println("======================================")
+    show(stdout, MIME("text/plain"), model)
+    println()
 end
+
+modelSpecString(model::SARIMAModel) =
+    "SARIMA($(model.p),$(model.d),$(model.q))($(model.P),$(model.D),$(model.Q))[$(model.seasonality)]"
 
 """
     Base.show(io::IO, model::SARIMAModel)
 
-Prints the SARIMA model.
-
-# Arguments
-- `io::IO`: The output stream.
-- `model::SARIMAModel`: The SARIMA model to print.
-
-# Example
-```jldoctest
-julia> model = SARIMA(1, 0, 1; P=1, D=0, Q=1, seasonality=12, allowMean=true, allowDrift=false)
-
-julia> print(model)
-```
+Compact one-line representation: specification and fit status.
 """
 function Base.show(io::IO, model::SARIMAModel)
-    constant = model.allowMean || model.allowDrift
-    zeroMean = ((model.d + model.D == 0) && constant) ? "non zero mean" : "zero mean"
-    zeroDrift = ((model.d + model.D > 0) && constant) ? "non zero drift" : "zero drift"
-    print(
+    Base.print(io, modelSpecString(model), isFitted(model) ? " | fitted" : " | not fitted")
+    return nothing
+end
+
+"""
+    Base.show(io::IO, ::MIME"text/plain", model::SARIMAModel)
+
+Full model summary: specification, seasonal form, estimation convention,
+coefficient table with CSS standard errors, and fit statistics.
+"""
+function Base.show(io::IO, ::MIME"text/plain", model::SARIMAModel)
+    println(io, modelSpecString(model))
+    form = get(model.metadata, "seasonalForm", "multiplicative")
+    init = get(model.metadata, "initialization", "zeroed")
+    deterministic = String[]
+    model.allowMean && push!(deterministic, "mean")
+    model.allowDrift && push!(deterministic, "drift")
+    detStr = isempty(deterministic) ? "none" : join(deterministic, " + ")
+    println(io, "Seasonal form: ", form, " | Estimation: CSS (", init, ") | Deterministic: ", detStr)
+    if !isFitted(model)
+        Base.print(io, "Status: not fitted — run fit!(model)")
+        return nothing
+    end
+    names = StatsAPI.coefnames(model)
+    estimates = StatsAPI.coef(model)
+    ses = try
+        StatsAPI.stderror(model)
+    catch
+        fill(NaN, length(estimates))
+    end
+    if !isempty(names)
+        wname = max(maximum(length.(names)), length("coefficient"))
+        rule = "─"^(wname + 28)
+        println(io, rule)
+        println(io, rpad("coefficient", wname), "  ", lpad("estimate", 12), "  ", lpad("std. error", 12))
+        println(io, rule)
+        for (nm, est, se) in zip(names, estimates, ses)
+            seStr = isnan(se) ? "—" : @sprintf("%.4f", se)
+            println(io, rpad(nm, wname), "  ", lpad(@sprintf("%.4f", est), 12), "  ", lpad(seStr, 12))
+        end
+        println(io, rule)
+    end
+    Base.print(
         io,
-        "SARIMA ($(model.p), $(model.d) ,$(model.q))($(model.P), $(model.D) ,$(model.Q) s=$(model.seasonality)) with $(zeroMean) and $(zeroDrift)",
+        @sprintf(
+            "σ² = %.6g | n = %d | loglik = %.3f | AIC = %.3f | AICc = %.3f | BIC = %.3f",
+            model.σ²,
+            length(model.ϵ),
+            loglike(model),
+            aic(model),
+            aicc(model),
+            bic(model)
+        )
+    )
+    solverStatus = get(model.metadata, "solverStatus", "")
+    solverStatus in ("", "OPTIMAL", "LOCALLY_SOLVED", "ALMOST_OPTIMAL", "ALMOST_LOCALLY_SOLVED") ||
+        Base.print(io, "\n⚠ solver status: ", solverStatus)
+    model.keepProvidedCoefficients && Base.print(
+        io,
+        "\n(provided coefficients kept fixed; set keepProvidedCoefficients = false to re-estimate)",
     )
     return nothing
 end
@@ -525,19 +564,27 @@ function isFitted(model::SARIMAModel)
 end
 
 """
-    getHyperparametersNumber(model::SARIMAModel)
+    get_hyperparameters_number(model::SARIMAModel)
 
-Returns the number of hyperparameters of a SARIMA model.
+Returns the number of estimated parameters `K` of a SARIMA model (including σ²),
+as used by the information criteria.
+
+For regular objectives every declared parameter counts, regardless of the
+magnitude of its estimate — a coefficient estimated near zero was still
+estimated. For elastic-net fits (`lambda`/`alpha` set) the count is instead the
+number of ACTIVE coefficients (|coef| > 1e-5), the standard effective-degrees-
+of-freedom estimate for L1-type regularization (Zou, Hastie & Tibshirani, 2007).
 
 # Arguments
 - `model::SARIMAModel`: The SARIMA model.
 
 # Returns
-- `Int`: The number of hyperparameters.
+- `Int`: The number of parameters `K`.
 
 """
-function getHyperparametersNumber(model::SARIMAModel)
-    if isFitted(model)
+function get_hyperparameters_number(model::SARIMAModel)
+    usesSparseCount = !isnothing(model.lambda) || !isnothing(model.alpha)
+    if isFitted(model) && usesSparseCount
         hyperparametersNumber = 1
         fields = [:c, :trend, :ϕ, :θ, :Φ, :Θ, :exogCoefficients]
         for field in fields
@@ -550,11 +597,11 @@ function getHyperparametersNumber(model::SARIMAModel)
     end
     k = (model.allowMean) ? 1 : 0
     k = (model.allowDrift) ? k + 1 : k
-    β = isnothing(model.exogCoefficients) ? 0 : length(model.exogCoefficients)
+    β = isnothing(model.exog) ? 0 : length(colnames(model.exog))
     return model.p + model.q + model.P + model.Q + k + β + 1
 end
 
-function getHyperparametersNumber(model::JuMP.Model)
+function get_hyperparameters_number(model::JuMP.Model)
     # is_solved_and_feasible(model) ||
     #     throw(ArgumentError("The model must be solved and feasible"))
     c = variable_by_name(model, "c")
@@ -583,10 +630,17 @@ end
         optimizer::DataType=Ipopt.Optimizer,
         objectiveFunction::String="mse"
         automaticExogDifferentiation::Bool=false
+        invertible::Bool=false
+        invertibilityMargin::AbstractFloat=0.0
     )
 
-Estimate the SARIMA model parameters via non-linear least squares. The resulting optimal
-parameters as well as the residuals and the model's σ² are stored within the model.
+Estimate the SARIMA model parameters via conditional least squares (CSS) formulated
+as a JuMP optimization problem: the residuals are decision variables tied to the data
+by the model dynamics, and the first `lb-1` pre-sample residuals are fixed at zero.
+No Kalman filter / exact likelihood is used; the `"ml"` objective is the concentrated
+conditional Gaussian likelihood (equivalent to least squares in the coefficients).
+The resulting optimal parameters as well as the residuals and the model's σ² are
+stored within the model.
 The default objective function used to estimate the parameters is the mean squared error (MSE),
 but it can be changed to the maximum likelihood (ML) by setting the `objectiveFunction` parameter to "ml".
 
@@ -594,12 +648,44 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
 - `model::SARIMAModel`: The SARIMA model to be fitted.
 - `silent::Bool`: Whether to suppress solver output. Default is `true`.
 - `optimizer::DataType`: The optimizer to be used for optimization. Default is `Ipopt.Optimizer`.
+- `mipSolver::DataType`: The MIP sub-solver used by the Alpine global optimizer for its
+  lower-bounding step. Default is `SCIP.Optimizer`, which can solve the mixed-integer quadratic
+  (MIQP) relaxations arising from quadratic objectives such as `"mse"`. If `HiGHS.Optimizer` is
+  supplied it only works with the linear `"mae"` objective; a warning is issued otherwise. Only
+  relevant when `optimizer = Alpine.Optimizer`.
 - `objectiveFunction::String`: The objective function used for estimation. Default is "mse".
 - `automaticExogDifferentiation::Bool`: Whether to automatically differentiate the exogenous variables. Default is `false`.
+- `invertible::Bool`: When `true`, the (seasonal) moving-average coefficients are generated from
+  bounded reflection coefficients `κ` via [`reflectionToMA`](@ref), guaranteeing an invertible MA
+  polynomial by construction instead of imposing only box bounds on `θ`/`Θ`. For `q = Q = 1` this is
+  equivalent to the default box bounds; for higher orders it restricts the estimate to the
+  (non-box) invertibility region. Not compatible with the `"bilevel"` objective. Default is `false`.
+- `invertibilityMargin::AbstractFloat`: Margin `ρ ∈ [0, 1)` that bounds the reflection coefficients to
+  `[-(1-ρ), 1-ρ]`, keeping the solution `ρ` away from the unit circle. Only used when `invertible=true`.
+  Default is `0.0`.
+- `seasonalForm::Symbol`: `:multiplicative` (Box-Jenkins, default) or `:additive`.
+- `stationary::Bool`: When `true`, the (seasonal) AR coefficients are generated from
+  bounded reflection coefficients (partial autocorrelations) via [`reflectionToAR`](@ref),
+  guaranteeing a stationary AR polynomial by construction (exact under `:multiplicative`;
+  per-block only under `:additive`). Default is `false`.
+- `stationarityMargin::AbstractFloat`: Margin in `[0, 1)` bounding the AR reflection
+  coefficients to `[-(1-margin), 1-margin]`. Only used when `stationary = true`.
+- Missing observations: `NaN` entries in the endogenous series are supported for
+  stationary models (`d = D = 0`, `mse`/`ml` objectives, no exogenous regressors). Each
+  gap becomes a free decision variable whose residual is retained in the objective,
+  yielding the two-sided conditional smoother; σ², the log-likelihood, the effective
+  sample size and the residual diagnostics all exclude the imputed indices. The imputed
+  values are written back into `model.y` and recorded in `model.metadata["nMissing"]`.
+- `initialization::Symbol`: CSS conditioning convention. `:zeroed` (default) fixes the
+  pre-sample residuals at zero and drops the first `max(p+sP, q+sQ)` differenced
+  observations; `:warmup` conditions only on the AR-side lags and warm-starts the MA
+  recursion from the beginning of the differenced sample, matching R's
+  `arima(..., method = "CSS")`. Exact-likelihood (Kalman) initialization is out of
+  scope by design.
 
 # Example
 ```jldoctest
-julia> airPassengers = loadDataset(AIR_PASSENGERS)
+julia> airPassengers = load_dataset(AIR_PASSENGERS)
 
 julia> model = SARIMA(airPassengers,0,1,1;seasonality=12,P=0,D=1,Q=1)
 
@@ -610,28 +696,54 @@ function fit!(
     model::SARIMAModel;
     silent::Bool = true,
     optimizer::DataType = Ipopt.Optimizer,
+    mipSolver::DataType = SCIP.Optimizer,
     objectiveFunction::String = "mse",
     automaticExogDifferentiation::Bool = false,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
     lambda::Union{Nothing,<:AbstractFloat} = nothing,
+    invertible::Bool = false,
+    invertibilityMargin::AbstractFloat = 0.0,
+    minConditioningObs::Int = 0,
+    seasonalForm::Symbol = :multiplicative,
+    initialization::Symbol = :zeroed,
+    stationary::Bool = false,
+    stationarityMargin::AbstractFloat = 0.0,
 )
     Fl = typeofModelElements(model)
     isFitted(model) &&
         @info("The model has already been fitted. Overwriting the previous results")
     @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable"] "The objective function $objectiveFunction is not supported. Please use 'mae', 'mse', 'ml', 'bilevel', 'elastic_net' or 'stable'"
+    @assert !(invertible && MACoefficientsAreModelParameters(objectiveFunction)) "The invertible MA parameterization is not compatible with the '$objectiveFunction' objective (MA coefficients are treated as outer parameters there)."
+    @assert 0.0 <= invertibilityMargin < 1.0 "invertibilityMargin (ρ) must lie in [0, 1)."
+    @assert 0.0 <= stationarityMargin < 1.0 "stationarityMargin must lie in [0, 1)."
     if objectiveFunction == "elastic_net"
         @assert (!isnothing(alpha) || !isnothing(model.alpha)) "In elastic net objective function, alpha must be specified"
     end
 
+    model.allowMean && model.allowDrift && throw(
+        InvalidParametersCombination(
+            "allowMean and allowDrift are mutually exclusive: in the differenced " *
+            "equation they were perfectly collinear. Use allowMean for d+D == 0 " *
+            "and allowDrift for d+D == 1.",
+        ),
+    )
+    seasonalForm === :free && throw(ArgumentError("seasonalForm :free is planned for a later release"))
+    seasonalForm in (:multiplicative, :additive) ||
+        throw(ArgumentError("seasonalForm must be :multiplicative or :additive"))
+    initialization in (:zeroed, :warmup) ||
+        throw(ArgumentError("initialization must be :zeroed or :warmup (exact-likelihood initialization requires a Kalman filter, which is out of scope by design)"))
+
     isnothing(lambda) || (model.lambda = lambda)
     isnothing(alpha) || (model.alpha = alpha)
+    model.metadata["seasonalForm"] = String(seasonalForm)
+    model.metadata["initialization"] = String(initialization)
 
     diffY = differentiate(model.y, model.d, model.D, model.seasonality)
 
     if !isnothing(model.exog)
         if automaticExogDifferentiation
             diffExog, exogMetadata =
-                automaticDifferentiation(model.exog; seasonalPeriod = model.seasonality)
+                automatic_differentiation(model.exog; seasonalPeriod = model.seasonality)
             model.metadata["exog"] = exogMetadata
             diffY = TimeSeries.merge(diffY, diffExog)
         else
@@ -641,11 +753,55 @@ function fit!(
 
     T = length(diffY)
 
+    # Drift enters as the differentiated deterministic-time regressor: for
+    # d + D == 0 it is the linear trend t itself; for d = 1 it reduces to a
+    # constant (classic drift); for d + D > 1 it vanishes (not identifiable).
+    driftValues::Vector{Fl} = if model.allowDrift
+        model.d + model.D > 1 && @warn(
+            "Drift with d + D > 1 is not identifiable (the differenced trend is zero)."
+        )
+        diffT = differentiate(collect(Fl, 1:length(values(model.y))), model.d, model.D, model.seasonality)
+        diffT[end-T+1:end]
+    else
+        ones(Fl, T)
+    end
+
     yValues = values(diffY)[:, 1]
     nExog = isnothing(model.exog) ? 0 : size(values(diffY), 2) - 1
     exogValues = isnothing(model.exog) ? [] : values(diffY)[:, 2:end]
 
-    lb = max(model.p, model.P * model.seasonality, model.q, model.Q * model.seasonality) + 1
+    # Missing-data support: NaN entries in the (differenced) endogenous series
+    # are treated as free decision variables (Section: missing observations).
+    missingMask::Vector{Bool} = isnan.(yValues)
+    hasMissing = any(missingMask)
+    if hasMissing
+        (model.d + model.D > 0) && throw(
+            ArgumentError(
+                "Missing-data estimation currently supports only stationary " *
+                "models (d = D = 0); differencing propagates gaps and requires " *
+                "re-integration handling that is not implemented yet.",
+            ),
+        )
+        isnothing(model.exog) || throw(
+            ArgumentError("Missing-data estimation with exogenous regressors is not yet supported."),
+        )
+        objectiveFunction in ("mse", "ml") || throw(
+            ArgumentError("Missing-data estimation supports only the 'mse' and 'ml' objectives."),
+        )
+        model.keepProvidedCoefficients && throw(
+            ArgumentError("Missing-data estimation is not compatible with provided fixed coefficients."),
+        )
+    end
+
+    residualLags =
+        initialization === :warmup ?
+        (
+            seasonalForm === :multiplicative ?
+            model.p + model.seasonality * model.P :
+            max(model.p, model.seasonality * model.P)
+        ) :
+        conditioningLags(model.p, model.q, model.P, model.Q, model.seasonality, seasonalForm)
+    lb = max(residualLags, minConditioningObs) + 1
 
     mod = Model(optimizer)
 
@@ -664,15 +820,89 @@ function fit!(
     end
 
     @variable(mod, β[1:nExog])
-    @variable(mod, -1 <= ϕ[1:model.p] <= 1)
-    @variable(mod, -1 <= Φ[1:model.P] <= 1)
+    if stationary
+        # Stationary-by-construction AR parameterization: the AR coefficients are
+        # generated from bounded reflection coefficients (partial autocorrelations)
+        # via reflectionToAR. Under :multiplicative this guarantees stationarity of
+        # the full polynomial (each factor is stationary); under :additive it
+        # constrains each block's own polynomial only (necessary, not sufficient).
+        ρs = stationarityMargin
+        @variable(mod, ϕ[1:model.p])
+        @variable(mod, Φ[1:model.P])
+        if model.p > 0
+            @variable(mod, -(1 - ρs) <= κAR[1:model.p] <= (1 - ρs))
+            ϕκ = reflectionToAR(κAR)
+            @constraint(mod, [i = 1:model.p], ϕ[i] == ϕκ[i])
+            for i = 1:model.p
+                set_start_value(κAR[i], 0.0)
+                set_start_value(ϕ[i], 0.0)
+            end
+        end
+        if model.P > 0
+            @variable(mod, -(1 - ρs) <= κSAR[1:model.P] <= (1 - ρs))
+            Φκ = reflectionToAR(κSAR)
+            @constraint(mod, [k = 1:model.P], Φ[k] == Φκ[k])
+            for k = 1:model.P
+                set_start_value(κSAR[k], 0.0)
+                set_start_value(Φ[k], 0.0)
+            end
+        end
+    else
+        @variable(mod, -1 <= ϕ[1:model.p] <= 1)
+        @variable(mod, -1 <= Φ[1:model.P] <= 1)
+    end
     @variable(mod, ϵ[1:T])
 
     fix.(ϵ[1:lb-1], 0.0)
 
+    # Represent missing endogenous values as free variables so the model
+    # relates each gap to its neighbours; keeping their residuals in the
+    # objective yields the (two-sided) conditional smoother.
+    local yData
+    if hasMissing
+        missIdx = findall(missingMask)
+        @variable(mod, ymiss[missIdx])
+        startVal = any(.!missingMask) ? Statistics.mean(yValues[.!missingMask]) : 0.0
+        for m in missIdx
+            set_start_value(ymiss[m], startVal)
+        end
+        yData = Vector{JuMP.AffExpr}(undef, T)
+        for t = 1:T
+            yData[t] = missingMask[t] ? one(Fl) * ymiss[t] : convert(JuMP.AffExpr, yValues[t])
+        end
+    else
+        yData = yValues
+    end
+
     if MACoefficientsAreModelParameters(objectiveFunction)
         @variable(mod, θ[i = 1:model.q] in Parameter(i))
         @variable(mod, Θ[i = 1:model.Q] in Parameter(i))
+    elseif invertible
+        # Invertible MA parameterization: the MA coefficients θ (Θ) are generated
+        # from bounded reflection coefficients κ (κseasonal) through reflectionToMA.
+        # θ/Θ stay registered as variables (so the rest of the code is unchanged)
+        # and are linked to the reflection recursion by equality constraints.
+        ρ = invertibilityMargin
+        @variable(mod, θ[1:model.q])
+        @variable(mod, Θ[1:model.Q])
+        if model.q > 0
+            @variable(mod, -(1 - ρ) <= κ[1:model.q] <= (1 - ρ))
+            θκ = reflectionToMA(κ)
+            @constraint(mod, [j = 1:model.q], θ[j] == θκ[j])
+            for i = 1:model.q
+                set_start_value(κ[i], 0.0)
+                set_start_value(θ[i], 0.0)
+            end
+        end
+        if model.Q > 0
+            @variable(mod, -(1 - ρ) <= κseasonal[1:model.Q] <= (1 - ρ))
+            Θκ = reflectionToMA(κseasonal)
+            @constraint(mod, [j = 1:model.Q], Θ[j] == Θκ[j])
+            for i = 1:model.Q
+                set_start_value(κseasonal[i], 0.0)
+                set_start_value(Θ[i], 0.0)
+            end
+        end
     else
         @variable(mod, -1 <= θ[1:model.q] <= 1)
         @variable(mod, -1 <= Θ[1:model.Q] <= 1)
@@ -686,40 +916,66 @@ function fit!(
     end
 
     model.keepProvidedCoefficients && setProvidedCoefficients!(mod, model)
-    includeSolverParameters!(mod, silent)
+    includeSolverParameters!(mod, silent; mipSolver = mipSolver, objectiveFunction = objectiveFunction)
 
-    if model.seasonality > 1
+    if model.seasonality > 1 && seasonalForm === :multiplicative
+        # Box-Jenkins multiplicative SARIMA: the polynomial products yield the
+        # cross terms -phi_i*Phi_k*y_(t-i-sk) and +theta_j*Theta_w*eps_(t-j-sw).
         @expression(
             mod,
             ŷ[t = lb:T],
             c +
-            trend +
+            trend * driftValues[t] +
             sum(β[i] * exogValues[t, i] for i = 1:nExog) +
-            sum(ϕ[i] * yValues[t-i] for i = 1:model.p if (t - i > 0)) +
-            sum(θ[j] * ϵ[t-j] for j = 1:model.q) +
+            sum(ϕ[i] * yData[t-i] for i = 1:model.p if (t - i > 0)) +
+            sum(θ[j] * ϵ[t-j] for j = 1:model.q if (t - j > 0)) +
             sum(
-                Φ[k] * yValues[t-(model.seasonality*k)] for
+                Φ[k] * yData[t-(model.seasonality*k)] for
                 k = 1:model.P if (t - (model.seasonality * k) > 0)
             ) +
-            sum(Θ[w] * ϵ[t-(model.seasonality*w)] for w = 1:model.Q)
+            sum(Θ[w] * ϵ[t-(model.seasonality*w)] for w = 1:model.Q if (t - (model.seasonality * w) > 0)) -
+            sum(
+                ϕ[i] * Φ[k] * yData[t-i-(model.seasonality*k)] for
+                i = 1:model.p, k = 1:model.P if (t - i - (model.seasonality * k) > 0)
+            ) +
+            sum(
+                θ[j] * Θ[w] * ϵ[t-j-(model.seasonality*w)] for
+                j = 1:model.q, w = 1:model.Q if (t - j - (model.seasonality * w) > 0)
+            )
+        )
+    elseif model.seasonality > 1
+        @expression(
+            mod,
+            ŷ[t = lb:T],
+            c +
+            trend * driftValues[t] +
+            sum(β[i] * exogValues[t, i] for i = 1:nExog) +
+            sum(ϕ[i] * yData[t-i] for i = 1:model.p if (t - i > 0)) +
+            sum(θ[j] * ϵ[t-j] for j = 1:model.q if (t - j > 0)) +
+            sum(
+                Φ[k] * yData[t-(model.seasonality*k)] for
+                k = 1:model.P if (t - (model.seasonality * k) > 0)
+            ) +
+            sum(Θ[w] * ϵ[t-(model.seasonality*w)] for w = 1:model.Q if (t - (model.seasonality * w) > 0))
         )
     else
         @expression(
             mod,
             ŷ[t = lb:T],
             c +
-            trend +
+            trend * driftValues[t] +
             sum(β[i] * exogValues[t, i] for i = 1:nExog) +
-            sum(ϕ[i] * yValues[t-i] for i = 1:model.p if (t - i > 0)) +
-            sum(θ[j] * ϵ[t-j] for j = 1:model.q)
+            sum(ϕ[i] * yData[t-i] for i = 1:model.p if (t - i > 0)) +
+            sum(θ[j] * ϵ[t-j] for j = 1:model.q if (t - j > 0))
         )
     end
 
-    includeModelConstraints!(mod, yValues, T, objectiveFunction, lb)
+    includeModelConstraints!(mod, yData, T, objectiveFunction, lb)
 
-    objectiveFunctionDefinition!(mod, model, objectiveFunction, T)
+    objectiveFunctionDefinition!(mod, model, objectiveFunction, T, lb)
 
-    optimizeModel!(mod, model, objectiveFunction)
+    optimizeModel!(mod, model, objectiveFunction, lb)
+    model.metadata["solverStatus"] = string(termination_status(mod))
     silent || @info(
         "The model has been fitted with the objective function $objectiveFunction: $(objective_value(mod))"
     )
@@ -745,17 +1001,33 @@ function fit!(
     fitInSample::TimeArray =
         TimeArray(timestamp(model.y)[end-lengthIntegratedFit+1:end], integratedFit)
 
+    residualMissingMask = hasMissing ? missingMask[lb:end] : nothing
     residualsVariance = computeSARIMAModelVariance(
         mod,
         objectiveFunction,
-        getHyperparametersNumber(model),
-        lb,
+        get_hyperparameters_number(model),
+        lb;
+        missingMask = residualMissingMask,
     )
 
     c = is_valid(mod, c) ? value(c) : 0.0
     trend = is_valid(mod, trend) ? value(trend) : 0.0
     exogCoefficients = isnothing(model.exog) ? nothing : value.(β)
+    # The complete residual vector (including the smoothed values at missing
+    # indices) is stored so the forecast recursion can seed its MA terms; the
+    # mask records which of them are not real innovations.
     residuals::Vector{Fl} = value.(ϵ)[lb:end]
+
+    if hasMissing
+        imputed = copy(yValues)
+        for m in missIdx
+            imputed[m] = value(ymiss[m])
+        end
+        model.y = TimeArray(timestamp(model.y), imputed, colnames(model.y))
+        model.metadata["missingResidualMask"] = residualMissingMask
+        model.metadata["nMissing"] = length(missIdx)
+        model.metadata["imputedIndices"] = missIdx
+    end
 
     fillFitValues!(
         model,
@@ -785,6 +1057,65 @@ Determines if the moving average coefficients are treated as model parameters ba
 """
 function MACoefficientsAreModelParameters(objectiveFunction::String)
     return objectiveFunction == "bilevel"
+end
+
+"""
+    reflectionToMA(κ)
+
+Maps a vector of reflection coefficients `κ = (κ₁,…,κ_q)` to moving-average
+coefficients `θ = (θ₁,…,θ_q)` through the recursion
+
+    θ₁⁽¹⁾ = κ₁
+    θ_m⁽ᵐ⁾ = κ_m,                                  m = 2,…,q
+    θ_i⁽ᵐ⁾ = θ_i⁽ᵐ⁻¹⁾ + κ_m · θ_{m−i}⁽ᵐ⁻¹⁾,        i = 1,…,m−1
+    θ_j    = θ_j⁽q⁾,                                j = 1,…,q
+
+When the reflection coefficients satisfy |κ_m| < 1 the resulting MA polynomial is
+invertible. The entries of `κ` may be numbers or JuMP variables/expressions; the
+returned vector then contains the corresponding (possibly nonlinear) expressions.
+"""
+function reflectionToMA(κ)
+    q = length(κ)
+    q == 0 && return Any[]
+    prev = Any[κ[1]]
+    for m = 2:q
+        cur = Vector{Any}(undef, m)
+        cur[m] = κ[m]
+        for i = 1:(m-1)
+            cur[i] = prev[i] + κ[m] * prev[m-i]
+        end
+        prev = cur
+    end
+    return prev
+end
+
+
+"""
+    reflectionToAR(κ)
+
+Maps reflection coefficients (partial autocorrelations) `κ` to AR coefficients
+via the Levinson-Durbin recursion (the AR analogue of [`reflectionToMA`](@ref),
+with the opposite sign):
+
+    φ_m⁽ᵐ⁾ = κ_m
+    φ_i⁽ᵐ⁾ = φ_i⁽ᵐ⁻¹⁾ − κ_m · φ_{m−i}⁽ᵐ⁻¹⁾
+
+When |κ_m| < 1 the resulting AR polynomial is stationary. Entries may be
+numbers or JuMP variables/expressions.
+"""
+function reflectionToAR(κ)
+    p = length(κ)
+    p == 0 && return Any[]
+    prev = Any[κ[1]]
+    for m = 2:p
+        cur = Vector{Any}(undef, m)
+        cur[m] = κ[m]
+        for i = 1:(m-1)
+            cur[i] = prev[i] - κ[m] * prev[m-i]
+        end
+        prev = cur
+    end
+    return prev
 end
 
 function getParametersVector(model::SARIMAModel)
@@ -841,15 +1172,38 @@ Includes solver-specific parameters in the JuMP model.
 - `model::Model`: The JuMP model to which solver parameters will be included.
 
 """
-function includeSolverParameters!(model::Model, isSilent::Bool = true)
+function includeSolverParameters!(
+    model::Model,
+    isSilent::Bool = true;
+    mipSolver::DataType = SCIP.Optimizer,
+    objectiveFunction::String = "mse",
+)
     isSilent && solver_name(model) != "Alpine" && set_silent(model)
     if solver_name(model) == "Gurobi"
         set_optimizer_attribute(model, "NonConvex", 2)
     elseif solver_name(model) == "Alpine"
-        ipopt = optimizer_with_attributes(Ipopt.Optimizer)
-        highs = optimizer_with_attributes(HiGHS.Optimizer)
+        # Alpine relaxes the (bilinear/quadratic) SARIMAX model into a sub-problem that is
+        # passed to a MIP sub-solver. SCIP is the default because it can solve the
+        # mixed-integer quadratic (MIQP) relaxations produced by quadratic objectives
+        # such as "mse". HiGHS only handles the linear (MILP) relaxation of the "mae"
+        # objective; warn if it is requested for a quadratic objective.
+        if occursin("HiGHS", string(mipSolver)) && objectiveFunction != "mae"
+            @warn(
+                "The HiGHS MIP sub-solver cannot solve the mixed-integer quadratic (MIQP) " *
+                "relaxation that Alpine builds for the '$objectiveFunction' objective. " *
+                "Use objectiveFunction=\"mae\" (linear) with HiGHS, or keep the default " *
+                "SCIP mip_solver for quadratic objectives such as 'mse'."
+            )
+        end
+        ipopt =
+            isSilent ? optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0) :
+            optimizer_with_attributes(Ipopt.Optimizer)
+        mip =
+            (isSilent && occursin("SCIP", string(mipSolver))) ?
+            optimizer_with_attributes(mipSolver, "display/verblevel" => 0) :
+            optimizer_with_attributes(mipSolver)
         set_optimizer_attribute(model, "nlp_solver", ipopt)
-        set_optimizer_attribute(model, "mip_solver", highs)
+        set_optimizer_attribute(model, "mip_solver", mip)
     elseif solver_name(model) == "Ipopt"
         set_optimizer_attribute(model, "warm_start_init_point", "yes")
     end
@@ -869,11 +1223,11 @@ Includes the constraints in the JuMP model for the SARIMA model.
 """
 function includeModelConstraints!(
     jumpModel::Model,
-    yValues::Vector{Fl},
+    yValues::AbstractVector,
     T::Int,
     objectiveFunction::String,
     offset::Int,
-) where {Fl<:AbstractFloat}
+)
     if objectiveFunction == "mae"
         @variable(jumpModel, ϵ_plus[offset:T] >= 0)
         @variable(jumpModel, ϵ_minus[offset:T] >= 0)
@@ -911,6 +1265,7 @@ function objectiveFunctionDefinition!(
     model::SARIMAModel,
     objectiveFunction::String,
     T::Int,
+    lb::Int,
 )
     parametersVector::Vector{Symbol} = getParametersVector(model)
     parametersVectorExtended::Vector{VariableRef} =
@@ -924,7 +1279,6 @@ function objectiveFunctionDefinition!(
         @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
         set_time_limit_sec(jumpModel, 1.0)
     elseif objectiveFunction == "stable"
-        lb = max(model.p, model.P * model.seasonality, model.q, model.Q * model.seasonality) + 1
         @variable(jumpModel, δ >= 0)
         @variable(jumpModel, u[lb:T] >= 0)
         @constraint(jumpModel, [t = lb:T], δ + u[t] >= jumpModel[:ϵ][t]^2)
@@ -934,20 +1288,25 @@ function objectiveFunctionDefinition!(
     elseif objectiveFunction == "elastic_net"
         @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
     elseif objectiveFunction == "ml"
-        # llk(ϵ,μ,σ) = logpdf(Normal(μ,abs(σ)),ϵ)
-        # register(jumpModel, :llk, 3, llk, autodiff=true)
-        # @NLobjective( jumpModel, Max, sum(llk(ϵ[t],μ,σ) for t=lb:T))
-        @variable(jumpModel, μ, start = 0.0)
-        @variable(jumpModel, σ >= 0.0, start = 1.0)
-        @constraint(jumpModel, 0 <= μ <= 0.0)
-        # TODO: sum(logpdf(Normal(ŷ[t],σ),yValues[t]) for t in 1:T)
-        @objective(
-            jumpModel,
-            Max,
-            (T / 2) * log(1 / (2 * π * σ * σ)) -
-            sum((jumpModel[:ϵ][t] - μ)^2 for t = 1:T) / (2 * σ * σ)
-        )
+        # Concentrated conditional (CSS) Gaussian likelihood: profiling sigma out
+        # analytically (sigma2 = RSS/n) makes maximizing the likelihood equivalent
+        # to minimizing the sum of squared residuals over the effective sample.
+        # Keeping sigma as a decision variable is degenerate when RSS -> 0
+        # (noise-free data drives sigma -> 0 and the objective to +Inf).
+        @objective(jumpModel, Min, sum(jumpModel[:ϵ][t]^2 for t = lb:T))
     end
+end
+
+"""
+    checkSolverStatus(jumpModel::Model)
+
+Checks the termination status of a solved JuMP model and warns if it does not indicate success.
+"""
+function checkSolverStatus(jumpModel::Model)
+    st = termination_status(jumpModel)
+    ok = st in (MOI.OPTIMAL, MOI.LOCALLY_SOLVED, MOI.ALMOST_OPTIMAL, MOI.ALMOST_LOCALLY_SOLVED)
+    ok || @warn("Solver finished with a non-success termination status; estimates may be unreliable.", status = st)
+    return st
 end
 
 """
@@ -961,13 +1320,13 @@ Optimizes the SARIMA model using the specified objective function.
 - `objectiveFunction::String`: The objective function used for optimization.
 
 """
-function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction::String)
+function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction::String, lb::Int)
     JuMP.optimize!(jumpModel)
+    checkSolverStatus(jumpModel)
 
-    if objectiveFunction == "elastic_net" && isnothing(model.lambda) && getHyperparametersNumber(model) > 1
-        lb = max(model.p, model.P * model.seasonality, model.q, model.Q * model.seasonality) + 1
-        K = getHyperparametersNumber(jumpModel)
-        # println(getHyperparametersNumber(model)," - ", K)
+    if objectiveFunction == "elastic_net" && isnothing(model.lambda) && get_hyperparameters_number(model) > 1
+        K = get_hyperparameters_number(jumpModel)
+        # println(get_hyperparameters_number(model)," - ", K)
         model_variance = computeSARIMAModelVariance(
             jumpModel,
             objectiveFunction,
@@ -981,6 +1340,7 @@ function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction:
         tolerance = objective_value(jumpModel) + objective_std
         regularizationObjective(jumpModel, model, tolerance)
         JuMP.optimize!(jumpModel)
+        checkSolverStatus(jumpModel)
 
     elseif objectiveFunction == "bilevel"
 
@@ -1009,7 +1369,6 @@ function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction:
                 @warn("Trying another method")
                 results =
                     Optim.optimize(optimizeMA, initialCoefficients, Optim.NelderMead())
-                println(Optim.converged(results))
                 Optim.converged(results) || @warn("The optimization did not converge")
             end
         end
@@ -1035,14 +1394,22 @@ function computeSARIMAModelVariance(
     model::JuMP.Model,
     objectiveFunction::String,
     nParameters::Int,
-    offset::Int,
+    offset::Int;
+    missingMask::Union{Nothing,AbstractVector{Bool}} = nothing,
 )
+    resid = value.(model[:ϵ])[offset:end]
+    # Interpolated residuals at missing indices are not real innovations and
+    # must not enter σ², the log-likelihood, or the effective sample size.
+    isnothing(missingMask) || (resid = resid[.!missingMask])
+    nstar = length(resid)
+    rss = sum(resid .^ 2)
     if objectiveFunction == "ml"
-        return value(model[:σ])^2
+        # ML convention: sigma2 = RSS / n (sigma was concentrated out)
+        return rss / nstar
     end
-    nstar = length(value.(model[:ϵ][offset:end]))
-    return sum(value.(model[:ϵ])[offset:end] .^ 2) / (nstar - nParameters + 1)
+    return rss / (nstar - nParameters + 1)
 end
+
 
 """
     completeCoefficientsVector(model::SARIMAModel)
@@ -1060,22 +1427,53 @@ The function handles the seasonal components by zero-padding the coefficient vec
 """
 function completeCoefficientsVector(model::SARIMAModel)
     ModelFl = typeofModelElements(model)
-    maCoefficients = model.θ
+    s = model.seasonality
+    phiV = isnothing(model.ϕ) ? ModelFl[] : model.ϕ
+    thetaV = isnothing(model.θ) ? ModelFl[] : model.θ
+    PhiV = isnothing(model.Φ) ? ModelFl[] : model.Φ
+    ThetaV = isnothing(model.Θ) ? ModelFl[] : model.Θ
+
+    if modelSeasonalForm(model) === :multiplicative
+        # Full polynomials via the products phi(B)*Phi(B^s) and theta(B)*Theta(B^s),
+        # including the cross-lag coefficients.
+        arNS = vcat(one(ModelFl), -phiV)
+        arS = zeros(ModelFl, length(PhiV) * s + 1)
+        arS[1] = one(ModelFl)
+        for k = 1:length(PhiV)
+            arS[k*s+1] = -PhiV[k]
+        end
+        maNS = vcat(one(ModelFl), thetaV)
+        maS = zeros(ModelFl, length(ThetaV) * s + 1)
+        maS[1] = one(ModelFl)
+        for w = 1:length(ThetaV)
+            maS[w*s+1] = ThetaV[w]
+        end
+        arCoefficients = -polynomialMultiplication(arNS, arS)[2:end]
+        maCoefficients = polynomialMultiplication(maNS, maS)[2:end]
+        return arCoefficients, maCoefficients
+    end
+
+    # Additive form: zero-padded merge without cross terms (pre-v0.3 behavior).
+    (model.p >= s && model.P > 0 || model.q >= s && model.Q > 0) && @warn(
+        "Additive seasonal form with p >= s (or q >= s): seasonal coefficients " *
+        "overwrite non-seasonal ones at the colliding lags."
+    )
+    maCoefficients = thetaV
     if model.Q > 0
-        sizeMA = ( model.Q * model.seasonality > model.q) ? model.Q * model.seasonality : model.q
+        sizeMA = (model.Q * s > model.q) ? model.Q * s : model.q
         maCoefficients = zeros(ModelFl, sizeMA)
-        maCoefficients[1:model.q] = model.θ
+        maCoefficients[1:model.q] = thetaV
         for i = 1:model.Q
-            maCoefficients[model.seasonality*i] = model.Θ[i]
+            maCoefficients[s*i] = ThetaV[i]
         end
     end
 
-    arCoefficients = model.ϕ
+    arCoefficients = phiV
     if model.P > 0
-        arCoefficients = zeros(ModelFl, model.P * model.seasonality)
-        arCoefficients[1:model.p] = model.ϕ
+        arCoefficients = zeros(ModelFl, model.P * s)
+        arCoefficients[1:model.p] = phiV
         for i = 1:model.P
-            arCoefficients[model.seasonality*i] = model.Φ[i]
+            arCoefficients[s*i] = PhiV[i]
         end
     end
 
@@ -1083,7 +1481,7 @@ function completeCoefficientsVector(model::SARIMAModel)
 end
 
 """
-    toMA(model::SARIMAModel, maxLags::Int=12)
+    to_ma(model::SARIMAModel, maxLags::Int=12)
 
     Convert a SARIMA model to a Moving Average (MA) model.
 
@@ -1097,7 +1495,7 @@ end
     # References
     - Brockwell, P. J., & Davis, R. A. Time Series: Theory and Methods (page 92). Springer(2009)
 """
-function toMA(model::SARIMAModel, maxLags::Int = 12)
+function to_ma(model::SARIMAModel, maxLags::Int = 12)
     arCoefficients, maCoefficients = completeCoefficientsVector(model)
     p = isnothing(arCoefficients) ? 0 : length(arCoefficients)
     q = isnothing(maCoefficients) ? 0 : length(maCoefficients)
@@ -1115,26 +1513,67 @@ end
 
 
 """
+    polynomialMultiplication(a::Vector{Fl}, b::Vector{Fl}) where Fl<:AbstractFloat
+
+Multiplies two polynomials given by their coefficient vectors (constant term first).
+"""
+function polynomialMultiplication(a::Vector{Fl}, b::Vector{Fl}) where {Fl<:AbstractFloat}
+    c = zeros(Fl, length(a) + length(b) - 1)
+    for i in eachindex(a), j in eachindex(b)
+        c[i+j-1] += a[i] * b[j]
+    end
+    return c
+end
+
+"""
+    psiWeights(ar::Vector{Fl}, ma::Vector{Fl}, maxLags::Int) where Fl<:AbstractFloat
+
+ψ-weights (MA(∞) representation) of an ARMA process with AR coefficients `ar`
+and MA coefficients `ma`, via the standard recursion (Brockwell & Davis, 2009).
+"""
+function psiWeights(ar::Vector{Fl}, ma::Vector{Fl}, maxLags::Int) where {Fl<:AbstractFloat}
+    p = length(ar)
+    q = length(ma)
+    ψ = zeros(Fl, maxLags)
+    for i = 1:maxLags
+        tmp = (i <= q) ? ma[i] : zero(Fl)
+        for j = 1:min(i, p)
+            tmp += ar[j] * ((i - j > 0) ? ψ[i-j] : one(Fl))
+        end
+        ψ[i] = tmp
+    end
+    return ψ
+end
+
+"""
     forecastErrors(model::SARIMAModel, maxLags::Int=12)
 
-    The function computes the forecast errors for the SARIMA model using the estimated σ² and the MA coefficients.
+Computes the h-step-ahead forecast VARIANCES on the original (integrated)
+scale: the ψ-weights are derived from the AR polynomial composed with the
+differencing operator (1-B)^d (1-B^s)^D, so the uncertainty accumulated by
+re-integration is propagated (e.g. ARIMA(0,1,0) yields σ²·h).
 
-    # Arguments
-    - `model::SARIMAModel`: The SARIMA model.
-    - `maxLags::Int=12`: The maximum number of lags to include in the forecast errors.
-
-    # Returns
-    - `computedForecastErrors::Vector{Fl}`: The computed forecast errors.
-
-    # References
-    - Brockwell, P. J., & Davis, R. A. Time Series: Theory and Methods (page 92). Springer(2009)
+# References
+- Brockwell, P. J., & Davis, R. A. Time Series: Theory and Methods (page 92). Springer(2009)
 """
 function forecastErrors(model::SARIMAModel, maxLags::Int = 12)
-    ψ = toMA(model, maxLags)
-    computedForecastErrors = zeros(maxLags)
+    Fl = typeofModelElements(model)
+    ar, ma = completeCoefficientsVector(model)
+    arVec::Vector{Fl} = isnothing(ar) ? Fl[] : ar
+    maVec::Vector{Fl} = isnothing(ma) ? Fl[] : ma
+    # The forecast is reported on the ORIGINAL (integrated) scale, so the
+    # ψ-weights must come from ϕ*(B) = ϕ(B)·(1-B)^d·(1-B^s)^D — the AR
+    # polynomial composed with the differencing operator. Without this, the
+    # variance of an integrated series (e.g. σ²·h for ARIMA(0,1,0)) is lost.
+    arPoly = vcat(one(Fl), -arVec)
+    diffPoly = differentiated_coefficients(model.d, model.D, model.seasonality, Fl)
+    fullPoly = polynomialMultiplication(arPoly, diffPoly)
+    φ = -fullPoly[2:end]
+    ψ = psiWeights(φ, maVec, maxLags)
+    computedForecastErrors = zeros(Fl, maxLags)
     computedForecastErrors[1] = model.σ²
     for lag = 2:maxLags
-        computedForecastErrors[lag] = model.σ² * (1 + sum(ψ[i]^2 for i = 1:lag-1))
+        computedForecastErrors[lag] = model.σ² * (1 + sum(abs2, ψ[1:lag-1]))
     end
     return computedForecastErrors
 end
@@ -1164,7 +1603,7 @@ The resulting forecast is stored within the model in the `forecast` field.
 
 # Example
 ```julia
-julia> airPassengers = loadDataset(AIR_PASSENGERS)
+julia> airPassengers = load_dataset(AIR_PASSENGERS)
 
 julia> model = SARIMA(airPassengers, 0, 1, 1; seasonality=12, P=0, D=1, Q=1)
 
@@ -1185,7 +1624,7 @@ function predict!(
     Random.seed!(seed)
     forecastValues::Vector{ModelFl} =
         predict(model, stepsAhead, isSimulation, automaticExogDifferentiation)
-    forecastTimestamps::Vector{TimeType} = buildDatetimes(
+    forecastTimestamps::Vector{TimeType} = build_datetimes(
         timestamp(model.y)[end],
         getproperty(Dates, model.metadata["granularity"])(model.metadata["frequency"]),
         model.metadata["weekDaysOnly"],
@@ -1235,7 +1674,7 @@ Returns the forecasted values.
 
 # Example
 ```jldoctest
-julia> airPassengers = loadDataset(AIR_PASSENGERS)
+julia> airPassengers = load_dataset(AIR_PASSENGERS)
 
 julia> model = SARIMA(airPassengers, 0, 1, 1; seasonality=12, P=0, D=1, Q=1)
 
@@ -1247,7 +1686,7 @@ julia> forecastedValues = predict(model, stepsAhead=12)
 function predict(
     model::SARIMAModel,
     stepsAhead::Int = 1,
-    isSimulation::Bool = true,
+    isSimulation::Bool = false,
     automaticExogDifferentiation::Bool = false,
 )
     !isFitted(model) && throw(ModelNotFitted())
@@ -1257,7 +1696,7 @@ function predict(
     valuesExog = []
     if !isnothing(model.exog)
         if automaticExogDifferentiation
-            diffExog, _ = automaticDifferentiation(model.exog)
+            diffExog, _ = automatic_differentiation(model.exog)
         else
             diffExog = model.exog
         end
@@ -1281,11 +1720,19 @@ function predict(
     end
 
     yValues::Vector{ModelFl} = deepcopy(values(diffY))
+
+    driftFuture::Vector{ModelFl} = model.allowDrift ?
+        differentiate(
+            collect(ModelFl, 1:(length(values(model.y)) + stepsAhead)),
+            model.d, model.D, model.seasonality,
+        ) : ModelFl[]
     errors = deepcopy(model.ϵ)
 
-    for _ = 1:stepsAhead
-        forecastedValue::ModelFl = 0 + model.c + model.trend # *(T+stepsAhead)
+    for step = 1:stepsAhead
+        forecastedValue::ModelFl =
+            model.c + (model.allowDrift ? model.trend * driftFuture[T+step] : model.trend)
         errorsLength = length(errors)
+        yLength = length(yValues)
         if model.p > 0
             # ∑ϕᵢyₜ -i
             forecastedValue += sum(model.ϕ[i] * yValues[end-i+1] for i = 1:model.p)
@@ -1299,8 +1746,10 @@ function predict(
         end
         if model.P > 0
             # ∑Φₖyₜ-(s*k)
-            forecastedValue +=
-                sum(model.Φ[k] * yValues[end-(model.seasonality*k)+1] for k = 1:model.P)
+            forecastedValue += sum(
+                model.Φ[k] * yValues[end-(model.seasonality*k)+1] for
+                k = 1:model.P if (yLength - model.seasonality * k + 1 > 0)
+            )
         end
         if model.Q > 0
             # ∑Θₖϵₜ-(s*k)
@@ -1309,8 +1758,22 @@ function predict(
                 w = 1:model.Q if (errorsLength - (model.seasonality * w) + 1 > 0)
             )
         end
+        if modelSeasonalForm(model) === :multiplicative
+            if model.p > 0 && model.P > 0
+                for i = 1:model.p, k = 1:model.P
+                    idx = yLength - i - model.seasonality * k + 1
+                    idx > 0 && (forecastedValue -= model.ϕ[i] * model.Φ[k] * yValues[idx])
+                end
+            end
+            if model.q > 0 && model.Q > 0
+                for j = 1:model.q, w = 1:model.Q
+                    idx = errorsLength - j - model.seasonality * w + 1
+                    idx > 0 && (forecastedValue += model.θ[j] * model.Θ[w] * errors[idx])
+                end
+            end
+        end
         if !isnothing(model.exog)
-            forecastedValue += valuesExog[T+stepsAhead, :]'model.exogCoefficients
+            forecastedValue += valuesExog[T+step, :]'model.exogCoefficients
         end
 
         ϵₜ = isSimulation ? rand(Normal(0, sqrt(model.σ²))) : 0
@@ -1355,7 +1818,7 @@ Returns a vector of `numScenarios` scenarios of the forecasted values.
 
 # Example
 ```jldoctest
-julia> airPassengers = loadDataset(AIR_PASSENGERS)
+julia> airPassengers = load_dataset(AIR_PASSENGERS)
 
 julia> model = SARIMA(airPassengers, 0, 1, 1; seasonality=12, P=0, D=1, Q=1)
 
@@ -1428,12 +1891,17 @@ Automatically fits the best SARIMA model according to the specified parameters.
 - `allowDrift::Union{Bool,Nothing}`: Whether to include a drift term in the model. Default is nothing.
 - `integrationTest::String`: The integration test to be used for determining the non-seasonal integration order. Default is "kpss".
 - `seasonalIntegrationTest::String`: The integration test to be used for determining the seasonal integration order. Default is "seas".
-- `objectiveFunction::String`: The objective function to be used for model selection. Options are "mse", "ml", or "bilevel". Default is "mse".
+- `objectiveFunction::String`: The objective function to be used for model selection.
+- `parallel::Bool`: Fit candidate models across Julia threads (experimental; applies to
+  the "grid" and "stepwiseNaive" searches; requires starting Julia with multiple
+  threads). Default is `false`. Options are "mse", "ml", or "bilevel". Default is "mse".
 - `assertStationarity::Bool`: Whether to assert stationarity of the fitted model. Default is true.
 - `assertInvertibility::Bool`: Whether to assert invertibility of the fitted model. Default is true.
 - `showLogs::Bool`: Whether to suppress output. Default is false.
 - `outlierDetection::Bool`: Whether to perform outlier detection. Default is false.
-- searchMethod::String = "stepwise"
+- `searchMethod::String`: The search strategy: "stepwise" (Hyndman-Khandakar style, default),
+  "stepwiseNaive", "grid" (exhaustive), or "sarimax" (no search: fits a single dense
+  specification at the maximum orders, intended for regularized estimation).
 
 # References
 - Hyndman, RJ and Khandakar. "Automatic time series forecasting: The forecast package for R." Journal of Statistical Software, 26(3), 2008.
@@ -1461,11 +1929,22 @@ function auto(
     assertInvertibility::Bool = true,
     showLogs::Bool = false,
     outlierDetection::Bool = false,
-    searchMethod::String = "sarimax",
+    searchMethod::String = "stepwise",
+    parallel::Bool = false,
+    seasonalForm::Symbol = :multiplicative,
+    initialization::Symbol = :zeroed,
+    stationary::Bool = false,
+    stationarityMargin::AbstractFloat = 0.0,
     lambda::Union{Float64,Nothing} = nothing,
     alpha::Union{Float64,Nothing} = nothing,
 )
     # Parameter validation
+    any(isnan, values(y)) && throw(
+        ArgumentError(
+            "Automatic order selection does not support missing data. Fit a " *
+            "specific stationary model with SARIMA(...) + fit! instead, or impute first.",
+        ),
+    )
     @assert seasonality >= 1 "seasonality must be greater than 1. Use 1 for non-seasonal models"
     @assert d >= -1
     @assert d <= maxd
@@ -1486,6 +1965,8 @@ function auto(
     @assert objectiveFunction == "elastic_net" || isnothing(lambda)
     @assert objectiveFunction == "elastic_net" || isnothing(alpha)
     @assert searchMethod ∈ ["stepwise", "stepwiseNaive", "grid", "sarimax"]
+    @assert seasonalForm in (:multiplicative, :additive) "seasonalForm must be :multiplicative or :additive (:free is planned)"
+    @assert initialization in (:zeroed, :warmup) "initialization must be :zeroed or :warmup"
 
     ModelFl = eltype(values(y))
     informationCriteriaFunction = getInformationCriteriaFunction(informationCriteria)
@@ -1590,7 +2071,10 @@ function auto(
     maxQ =
         (seasonality == 1) ? 0 : min(maxQ, floor(Int, length(values(y)) / 3 * seasonality))
 
-    offset = computeModelsICOffset(y, exog, d, D, seasonality)
+    # All search candidates are conditioned on the same pre-sample length so
+    # that their CSS likelihoods (and hence information criteria) are computed
+    # on the same effective sample.
+    searchLb = conditioningLags(maxp, maxq, maxP, maxQ, seasonality, seasonalForm)
 
     if outlierDetection
         exog = detectOutliers(y, exog, d, D, seasonality, showLogs)
@@ -1613,7 +2097,11 @@ function auto(
             assertStationarity = assertStationarity,
             assertInvertibility = assertInvertibility,
             showLogs = showLogs,
-            icOffset = offset,
+            minConditioningObs = searchLb,
+            seasonalForm = seasonalForm,
+            initialization = initialization,
+            stationary = stationary,
+            stationarityMargin = stationarityMargin,
             allowMean = allowMean,
             allowDrift = allowDrift,
             alpha = alpha,
@@ -1636,7 +2124,12 @@ function auto(
             assertStationarity = assertStationarity,
             assertInvertibility = assertInvertibility,
             showLogs = showLogs,
-            icOffset = offset,
+            minConditioningObs = searchLb,
+            seasonalForm = seasonalForm,
+            initialization = initialization,
+            stationary = stationary,
+            stationarityMargin = stationarityMargin,
+            parallel = parallel,
             allowMean = allowMean,
             allowDrift = allowDrift,
             fixConstant = fixConstant,
@@ -1660,7 +2153,12 @@ function auto(
             assertStationarity = assertStationarity,
             assertInvertibility = assertInvertibility,
             showLogs = showLogs,
-            icOffset = offset,
+            minConditioningObs = searchLb,
+            seasonalForm = seasonalForm,
+            initialization = initialization,
+            stationary = stationary,
+            stationarityMargin = stationarityMargin,
+            parallel = parallel,
             allowMean = allowMean,
             allowDrift = allowDrift,
             alpha = alpha,
@@ -1698,11 +2196,10 @@ function auto(
             )
         end
 
-        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs)
+        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs, minConditioningObs = searchLb, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
     end
 
     bestModel.exog = exog
-    bestModel.icOffset = offset
     showLogs && @info("The best model found is $(getId(bestModel))")
 
     return bestModel
@@ -1861,57 +2358,6 @@ function constantDiffSeriesModelSpecification(
     fit!(model)
 
     return model
-end
-
-"""
-    computeModelsICOffset(
-        y::TimeArray,
-        exog::Union{TimeArray,Nothing},
-        d::Int,
-        D::Int,
-        seasonality::Int
-    )
-
-Computes the offset value for the SARIMA model.
-
-# Arguments
-
-- `y::TimeArray`: The time series data.
-- `exog::Union{TimeArray,Nothing}`: Optional exogenous variables. If `Nothing`, no exogenous variables are used.
-- `d::Int`: The degree of differencing.
-- `D::Int`: The degree of seasonal differencing.
-- `seasonality::Int`: The seasonality period.
-
-# Returns
-- `AbstractFloat`: The computed offset value.
-"""
-function computeModelsICOffset(
-    y::TimeArray,
-    exog::Union{TimeArray,Nothing},
-    d::Int,
-    D::Int,
-    seasonality::Int,
-)
-    if D == 0
-        model = SARIMA(y, exog, 0, d, 0; allowMean = true)
-    else
-        model = SARIMA(
-            y,
-            exog,
-            0,
-            d,
-            0;
-            P = 0,
-            D = D,
-            Q = 0,
-            seasonality = seasonality,
-            allowMean = true,
-        )
-    end
-    fit!(model)
-    llk_offset = Sarimax.loglike(model)
-    offset = -2 * llk_offset - length(model.y) * log(model.σ²)
-    return offset
 end
 
 """
@@ -2338,6 +2784,17 @@ function checkModelStationarityInvertibility(
     assertInvertibility::Bool,
     showLogs::Bool,
 )
+    # Candidates whose solver did not succeed are never selected: their
+    # "estimates" are whatever point the solver stopped at. (TIME_LIMIT is
+    # accepted: the bilevel objective sets a deliberate inner time limit.)
+    solverStatus = get(model.metadata, "solverStatus", "OPTIMAL")
+    solverOK = solverStatus in
+        ("OPTIMAL", "LOCALLY_SOLVED", "ALMOST_OPTIMAL", "ALMOST_LOCALLY_SOLVED", "TIME_LIMIT")
+    if !solverOK
+        showLogs && @info("The model $(getId(model)) is discarded: solver status $(solverStatus)")
+        return false
+    end
+
     arCoefficients, maCoefficients = completeCoefficientsVector(model)
 
     invertible =
@@ -2397,32 +2854,46 @@ function localSearch!(
     assertStationarity::Bool = false,
     assertInvertibility::Bool = false,
     showLogs::Bool = false,
-    icOffset::Fl = 0.0
+    icOffset::Fl = 0.0,
+    minConditioningObs::Int = 0,
+    seasonalForm::Symbol = :multiplicative,
+    initialization::Symbol = :zeroed,
+    stationary::Bool = false,
+    stationarityMargin::AbstractFloat = 0.0,
+    parallel::Bool = false,
 ) where {Fl<:AbstractFloat}
-    ModelFl = Fl#typeofModelElements(candidateModels[1])
+    ModelFl = Fl
     localBestCriteria::ModelFl = Inf
     localBestModel = nothing
-    foreach(
-        model -> if !isFitted(model)
-            fit!(model; objectiveFunction = objectiveFunction)
-            criteria = informationCriteriaFunction(model; offset = icOffset)
-            showLogs && @info("Fitted $(getId(model)) with $(criteria)")
-            visitedModels[getId(model)] = Dict("criteria" => criteria)
-
-            if criteria < localBestCriteria
-                if checkModelStationarityInvertibility(
-                    model,
-                    assertStationarity,
-                    assertInvertibility,
-                    showLogs,
-                )
-                    localBestCriteria = criteria
-                    localBestModel = model
-                end
+    toFit = filter(m -> !isFitted(m), candidateModels)
+    if parallel
+        Threads.@threads for model in toFit
+            try
+                fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
+            catch e
+                @warn "Parallel candidate fit failed" exception = e
             end
-        end,
-        candidateModels,
-    )
+        end
+    else
+        foreach(model -> fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin), toFit)
+    end
+    for model in toFit
+        isFitted(model) || continue
+        criteria = informationCriteriaFunction(model; offset = icOffset)
+        showLogs && @info("Fitted $(getId(model)) with $(criteria)")
+        visitedModels[getId(model)] = Dict("criteria" => criteria)
+        if criteria < localBestCriteria
+            if checkModelStationarityInvertibility(
+                model,
+                assertStationarity,
+                assertInvertibility,
+                showLogs,
+            )
+                localBestCriteria = criteria
+                localBestModel = model
+            end
+        end
+    end
     return localBestCriteria, localBestModel
 end
 
@@ -2798,11 +3269,17 @@ function stepWiseSearchNaive(
     allowMean::Bool = true,
     allowDrift::Bool = false,
     showLogs::Bool = false,
-    icOffset::Fl = 0.0,
+    icOffset::AbstractFloat = 0.0,
+    minConditioningObs::Int = 0,
+    seasonalForm::Symbol = :multiplicative,
+    initialization::Symbol = :zeroed,
+    stationary::Bool = false,
+    stationarityMargin::AbstractFloat = 0.0,
+    parallel::Bool = false,
     fixConstant::Bool = false,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,Float64} = nothing,
-) where {Fl<:AbstractFloat}
+)
     # Include initial models
     candidateModels = Vector{SARIMAModel}()
     visitedModels = Dict{String,Dict{String,Any}}()
@@ -2845,7 +3322,23 @@ function stepWiseSearchNaive(
         assertInvertibility,
         showLogs,
         icOffset,
+        minConditioningObs,
+        seasonalForm,
+        initialization,
+        stationary,
+        stationarityMargin,
+        parallel,
     )
+
+    if isnothing(bestModel)
+        @warn "No stationary/invertible candidate found among initial models; selecting best by information criterion regardless."
+        fittedModels = filter(isFitted, candidateModels)
+        bestModel = argmin(
+            m -> informationCriteriaFunction(m; offset = icOffset),
+            fittedModels,
+        )
+        bestCriteria = informationCriteriaFunction(bestModel; offset = icOffset)
+    end
 
     ITERATION_LIMIT = 100
     iterations = 1
@@ -2884,8 +3377,14 @@ function stepWiseSearchNaive(
             assertInvertibility,
             showLogs,
             icOffset,
+            minConditioningObs,
+            seasonalForm,
+            initialization,
+            stationary,
+            stationarityMargin,
+            parallel,
         )
-        showLogs && @info(
+        showLogs && !isnothing(itBestModel) && @info(
             "Iteration $(iterations): Best model found is $(getId(itBestModel)) with $(itBestCriteria) criteria"
         )
 
@@ -2995,11 +3494,16 @@ function stepwiseSearch(
     allowMean::Bool = true,
     allowDrift::Bool = false,
     showLogs::Bool = false,
-    icOffset::Fl = 0.0,
+    icOffset::AbstractFloat = 0.0,
+    minConditioningObs::Int = 0,
+    seasonalForm::Symbol = :multiplicative,
+    initialization::Symbol = :zeroed,
+    stationary::Bool = false,
+    stationarityMargin::AbstractFloat = 0.0,
     maxModels::Int = 94,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
     lambda::Union{Nothing,<:AbstractFloat} = nothing,
-) where {Fl<:AbstractFloat}
+)
     constant = allowDrift || allowMean
     p = min(startp, maxp)
     q = min(startq, maxq)
@@ -3022,7 +3526,7 @@ function stepwiseSearch(
         alpha = alpha,
         lambda = lambda
     )
-    fit!(bestModel; objectiveFunction = objectiveFunction)
+    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
     showLogs && @info(
         "Fitted $(getId(bestModel)) with $(informationCriteriaFunction(bestModel; offset=icOffset)) criteria"
     )
@@ -3051,7 +3555,7 @@ function stepwiseSearch(
         alpha = alpha,
         lambda = lambda
     )
-    fit!(fitModel; objectiveFunction = objectiveFunction)
+    fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
     showLogs && @info(
         "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
     )
@@ -3096,7 +3600,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -3137,7 +3641,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -3176,7 +3680,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -3199,719 +3703,88 @@ function stepwiseSearch(
         k += 1
     end
 
+    # Try one neighbour specification; when it improves the information
+    # criterion and passes the admissibility checks, adopt it as the new best.
+    function tryCandidate!(newp::Int, newq::Int, newP::Int, newQ::Int, cAllowMean::Bool, cAllowDrift::Bool)
+        newModel(results, newp, d, newq, newP, D, newQ, seasonality, cAllowMean, cAllowDrift) ||
+            return false
+        k += 1
+        k > maxModels && return false
+        fitModel = SARIMA(
+            y,
+            exog,
+            newp,
+            d,
+            newq;
+            P = newP,
+            D = D,
+            Q = newQ,
+            seasonality = seasonality,
+            allowMean = cAllowMean,
+            allowDrift = cAllowDrift,
+            alpha = alpha,
+            lambda = lambda,
+        )
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
+        showLogs && @info(
+            "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
+        )
+        considerModel = checkModelStationarityInvertibility(
+            fitModel,
+            assertStationarity,
+            assertInvertibility,
+            showLogs,
+        )
+        results[getId(fitModel)] = fitModel
+        if considerModel &&
+           informationCriteriaFunction(fitModel; offset = icOffset) <
+           informationCriteriaFunction(bestModel; offset = icOffset)
+            bestModel = fitModel
+            return true
+        end
+        return false
+    end
+
+    # Hyndman-Khandakar neighbourhood scan. The move order matches the previous
+    # (unrolled) implementation: seasonal singles, seasonal pairs, non-seasonal
+    # singles, non-seasonal pairs; on the first improving move the scan restarts.
+    moves = (
+        (0, 0, -1, 0),
+        (0, 0, 0, -1),
+        (0, 0, 1, 0),
+        (0, 0, 0, 1),
+        (0, 0, -1, -1),
+        (0, 0, -1, 1),
+        (0, 0, 1, -1),
+        (0, 0, 1, 1),
+        (-1, 0, 0, 0),
+        (0, -1, 0, 0),
+        (1, 0, 0, 0),
+        (0, 1, 0, 0),
+        (-1, -1, 0, 0),
+        (-1, 1, 0, 0),
+        (1, -1, 0, 0),
+        (1, 1, 0, 0),
+    )
+
     startk = 0
     while (startk < k && k < maxModels)
         startk = k
-        if (
-            P > 0 &&
-            newModel(results, p, d, q, P - 1, D, Q, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p,
-                d,
-                q;
-                P = P - 1,
-                D = D,
-                Q = Q,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                P -= 1
+        improved = false
+        for (dp, dq, dP, dQ) in moves
+            newp, newq, newP, newQ = p + dp, q + dq, P + dP, Q + dQ
+            (0 <= newp <= maxp && 0 <= newq <= maxq && 0 <= newP <= maxP && 0 <= newQ <= maxQ) ||
                 continue
+            if tryCandidate!(newp, newq, newP, newQ, allowMean, allowDrift)
+                p, q, P, Q = newp, newq, newP, newQ
+                improved = true
+                break
             end
         end
+        improved && continue
 
-        if (
-            Q > 0 &&
-            newModel(results, p, d, q, P, D, Q - 1, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p,
-                d,
-                q;
-                P = P,
-                D = D,
-                Q = Q - 1,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                Q -= 1
-                continue
-            end
-        end
-
-        if (
-            P < maxP &&
-            newModel(results, p, d, q, P + 1, D, Q, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p,
-                d,
-                q;
-                P = P + 1,
-                D = D,
-                Q = Q,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                P += 1
-                continue
-            end
-        end
-
-        if (
-            Q < maxQ &&
-            newModel(results, p, d, q, P, D, Q + 1, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p,
-                d,
-                q;
-                P = P,
-                D = D,
-                Q = Q + 1,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                Q += 1
-                continue
-            end
-        end
-
-        if (
-            Q > 0 &&
-            P > 0 &&
-            newModel(results, p, d, q, P - 1, D, Q - 1, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p,
-                d,
-                q;
-                P = P - 1,
-                D = D,
-                Q = Q - 1,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                P -= 1
-                Q -= 1
-                continue
-            end
-        end
-
-        if (
-            Q < maxQ &&
-            P > 0 &&
-            newModel(results, p, d, q, P - 1, D, Q + 1, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p,
-                d,
-                q;
-                P = P - 1,
-                D = D,
-                Q = Q + 1,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                P -= 1
-                Q += 1
-                continue
-            end
-        end
-
-        if (
-            Q > 0 &&
-            P < maxP &&
-            newModel(results, p, d, q, P + 1, D, Q - 1, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p,
-                d,
-                q;
-                P = P + 1,
-                D = D,
-                Q = Q - 1,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                P += 1
-                Q -= 1
-                continue
-            end
-        end
-
-        if (
-            Q < maxQ &&
-            P < maxP &&
-            newModel(results, p, d, q, P + 1, D, Q + 1, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p,
-                d,
-                q;
-                P = P + 1,
-                D = D,
-                Q = Q + 1,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                P += 1
-                Q += 1
-                continue
-            end
-        end
-
-        if (
-            p > 0 &&
-            newModel(results, p - 1, d, q, P, D, Q, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p - 1,
-                d,
-                q;
-                P = P,
-                D = D,
-                Q = Q,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                p -= 1
-                continue
-            end
-        end
-
-        if (
-            q > 0 &&
-            newModel(results, p, d, q - 1, P, D, Q, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p,
-                d,
-                q - 1;
-                P = P,
-                D = D,
-                Q = Q,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                q -= 1
-                continue
-            end
-        end
-
-        if (
-            p < maxp &&
-            newModel(results, p + 1, d, q, P, D, Q, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p + 1,
-                d,
-                q;
-                P = P,
-                D = D,
-                Q = Q,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                p += 1
-                continue
-            end
-        end
-
-        if (
-            q < maxq &&
-            newModel(results, p, d, q + 1, P, D, Q, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p,
-                d,
-                q + 1;
-                P = P,
-                D = D,
-                Q = Q,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                q += 1
-                continue
-            end
-        end
-
-        if (
-            q > 0 &&
-            p > 0 &&
-            newModel(results, p - 1, d, q - 1, P, D, Q, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p - 1,
-                d,
-                q - 1;
-                P = P,
-                D = D,
-                Q = Q,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                p -= 1
-                q -= 1
-                continue
-            end
-        end
-
-        if (
-            q < maxq &&
-            p > 0 &&
-            newModel(results, p - 1, d, q + 1, P, D, Q, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p - 1,
-                d,
-                q + 1;
-                P = P,
-                D = D,
-                Q = Q,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                p -= 1
-                q += 1
-                continue
-            end
-        end
-
-        if (
-            q > 0 &&
-            p < maxp &&
-            newModel(results, p + 1, d, q - 1, P, D, Q, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p + 1,
-                d,
-                q - 1;
-                P = P,
-                D = D,
-                Q = Q,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                p += 1
-                q -= 1
-                continue
-            end
-        end
-
-        if (
-            q < maxq &&
-            p < maxp &&
-            newModel(results, p + 1, d, q + 1, P, D, Q, seasonality, allowMean, allowDrift)
-        )
-            k += 1
-            (k > maxModels) && continue
-            fitModel = SARIMA(
-                y,
-                exog,
-                p + 1,
-                d,
-                q + 1;
-                P = P,
-                D = D,
-                Q = Q,
-                seasonality = seasonality,
-                allowMean = allowMean,
-                allowDrift = allowDrift,
-                alpha = alpha,
-                lambda = lambda
-            )
-            fit!(fitModel; objectiveFunction = objectiveFunction)
-            showLogs && @info(
-                "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-            )
-            considerModel = checkModelStationarityInvertibility(
-                fitModel,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-            results[getId(fitModel)] = fitModel
-            if considerModel &&
-               informationCriteriaFunction(fitModel; offset = icOffset) <
-               informationCriteriaFunction(bestModel; offset = icOffset)
-                bestModel = fitModel
-                p += 1
-                q += 1
-                continue
-            end
-        end
-
-        if (allowDrift || allowMean)
-            if (newModel(results, p, d, q, P, D, Q, seasonality, !constant, false))
-                k += 1
-                (k > maxModels) && continue
-                fitModel = SARIMA(
-                    y,
-                    exog,
-                    p,
-                    d,
-                    q;
-                    P = P,
-                    D = D,
-                    Q = Q,
-                    seasonality = seasonality,
-                    allowMean = !constant,
-                    allowDrift = false,
-                    alpha = alpha,
-                    lambda = lambda
-                )
-                fit!(fitModel; objectiveFunction = objectiveFunction)
-                showLogs && @info(
-                    "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
-                )
-                considerModel = checkModelStationarityInvertibility(
-                    fitModel,
-                    assertStationarity,
-                    assertInvertibility,
-                    showLogs,
-                )
-                results[getId(fitModel)] = fitModel
-                if considerModel &&
-                   informationCriteriaFunction(fitModel; offset = icOffset) <
-                   informationCriteriaFunction(bestModel; offset = icOffset)
-                    bestModel = fitModel
-                    constant != constant
-                    continue
-                end
-            end
+        if (allowDrift || allowMean) && tryCandidate!(p, q, P, Q, !constant, false)
+            constant = !constant
         end
     end
 
@@ -3984,65 +3857,89 @@ function gridSearch(
     allowMean::Bool = false,
     allowDrift::Bool = false,
     showLogs::Bool = false,
-    icOffset::Fl = 0.0,
+    icOffset::AbstractFloat = 0.0,
+    minConditioningObs::Int = 0,
+    seasonalForm::Symbol = :multiplicative,
+    initialization::Symbol = :zeroed,
+    stationary::Bool = false,
+    stationarityMargin::AbstractFloat = 0.0,
+    parallel::Bool = false,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,Float64} = nothing,
-) where {Fl<:AbstractFloat}
+)
     maxK = (allowMean || allowDrift) ? 1 : 0
-    bestModel = SARIMA(
-        y,
-        exog,
-        0,
-        d,
-        0;
-        P = 0,
-        D = D,
-        Q = 0,
-        seasonality = seasonality,
-        allowMean = allowMean,
-        allowDrift = allowDrift,
-        alpha = alpha,
-        lambda = lambda,
-    )
-    fit!(bestModel; objectiveFunction = objectiveFunction)
-    bestIC = informationCriteriaFunction(bestModel; offset = icOffset)
-
-    for p = 0:maxp, q = 0:maxq, P = 0:maxP, Q = 0:maxQ, k = 0:maxK
-        if p + q + P + Q > maxOrder
-            continue
-        end
-        model = SARIMA(
+    candidates = SARIMAModel[]
+    push!(
+        candidates,
+        SARIMA(
             y,
             exog,
-            p,
+            0,
             d,
-            q;
-            P = P,
+            0;
+            P = 0,
             D = D,
-            Q = Q,
+            Q = 0,
             seasonality = seasonality,
-            allowMean = (k == 1),
-            allowDrift = false,
+            allowMean = allowMean,
+            allowDrift = allowDrift,
             alpha = alpha,
             lambda = lambda,
+        ),
+    )
+    for p = 0:maxp, q = 0:maxq, P = 0:maxP, Q = 0:maxQ, kc = 0:maxK
+        p + q + P + Q > maxOrder && continue
+        push!(
+            candidates,
+            SARIMA(
+                y,
+                exog,
+                p,
+                d,
+                q;
+                P = P,
+                D = D,
+                Q = Q,
+                seasonality = seasonality,
+                allowMean = (kc == 1),
+                allowDrift = false,
+                alpha = alpha,
+                lambda = lambda,
+            ),
         )
-        fit!(model; objectiveFunction = objectiveFunction)
-        ic = informationCriteriaFunction(model; offset = icOffset)
-        showLogs && @info(
-            "Fitted $(getId(model)) with $(informationCriteriaFunction(model; offset=icOffset)) criteria"
-        )
+    end
+
+    fitOne!(m) = fit!(m; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
+    if parallel
+        Threads.@threads for m in candidates
+            try
+                fitOne!(m)
+            catch e
+                @warn "Parallel candidate fit failed" exception = e
+            end
+        end
+    else
+        foreach(fitOne!, candidates)
+    end
+
+    bestModel = nothing
+    bestIC = Inf
+    for m in candidates
+        isFitted(m) || continue
+        ic = informationCriteriaFunction(m; offset = icOffset)
+        showLogs && @info("Fitted $(getId(m)) with $(ic) criteria")
         considerModel = checkModelStationarityInvertibility(
-            model,
+            m,
             assertStationarity,
             assertInvertibility,
             showLogs,
         )
-
         if considerModel && ic < bestIC
-            bestModel = model
+            bestModel = m
             bestIC = ic
         end
     end
+    isnothing(bestModel) && (bestModel = candidates[1])
     return bestModel
 end
 
@@ -4070,7 +3967,6 @@ function regularizationObjective(jumpModel::Model, model::SARIMAModel, tolerance
 
         push!(weights, aux_weights...)
     end
-    println(weights)
 
     if length(parametersVectorExtended) == 0
         @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))

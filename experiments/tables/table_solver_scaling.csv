@@ -1,0 +1,8 @@
+T,Termination,Certified,RelGap,Time (s),Obj,BruteForce
+40,OPTIMAL,yes,0,15.4,34.8300,agree
+60,OPTIMAL,yes,0,31.7,41.9892,agree
+80,OPTIMAL,yes,0,68.0,73.6531,agree
+100,OPTIMAL,yes,0,400.0,82.9035,agree
+120,OPTIMAL,yes,0,297.0,132.9811,agree
+150,TIME_LIMIT,no,1.0e-05,600.8,184.7940,--
+200,TIME_LIMIT,no,1.2e-05,600.8,246.4618,--

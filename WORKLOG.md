@@ -158,3 +158,26 @@ alias) to eliminate the shared-identity situation outright, rather than carrying
 `treat_as_own` exemption forever. Low priority unless a real dispatch conflict is
 ever observed. If `julia +1.12` is used for local dev/testing, prefer
 `import StateSpaceModels` (not `using`) in scripts, per the existing gotcha note.
+
+**Symptom 3 (found after re-running CI with the two fixes above) — Windows-only
+Aqua "Persistent tasks" error, all other OS/version combos green.** Root cause,
+from the actual gh run log (not a Windows/CI generality — get the real message):
+Aqua's `test_persistent_tasks` check does an ISOLATED `Pkg.develop` of the package
+into a fresh temp sandbox and rebuilds the ENTIRE dependency tree from scratch
+there (unlike the main test run, which reuses the already-instantiated project
+environment). In that fresh sandbox, SCIP's own `build.jl` fails outright:
+```
+Error building `SCIP`:
+┌ Warning: SCIP_jll still doesn't work with windows, segfaults are likely!
+ERROR: LoadError: Unable to locate SCIP installation... libscip.dll could not be loaded
+```
+This is SCIP.jl's OWN documented Windows limitation, not a Sarimax bug — confirmed
+`grep -rn "@async\|Threads.@spawn\|Timer(" src/` returns nothing, so there is no
+real risk of a lingering background task for this check to legitimately catch.
+Fixed: `persistent_tasks = !Sys.iswindows()` in `test/aqua.jl` (check stays active
+on Linux/macOS, where it passed). This means: **the "Julia 1 - windows-latest" CI
+job's real functional test suite (all 567+ Sarimax tests) already passes fine on
+Windows** — SCIP builds/loads OK in the main already-instantiated environment on
+that runner; only Aqua's from-scratch sandboxed rebuild hits the upstream
+SCIP-on-Windows gap. Do not conflate the two: Sarimax itself is NOT broken on
+Windows from this incident.

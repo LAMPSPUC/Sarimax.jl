@@ -17,10 +17,21 @@ using Aqua
     # than renaming the long-standing public `SARIMA` API. See WORKLOG.md for the
     # investigation and the follow-up considered (renaming to avoid the
     # collision outright).
+    #
+    # persistent_tasks is skipped on Windows only: this check works by doing an
+    # isolated `Pkg.develop` of the package into a fresh temp sandbox and
+    # rebuilding the FULL dependency tree from scratch there (unlike the main
+    # test run, which reuses the already-instantiated environment). SCIP.jl's
+    # own build script explicitly declares Windows unsupported ("SCIP_jll still
+    # doesn't work with windows, segfaults are likely!") and the sandboxed
+    # rebuild fails to locate libscip.dll. This is an upstream SCIP-on-Windows
+    # limitation, not a Sarimax bug: `src/` has no `@async`/`Timer`/
+    # `Threads.@spawn`, so there is no real risk of a lingering background task.
     Aqua.test_all(
         Sarimax;
         ambiguities = false,
         deps_compat = (check_extras = false,),
         piracies = (treat_as_own = [Sarimax.SARIMA],),
+        persistent_tasks = !Sys.iswindows(),
     )
 end

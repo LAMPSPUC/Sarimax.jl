@@ -1357,15 +1357,20 @@ function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction:
             ma_lower_bound = -1 .* ones(model.q + model.Q)
             ma_upper_bound = ones(model.q + model.Q)
             initialCoefficients = zeros(model.q + model.Q)# vcat(parameter_value.(θ),parameter_value.(Θ))#
-            results = Optim.optimize(
-                optimizeMA,
-                ma_lower_bound,
-                ma_upper_bound,
-                initialCoefficients,
-            )
-            #results = Optim.optimize(optimizeMA,initialCoefficients,LBFGS(),Optim.Options(time_limit=60))
-            if !Optim.converged(results)
-                @warn("The optimization did not converge")
+            # Fminbox's default inner solver (LBFGS + Hager-Zhang line search) can
+            # throw an AssertionError from LineSearches on nearly-flat objective
+            # surfaces (a known LineSearches.jl edge case), rather than returning
+            # a non-converged result. That exception must be caught here too -
+            # not just non-convergence - or it escapes uncaught and crashes fit!
+            # entirely, before ever reaching the NelderMead fallback below.
+            results = try
+                Optim.optimize(optimizeMA, ma_lower_bound, ma_upper_bound, initialCoefficients)
+            catch e
+                @warn "The gradient-based optimizer failed" exception = e
+                nothing
+            end
+            if isnothing(results) || !Optim.converged(results)
+                isnothing(results) || @warn("The optimization did not converge")
                 @warn("Trying another method")
                 results =
                     Optim.optimize(optimizeMA, initialCoefficients, Optim.NelderMead())

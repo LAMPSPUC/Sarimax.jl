@@ -1,0 +1,8 @@
+T=150 -> TIME_LIMIT  obj=184.794  gap=1.016857109029646e-5  rt=600.8s  [not certified]
+┌ Warning: Assignment to `consecutive_fail` in soft scope is ambiguous because a global variable by the same name exists: `consecutive_fail` will be treated as a new local. Disambiguate by using `local consecutive_fail` to suppress this warning or `global consecutive_fail` to assign to the existing global variable.
+└ @ ~/Documents/IJF Special Issue/Sarimax.jl/experiments/scripts/run_solver_scip_scaling.jl:86
+ERROR: LoadError: UndefVarError: `consecutive_fail` not defined in local scope
+Stacktrace:
+ [1] top-level scope
+   @ ~/Documents/IJF Special Issue/Sarimax.jl/experiments/scripts/run_solver_scip_scaling.jl:86
+in expression starting at /Users/luizfernandoduarte/Documents/IJF Special Issue/Sarimax.jl/experiments/scripts/run_solver_scip_scaling.jl:54

@@ -1,5 +1,5 @@
 """
-    hasFitMethods(modelType::Type{<:SarimaxModel}) -> Bool
+    has_fit_methods(modelType::Type{<:SarimaxModel}) -> Bool
 
 Check if a given `SarimaxModel` type has the `fit!` method implemented.
 
@@ -10,13 +10,13 @@ Check if a given `SarimaxModel` type has the `fit!` method implemented.
 A boolean indicating whether the `fit!` method is implemented for the specified model type.
 
 """
-function hasFitMethods(modelType::Type{<:SarimaxModel})
+function has_fit_methods(modelType::Type{<:SarimaxModel})
     tupleModelType = Tuple{modelType}
     return hasmethod(fit!, tupleModelType)
 end
 
 """
-    hasHyperparametersMethods(modelType::Type{<:SarimaxModel}) -> Bool
+    has_hyperparameters_methods(modelType::Type{<:SarimaxModel}) -> Bool
 
 Checks if a given `SarimaxModel` type has methods related to hyperparameters.
 
@@ -27,9 +27,9 @@ Checks if a given `SarimaxModel` type has methods related to hyperparameters.
 A boolean indicating whether the hyperparameter-related methods are implemented for the specified model type.
 
 """
-function hasHyperparametersMethods(modelType::Type{<:SarimaxModel})
+function has_hyperparameters_methods(modelType::Type{<:SarimaxModel})
     tupleModelType = Tuple{modelType}
-    return hasmethod(getHyperparametersNumber, tupleModelType)
+    return hasmethod(get_hyperparameters_number, tupleModelType)
 end
 
 """
@@ -88,29 +88,29 @@ end
 """
     aic(model::SarimaxModel; offset::Fl) -> Fl where Fl<:AbstractFloat
 
-Calculate the Akaike Information Criterion (AIC) for a Sarimax model.
+Calculate the Akaike Information Criterion (AIC) for a Sarimax model:
+`AIC = 2K - 2ℓ`, where `ℓ` is the conditional (CSS) Gaussian log-likelihood
+([`loglike`](@ref)) and `K` the number of estimated parameters. Comparable to
+R's `arima(..., method = "CSS")` convention, not to exact-likelihood AICs.
 
 # Arguments
 - `model::SarimaxModel`: The Sarimax model for which AIC is calculated.
-- `offset::Fl=0.0`: Offset value to be added to the AIC value.
+- `offset::Fl`: Optional value added to the AIC (kept for call compatibility).
+- `K::Int`: Optional parameter-count override.
 
 # Returns
 The AIC value calculated using the number of parameters and log-likelihood value of the model.
 
 # Errors
-- Throws a `MissingMethodImplementation` if the `getHyperparametersNumber` method is not implemented for the given model type.
+- Throws a `MissingMethodImplementation` if the `get_hyperparameters_number` method is not implemented for the given model type.
 
 """
-function aic(model::SarimaxModel; offset::Fl = 0.0) where {Fl<:AbstractFloat}
-    !hasHyperparametersMethods(typeof(model)) &&
-        throw(MissingMethodImplementation("getHyperparametersNumber"))
-    K = Sarimax.getHyperparametersNumber(model)
-    # T = length(model.ϵ)
-    # return aic(K, loglike(model))
-    # offset = -2 * loglike(model) - length(model.y) * log(model.σ²)
-    # return offset + T * log(model.σ²) + 2*K
-    T = length(model.y) - model.d - model.D * model.seasonality
-    return 2 * K + T * log(model.σ²) + offset
+function aic(model::SarimaxModel; offset::Union{AbstractFloat,Nothing} = nothing, K::Union{Int,Nothing} = nothing)
+    !has_hyperparameters_methods(typeof(model)) &&
+        throw(MissingMethodImplementation("get_hyperparameters_number"))
+    K = isnothing(K) ? get_hyperparameters_number(model) : K
+    offsetValue = isnothing(offset) ? 0.0 : offset
+    return 2 * K - 2 * loglike(model) + offsetValue
 end
 
 """
@@ -126,17 +126,15 @@ Calculate the Corrected Akaike Information Criterion (AICc) for a Sarimax model.
 The AICc value calculated using the number of parameters, sample size, and log-likelihood value of the model.
 
 # Errors
-- Throws a `MissingMethodImplementation` if the `getHyperparametersNumber` method is not implemented for the given model type.
+- Throws a `MissingMethodImplementation` if the `get_hyperparameters_number` method is not implemented for the given model type.
 
 """
-function aicc(model::SarimaxModel; offset::Fl = 0.0) where {Fl<:AbstractFloat}
-    !hasHyperparametersMethods(typeof(model)) &&
-        throw(MissingMethodImplementation("getHyperparametersNumber"))
-    K = getHyperparametersNumber(model)
-    # T = length(model.ϵ)
-    # return aicc(T, K, loglike(model))
-    T = length(model.y) - model.d - model.D * model.seasonality
-    return aic(model; offset = offset) + ((2 * K * K + 2 * K) / (T - K - 1))
+function aicc(model::SarimaxModel; offset::Union{AbstractFloat,Nothing} = nothing, K::Union{Int,Nothing} = nothing)
+    !has_hyperparameters_methods(typeof(model)) &&
+        throw(MissingMethodImplementation("get_hyperparameters_number"))
+    K = isnothing(K) ? get_hyperparameters_number(model) : K
+    n = length(observedResiduals(model))
+    return aic(model; offset = offset, K = K) + ((2 * K * K + 2 * K) / (n - K - 1))
 end
 
 """
@@ -152,15 +150,16 @@ Calculate the Bayesian Information Criterion (BIC) for a Sarimax model.
 The BIC value calculated using the number of parameters, sample size, and log-likelihood value of the model.
 
 # Errors
-- Throws a `MissingMethodImplementation` if the `getHyperparametersNumber` method is not implemented for the given model type.
+- Throws a `MissingMethodImplementation` if the `get_hyperparameters_number` method is not implemented for the given model type.
 
 """
-function bic(model::SarimaxModel; offset::Fl = 0.0) where {Fl<:AbstractFloat}
-    !hasHyperparametersMethods(typeof(model)) &&
-        throw(MissingMethodImplementation("getHyperparametersNumber"))
-    K = getHyperparametersNumber(model)
-    # T = length(model.ϵ)
-    # return bic(T, K, loglike(model))
-    T = length(model.y) - model.d - model.D * model.seasonality
-    return aic(model; offset = offset) + K * (log(T) - 2)
+function bic(model::SarimaxModel; offset::Union{AbstractFloat,Nothing} = nothing, K::Union{Int,Nothing} = nothing)
+    !has_hyperparameters_methods(typeof(model)) &&
+        throw(MissingMethodImplementation("get_hyperparameters_number"))
+    K = isnothing(K) ? get_hyperparameters_number(model) : K
+    n = length(observedResiduals(model))
+    offsetValue = isnothing(offset) ? 0.0 : offset
+    return K * log(n) - 2 * loglike(model) + offsetValue
 end
+
+

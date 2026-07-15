@@ -1,5 +1,5 @@
 """
-    copyTimeArray(y::TimeSeries.TimeArray)
+    copy_time_array(y::TimeSeries.TimeArray)
 
 Create a shallow copy of a TimeArray object.
 
@@ -16,15 +16,15 @@ but the elements themselves are not deeply copied.
 # Examples
 ```julia
 original = TimeArray(Date.(2021:2023), [1, 2, 3])
-copied = copyTimeArray(original)
+copied = copy_time_array(original)
 ```
 """
-function copyTimeArray(y::TimeSeries.TimeArray)
+function copy_time_array(y::TimeSeries.TimeArray)
     return TimeArray(copy(timestamp(y)), copy(values(y)))
 end
 
 """
-    deepcopyTimeArray(y::TimeSeries.TimeArray)
+    deepcopy_time_array(y::TimeSeries.TimeArray)
 
 Create a deep copy of a TimeArray object.
 
@@ -41,15 +41,15 @@ independent of the original.
 # Examples
 ```julia
 original = TimeArray(Date.(2021:2023), [1, 2, 3])
-deepCopied = deepcopyTimeArray(original)
+deepCopied = deepcopy_time_array(original)
 ```
 """
-function deepcopyTimeArray(y::TimeSeries.TimeArray)
+function deepcopy_time_array(y::TimeSeries.TimeArray)
     return TimeArray(deepcopy(timestamp(y)), deepcopy(values(y)))
 end
 
 """
-    buildDatetimes(startDatetime, granularity, weekDaysOnly, datetimesLength)
+    build_datetimes(startDatetime, granularity, weekDaysOnly, datetimesLength)
 
 Builds an array of DateTime objects based on a given starting DateTime, granularity, and length.
 
@@ -63,7 +63,7 @@ Builds an array of DateTime objects based on a given starting DateTime, granular
 An array of DateTime objects.
 
 """
-function buildDatetimes(
+function build_datetimes(
     startDatetime::T,
     granularity::P where {P<:Dates.Period},
     weekDaysOnly::Bool,
@@ -94,7 +94,7 @@ end
 
 
 """
-    identifyGranularity(datetimes::Vector{T})
+    identify_granularity(datetimes::Vector{T})
 
 Identifies the granularity of an array of timestamps.
 
@@ -111,7 +111,7 @@ A tuple `(granularity, frequency, weekdays)` where:
 Throws an error if the timestamps do not follow a consistent pattern.
 
 """
-function identifyGranularity(datetimes::Vector{T}) where {T}
+function identify_granularity(datetimes::Vector{T}) where {T}
     # Define base units and periods
     baseUnits = [Second(1), Minute(1), Hour(1), Day(1), Week(1)]
     basePeriods = [:Second, :Minute, :Hour, :Day, :Week, :Month, :Year]

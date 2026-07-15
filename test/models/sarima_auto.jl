@@ -119,27 +119,62 @@
 
     end
 
-    @testset "auto with stepwise naive" begin
-        airpassengers = loadDataset(AIR_PASSENGERS)
-        log_airpassengers = log.(airpassengers)
-        model = auto(airpassengers; searchMethod="stepwiseNaive", seasonality=12)
-        @test model.p == 2
-        @test model.q == 0
+    @testset "auto with default stepwise" begin
+        airpassengers = load_dataset(AIR_PASSENGERS)
+        model = auto(airpassengers; seasonality = 12)
+        # Pinned selection. The tryCandidate! rewrite of the neighbourhood scan was
+        # verified to reproduce the unrolled implementation exactly (same model,
+        # same AICc to the last digit) before this pin was added.
+        @test model.p == 4
+        @test model.q == 1
         @test model.P == 0
         @test model.Q == 1
+        @test model.d == 1
+        @test model.D == 1
+        @test aicc(model) ≈ 465.45706926625013 atol = 1e-6
+    end
+
+    @testset "parallel candidate fitting (smoke)" begin
+        # With a single thread @threads degrades to serial; the selection must be
+        # identical either way (min-IC selection is order-independent).
+        Random.seed!(31)
+        n = 90
+        parDates = Date(2000, 1, 1):Month(1):(Date(2000, 1, 1)+Month(n - 1))
+        yPar = TimeArray(collect(parDates), cumsum(randn(n)) .+ 0.3 .* collect(1.0:n))
+        mSerial = auto(yPar; searchMethod = "grid", maxp = 1, maxq = 1, maxP = 0, maxQ = 0)
+        mParallel = auto(yPar; searchMethod = "grid", maxp = 1, maxq = 1, maxP = 0, maxQ = 0, parallel = true)
+        @test (mSerial.p, mSerial.q, mSerial.d) == (mParallel.p, mParallel.q, mParallel.d)
+        @test aicc(mSerial) ≈ aicc(mParallel) atol = 1e-8
+    end
+
+    @testset "auto with stepwise naive" begin
+        airpassengers = load_dataset(AIR_PASSENGERS)
+        log_airpassengers = log.(airpassengers)
+        model = auto(airpassengers; searchMethod="stepwiseNaive", seasonality=12)
+        # Selected orders under CSS information criteria and the multiplicative
+        # seasonal form (v0.3 default). Identical to the exhaustive grid optimum.
+        @test model.p == 1
+        @test model.q == 1
+        @test model.P == 2
+        @test model.Q == 0
         @test model.d == 1
         @test model.D == 1
     end
 
     @testset "auto with grid search" begin
-        airpassengers = loadDataset(AIR_PASSENGERS)
+        airpassengers = load_dataset(AIR_PASSENGERS)
         log_airpassengers = log.(airpassengers)
         model = auto(airpassengers; searchMethod="grid", seasonality=12)
-        @test model.p == 4
-        @test model.q == 0
-        @test model.P == 0
-        @test model.Q == 1
+        # Selected orders under CSS information criteria and the multiplicative
+        # seasonal form (see above).
+        @test model.p == 1
+        @test model.q == 1
+        @test model.P == 2
+        @test model.Q == 0
         @test model.d == 1
         @test model.D == 1
+        # Exhaustive search must not do worse than the stepwise heuristic.
+        stepwiseModel = auto(airpassengers; searchMethod="stepwiseNaive", seasonality=12)
+        @test aicc(model) <= aicc(stepwiseModel) + 1e-6
     end
 end

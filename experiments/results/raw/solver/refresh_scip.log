@@ -1,0 +1,31 @@
+### PKG
+
+******************************************************************************
+This program contains Ipopt, a library for large-scale nonlinear optimization.
+ Ipopt is released as open source code under the Eclipse Public License (EPL).
+         For more information visit https://github.com/coin-or/Ipopt
+******************************************************************************
+
+WARNING: ignore partial solution (0) because unknown rate is too large (0.958333 > 0.85)
+ARIMA(0,0,1) / Ipopt (local x3 (deterministic starts)) -> ok
+ARIMA(1,0,1) / Ipopt (local x3 (deterministic starts)) -> ok
+ARIMA(0,0,1) / SCIP (global, direct (fit!)) -> ok
+ARIMA(0,0,1) / Alpine+HiGHS (warning check, config-level (no solve)) -> ok
+ARIMA(0,0,1) / Alpine+HiGHS (warning check, config-level (no solve)) -> ok
+solver (package-level 4A/4B) DONE -> /Users/luizfernandoduarte/Documents/IJF Special Issue/Sarimax.jl/experiments/scripts/../results/raw/solver/julia_results.jsonl
+### CERT
+T=8 -> OPTIMAL  obj=7.3685  brute-force=7.3685 (agrees: true)  rt=1.71s
+T=10 -> OPTIMAL  obj=8.5298  brute-force=8.5298 (agrees: true)  rt=1.21s
+T=20 -> OPTIMAL  obj=19.324  brute-force=19.3241 (agrees: true)  rt=4.31s
+T=40 -> OPTIMAL  obj=34.83  brute-force=34.8301 (agrees: true)  rt=14.35s
+scip_cert DONE -> /Users/luizfernandoduarte/Documents/IJF Special Issue/Sarimax.jl/experiments/scripts/../results/raw/solver/scip_cert_results.jsonl
+### MULTISTART
+
+******************************************************************************
+This program contains Ipopt, a library for large-scale nonlinear optimization.
+ Ipopt is released as open source code under the Eclipse Public License (EPL).
+         For more information visit https://github.com/coin-or/Ipopt
+******************************************************************************
+
+multistart -> ok  distinct=1  obj=34.83005198605078  rt=0.2s
+solver_jump (4C) DONE -> /Users/luizfernandoduarte/Documents/IJF Special Issue/Sarimax.jl/experiments/scripts/../results/raw/solver/jump_results.jsonl

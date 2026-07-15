@@ -44,9 +44,10 @@ end
         modelMSE = SARIMA(ARseries, 1, 1, 0; seasonality = 12, P = 1, D = 0, Q = 0)
         modelML = SARIMA(ARseries, 1, 1, 0; seasonality = 12, P = 1, D = 0, Q = 0)
         modelBILEVEL = SARIMA(ARseries, 1, 1, 0; seasonality = 12, P = 1, D = 0, Q = 0)
-        Sarimax.fit!(modelMSE, objectiveFunction = "mse")
-        Sarimax.fit!(modelML, objectiveFunction = "ml")
-        Sarimax.fit!(modelBILEVEL, objectiveFunction = "bilevel")
+        # generateARseries is an ADDITIVE DGP -> fit the additive form
+        Sarimax.fit!(modelMSE, objectiveFunction = "mse", seasonalForm = :additive)
+        Sarimax.fit!(modelML, objectiveFunction = "ml", seasonalForm = :additive)
+        Sarimax.fit!(modelBILEVEL, objectiveFunction = "bilevel", seasonalForm = :additive)
         @test seasCoeff ≈ modelMSE.Φ[1] atol = 1e-3
         @test seasCoeff ≈ modelML.Φ[1] atol = 1e-3
         @test seasCoeff ≈ modelBILEVEL.Φ[1] atol = 1e-3
@@ -90,9 +91,10 @@ end
         modelMSE = SARIMA(ARseries, 2, 1, 0; seasonality = 12, P = 1, D = 0, Q = 0)
         modelML = SARIMA(ARseries, 2, 1, 0; seasonality = 12, P = 1, D = 0, Q = 0)
         modelBILEVEL = SARIMA(ARseries, 2, 1, 0; seasonality = 12, P = 1, D = 0, Q = 0)
-        fit!(modelMSE, objectiveFunction = "mse")
-        fit!(modelML, objectiveFunction = "ml")
-        fit!(modelBILEVEL, objectiveFunction = "bilevel")
+        # additive DGP -> additive form
+        fit!(modelMSE, objectiveFunction = "mse", seasonalForm = :additive)
+        fit!(modelML, objectiveFunction = "ml", seasonalForm = :additive)
+        fit!(modelBILEVEL, objectiveFunction = "bilevel", seasonalForm = :additive)
         @test ARcoeff ≈ modelMSE.ϕ atol = 1e-3
         @test seasCoeff ≈ modelMSE.Φ[1] atol = 1e-3
         @test ARcoeff ≈ modelML.ϕ atol = 1e-3
@@ -102,7 +104,7 @@ end
     end
 
     @testset "auto with exougenous variable D correction" begin
-        airPassengers = loadDataset(AIR_PASSENGERS)
+        airPassengers = load_dataset(AIR_PASSENGERS)
         airPassengersLog = log.(airPassengers)
         lengthAirPassengers = length(airPassengersLog)
         exogenous =
@@ -136,7 +138,7 @@ end
     end
 
     @testset "ridge_fit" begin
-        airPassengers = loadDataset(AIR_PASSENGERS)
+        airPassengers = load_dataset(AIR_PASSENGERS)
         airPassengersLog = log.(airPassengers)
         modelRidge = SARIMA(airPassengersLog, 3, 0, 1; seasonality = 12, P = 1, D = 1, Q = 1)
         fit!(modelRidge; objectiveFunction = "elastic_net", alpha = 0.0)
@@ -163,7 +165,7 @@ end
     end
 
     @testset "lasso_fit" begin
-        airPassengers = loadDataset(AIR_PASSENGERS)
+        airPassengers = load_dataset(AIR_PASSENGERS)
         airPassengersLog = log.(airPassengers)
         modelLasso = SARIMA(airPassengersLog, 3, 0, 1; seasonality = 12, P = 1, D = 1, Q = 1)
         fit!(modelLasso; objectiveFunction = "elastic_net", alpha = 1.0)
@@ -190,7 +192,7 @@ end
     end
 
     @testset "bilevel_fit" begin
-        airPassengers = loadDataset(AIR_PASSENGERS)
+        airPassengers = load_dataset(AIR_PASSENGERS)
         airPassengersLog = log.(airPassengers)
         modelBILEVEL = SARIMA(airPassengersLog, 3, 0, 1; seasonality = 12, P = 1, D = 1, Q = 1)
         fit!(modelBILEVEL; objectiveFunction = "bilevel")
@@ -216,7 +218,7 @@ end
     end
 
     @testset "stable_fit" begin
-        airPassengers = loadDataset(AIR_PASSENGERS)
+        airPassengers = load_dataset(AIR_PASSENGERS)
         airPassengersLog = log.(airPassengers)
         modelStable = SARIMA(airPassengersLog, 3, 0, 1; seasonality = 12, P = 1, D = 1, Q = 1)
         fit!(modelStable; objectiveFunction = "stable")
@@ -231,9 +233,123 @@ end
     #     test_series_json = JSON.parsefile("datasets/series_38351.json")
     #     train_dict = Dict{String,Vector{Float64}}("train" => test_series_json["train"])
     #     test_series_df = DataFrame(train_dict)
-    #     series = loadDataset(test_series_df)
+    #     series = load_dataset(test_series_df)
     #     autoModel = auto(series; seasonality = 12, seasonalIntegrationTest="ocsb", assertStationarity=true, assertInvertibility=true)
     #     @test autoModel.d == 1
     #     @test autoModel.D == 1
     # end
+
+    @testset "drift and trend terms" begin
+        n = 80
+        driftDates = Date(2000, 1, 1):Month(1):(Date(2000, 1, 1)+Month(n - 1))
+        yLine = TimeArray(collect(driftDates), 3.0 .+ 0.5 .* collect(1.0:n))
+
+        # d = 1: drift = constant in the differenced equation
+        mDrift = SARIMA(yLine, 0, 1, 0; allowMean = false, allowDrift = true)
+        fit!(mDrift)
+        @test mDrift.trend ≈ 0.5 atol = 1e-4
+        predict!(mDrift; stepsAhead = 3)
+        @test values(mDrift.forecast) ≈ [3.0 + 0.5 * (n + i) for i = 1:3] atol = 1e-3
+
+        # d = 0: drift is a genuine linear trend δ·t (was a duplicated constant before v0.3)
+        yTrend = TimeArray(collect(driftDates), 0.5 .* collect(1.0:n))
+        mTrend = SARIMA(yTrend, 0, 0, 0; allowMean = false, allowDrift = true)
+        fit!(mTrend)
+        @test mTrend.trend ≈ 0.5 atol = 1e-4
+
+        # mean and drift were perfectly collinear: now mutually exclusive
+        mBoth = SARIMA(yLine, 0, 1, 0; allowMean = true, allowDrift = true)
+        @test_throws InvalidParametersCombination fit!(mBoth)
+    end
+
+    @testset "stationary AR parameterization" begin
+        # Levinson recursion: φ₁ = κ₁(1-κ₂), φ₂ = κ₂
+        @test Sarimax.reflectionToAR([0.5]) == [0.5]
+        @test isapprox(Sarimax.reflectionToAR([0.5, 0.3]), [0.5 - 0.3 * 0.5, 0.3]; atol = 1e-12)
+
+        Random.seed!(11)
+        n = 80
+        statDates = Date(2000, 1, 1):Month(1):(Date(2000, 1, 1)+Month(n - 1))
+        rw = TimeArray(collect(statDates), cumsum(randn(n)))
+        mStat = SARIMA(rw, 1, 0, 0; allowMean = false)
+        fit!(mStat; stationary = true, stationarityMargin = 0.02)
+        @test abs(mStat.ϕ[1]) <= 0.98 + 1e-8
+
+        mBad = SARIMA(rw, 1, 0, 0; allowMean = false)
+        @test_throws AssertionError fit!(mBad; stationarityMargin = 1.5)
+    end
+
+    @testset "model display" begin
+        io = IOBuffer()
+        dispDates = Date(2000, 1, 1):Month(1):(Date(2000, 1, 1)+Month(59))
+        Random.seed!(3)
+        mDisp = SARIMA(TimeArray(collect(dispDates), cumsum(randn(60))), 1, 1, 0; allowMean = false)
+        show(io, mDisp)
+        @test occursin("not fitted", String(take!(io)))
+        fit!(mDisp)
+        show(io, MIME("text/plain"), mDisp)
+        str = String(take!(io))
+        @test occursin("coefficient", str)
+        @test occursin("ar_1", str)
+        @test occursin("AIC", str)
+        @test occursin("multiplicative", str)
+    end
+
+    @testset "multiplicative_recovery" begin
+        # Noise-free multiplicative DGP: y_t = φy_{t-1} + Φy_{t-12} − φΦy_{t-13}
+        Random.seed!(7)
+        n = 200
+        vals = randn(13) .* 0.1
+        for t = 14:n
+            push!(vals, 0.4 * vals[t-1] + 0.5 * vals[t-12] - 0.4 * 0.5 * vals[t-13])
+        end
+        multDates = Date(2000, 1, 1):Month(1):(Date(2000, 1, 1)+Month(n - 1))
+        yMult = TimeArray(collect(multDates), vals)
+
+        mMult = SARIMA(yMult, 1, 0, 0; seasonality = 12, P = 1, allowMean = false)
+        fit!(mMult)   # default :multiplicative
+        @test mMult.ϕ[1] ≈ 0.4 atol = 1e-3
+        @test mMult.Φ[1] ≈ 0.5 atol = 1e-3
+
+        # The additive form cannot represent this DGP: estimates are distorted.
+        mAdd = SARIMA(yMult, 1, 0, 0; seasonality = 12, P = 1, allowMean = false)
+        fit!(mAdd; seasonalForm = :additive)
+        @test abs(mAdd.ϕ[1] - 0.4) > 1e-2
+
+        # :free is not implemented yet
+        mFree = SARIMA(yMult, 1, 0, 0; seasonality = 12, P = 1, allowMean = false)
+        @test_throws ArgumentError fit!(mFree; seasonalForm = :free)
+    end
+
+    @testset "invertible_fit" begin
+        # reflectionToMA recursion (numeric check): θ₁ = κ₁(1+κ₂), θ₂ = κ₂
+        @test Sarimax.reflectionToMA([0.5]) == [0.5]
+        @test isapprox(Sarimax.reflectionToMA([0.5, 0.3]), [0.5 + 0.3 * 0.5, 0.3]; atol = 1e-12)
+        @test length(Sarimax.reflectionToMA(Float64[])) == 0
+
+        airPassengers = load_dataset(AIR_PASSENGERS)
+
+        # q = 1: the reflection parameterization coincides with the box bounds
+        boxMA1 = SARIMA(airPassengers, 1, 0, 1)
+        fit!(boxMA1; objectiveFunction = "mse")
+        refMA1 = SARIMA(airPassengers, 1, 0, 1)
+        fit!(refMA1; objectiveFunction = "mse", invertible = true)
+        @test isapprox(boxMA1.θ[1], refMA1.θ[1]; atol = 1e-4)
+
+        # airline model: box drives θ to the unit-root boundary (|θ| = 1, non-invertible),
+        # while the reflection parameterization keeps it strictly inside |θ| ≤ 1 - ρ.
+        ρ = 0.05
+        # The unit-root boundary pile-up documented here is a property of the
+        # ADDITIVE-form fit (under :multiplicative the airline θ stays interior).
+        boxAir = SARIMA(airPassengers, 0, 1, 1; seasonality = 12, P = 0, D = 1, Q = 1)
+        fit!(boxAir; objectiveFunction = "mse", seasonalForm = :additive)
+        refAir = SARIMA(airPassengers, 0, 1, 1; seasonality = 12, P = 0, D = 1, Q = 1)
+        fit!(refAir; objectiveFunction = "mse", invertible = true, invertibilityMargin = ρ, seasonalForm = :additive)
+        @test abs(boxAir.θ[1]) >= 0.99
+        @test abs(refAir.θ[1]) <= (1 - ρ) + 1e-6
+
+        # invertible parameterization is incompatible with the bilevel objective
+        bilevelModel = SARIMA(airPassengers, 0, 1, 1; seasonality = 12, P = 0, D = 1, Q = 1)
+        @test_throws AssertionError fit!(bilevelModel; objectiveFunction = "bilevel", invertible = true)
+    end
 end

@@ -2,8 +2,8 @@
     @testset "Copy and DeepCopy TimeArray" begin
         # Test case for copying TimeArray
         @testset "Test Copy TimeArray" begin
-            timeArray = loadDataset(NROU)
-            copiedArray = copyTimeArray(timeArray)
+            timeArray = load_dataset(NROU)
+            copiedArray = copy_time_array(timeArray)
             @test timeArray != copiedArray
             @test timestamp(timeArray) == timestamp(copiedArray)
             @test values(timeArray) == values(copiedArray)
@@ -11,8 +11,8 @@
 
         # Test case for deepcopying TimeArray
         @testset "Test DeepCopy TimeArray" begin
-            timeArray = loadDataset(NROU)
-            deepCopiedArray = deepcopyTimeArray(timeArray)
+            timeArray = load_dataset(NROU)
+            deepCopiedArray = deepcopy_time_array(timeArray)
             @test timeArray != deepCopiedArray
             @test timestamp(timeArray) == timestamp(deepCopiedArray)
             @test values(timeArray) == values(deepCopiedArray)
@@ -21,7 +21,7 @@
     end
 
 
-    @testset "buildDatetimes tests" begin
+    @testset "build_datetimes tests" begin
         # Datetimes length is 0
         @testset "Test datetimes length 0" begin
             start_datetime = DateTime("2024-03-24T00:00:00")
@@ -29,7 +29,7 @@
             weekDaysOnly = false
             datetimes_length = 0
             result =
-                buildDatetimes(start_datetime, granularity, weekDaysOnly, datetimes_length)
+                build_datetimes(start_datetime, granularity, weekDaysOnly, datetimes_length)
             @test result == DateTime[]
         end
 
@@ -40,7 +40,7 @@
             weekDaysOnly = false
             datetimes_length = 10
             result =
-                buildDatetimes(start_datetime, granularity, weekDaysOnly, datetimes_length)
+                build_datetimes(start_datetime, granularity, weekDaysOnly, datetimes_length)
             expected_result = [
                 DateTime("2021-01-01T00:00:00"),
                 DateTime("2022-01-01T00:00:00"),
@@ -63,7 +63,7 @@
             weekDaysOnly = true
             datetimes_length = 10
             result =
-                buildDatetimes(start_datetime, granularity, weekDaysOnly, datetimes_length)
+                build_datetimes(start_datetime, granularity, weekDaysOnly, datetimes_length)
             expected_result = [
                 DateTime("2024-03-28T00:00:00"),
                 DateTime("2024-03-29T00:00:00"),
@@ -106,56 +106,56 @@
 
 
     # Write test cases
-    @testset "identifyGranularity tests" begin
+    @testset "identify_granularity tests" begin
         @testset "Test annually" begin
-            result = identifyGranularity(timestampsAnnually)
+            result = identify_granularity(timestampsAnnually)
             @test result == (granularity = :Year, frequency = 1, weekdays = false)
         end
 
         @testset "Test monthly" begin
-            result = identifyGranularity(timestampsMonthly)
+            result = identify_granularity(timestampsMonthly)
             @test result == (granularity = :Month, frequency = 1, weekdays = false)
         end
 
         @testset "Test quarterly" begin
-            result = identifyGranularity(timestampsQuarterly)
+            result = identify_granularity(timestampsQuarterly)
             @test result == (granularity = :Month, frequency = 3, weekdays = false)
         end
 
         @testset "Test 15 days" begin
-            result = identifyGranularity(timestamps15Days)
+            result = identify_granularity(timestamps15Days)
             @test result == (granularity = :Day, frequency = 15, weekdays = false)
         end
 
         @testset "Test weekly" begin
-            result = identifyGranularity(timestampsWeekly)
+            result = identify_granularity(timestampsWeekly)
             @test result == (granularity = :Week, frequency = 1, weekdays = false)
         end
 
         @testset "Test daily" begin
-            result = identifyGranularity(timestampsDaily)
+            result = identify_granularity(timestampsDaily)
             @test result == (granularity = :Day, frequency = 1, weekdays = false)
         end
 
         @testset "Test hourly" begin
-            result = identifyGranularity(timestampsHourly)
+            result = identify_granularity(timestampsHourly)
             @test result == (granularity = :Hour, frequency = 1, weekdays = false)
         end
 
         @testset "Test less than hourly" begin
-            result = identifyGranularity(timestampsLessHourly)
+            result = identify_granularity(timestampsLessHourly)
             @test result == (granularity = :Minute, frequency = 15, weekdays = false)
         end
 
         @testset "Test inconsistent" begin
-            @test_throws InconsistentDatePattern identifyGranularity(timestampsInconsistent)
+            @test_throws InconsistentDatePattern identify_granularity(timestampsInconsistent)
         end
 
         @testset "Test weekdays" begin
-            result = identifyGranularity(timestampsWeekdays)
+            result = identify_granularity(timestampsWeekdays)
             @test result == (granularity = :Day, frequency = 1, weekdays = true)
 
-            result = identifyGranularity(timestampsNotWeekdays)
+            result = identify_granularity(timestampsNotWeekdays)
             @test result == (granularity = :Day, frequency = 1, weekdays = false)
         end
     end
@@ -167,7 +167,7 @@
         end
 
         @testset "Test Merge one" begin
-            timeArray = loadDataset(NROU)
+            timeArray = load_dataset(NROU)
             timeArrays::Vector{TimeArray} = [timeArray]
             mergedTimeArray = Sarimax.merge(timeArrays)
             @test mergedTimeArray == timeArray
@@ -175,8 +175,8 @@
 
         # Test case for merging two TimeArrays
         @testset "Test merge" begin
-            timeArray1 = loadDataset(NROU)
-            timeArray2 = loadDataset(GDPC1)
+            timeArray1 = load_dataset(NROU)
+            timeArray2 = load_dataset(GDPC1)
             timeArrays::Vector{TimeArray} = [timeArray1, timeArray2]
             mergedTimeArray = Sarimax.merge(timeArrays)
             @test size(mergedTimeArray, 1) == size(timeArray1, 1)
@@ -184,8 +184,8 @@
         end
 
         @testset "Test merge with different timestamps" begin
-            timeArray1 = loadDataset(NROU)
-            timeArray2 = loadDataset(GDPC1)
+            timeArray1 = load_dataset(NROU)
+            timeArray2 = load_dataset(GDPC1)
             timeArray2 = from(timeArray2, timestamp(timeArray2)[2])
             timeArray3 = TimeArray(
                 timestamp(timeArray2)[1:end-1],

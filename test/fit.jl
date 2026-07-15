@@ -1,13 +1,13 @@
 @testset "Fit" begin
     mutable struct ARIMA_TEST <: Sarimax.SarimaxModel end
-    @testset "hasFitMethods" begin
-        @test hasFitMethods(SARIMAModel)
-        @test !hasFitMethods(ARIMA_TEST)
+    @testset "has_fit_methods" begin
+        @test has_fit_methods(SARIMAModel)
+        @test !has_fit_methods(ARIMA_TEST)
     end
 
-    @testset "hasHyperparametersMethods" begin
-        @test hasHyperparametersMethods(SARIMAModel)
-        @test !hasHyperparametersMethods(ARIMA_TEST)
+    @testset "has_hyperparameters_methods" begin
+        @test has_hyperparameters_methods(SARIMAModel)
+        @test !has_hyperparameters_methods(ARIMA_TEST)
     end
 
     @testset "aic_function" begin
@@ -50,13 +50,20 @@
             bic(ARIMA_TEST())
         end
 
-        airPassengers = loadDataset(AIR_PASSENGERS)
+        airPassengers = load_dataset(AIR_PASSENGERS)
         airPassengersLog = log.(airPassengers)
         testModel = SARIMA(airPassengersLog, 3, 0, 1; seasonality = 12, P = 1, D = 1, Q = 1)
         fit!(testModel)
-        @test aic(testModel) ≈ -1063.1519532534248
-        @test aicc(testModel) ≈ -1062.3650680075232
-        @test bic(testModel) ≈ -1037.0919902772025
+        # CSS log-likelihood with full Gaussian constants, multiplicative
+        # seasonal form (v0.3 default): aic = 2K - 2ℓ, K counts all declared
+        # parameters (+σ²)
+        @test aic(testModel) ≈ -479.7726772190683 atol = 1e-3
+        @test aicc(testModel) ≈ -478.9155343619255 atol = 1e-3
+        @test bic(testModel) ≈ -454.3634793584777 atol = 1e-3
+        K = get_hyperparameters_number(testModel)
+        @test K == 8
+        @test aic(testModel) ≈ 2 * K - 2 * loglike(testModel) atol = 1e-10
+        @test bic(testModel) ≈ K * log(length(testModel.ϵ)) - 2 * loglike(testModel) atol = 1e-10
     end
 
 

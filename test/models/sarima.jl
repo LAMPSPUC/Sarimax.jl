@@ -1,15 +1,15 @@
 @testset "SARIMA" begin
 
-    @test hasFitMethods(SARIMAModel)
-    @test hasHyperparametersMethods(SARIMAModel)
+    @test has_fit_methods(SARIMAModel)
+    @test has_hyperparameters_methods(SARIMAModel)
 
-    airPassengers = loadDataset(AIR_PASSENGERS)
+    airPassengers = load_dataset(AIR_PASSENGERS)
     airPassengersLog = log.(airPassengers)
 
     modeloLog = SARIMA(airPassengersLog, 3, 0, 1; seasonality = 12, P = 1, D = 1, Q = 1)
     @test Sarimax.typeofModelElements(modeloLog) == Float64
     @test Sarimax.isFitted(modeloLog) == false
-    @test getHyperparametersNumber(modeloLog) == 8
+    @test get_hyperparameters_number(modeloLog) == 8
     fit!(modeloLog)
     predict!(modeloLog; stepsAhead = 10, displayConfidenceIntervals = true)
     @test size(modeloLog.forecast, 1) == 10
@@ -18,7 +18,7 @@
     modeloLogMAE = SARIMA(airPassengersLog, 3, 0, 1; seasonality = 12, P = 1, D = 1, Q = 1)
     @test Sarimax.typeofModelElements(modeloLogMAE) == Float64
     @test Sarimax.isFitted(modeloLogMAE) == false
-    @test getHyperparametersNumber(modeloLogMAE) == 8
+    @test get_hyperparameters_number(modeloLogMAE) == 8
     fit!(modeloLogMAE; objectiveFunction = "mae")
     predict!(modeloLogMAE; stepsAhead = 10, displayConfidenceIntervals = true)
     @test size(modeloLogMAE.forecast, 1) == 10
@@ -36,7 +36,7 @@
     @test length(simulation) == 301
     @test length(simulation[1]) == 10
 
-    gdpc = loadDataset(GDPC1)
+    gdpc = load_dataset(GDPC1)
     modelGDPC1 = auto(
         gdpc;
         seasonality = 4,
@@ -47,7 +47,7 @@
     @test modelGDPC1.d == 2 # Output of forecast package in R
     @test modelGDPC1.D == 0 # Output of forecast package in R
 
-    nrou = loadDataset(NROU)
+    nrou = load_dataset(NROU)
     modelNROU = auto(
         nrou;
         seasonality = 4,
@@ -60,16 +60,16 @@
 end
 
 @testset "ARMA to MA" begin
-    airPassengers = loadDataset(AIR_PASSENGERS)
+    airPassengers = load_dataset(AIR_PASSENGERS)
     airPassengersLog = log.(airPassengers)
 
     firstModel = SARIMA(airPassengersLog; arCoefficients = [-0.2, 0.0, 0.5])
-    firstCoefficients = toMA(firstModel, 5)
+    firstCoefficients = to_ma(firstModel, 5)
     @test firstCoefficients ≈ [-0.2, 0.04, 0.492, -0.1984, 0.05968] atol = 1e-3
 
     secondModel =
         SARIMA(airPassengersLog; arCoefficients = [0.2, -0.1], maCoefficients = [0.5])
-    secondCoefficients = toMA(secondModel, 5)
+    secondCoefficients = to_ma(secondModel, 5)
     @test secondCoefficients ≈ [0.7, 0.0399999, -0.062, -0.0164, 0.00292] atol = 1e-3
 
     thirdModel = SARIMA(
@@ -79,7 +79,9 @@ end
         seasonalARCoefficients = [0.1],
         seasonality = 12,
     )
-    thirdCoefficients = toMA(thirdModel, 15)
+    # the expected vector below was derived under the additive form
+    thirdModel.metadata["seasonalForm"] = "additive"
+    thirdCoefficients = to_ma(thirdModel, 15)
     data = [
         7.000000e-01,
         4.000000e-02,
@@ -99,4 +101,17 @@ end
     ]
 
     @test thirdCoefficients ≈ data atol = 1e-3
+
+    # Multiplicative cross-term identity: ψ_1 = θ_1, ψ_s = Θ_1, ψ_{s+1} = θ_1Θ_1
+    fourthModel = SARIMA(
+        airPassengersLog;
+        maCoefficients = [0.5],
+        seasonalMACoefficients = [0.4],
+        seasonality = 12,
+    )
+    fourthCoefficients = to_ma(fourthModel, 13)
+    @test fourthCoefficients[1] ≈ 0.5 atol = 1e-10
+    @test fourthCoefficients[12] ≈ 0.4 atol = 1e-10
+    @test fourthCoefficients[13] ≈ 0.2 atol = 1e-10
+    @test all(abs.(fourthCoefficients[2:11]) .< 1e-10)
 end

@@ -1,0 +1,1 @@
+{"block":"energy_forecasting","implementation":"R-forecast","dataset":"PJME_daily","order":"(1,1,1)(1,0,1)_7","horizon":14,"seasonality":7,"protocol":"rolling-origin","n_origins":6,"window":540,"n_failures":0,"seed":1234,"status":"ok","mae":2354.8883,"rmse":2837.0425,"smape":7.7302,"mase":0.7427,"runtime_s":0.4123}

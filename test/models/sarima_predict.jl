@@ -87,9 +87,9 @@ end
         seasCoeff = 0.4
         trend = 0.1
         ARseries = generateARseries(2, 12, ARcoeff, seasCoeff, trend, 1234, false)
-        trainingSet, testingSet = splitTrainTest(ARseries)
+        trainingSet, testingSet = split_train_test(ARseries)
         modelMSE = SARIMA(trainingSet, 2, 1, 0; seasonality = 12, P = 1, D = 0, Q = 0)
-        Sarimax.fit!(modelMSE)
+        Sarimax.fit!(modelMSE; seasonalForm = :additive)  # additive DGP
         print(modelMSE)
         forecastMSE = Sarimax.predict!(modelMSE; stepsAhead = length(testingSet))
         maeMSE = MAE(testingSet, forecastMSE)
@@ -99,7 +99,7 @@ end
 
         #sin
         seriesSin = generateSeries(0, 12, 0, 0, 1234, false)
-        trainingSin, testingSin = splitTrainTest(seriesSin)
+        trainingSin, testingSin = split_train_test(seriesSin)
         modelSin = SARIMA(trainingSin, 0, 0, 0; seasonality = 12, P = 1, D = 0, Q = 0)
         Sarimax.fit!(modelSin)
         print(modelSin)
@@ -114,7 +114,7 @@ end
         seasCoeff = 0.5
         trend = 0.1
         ARseries = generateARseries(2, 12, ARcoeff, seasCoeff, trend, 1234, false)
-        trainingSet, testingSet = splitTrainTest(ARseries)
+        trainingSet, testingSet = split_train_test(ARseries)
         modelAuto = Sarimax.auto(
             trainingSet;
             seasonality = 12,
@@ -130,7 +130,7 @@ end
 
         #p=2 sin seasonality trend=0.1
         seriesARSeas = generateSeries(2, 12, [0.3, 0.2], 0.1, 1234, false)
-        trainingARSeas, testingARSeas = splitTrainTest(seriesARSeas)
+        trainingARSeas, testingARSeas = split_train_test(seriesARSeas)
         modelARSeasAuto =
             Sarimax.auto(trainingARSeas; seasonality = 12, objectiveFunction = "mse")
         forecastARSeasAuto = Sarimax.predict!(modelARSeasAuto; stepsAhead = 40)
@@ -149,7 +149,7 @@ end
         exog::Vector{Float64} = [0.15 * i for i in x]
         series = TimeArray(Date(1991, 7, 1):Month(1):Date(2008, 2, 1), y)
         exogSeries = TimeArray(Date(1991, 7, 1):Month(1):Date(2008, 2, 1), exog)
-        trainingSet, testingSet = splitTrainTest(series)
+        trainingSet, testingSet = split_train_test(series)
         modelExog = Sarimax.auto(
             trainingSet;
             exog = exogSeries,
@@ -163,5 +163,62 @@ end
         maeExog = MAE(testingSet, forecastExog)
         @test mapeExog ≈ 0 atol = 1e-1
         @test maeExog ≈ 0 atol = 1e-1
+    end
+
+    @testset "exog forecast uses matching horizon row" begin
+        # Regression test for a bug where the exog forecast loop always used
+        # the LAST horizon's exog row for every forecasted step instead of
+        # the row matching that step.
+        nTrain = 200
+        nTotal = 205
+        dates = Date(1991, 7, 1):Month(1):(Date(1991, 7, 1)+Month(nTotal - 1))
+        xValues::Vector{Float64} = collect(1.0:nTotal)
+        yValues::Vector{Float64} = 2.0 .* xValues[1:nTrain]
+        trainSeries = TimeArray(collect(dates)[1:nTrain], yValues)
+        exogSeries = TimeArray(collect(dates), xValues)
+
+        model = SARIMA(trainSeries, exogSeries, 0, 0, 0; allowMean = false)
+        fit!(model)
+        forecast = Sarimax.predict!(model; stepsAhead = 5)
+
+        forecastedValues = values(model.forecast)
+        for i = 1:5
+            @test forecastedValues[i] ≈ 2.0 * (nTrain + i) rtol = 1e-2
+        end
+    end
+
+    @testset "forecast variances propagate through integration" begin
+        # ARIMA(0,1,0): Var[h] = σ²·h on the original scale — the ψ-weights must
+        # include the differencing operator (1-B)^d (1-B^s)^D.
+        Random.seed!(42)
+        varDates = Date(2000, 1, 1):Month(1):Date(2004, 12, 1)
+        rw = TimeArray(collect(varDates), cumsum(randn(60)))
+        mRW = SARIMA(rw, 0, 1, 0; allowMean = false)
+        fit!(mRW)
+        feRW = Sarimax.forecastErrors(mRW, 5)
+        @test feRW ./ mRW.σ² ≈ [1.0, 2.0, 3.0, 4.0, 5.0] rtol = 1e-8
+
+        # White noise: constant variance σ².
+        wn = TimeArray(collect(varDates), randn(60))
+        mWN = SARIMA(wn, 0, 0, 0; allowMean = true)
+        fit!(mWN)
+        feWN = Sarimax.forecastErrors(mWN, 4)
+        @test feWN ./ mWN.σ² ≈ ones(4) rtol = 1e-8
+
+        # Polynomial helper: (1-B)² = 1 - 2B + B²
+        @test Sarimax.polynomialMultiplication([1.0, -1.0], [1.0, -1.0]) == [1.0, -2.0, 1.0]
+    end
+
+    @testset "short series seasonal predict" begin
+        # Regression test: seasonal AR term in `predict` had no bounds guard,
+        # so a short series (fewer than P*seasonality observations) threw a
+        # BoundsError instead of simply skipping unavailable lags.
+        Random.seed!(1234)
+        dates = Date(1991, 7, 1):Month(1):Date(1991, 7, 1)+Month(14)
+        y = TimeArray(collect(dates), randn(15))
+        model = SARIMA(y, 0, 0, 0; seasonality = 12, P = 1)
+        fit!(model)
+        Sarimax.predict!(model; stepsAhead = 3)
+        @test true
     end
 end

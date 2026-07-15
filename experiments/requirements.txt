@@ -1,8 +1,0 @@
-# Python dependencies for the SARIMAX.jl experiment artifact.
-# Pinned to the versions used to generate the reported results (Python 3.9.6).
-# For a byte-exact transitive pin, use results/raw/environment/python_freeze.txt instead:
-#     pip install -r results/raw/environment/python_freeze.txt
-numpy==2.0.2
-pandas==2.3.3
-scipy==1.13.1
-statsmodels==0.14.6

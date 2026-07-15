@@ -1,5 +1,0 @@
-# local environments and build artifacts (regenerable via reproduce.sh / make_artifact.sh)
-.venv-benchmarks/
-dist/
-__pycache__/
-.DS_Store

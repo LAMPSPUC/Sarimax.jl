@@ -1,9 +1,0 @@
-# Keep the Docker build context small and let the image rebuild environments cleanly.
-.venv-benchmarks/
-env/Manifest.toml
-env/Project.toml
-out/
-**/__pycache__/
-*.log
-*.tar.gz
-results/processed/

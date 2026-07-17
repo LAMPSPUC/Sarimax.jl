@@ -186,14 +186,21 @@ function selectSeasonalIntegrationOrder(
     seasonality::Int,
     test::String,
 ) where {Fl<:AbstractFloat}
-    if test == "seas"
-        return StateSpaceModels.seasonal_strength_test(y, seasonality)
-    elseif test == "ch"
-        return StateSpaceModels.canova_hansen_test(y, seasonality)
-    elseif test == "ocsb"
-        return ocsb_test(y;m=seasonality)["seasonal_difference"]
+    test in ("seas", "ch", "ocsb") || throw(ArgumentError("The test $test is not supported"))
+    # Mirror R's forecast::nsdiffs: if the chosen seasonal test errors out, warn and
+    # fall back to D = 0 instead of aborting the model search.
+    try
+        if test == "seas"
+            return seasonalStrengthTest(y, seasonality)["seasonal_difference"]
+        elseif test == "ch"
+            return StateSpaceModels.canova_hansen_test(y, seasonality)
+        else
+            return ocsb_test(y; m=seasonality)["seasonal_difference"]
+        end
+    catch e
+        @warn "Seasonal unit root test '$test' failed; assuming D = 0" exception = e
+        return 0
     end
-    throw(ArgumentError("The test $test is not supported"))
 end
 
 """

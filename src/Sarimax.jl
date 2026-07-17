@@ -36,6 +36,7 @@ using Printf
 using Optim
 using Random
 using SCIP
+using SeasonalTrendLoess
 using StateSpaceModels
 using Statistics
 using TimeSeries

@@ -352,3 +352,44 @@ function ocsb_test(y::Vector{T}; m::Int=12, lag_method::Symbol=:aic, max_lag::In
         "seasonal_difference" => Int(best_stat > crit_val)
     )
 end
+
+"""
+    seasonalStrengthTest(y::Vector{T}, m::Int) where T <: AbstractFloat
+
+Seasonal-strength heuristic for choosing the seasonal differencing order `D`,
+matching `forecast::nsdiffs(x, test = "seas")` — the default seasonal test of R's
+`auto.arima` since forecast v8.3 (Wang, Smith & Hyndman seasonal strength measure).
+
+The series is decomposed with a robust STL fit and the seasonal strength is
+
+    Fs = max(0, min(1, 1 - var(remainder) / var(seasonal + remainder)))
+
+`D = 1` is returned when `Fs > 0.64`, and `D = 0` otherwise.
+
+# Arguments
+- `y::Vector{T}`: Time series data
+- `m::Int`: The seasonal period
+
+# Returns
+- `Dict`: Dictionary with keys:
+    - "seasonal_strength": the strength measure `Fs`
+    - "seasonal_difference": the suggested seasonal differencing order (0 or 1)
+
+# References
+- Wang, Smith & Hyndman (2006). Characteristic-based clustering for time series data.
+- Hyndman & Athanasopoulos, Forecasting: Principles and Practice (seasonal strength).
+"""
+function seasonalStrengthTest(y::Vector{T}, m::Int) where {T<:AbstractFloat}
+    m > 1 || throw(ArgumentError("The seasonal period m must be greater than 1"))
+    length(y) >= 2 * m || throw(ArgumentError("The series must span at least two seasonal periods"))
+    decomposition = SeasonalTrendLoess.stl(y, m; robust = true)
+    remainderVariance = var(decomposition.remainder)
+    strength = max(
+        0.0,
+        min(1.0, 1.0 - remainderVariance / var(decomposition.remainder + decomposition.seasonal)),
+    )
+    return Dict(
+        "seasonal_strength" => strength,
+        "seasonal_difference" => Int(strength > 0.64),
+    )
+end

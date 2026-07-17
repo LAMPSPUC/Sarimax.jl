@@ -3510,6 +3510,14 @@ function stepwiseSearch(
     lambda::Union{Nothing,<:AbstractFloat} = nothing,
 )
     constant = allowDrift || allowMean
+    # The constant term must live in the slot that matches the differencing order:
+    # mean when d + D == 0 (allowMean), drift when d + D == 1 (allowDrift). Using the
+    # wrong slot adds a term that vanishes after differencing (not identifiable) while
+    # the search never explores the identifiable one. curMean/curDrift track the constant
+    # setting of the current best model (kept in sync by the toggle move below).
+    useDrift = allowDrift
+    curMean = allowMean
+    curDrift = allowDrift
     p = min(startp, maxp)
     q = min(startq, maxq)
     P = min(startP, maxP)
@@ -3526,8 +3534,8 @@ function stepwiseSearch(
         D = D,
         Q = Q,
         seasonality = seasonality,
-        allowMean = constant,
-        allowDrift = false,
+        allowMean = allowMean,
+        allowDrift = allowDrift,
         alpha = alpha,
         lambda = lambda
     )
@@ -3555,8 +3563,8 @@ function stepwiseSearch(
         D = D,
         Q = 0,
         seasonality = seasonality,
-        allowMean = constant,
-        allowDrift = false,
+        allowMean = allowMean,
+        allowDrift = allowDrift,
         alpha = alpha,
         lambda = lambda
     )
@@ -3780,7 +3788,7 @@ function stepwiseSearch(
             newp, newq, newP, newQ = p + dp, q + dq, P + dP, Q + dQ
             (0 <= newp <= maxp && 0 <= newq <= maxq && 0 <= newP <= maxP && 0 <= newQ <= maxQ) ||
                 continue
-            if tryCandidate!(newp, newq, newP, newQ, allowMean, allowDrift)
+            if tryCandidate!(newp, newq, newP, newQ, curMean, curDrift)
                 p, q, P, Q = newp, newq, newP, newQ
                 improved = true
                 break
@@ -3788,8 +3796,16 @@ function stepwiseSearch(
         end
         improved && continue
 
-        if (allowDrift || allowMean) && tryCandidate!(p, q, P, Q, !constant, false)
-            constant = !constant
+        # Toggle the constant in the slot that matches the differencing order
+        # (drift when d + D == 1, mean when d + D == 0), as in auto.arima.
+        if allowDrift || allowMean
+            newMean = useDrift ? false : !constant
+            newDrift = useDrift ? !constant : false
+            if tryCandidate!(p, q, P, Q, newMean, newDrift)
+                constant = !constant
+                curMean = newMean
+                curDrift = newDrift
+            end
         end
     end
 

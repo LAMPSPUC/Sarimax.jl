@@ -224,10 +224,14 @@ function selectIntegrationOrder(
 ) where {Fl<:AbstractFloat}
     if test == "kpssStateSpace"
         return StateSpaceModels.repeated_kpss_test(y, maxd, D, seasonality)
-    elseif test == "kpss"
+    elseif test in ("kpss", "kpssShort")
+        # "kpss": Hobijn et al. automatic lag selection (statsmodels-compatible).
+        # "kpssShort": urca-style lags = "short", matching R's forecast::ndiffs
+        # (and therefore auto.arima's differencing decisions).
+        lagMethod = (test == "kpssShort") ? :short : :auto
         for i in 0:maxd
             diffSeries = differentiate(y, i, D, seasonality)
-            result = kpss_test(diffSeries)
+            result = kpss_test(diffSeries; nlags=lagMethod)
             if result["p_value"] > 0.05
                 return i
             end

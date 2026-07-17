@@ -1964,7 +1964,7 @@ function auto(
     @assert isnothing(lambda) || (lambda > 0)
     @assert isnothing(alpha) || (alpha >= 0 && alpha <= 1)
     @assert informationCriteria ∈ ["aic", "aicc", "bic"]
-    @assert integrationTest ∈ ["kpss"]
+    @assert integrationTest ∈ ["kpss", "kpssShort"]
     @assert seasonalIntegrationTest ∈ ["seas", "ch", "ocsb"]
     @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable"]
     @assert objectiveFunction == "elastic_net" || isnothing(lambda)

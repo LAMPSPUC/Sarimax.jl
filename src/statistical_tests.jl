@@ -86,6 +86,8 @@ Kwiatkowski-Phillips-Schmidt-Shin test for stationarity.
     - `:ct`: The data is stationary around a trend
 - `nlags::Union{Symbol,Int}=:auto`: Number of lags to use
     - `:auto` (default): data-dependent selection of Hobijn et al. (1998)
+    - `:short`: trunc(4 * (n/100)^(1/4)), matching `urca::ur.kpss(..., lags = "short")` —
+      the lag choice used by R's `forecast::ndiffs`, hence by `auto.arima`
     - `:legacy`: int(12 * (n/100)^(1/4)) as in Schwert (1989)
     - Integer value: uses the specified number of lags
 
@@ -137,7 +139,9 @@ function kpss_test(y::Vector{Fl}; regression::Symbol=:c, nlags::Union{Symbol,Int
     # Compute number of lags
     if nlags == :legacy
         nlags = min(Int(ceil(12.0 * (nobs/100.0)^0.25)), nobs - 1)
-
+    elseif nlags == :short
+        # urca lags = "short" (used by R's forecast::ndiffs / auto.arima)
+        nlags = min(trunc(Int, 4.0 * (nobs/100.0)^0.25), nobs - 1)
     elseif nlags == :auto
         nlags = _kpss_autolag(residuals, nobs)
     elseif isa(nlags, Integer)
@@ -145,7 +149,7 @@ function kpss_test(y::Vector{Fl}; regression::Symbol=:c, nlags::Union{Symbol,Int
             throw(ArgumentError("nlags must be < number of observations"))
         end
     else
-        throw(ArgumentError("nlags must be :legacy, :auto or an integer"))
+        throw(ArgumentError("nlags must be :legacy, :auto, :short or an integer"))
     end
 
     # Compute KPSS test statistic

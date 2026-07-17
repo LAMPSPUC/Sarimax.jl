@@ -2768,9 +2768,36 @@ function isVisited(model::SARIMAModel, visitedModels::Dict{String,Dict{String,An
 end
 
 """
-    checkModelStationarityInvertibility(model::SARIMAModel, assertStationarity::Bool, assertInvertibility::Bool, showLogs::Bool)
+    maxInverseRootModulus(a::Vector{Fl}) where Fl
+
+Largest modulus among the inverse roots of the polynomial `1 + a[1] z + a[2] z^2 + ...`,
+computed as the eigenvalues of the companion matrix of `z^n + a[1] z^(n-1) + ... + a[n]`.
+A polynomial has all roots outside the unit circle iff this value is < 1. Returns 0 for
+an empty (or all-zero) coefficient vector.
+"""
+function maxInverseRootModulus(a::Vector{Fl}) where {Fl}
+    n = findlast(!iszero, a)
+    isnothing(n) && return zero(real(Fl))
+    coeffs = a[1:n]
+    companion = zeros(Fl, n, n)
+    companion[1, :] .= .-coeffs
+    for i = 2:n
+        companion[i, i-1] = one(Fl)
+    end
+    return maximum(abs.(eigvals(companion)))
+end
+
+"""
+    checkModelStationarityInvertibility(model::SARIMAModel, assertStationarity::Bool, assertInvertibility::Bool, showLogs::Bool; rootMargin=1e-3)
 
 Checks if a SARIMA model is stationary and invertible.
+
+Following R's `auto.arima` (`myarima`), fits whose expanded AR/MA polynomial roots lie
+within `rootMargin` of the unit circle (modulus < 1 + rootMargin, default 1.001) are
+also rejected: such near-boundary fits behave like (near-)unit-root processes and can
+produce erratic long-horizon forecasts even though they are technically admissible.
+This complements the `stationary = true` fitting constraint, which guarantees strict
+stationarity during optimization but lets solutions approach the boundary.
 
 # Arguments
 
@@ -2778,6 +2805,7 @@ Checks if a SARIMA model is stationary and invertible.
 - `showLogs::Bool`: Whether to suppress output.
 - `assertStationarity::Bool`: Whether to assert stationarity of the fitted models. Default is false.
 - `assertInvertibility::Bool`: Whether to assert invertibility of the fitted models. Default is false.
+- `rootMargin::AbstractFloat`: Rejection margin around the unit circle (R uses 1e-3).
 
 # Returns
 - `Bool`: `true` if the model is stationary and invertible, `false` otherwise.
@@ -2787,7 +2815,8 @@ function checkModelStationarityInvertibility(
     model::SARIMAModel,
     assertStationarity::Bool,
     assertInvertibility::Bool,
-    showLogs::Bool,
+    showLogs::Bool;
+    rootMargin::AbstractFloat = 1e-3,
 )
     # Candidates whose solver did not succeed are never selected: their
     # "estimates" are whatever point the solver stopped at. (TIME_LIMIT is
@@ -2802,12 +2831,17 @@ function checkModelStationarityInvertibility(
 
     arCoefficients, maCoefficients = completeCoefficientsVector(model)
 
-    invertible =
-        !assertInvertibility || StateSpaceModels.assert_invertibility(maCoefficients)
-    showLogs && (invertible || @info("The model $(getId(model)) is not invertible"))
+    # Admissibility threshold: all polynomial roots must have modulus > 1 + rootMargin,
+    # i.e. all inverse roots must have modulus < 1 / (1 + rootMargin).
+    threshold = 1 / (1 + rootMargin)
 
-    stationary = !assertStationarity || StateSpaceModels.assert_stationarity(arCoefficients)
-    showLogs && (stationary || @info("The model $(getId(model)) is not stationary"))
+    # MA polynomial: 1 + θ₁ z + θ₂ z² + ...
+    invertible = !assertInvertibility || maxInverseRootModulus(maCoefficients) < threshold
+    showLogs && (invertible || @info("The model $(getId(model)) is not invertible (roots within $(rootMargin) of the unit circle)"))
+
+    # AR polynomial: 1 - φ₁ z - φ₂ z² - ...
+    stationary = !assertStationarity || maxInverseRootModulus(-arCoefficients) < threshold
+    showLogs && (stationary || @info("The model $(getId(model)) is not stationary (roots within $(rootMargin) of the unit circle)"))
 
     showLogs && (!invertible || !stationary) && @info("The model will not be considered")
     return stationary && invertible

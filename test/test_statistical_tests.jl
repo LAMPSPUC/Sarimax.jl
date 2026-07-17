@@ -237,3 +237,67 @@ end
         end
     end
 end
+
+# ------------------------------------------------------------------------------------------
+# R-compatibility guarantees.
+# Reference values generated with R 4.4.1, forecast 8.23.0, urca 1.3-4:
+#   urca::ur.kpss(y, type = "mu", lags = "short")@teststat
+#   forecast::ndiffs(y, alpha = 0.05, test = "kpss")
+#   forecast::nsdiffs(ts(y, frequency = 12), test = "seas")
+# on the deterministic series defined below (bit-reproducible across languages) and on the
+# package's AIR_PASSENGERS dataset (datasets/airpassengers.csv — note: this is NOT R's
+# classic AirPassengers; the references were generated on this exact CSV).
+# ------------------------------------------------------------------------------------------
+@testset "R compatibility (urca/forecast)" begin
+    t1 = collect(1.0:120.0)
+    yTrend = 0.5 .* t1 .+ 10 .* sin.(2 .* pi .* t1 ./ 12)   # trend + seasonal
+    t2 = collect(1.0:150.0)
+    yDeter = sin.(t2) .+ cos.(3 .* t2)                      # deterministic stationary
+    yRw = cumsum(sin.(t2) .+ cos.(2 .* t2) .+ 0.3)          # accumulated drift
+
+    airPassengers = Float64.(values(loadDataset(AIR_PASSENGERS)))
+
+    @testset "kpss_test nlags=:short matches urca::ur.kpss(lags=\"short\")" begin
+        atol = 1e-6
+        @test Sarimax.kpss_test(yTrend; nlags=:short)["test_statistic"] ≈ 2.2655841674 atol = atol
+        @test Sarimax.kpss_test(diff(yTrend); nlags=:short)["test_statistic"] ≈ 0.0132526946 atol = atol
+        @test Sarimax.kpss_test(yDeter; nlags=:short)["test_statistic"] ≈ 0.0401231596 atol = atol
+        @test Sarimax.kpss_test(diff(yDeter); nlags=:short)["test_statistic"] ≈ 0.0238223296 atol = atol
+        @test Sarimax.kpss_test(yRw; nlags=:short)["test_statistic"] ≈ 3.0956486894 atol = atol
+        @test Sarimax.kpss_test(diff(yRw); nlags=:short)["test_statistic"] ≈ 0.0291375337 atol = atol
+        @test Sarimax.kpss_test(airPassengers; nlags=:short)["test_statistic"] ≈ 3.8269740597 atol = atol
+        @test Sarimax.kpss_test(diff(airPassengers); nlags=:short)["test_statistic"] ≈ 0.0193280027 atol = atol
+    end
+
+    @testset "selectIntegrationOrder kpssShort matches forecast::ndiffs" begin
+        @test Sarimax.selectIntegrationOrder(yTrend, 2, 0, 1, "kpssShort") == 1
+        @test Sarimax.selectIntegrationOrder(yDeter, 2, 0, 1, "kpssShort") == 0
+        @test Sarimax.selectIntegrationOrder(yRw, 2, 0, 1, "kpssShort") == 1
+        @test Sarimax.selectIntegrationOrder(airPassengers, 2, 0, 1, "kpssShort") == 1
+    end
+
+    @testset "seasonalStrengthTest matches forecast::nsdiffs(test=\"seas\")" begin
+        @test Sarimax.seasonalStrengthTest(yTrend, 12)["seasonal_difference"] == 1
+        @test Sarimax.seasonalStrengthTest(yDeter, 12)["seasonal_difference"] == 0
+        @test Sarimax.seasonalStrengthTest(airPassengers, 12)["seasonal_difference"] == 1
+        # selectSeasonalIntegrationOrder("seas") delegates to the internal test
+        @test Sarimax.selectSeasonalIntegrationOrder(yTrend, 12, "seas") == 1
+        @test Sarimax.selectSeasonalIntegrationOrder(yDeter, 12, "seas") == 0
+    end
+
+    @testset "root admissibility margin (auto.arima's 1.001 rule)" begin
+        threshold = 1 / (1 + 1e-3)
+        # AR(1): inverse root modulus = |phi| -> AR poly coeffs a = -phi
+        @test Sarimax.maxInverseRootModulus([-0.9995]) ≈ 0.9995 atol = 1e-12
+        @test Sarimax.maxInverseRootModulus([-0.9995]) >= threshold   # rejected (near unit root)
+        @test Sarimax.maxInverseRootModulus([-0.95]) < threshold      # accepted
+        # MA(1): 1 + theta z -> inverse root modulus = |theta|
+        @test Sarimax.maxInverseRootModulus([0.9995]) >= threshold
+        @test Sarimax.maxInverseRootModulus([0.9]) < threshold
+        # AR(2) with known roots: (1 - 0.5z)(1 - 0.4z) = 1 - 0.9z + 0.2z^2
+        @test Sarimax.maxInverseRootModulus([-0.9, 0.2]) ≈ 0.5 atol = 1e-10
+        # empty / all-zero -> trivially admissible
+        @test Sarimax.maxInverseRootModulus(Float64[]) == 0.0
+        @test Sarimax.maxInverseRootModulus([0.0, 0.0]) == 0.0
+    end
+end

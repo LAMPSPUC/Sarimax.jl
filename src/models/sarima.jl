@@ -1894,7 +1894,10 @@ Automatically fits the best SARIMA model according to the specified parameters.
 - `informationCriteria::String`: The information criteria to be used for model selection. Options are "aic", "aicc", or "bic". Default is "aicc".
 - `allowMean::Union{Bool,Nothing}`: Whether to include a mean term in the model. Default is nothing.
 - `allowDrift::Union{Bool,Nothing}`: Whether to include a drift term in the model. Default is nothing.
-- `integrationTest::String`: The integration test to be used for determining the non-seasonal integration order. Default is "kpss".
+- `integrationTest::String`: The integration test to be used for determining the non-seasonal
+  integration order. `"kpssShort"` (default) uses urca-style `lags = "short"`, matching the
+  differencing decisions of R's `forecast::ndiffs`/`auto.arima`; `"kpss"` uses the Hobijn
+  et al. automatic lag selection (statsmodels-compatible).
 - `seasonalIntegrationTest::String`: The integration test to be used for determining the seasonal integration order. Default is "seas".
 - `objectiveFunction::String`: The objective function to be used for model selection.
 - `parallel::Bool`: Fit candidate models across Julia threads (experimental; applies to
@@ -1927,8 +1930,8 @@ function auto(
     informationCriteria::String = "aicc",
     allowMean::Union{Bool,Nothing} = nothing,
     allowDrift::Union{Bool,Nothing} = nothing,
-    integrationTest::String = "kpss",
-    seasonalIntegrationTest::String = "ocsb",
+    integrationTest::String = "kpssShort",
+    seasonalIntegrationTest::String = "seas",
     objectiveFunction::String = "mse",
     assertStationarity::Bool = true,
     assertInvertibility::Bool = true,

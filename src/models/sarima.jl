@@ -598,7 +598,8 @@ function get_hyperparameters_number(model::SARIMAModel)
     k = (model.allowMean) ? 1 : 0
     k = (model.allowDrift) ? k + 1 : k
     β = isnothing(model.exog) ? 0 : length(colnames(model.exog))
-    return model.p + model.q + model.P + model.Q + k + β + 1
+    nPre = hasproperty(model, :metadata) ? get(model.metadata, "nPresampleFree", 0) : 0
+    return model.p + model.q + model.P + model.Q + k + β + 1 + nPre
 end
 
 function get_hyperparameters_number(model::JuMP.Model)
@@ -680,8 +681,13 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
   pre-sample residuals at zero and drops the first `max(p+sP, q+sQ)` differenced
   observations; `:warmup` conditions only on the AR-side lags and warm-starts the MA
   recursion from the beginning of the differenced sample, matching R's
-  `arima(..., method = "CSS")`. Exact-likelihood (Kalman) initialization is out of
-  scope by design.
+  `arima(..., method = "CSS")`; `:free` estimates the pre-sample residuals and the
+  pre-sample differenced endogenous values as free variables (Box-Jenkins
+  backcasting / unconditional least squares) and keeps every differenced observation
+  in the objective — the resulting concentrated likelihood tracks the exact (Kalman)
+  likelihood up to a near-constant log-determinant term, making information criteria
+  comparable across candidate orders. Exact-likelihood (Kalman) initialization is out
+  of scope by design.
 
 # Example
 ```jldoctest
@@ -731,7 +737,7 @@ function fit!(
     seasonalForm === :free && throw(ArgumentError("seasonalForm :free is planned for a later release"))
     seasonalForm in (:multiplicative, :additive) ||
         throw(ArgumentError("seasonalForm must be :multiplicative or :additive"))
-    initialization in (:zeroed, :warmup) ||
+    initialization in (:zeroed, :warmup, :free) ||
         throw(ArgumentError("initialization must be :zeroed or :warmup (exact-likelihood initialization requires a Kalman filter, which is out of scope by design)"))
 
     isnothing(lambda) || (model.lambda = lambda)
@@ -795,6 +801,7 @@ function fit!(
     end
 
     residualLags =
+        initialization === :free ? 0 :
         initialization === :warmup ?
         (
             seasonalForm === :multiplicative ?
@@ -856,6 +863,28 @@ function fit!(
 
     fix.(ϵ[1:lb-1], 0.0)
 
+    # initialization = :free — pre-sample values as free decision variables (Box-Jenkins
+    # backcasting / unconditional least squares): the pre-sample residuals and the
+    # pre-sample (differenced) endogenous values needed by the AR terms are estimated
+    # instead of conditioned at zero, and every differenced observation enters the
+    # objective. The concentrated conditional likelihood then approximates the exact
+    # likelihood up to a near-constant log-determinant term (verified on M4 clusters),
+    # making information criteria comparable across candidates without common-sample
+    # conditioning. Pre-sample variables enter only through the recursion (not the
+    # objective) and are not counted as hyperparameters.
+    freeInit = initialization === :free
+    yLo = freeInit ? 1 - (model.p + model.seasonality * model.P) : 1
+    epsLo = freeInit ? 1 - (model.q + model.seasonality * model.Q) : 1
+    if freeInit && epsLo <= 0
+        @variable(mod, ϵpre[epsLo:0])
+        for t0 = epsLo:0
+            set_start_value(ϵpre[t0], 0.0)
+        end
+        epsAcc = OffsetArrays.OffsetVector(Any[[ϵpre[t0] for t0 = epsLo:0]; ϵ], epsLo - 1)
+    else
+        epsAcc = OffsetArrays.OffsetVector(Any[ϵ...], 0)
+    end
+
     # Represent missing endogenous values as free variables so the model
     # relates each gap to its neighbours; keeping their residuals in the
     # objective yields the (two-sided) conditional smoother.
@@ -874,6 +903,23 @@ function fit!(
     else
         yData = yValues
     end
+
+    freeInit && hasMissing && throw(
+        ArgumentError("initialization = :free is not compatible with missing data yet"),
+    )
+    if freeInit && yLo <= 0
+        @variable(mod, yback[yLo:0])
+        for t0 = yLo:0
+            set_start_value(yback[t0], 0.0)
+        end
+        yAcc = OffsetArrays.OffsetVector(Any[[yback[t0] for t0 = yLo:0]; yData], yLo - 1)
+    else
+        yAcc = OffsetArrays.OffsetVector(Any[yData...], 0)
+    end
+    # Free pre-sample values are penalized as parameters in the information criteria:
+    # the ULS approximation leaves them unpenalized, which lets high-seasonal-order
+    # candidates absorb s*P backcast degrees of freedom for free (overfit).
+    model.metadata["nPresampleFree"] = freeInit ? (max(0, 1 - yLo) + max(0, 1 - epsLo)) : 0
 
     if MACoefficientsAreModelParameters(objectiveFunction)
         @variable(mod, θ[i = 1:model.q] in Parameter(i))
@@ -928,20 +974,20 @@ function fit!(
             c +
             trend * driftValues[t] +
             sum(β[i] * exogValues[t, i] for i = 1:nExog) +
-            sum(ϕ[i] * yData[t-i] for i = 1:model.p if (t - i > 0)) +
-            sum(θ[j] * ϵ[t-j] for j = 1:model.q if (t - j > 0)) +
+            sum(ϕ[i] * yAcc[t-i] for i = 1:model.p if (t - i >= yLo)) +
+            sum(θ[j] * epsAcc[t-j] for j = 1:model.q if (t - j >= epsLo)) +
             sum(
-                Φ[k] * yData[t-(model.seasonality*k)] for
-                k = 1:model.P if (t - (model.seasonality * k) > 0)
+                Φ[k] * yAcc[t-(model.seasonality*k)] for
+                k = 1:model.P if (t - (model.seasonality * k) >= yLo)
             ) +
-            sum(Θ[w] * ϵ[t-(model.seasonality*w)] for w = 1:model.Q if (t - (model.seasonality * w) > 0)) -
+            sum(Θ[w] * epsAcc[t-(model.seasonality*w)] for w = 1:model.Q if (t - (model.seasonality * w) >= epsLo)) -
             sum(
-                ϕ[i] * Φ[k] * yData[t-i-(model.seasonality*k)] for
-                i = 1:model.p, k = 1:model.P if (t - i - (model.seasonality * k) > 0)
+                ϕ[i] * Φ[k] * yAcc[t-i-(model.seasonality*k)] for
+                i = 1:model.p, k = 1:model.P if (t - i - (model.seasonality * k) >= yLo)
             ) +
             sum(
-                θ[j] * Θ[w] * ϵ[t-j-(model.seasonality*w)] for
-                j = 1:model.q, w = 1:model.Q if (t - j - (model.seasonality * w) > 0)
+                θ[j] * Θ[w] * epsAcc[t-j-(model.seasonality*w)] for
+                j = 1:model.q, w = 1:model.Q if (t - j - (model.seasonality * w) >= epsLo)
             )
         )
     elseif model.seasonality > 1
@@ -951,13 +997,13 @@ function fit!(
             c +
             trend * driftValues[t] +
             sum(β[i] * exogValues[t, i] for i = 1:nExog) +
-            sum(ϕ[i] * yData[t-i] for i = 1:model.p if (t - i > 0)) +
-            sum(θ[j] * ϵ[t-j] for j = 1:model.q if (t - j > 0)) +
+            sum(ϕ[i] * yAcc[t-i] for i = 1:model.p if (t - i >= yLo)) +
+            sum(θ[j] * epsAcc[t-j] for j = 1:model.q if (t - j >= epsLo)) +
             sum(
-                Φ[k] * yData[t-(model.seasonality*k)] for
-                k = 1:model.P if (t - (model.seasonality * k) > 0)
+                Φ[k] * yAcc[t-(model.seasonality*k)] for
+                k = 1:model.P if (t - (model.seasonality * k) >= yLo)
             ) +
-            sum(Θ[w] * ϵ[t-(model.seasonality*w)] for w = 1:model.Q if (t - (model.seasonality * w) > 0))
+            sum(Θ[w] * epsAcc[t-(model.seasonality*w)] for w = 1:model.Q if (t - (model.seasonality * w) >= epsLo))
         )
     else
         @expression(
@@ -966,8 +1012,8 @@ function fit!(
             c +
             trend * driftValues[t] +
             sum(β[i] * exogValues[t, i] for i = 1:nExog) +
-            sum(ϕ[i] * yData[t-i] for i = 1:model.p if (t - i > 0)) +
-            sum(θ[j] * ϵ[t-j] for j = 1:model.q if (t - j > 0))
+            sum(ϕ[i] * yAcc[t-i] for i = 1:model.p if (t - i >= yLo)) +
+            sum(θ[j] * epsAcc[t-j] for j = 1:model.q if (t - j >= epsLo))
         )
     end
 
@@ -1993,7 +2039,7 @@ function auto(
     @assert searchMethod ∈ ["stepwise", "stepwiseNaive", "grid", "sarimax"]
     @assert !(invertible && objectiveFunction == "bilevel") "invertible = true is not compatible with the bilevel objective"
     @assert seasonalForm in (:multiplicative, :additive) "seasonalForm must be :multiplicative or :additive (:free is planned)"
-    @assert initialization in (:zeroed, :warmup) "initialization must be :zeroed or :warmup"
+    @assert initialization in (:zeroed, :warmup, :free) "initialization must be :zeroed, :warmup or :free"
 
     ModelFl = eltype(values(y))
     informationCriteriaFunction = getInformationCriteriaFunction(informationCriteria)
@@ -2101,7 +2147,11 @@ function auto(
     # All search candidates are conditioned on the same pre-sample length so
     # that their CSS likelihoods (and hence information criteria) are computed
     # on the same effective sample.
-    searchLb = conditioningLags(maxp, maxq, maxP, maxQ, seasonality, seasonalForm)
+    # With :free initialization every candidate already scores on the full differenced
+    # sample (pre-sample values are estimated), so no common conditioning is needed.
+    searchLb =
+        initialization === :free ? 0 :
+        conditioningLags(maxp, maxq, maxP, maxQ, seasonality, seasonalForm)
 
     if outlierDetection
         exog = detectOutliers(y, exog, d, D, seasonality, showLogs)

@@ -1906,6 +1906,9 @@ Automatically fits the best SARIMA model according to the specified parameters.
 - `invertibilityMargin::AbstractFloat`: Margin keeping MA reflection coefficients in
   `[-(1-m), 1-m]` when `invertible = true`. Default `2e-3` (strictly inside the 1.001
   root-admissibility rule). Not compatible with the `"bilevel"` objective.
+- `stationary::Bool`: Fit candidate models with the stationarity-by-construction AR
+  parameterization. Defaults to `assertStationarity` (same rationale as `invertible`).
+- `stationarityMargin::AbstractFloat`: AR analogue of `invertibilityMargin`. Default `2e-3`.
 - `seasonalIntegrationTest::String`: The integration test to be used for determining the seasonal integration order. Default is "seas".
 - `objectiveFunction::String`: The objective function to be used for model selection.
 - `parallel::Bool`: Fit candidate models across Julia threads (experimental; applies to
@@ -1949,8 +1952,8 @@ function auto(
     parallel::Bool = false,
     seasonalForm::Symbol = :multiplicative,
     initialization::Symbol = :zeroed,
-    stationary::Bool = false,
-    stationarityMargin::AbstractFloat = 0.0,
+    stationary::Bool = assertStationarity,
+    stationarityMargin::AbstractFloat = 2e-3,
     invertible::Bool = assertInvertibility,
     invertibilityMargin::AbstractFloat = 2e-3,
     lambda::Union{Float64,Nothing} = nothing,

@@ -703,6 +703,7 @@ function fit!(
     lambda::Union{Nothing,<:AbstractFloat} = nothing,
     invertible::Bool = false,
     invertibilityMargin::AbstractFloat = 0.0,
+    constrainedRefit::Bool = false,
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
     initialization::Symbol = :zeroed,
@@ -1898,17 +1899,20 @@ Automatically fits the best SARIMA model according to the specified parameters.
   integration order. `"kpssShort"` (default) uses urca-style `lags = "short"`, matching the
   differencing decisions of R's `forecast::ndiffs`/`auto.arima`; `"kpss"` uses the Hobijn
   et al. automatic lag selection (statsmodels-compatible).
-- `invertible::Bool`: Fit candidate models with the invertibility-by-construction MA
-  parameterization (reflection coefficients). Defaults to `assertInvertibility`, so the
-  search optimizes inside the region it will accept: with unconstrained (box-bounded) MA
-  estimation, CSS often piles the MA root up at the unit circle and the admissibility
-  check then discards the candidate — wiping out the MA model space on some series.
+- `invertible::Bool`: Fit every candidate with the invertibility-by-construction MA
+  parameterization (reflection coefficients). Default `false`: candidates are first fitted
+  with free (box-bounded) MA — which finds better optima on most series — and only when a
+  fit fails the 1.001 root-admissibility check is it refitted with the constrained
+  parameterization and re-checked (`ensureAdmissible!`, margin 2e-3). Every accepted model
+  is therefore stationary and invertible either way; `invertible = true` merely forces the
+  constrained parameterization on every fit (not compatible with the `"bilevel"` objective).
 - `invertibilityMargin::AbstractFloat`: Margin keeping MA reflection coefficients in
-  `[-(1-m), 1-m]` when `invertible = true`. Default `2e-3` (strictly inside the 1.001
-  root-admissibility rule). Not compatible with the `"bilevel"` objective.
-- `stationary::Bool`: Fit candidate models with the stationarity-by-construction AR
-  parameterization. Defaults to `assertStationarity` (same rationale as `invertible`).
-- `stationarityMargin::AbstractFloat`: AR analogue of `invertibilityMargin`. Default `2e-3`.
+  `[-(1-m), 1-m]` when `invertible = true`. Default `2e-3` (strictly inside the 1.001 rule).
+- `stationary::Bool`: Fit candidates with the stationarity-by-construction AR
+  parameterization. Defaults to `assertStationarity` (empirically as accurate as the free
+  AR fit and cheaper than relying on rejection).
+- `stationarityMargin::AbstractFloat`: AR analogue of `invertibilityMargin`. Default `0.0`
+  (the on-demand refit uses 2e-3 when the admissibility check bites).
 - `seasonalIntegrationTest::String`: The integration test to be used for determining the seasonal integration order. Default is "seas".
 - `objectiveFunction::String`: The objective function to be used for model selection.
 - `parallel::Bool`: Fit candidate models across Julia threads (experimental; applies to
@@ -1953,9 +1957,10 @@ function auto(
     seasonalForm::Symbol = :multiplicative,
     initialization::Symbol = :zeroed,
     stationary::Bool = assertStationarity,
-    stationarityMargin::AbstractFloat = 2e-3,
-    invertible::Bool = assertInvertibility,
+    stationarityMargin::AbstractFloat = 0.0,
+    invertible::Bool = false,
     invertibilityMargin::AbstractFloat = 2e-3,
+    constrainedRefit::Bool = false,
     lambda::Union{Float64,Nothing} = nothing,
     alpha::Union{Float64,Nothing} = nothing,
 )
@@ -2126,6 +2131,7 @@ function auto(
             stationarityMargin = stationarityMargin,
             invertible = invertible,
             invertibilityMargin = invertibilityMargin,
+            constrainedRefit = constrainedRefit,
             allowMean = allowMean,
             allowDrift = allowDrift,
             alpha = alpha,
@@ -2155,6 +2161,7 @@ function auto(
             stationarityMargin = stationarityMargin,
             invertible = invertible,
             invertibilityMargin = invertibilityMargin,
+            constrainedRefit = constrainedRefit,
             parallel = parallel,
             allowMean = allowMean,
             allowDrift = allowDrift,
@@ -2186,6 +2193,7 @@ function auto(
             stationarityMargin = stationarityMargin,
             invertible = invertible,
             invertibilityMargin = invertibilityMargin,
+            constrainedRefit = constrainedRefit,
             parallel = parallel,
             allowMean = allowMean,
             allowDrift = allowDrift,
@@ -2871,6 +2879,71 @@ function checkModelStationarityInvertibility(
 end
 
 """
+    ensureAdmissible!(model, assertStationarity, assertInvertibility, showLogs; kwargs...)
+
+On-demand constrained refitting: checks admissibility (stationarity/invertibility with
+the 1.001 root margin) and, when the unconstrained fit fails the check, refits the model
+with the stationarity/invertibility-by-construction parameterizations (margins
+`refitMargin`) and re-checks. Returns `true` iff the (possibly refitted) model is
+admissible.
+
+Rationale: unconstrained (box-bounded) CSS estimation finds better optima on most series,
+but on some it piles the MA root up at the unit circle and pure rejection then wipes out
+the MA model space; always-constrained fitting rescues those series but degrades the rest.
+Fitting free first and constraining only when the admissibility check bites keeps the best
+of both — every accepted model is stationary and invertible, at unconstrained quality
+wherever the free optimum is already admissible.
+"""
+function ensureAdmissible!(
+    model::SARIMAModel,
+    assertStationarity::Bool,
+    assertInvertibility::Bool,
+    showLogs::Bool;
+    objectiveFunction::String = "mse",
+    minConditioningObs::Int = 0,
+    seasonalForm::Symbol = :multiplicative,
+    initialization::Symbol = :zeroed,
+    refitMargin::AbstractFloat = 2e-3,
+    refit::Bool = true,
+)
+    checkModelStationarityInvertibility(
+        model,
+        assertStationarity,
+        assertInvertibility,
+        showLogs,
+    ) && return true
+    refit || return false
+    (assertStationarity || assertInvertibility) || return false
+    isFitted(model) || return false
+    # The invertibility-by-construction parameterization does not support the bilevel
+    # objective; in that case keep the plain rejection semantics.
+    useInvertible = assertInvertibility && objectiveFunction != "bilevel"
+    showLogs && @info("Refitting $(getId(model)) with constrained parameterization (on demand)")
+    try
+        fit!(
+            model;
+            objectiveFunction = objectiveFunction,
+            minConditioningObs = minConditioningObs,
+            seasonalForm = seasonalForm,
+            initialization = initialization,
+            stationary = assertStationarity,
+            stationarityMargin = refitMargin,
+            invertible = useInvertible,
+            invertibilityMargin = refitMargin,
+        )
+    catch e
+        showLogs && @info("Constrained refit of $(getId(model)) failed: $(typeof(e))")
+        return false
+    end
+    return checkModelStationarityInvertibility(
+        model,
+        assertStationarity,
+        assertInvertibility,
+        showLogs,
+    )
+end
+
+"""
     localSearch!(
         candidateModels::Vector{SARIMAModel},
         visitedModels::Dict{String,Dict{String,Any}},
@@ -2925,6 +2998,7 @@ function localSearch!(
     parallel::Bool = false,
     invertible::Bool = false,
     invertibilityMargin::AbstractFloat = 0.0,
+    constrainedRefit::Bool = false,
 ) where {Fl<:AbstractFloat}
     ModelFl = Fl
     localBestCriteria::ModelFl = Inf
@@ -2943,19 +3017,25 @@ function localSearch!(
     end
     for model in toFit
         isFitted(model) || continue
+        # ensureAdmissible! may refit the model in place, so the information criterion
+        # must be evaluated afterwards.
+        admissible = ensureAdmissible!(
+            model,
+            assertStationarity,
+            assertInvertibility,
+            showLogs;
+            objectiveFunction = objectiveFunction,
+            minConditioningObs = minConditioningObs,
+            seasonalForm = seasonalForm,
+            initialization = initialization,
+            refit = constrainedRefit,
+        )
         criteria = informationCriteriaFunction(model; offset = icOffset)
         showLogs && @info("Fitted $(getId(model)) with $(criteria)")
         visitedModels[getId(model)] = Dict("criteria" => criteria)
-        if criteria < localBestCriteria
-            if checkModelStationarityInvertibility(
-                model,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-                localBestCriteria = criteria
-                localBestModel = model
-            end
+        if admissible && criteria < localBestCriteria
+            localBestCriteria = criteria
+            localBestModel = model
         end
     end
     return localBestCriteria, localBestModel
@@ -3342,6 +3422,7 @@ function stepWiseSearchNaive(
     parallel::Bool = false,
     invertible::Bool = false,
     invertibilityMargin::AbstractFloat = 0.0,
+    constrainedRefit::Bool = false,
     fixConstant::Bool = false,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,Float64} = nothing,
@@ -3396,6 +3477,7 @@ function stepWiseSearchNaive(
         parallel,
         invertible,
         invertibilityMargin,
+        constrainedRefit,
     )
 
     if isnothing(bestModel)
@@ -3453,6 +3535,7 @@ function stepWiseSearchNaive(
             parallel,
             invertible,
             invertibilityMargin,
+            constrainedRefit,
         )
         showLogs && !isnothing(itBestModel) && @info(
             "Iteration $(iterations): Best model found is $(getId(itBestModel)) with $(itBestCriteria) criteria"
@@ -3572,6 +3655,7 @@ function stepwiseSearch(
     stationarityMargin::AbstractFloat = 0.0,
     invertible::Bool = false,
     invertibilityMargin::AbstractFloat = 0.0,
+    constrainedRefit::Bool = false,
     maxModels::Int = 94,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
     lambda::Union{Nothing,<:AbstractFloat} = nothing,
@@ -3613,11 +3697,16 @@ function stepwiseSearch(
 
     results[getId(bestModel)] = bestModel
 
-    considerModel = checkModelStationarityInvertibility(
+    considerModel = ensureAdmissible!(
         bestModel,
         assertStationarity,
         assertInvertibility,
-        showLogs,
+        showLogs;
+        objectiveFunction = objectiveFunction,
+        minConditioningObs = minConditioningObs,
+        seasonalForm = seasonalForm,
+        initialization = initialization,
+        refit = constrainedRefit,
     )
 
     fitModel = SARIMA(
@@ -3643,11 +3732,16 @@ function stepwiseSearch(
 
     results[getId(fitModel)] = fitModel
 
-    considerModel = checkModelStationarityInvertibility(
+    considerModel = ensureAdmissible!(
         fitModel,
         assertStationarity,
         assertInvertibility,
-        showLogs,
+        showLogs;
+        objectiveFunction = objectiveFunction,
+        minConditioningObs = minConditioningObs,
+        seasonalForm = seasonalForm,
+        initialization = initialization,
+        refit = constrainedRefit,
     )
 
     if considerModel &&
@@ -3684,11 +3778,16 @@ function stepwiseSearch(
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
-        considerModel = checkModelStationarityInvertibility(
+        considerModel = ensureAdmissible!(
             fitModel,
             assertStationarity,
             assertInvertibility,
-            showLogs,
+            showLogs;
+            objectiveFunction = objectiveFunction,
+            minConditioningObs = minConditioningObs,
+            seasonalForm = seasonalForm,
+            initialization = initialization,
+            refit = constrainedRefit,
         )
         results[getId(fitModel)] = fitModel
         if considerModel &&
@@ -3725,11 +3824,16 @@ function stepwiseSearch(
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
-        considerModel = checkModelStationarityInvertibility(
+        considerModel = ensureAdmissible!(
             fitModel,
             assertStationarity,
             assertInvertibility,
-            showLogs,
+            showLogs;
+            objectiveFunction = objectiveFunction,
+            minConditioningObs = minConditioningObs,
+            seasonalForm = seasonalForm,
+            initialization = initialization,
+            refit = constrainedRefit,
         )
         results[getId(fitModel)] = fitModel
         if considerModel &&
@@ -3764,11 +3868,16 @@ function stepwiseSearch(
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
-        considerModel = checkModelStationarityInvertibility(
+        considerModel = ensureAdmissible!(
             fitModel,
             assertStationarity,
             assertInvertibility,
-            showLogs,
+            showLogs;
+            objectiveFunction = objectiveFunction,
+            minConditioningObs = minConditioningObs,
+            seasonalForm = seasonalForm,
+            initialization = initialization,
+            refit = constrainedRefit,
         )
         results[getId(fitModel)] = fitModel
         if considerModel &&
@@ -3809,11 +3918,16 @@ function stepwiseSearch(
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
-        considerModel = checkModelStationarityInvertibility(
+        considerModel = ensureAdmissible!(
             fitModel,
             assertStationarity,
             assertInvertibility,
-            showLogs,
+            showLogs;
+            objectiveFunction = objectiveFunction,
+            minConditioningObs = minConditioningObs,
+            seasonalForm = seasonalForm,
+            initialization = initialization,
+            refit = constrainedRefit,
         )
         results[getId(fitModel)] = fitModel
         if considerModel &&
@@ -3954,6 +4068,7 @@ function gridSearch(
     parallel::Bool = false,
     invertible::Bool = false,
     invertibilityMargin::AbstractFloat = 0.0,
+    constrainedRefit::Bool = false,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,Float64} = nothing,
 )
@@ -4016,14 +4131,19 @@ function gridSearch(
     bestIC = Inf
     for m in candidates
         isFitted(m) || continue
-        ic = informationCriteriaFunction(m; offset = icOffset)
-        showLogs && @info("Fitted $(getId(m)) with $(ic) criteria")
-        considerModel = checkModelStationarityInvertibility(
+        considerModel = ensureAdmissible!(
             m,
             assertStationarity,
             assertInvertibility,
-            showLogs,
+            showLogs;
+            objectiveFunction = objectiveFunction,
+            minConditioningObs = minConditioningObs,
+            seasonalForm = seasonalForm,
+            initialization = initialization,
+            refit = constrainedRefit,
         )
+        ic = informationCriteriaFunction(m; offset = icOffset)
+        showLogs && @info("Fitted $(getId(m)) with $(ic) criteria")
         if considerModel && ic < bestIC
             bestModel = m
             bestIC = ic

@@ -709,7 +709,6 @@ function fit!(
     lambda::Union{Nothing,<:AbstractFloat} = nothing,
     invertible::Bool = false,
     invertibilityMargin::AbstractFloat = 0.0,
-    constrainedRefit::Bool = false,
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
     initialization::Symbol = :zeroed,
@@ -1959,6 +1958,10 @@ Automatically fits the best SARIMA model according to the specified parameters.
   AR fit and cheaper than relying on rejection).
 - `stationarityMargin::AbstractFloat`: AR analogue of `invertibilityMargin`. Default `0.0`
   (the on-demand refit uses 2e-3 when the admissibility check bites).
+- `optimizer::DataType`: JuMP optimizer used to fit every candidate. Default
+  `Ipopt.Optimizer` (fast local solutions). Pass `SCIP.Optimizer` to solve each CSS
+  problem to certified global optimality (global certificate) — much slower; intended
+  for experiments and final refits rather than large-scale runs.
 - `seasonalIntegrationTest::String`: The integration test to be used for determining the seasonal integration order. Default is "seas".
 - `objectiveFunction::String`: The objective function to be used for model selection.
 - `parallel::Bool`: Fit candidate models across Julia threads (experimental; applies to
@@ -2007,6 +2010,7 @@ function auto(
     invertible::Bool = false,
     invertibilityMargin::AbstractFloat = 2e-3,
     constrainedRefit::Bool = false,
+    optimizer::DataType = Ipopt.Optimizer,
     lambda::Union{Float64,Nothing} = nothing,
     alpha::Union{Float64,Nothing} = nothing,
 )
@@ -2182,6 +2186,7 @@ function auto(
             invertible = invertible,
             invertibilityMargin = invertibilityMargin,
             constrainedRefit = constrainedRefit,
+            optimizer = optimizer,
             allowMean = allowMean,
             allowDrift = allowDrift,
             alpha = alpha,
@@ -2212,6 +2217,7 @@ function auto(
             invertible = invertible,
             invertibilityMargin = invertibilityMargin,
             constrainedRefit = constrainedRefit,
+            optimizer = optimizer,
             parallel = parallel,
             allowMean = allowMean,
             allowDrift = allowDrift,
@@ -2244,6 +2250,7 @@ function auto(
             invertible = invertible,
             invertibilityMargin = invertibilityMargin,
             constrainedRefit = constrainedRefit,
+            optimizer = optimizer,
             parallel = parallel,
             allowMean = allowMean,
             allowDrift = allowDrift,
@@ -2282,7 +2289,7 @@ function auto(
             )
         end
 
-        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs, minConditioningObs = searchLb, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin)
+        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs, minConditioningObs = searchLb, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer)
     end
 
     bestModel.exog = exog
@@ -2955,6 +2962,7 @@ function ensureAdmissible!(
     initialization::Symbol = :zeroed,
     refitMargin::AbstractFloat = 2e-3,
     refit::Bool = true,
+    optimizer::DataType = Ipopt.Optimizer,
 )
     checkModelStationarityInvertibility(
         model,
@@ -2980,6 +2988,7 @@ function ensureAdmissible!(
             stationarityMargin = refitMargin,
             invertible = useInvertible,
             invertibilityMargin = refitMargin,
+            optimizer = optimizer,
         )
     catch e
         showLogs && @info("Constrained refit of $(getId(model)) failed: $(typeof(e))")
@@ -3049,6 +3058,7 @@ function localSearch!(
     invertible::Bool = false,
     invertibilityMargin::AbstractFloat = 0.0,
     constrainedRefit::Bool = false,
+    optimizer::DataType = Ipopt.Optimizer,
 ) where {Fl<:AbstractFloat}
     ModelFl = Fl
     localBestCriteria::ModelFl = Inf
@@ -3057,13 +3067,13 @@ function localSearch!(
     if parallel
         Threads.@threads for model in toFit
             try
-                fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin)
+                fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer)
             catch e
                 @warn "Parallel candidate fit failed" exception = e
             end
         end
     else
-        foreach(model -> fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin), toFit)
+        foreach(model -> fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer), toFit)
     end
     for model in toFit
         isFitted(model) || continue
@@ -3079,6 +3089,7 @@ function localSearch!(
             seasonalForm = seasonalForm,
             initialization = initialization,
             refit = constrainedRefit,
+            optimizer = optimizer,
         )
         criteria = informationCriteriaFunction(model; offset = icOffset)
         showLogs && @info("Fitted $(getId(model)) with $(criteria)")
@@ -3473,6 +3484,7 @@ function stepWiseSearchNaive(
     invertible::Bool = false,
     invertibilityMargin::AbstractFloat = 0.0,
     constrainedRefit::Bool = false,
+    optimizer::DataType = Ipopt.Optimizer,
     fixConstant::Bool = false,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,Float64} = nothing,
@@ -3528,6 +3540,7 @@ function stepWiseSearchNaive(
         invertible,
         invertibilityMargin,
         constrainedRefit,
+        optimizer,
     )
 
     if isnothing(bestModel)
@@ -3586,6 +3599,7 @@ function stepWiseSearchNaive(
             invertible,
             invertibilityMargin,
             constrainedRefit,
+            optimizer,
         )
         showLogs && !isnothing(itBestModel) && @info(
             "Iteration $(iterations): Best model found is $(getId(itBestModel)) with $(itBestCriteria) criteria"
@@ -3706,6 +3720,7 @@ function stepwiseSearch(
     invertible::Bool = false,
     invertibilityMargin::AbstractFloat = 0.0,
     constrainedRefit::Bool = false,
+    optimizer::DataType = Ipopt.Optimizer,
     maxModels::Int = 94,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
     lambda::Union{Nothing,<:AbstractFloat} = nothing,
@@ -3740,7 +3755,7 @@ function stepwiseSearch(
         alpha = alpha,
         lambda = lambda
     )
-    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin)
+    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer)
     showLogs && @info(
         "Fitted $(getId(bestModel)) with $(informationCriteriaFunction(bestModel; offset=icOffset)) criteria"
     )
@@ -3757,6 +3772,7 @@ function stepwiseSearch(
         seasonalForm = seasonalForm,
         initialization = initialization,
         refit = constrainedRefit,
+        optimizer = optimizer,
     )
 
     fitModel = SARIMA(
@@ -3774,7 +3790,7 @@ function stepwiseSearch(
         alpha = alpha,
         lambda = lambda
     )
-    fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin)
+    fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer)
     showLogs && @info(
         "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
     )
@@ -3792,6 +3808,7 @@ function stepwiseSearch(
         seasonalForm = seasonalForm,
         initialization = initialization,
         refit = constrainedRefit,
+        optimizer = optimizer,
     )
 
     if considerModel &&
@@ -3824,7 +3841,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -3838,6 +3855,7 @@ function stepwiseSearch(
             seasonalForm = seasonalForm,
             initialization = initialization,
             refit = constrainedRefit,
+            optimizer = optimizer,
         )
         results[getId(fitModel)] = fitModel
         if considerModel &&
@@ -3870,7 +3888,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -3884,6 +3902,7 @@ function stepwiseSearch(
             seasonalForm = seasonalForm,
             initialization = initialization,
             refit = constrainedRefit,
+            optimizer = optimizer,
         )
         results[getId(fitModel)] = fitModel
         if considerModel &&
@@ -3914,7 +3933,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -3928,6 +3947,7 @@ function stepwiseSearch(
             seasonalForm = seasonalForm,
             initialization = initialization,
             refit = constrainedRefit,
+            optimizer = optimizer,
         )
         results[getId(fitModel)] = fitModel
         if considerModel &&
@@ -3964,7 +3984,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda,
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -3978,6 +3998,7 @@ function stepwiseSearch(
             seasonalForm = seasonalForm,
             initialization = initialization,
             refit = constrainedRefit,
+            optimizer = optimizer,
         )
         results[getId(fitModel)] = fitModel
         if considerModel &&
@@ -4119,6 +4140,7 @@ function gridSearch(
     invertible::Bool = false,
     invertibilityMargin::AbstractFloat = 0.0,
     constrainedRefit::Bool = false,
+    optimizer::DataType = Ipopt.Optimizer,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,Float64} = nothing,
 )
@@ -4164,7 +4186,7 @@ function gridSearch(
         )
     end
 
-    fitOne!(m) = fit!(m; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin)
+    fitOne!(m) = fit!(m; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer)
     if parallel
         Threads.@threads for m in candidates
             try
@@ -4191,6 +4213,7 @@ function gridSearch(
             seasonalForm = seasonalForm,
             initialization = initialization,
             refit = constrainedRefit,
+            optimizer = optimizer,
         )
         ic = informationCriteriaFunction(m; offset = icOffset)
         showLogs && @info("Fitted $(getId(m)) with $(ic) criteria")

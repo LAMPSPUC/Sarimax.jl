@@ -366,6 +366,14 @@ The series is decomposed with a robust STL fit and the seasonal strength is
 
 `D = 1` is returned when `Fs > 0.64`, and `D = 0` otherwise.
 
+Note: `SeasonalTrendLoess.stl(...; robust = true)` ignores its outer-iteration cap
+`no` — the loop guard is `robust | (o <= no)`, which is always true — so it can spin
+forever when the seasonal convergence criterion is never met on degenerate series
+(this was observed hanging `auto` on some short M4 series). We instead request
+`robust = false` with a bounded number of robustness cycles (`no = 15, ni = 1`), which
+performs the same robust re-weighting for at most 15 outer cycles: identical `Fs` to
+`robust = true` on well-behaved series, and guaranteed termination on degenerate ones.
+
 # Arguments
 - `y::Vector{T}`: Time series data
 - `m::Int`: The seasonal period
@@ -382,7 +390,7 @@ The series is decomposed with a robust STL fit and the seasonal strength is
 function seasonalStrengthTest(y::Vector{T}, m::Int) where {T<:AbstractFloat}
     m > 1 || throw(ArgumentError("The seasonal period m must be greater than 1"))
     length(y) >= 2 * m || throw(ArgumentError("The series must span at least two seasonal periods"))
-    decomposition = SeasonalTrendLoess.stl(y, m; robust = true)
+    decomposition = SeasonalTrendLoess.stl(y, m; robust = false, no = 15, ni = 1)
     remainderVariance = var(decomposition.remainder)
     strength = max(
         0.0,

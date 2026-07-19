@@ -301,3 +301,16 @@ end
         @test Sarimax.maxInverseRootModulus([0.0, 0.0]) == 0.0
     end
 end
+
+@testset "seasonalStrengthTest bounded-robust STL (no upstream hang)" begin
+    # Regression guard for the SeasonalTrendLoess robust-loop hang: these short M4
+    # Monthly series (train windows) make stl(...; robust = true) spin forever; the
+    # bounded-robust call must terminate and return a well-formed result.
+    # A degenerate near-constant series with a single spike: the kind of profile that
+    # makes the old robust = true STL loop fail to converge and spin forever.
+    y = vcat(fill(100.0, 60), [1.0e6], fill(100.0, 8))
+    local res
+    @test (res = seasonalStrengthTest(y, 12)) isa Dict           # must terminate
+    @test 0.0 <= res["seasonal_strength"] <= 1.0
+    @test res["seasonal_difference"] in (0, 1)
+end

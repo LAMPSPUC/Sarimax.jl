@@ -701,7 +701,7 @@ julia> fit!(model)
 function fit!(
     model::SARIMAModel;
     silent::Bool = true,
-    optimizer::DataType = Ipopt.Optimizer,
+    optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     mipSolver::DataType = SCIP.Optimizer,
     objectiveFunction::String = "mse",
     automaticExogDifferentiation::Bool = false,
@@ -2010,7 +2010,7 @@ function auto(
     invertible::Bool = false,
     invertibilityMargin::AbstractFloat = 2e-3,
     constrainedRefit::Bool = false,
-    optimizer::DataType = Ipopt.Optimizer,
+    optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     lambda::Union{Float64,Nothing} = nothing,
     alpha::Union{Float64,Nothing} = nothing,
 )
@@ -2962,7 +2962,7 @@ function ensureAdmissible!(
     initialization::Symbol = :zeroed,
     refitMargin::AbstractFloat = 2e-3,
     refit::Bool = true,
-    optimizer::DataType = Ipopt.Optimizer,
+    optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
 )
     checkModelStationarityInvertibility(
         model,
@@ -3058,7 +3058,7 @@ function localSearch!(
     invertible::Bool = false,
     invertibilityMargin::AbstractFloat = 0.0,
     constrainedRefit::Bool = false,
-    optimizer::DataType = Ipopt.Optimizer,
+    optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
 ) where {Fl<:AbstractFloat}
     ModelFl = Fl
     localBestCriteria::ModelFl = Inf
@@ -3484,7 +3484,7 @@ function stepWiseSearchNaive(
     invertible::Bool = false,
     invertibilityMargin::AbstractFloat = 0.0,
     constrainedRefit::Bool = false,
-    optimizer::DataType = Ipopt.Optimizer,
+    optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     fixConstant::Bool = false,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,Float64} = nothing,
@@ -3720,7 +3720,7 @@ function stepwiseSearch(
     invertible::Bool = false,
     invertibilityMargin::AbstractFloat = 0.0,
     constrainedRefit::Bool = false,
-    optimizer::DataType = Ipopt.Optimizer,
+    optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     maxModels::Int = 94,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
     lambda::Union{Nothing,<:AbstractFloat} = nothing,
@@ -4140,7 +4140,7 @@ function gridSearch(
     invertible::Bool = false,
     invertibilityMargin::AbstractFloat = 0.0,
     constrainedRefit::Bool = false,
-    optimizer::DataType = Ipopt.Optimizer,
+    optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,Float64} = nothing,
 )

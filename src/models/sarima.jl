@@ -776,6 +776,21 @@ function fit!(
     nExog = isnothing(model.exog) ? 0 : size(values(diffY), 2) - 1
     exogValues = isnothing(model.exog) ? [] : values(diffY)[:, 2:end]
 
+    # Numerical conditioning: the CSS objective is quadratic in the data, so a series
+    # living around 1e4 produces an objective near 1e8. Ipopt then drops into its
+    # restoration phase and a *single* iteration can run for minutes — no time or
+    # iteration cap helps, because both are only checked between iterations. Measured
+    # on M4 daily series 3441: 208s without converging on the raw data versus 1.1s
+    # (converged) on the same series scaled. So solve in units of the differenced
+    # series' standard deviation and map the scale-dependent estimates back below.
+    # AR/MA coefficients are invariant under this rescaling; only c, trend, the
+    # exogenous coefficients, the residuals and their variance carry the factor.
+    yScale = let finiteY = filter(isfinite, yValues)
+        s = isempty(finiteY) ? one(Fl) : Fl(Statistics.std(finiteY))
+        (isfinite(s) && s > zero(Fl)) ? s : one(Fl)
+    end
+    yValues = yValues ./ yScale
+
     # Missing-data support: NaN entries in the (differenced) endogenous series
     # are treated as free decision variables (Section: missing observations).
     missingMask::Vector{Bool} = isnan.(yValues)
@@ -1027,6 +1042,9 @@ function fit!(
     )
 
     fittedValues::Vector{Fl} = Vector(OffsetArrays.no_offset_view(value.(ŷ)))
+    # Back to the original units (see `yScale`); must precede the re-integration
+    # below, which combines these with the untouched observed series.
+    fittedValues .*= yScale
     fittedOriginalLengthDifference = length(values(model.y)) - length(fittedValues)
     initialValuesLength = model.d + model.D * model.seasonality
     initialValuesOffset =
@@ -1056,19 +1074,25 @@ function fit!(
         missingMask = residualMissingMask,
     )
 
-    c = is_valid(mod, c) ? value(c) : 0.0
-    trend = is_valid(mod, trend) ? value(trend) : 0.0
-    exogCoefficients = isnothing(model.exog) ? nothing : value.(β)
+    # Scale-dependent estimates return to the original units; ϕ/θ/Φ/Θ do not, being
+    # invariant under a rescaling of the data.
+    residualsVariance = residualsVariance * yScale^2
+    c = (is_valid(mod, c) ? value(c) : 0.0) * yScale
+    trend = (is_valid(mod, trend) ? value(trend) : 0.0) * yScale
+    exogCoefficients = isnothing(model.exog) ? nothing : value.(β) .* yScale
     # The complete residual vector (including the smoothed values at missing
     # indices) is stored so the forecast recursion can seed its MA terms; the
     # mask records which of them are not real innovations.
-    residuals::Vector{Fl} = value.(ϵ)[lb:end]
+    residuals::Vector{Fl} = value.(ϵ)[lb:end] .* yScale
 
     if hasMissing
+        # `yValues` and the imputed variables both live on the internal scale here,
+        # so undo the scaling once, after filling the gaps.
         imputed = copy(yValues)
         for m in missIdx
             imputed[m] = value(ymiss[m])
         end
+        imputed .*= yScale
         model.y = TimeArray(timestamp(model.y), imputed, colnames(model.y))
         model.metadata["missingResidualMask"] = residualMissingMask
         model.metadata["nMissing"] = length(missIdx)

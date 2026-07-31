@@ -1,4 +1,14 @@
 """
+Iteration ceiling applied to a fit whose caller asked for a bounded solve (see the
+`maxTimeSeconds` handling in [`fit!`](@ref)). A wall-clock limit is not enough on long
+series: Ipopt checks it only between iterations, and one iteration of the
+`initialization = :free` problem (≈2T variables) can outlast the whole budget. A
+well-scaled fit converges in far fewer iterations than this, so hitting the ceiling is
+itself the signal that the candidate is not worth more time.
+"""
+const MAX_ITER_CAPPED_FIT = 200
+
+"""
 The `SARIMAModel` struct represents a SARIMA model. It contains the following fields:
 
 - `y`: The time series data.
@@ -714,7 +724,74 @@ function fit!(
     initialization::Symbol = :zeroed,
     stationary::Bool = false,
     stationarityMargin::AbstractFloat = 0.0,
+    warmStart::Union{Nothing,SARIMAModel} = nothing,
+    maxTimeSeconds::Union{Nothing,Real} = nothing,
+    warmStartFromBox::Bool = false,
 )
+    # Two-phase warm-start orchestration: when a stationarity/invertibility-by-
+    # construction fit is requested with `warmStartFromBox`, first solve the cheap
+    # unconstrained (box) problem, then solve the constrained one warm-started from it
+    # under the `maxTimeSeconds` cap; if the constrained solve does not converge in
+    # time, fall back to the (valid) unconstrained fit. This keeps the guarantee when
+    # affordable and a usable model otherwise — the fix for the O(T) reflection blow-up
+    # on long series. Purely an optimization technique (starting point), no Kalman.
+    if warmStartFromBox && (stationary || invertible) && isnothing(warmStart)
+        common = (;
+            silent, optimizer, mipSolver, objectiveFunction, automaticExogDifferentiation,
+            alpha, lambda, minConditioningObs, seasonalForm, initialization,
+        )
+        seed = deepcopy(model)
+        fit!(seed; common..., stationary = false, invertible = false,
+             stationarityMargin = 0.0, invertibilityMargin = 0.0,
+             maxTimeSeconds = maxTimeSeconds)
+        solved() = get(model.metadata, "solverStatus", "") in
+                   ("LOCALLY_SOLVED", "OPTIMAL", "ALMOST_LOCALLY_SOLVED")
+        tryFit(st, inv, sMargin, iMargin) = begin
+            ok = false
+            try
+                fit!(model; common..., stationary = st, invertible = inv,
+                     stationarityMargin = sMargin, invertibilityMargin = iMargin,
+                     warmStart = seed, maxTimeSeconds = maxTimeSeconds)
+                ok = solved()
+            catch
+                ok = false
+            end
+            ok
+        end
+        # tier 1: full stationarity + invertibility by construction
+        converged = tryFit(stationary, invertible, stationarityMargin, invertibilityMargin)
+        tier = 1
+        # tier 2: relax stationarity, keep invertibility — only when tier 1 failed for a
+        # *numerical/feasibility* reason (fast). If tier 1 was cut off by a budget limit
+        # (time or iterations), tier 2 is just as constrained and would burn the same
+        # budget again, so skip straight to the box result.
+        hitLimit = get(model.metadata, "solverStatus", "") in
+                   ("TIME_LIMIT", "ITERATION_LIMIT", "OTHER_LIMIT", "MEMORY_LIMIT")
+        if !converged && stationary && invertible && !hitLimit
+            converged = tryFit(false, true, 0.0, invertibilityMargin)
+            tier = 2
+        end
+        # tier 3: fall back to the unconstrained fit — which is exactly `seed`, already
+        # solved above. Re-solving it here doubled the cost of every failing candidate
+        # (the dominant term in the stepwise search on hard series), so copy it instead.
+        if !converged
+            model.c = seed.c
+            model.trend = seed.trend
+            model.ϕ = seed.ϕ
+            model.θ = seed.θ
+            model.Φ = seed.Φ
+            model.Θ = seed.Θ
+            model.ϵ = seed.ϵ
+            model.σ² = seed.σ²
+            model.fitInSample = seed.fitInSample
+            model.exogCoefficients = seed.exogCoefficients
+            merge!(model.metadata, seed.metadata)
+            tier = 3
+        end
+        model.metadata["warmStartTier"] = tier
+        return model
+    end
+
     Fl = typeofModelElements(model)
     isFitted(model) &&
         @info("The model has already been fitted. Overwriting the previous results")
@@ -1035,6 +1112,33 @@ function fit!(
 
     objectiveFunctionDefinition!(mod, model, objectiveFunction, T, lb)
 
+    isnothing(warmStart) || applyWarmStart!(
+        mod,
+        warmStart,
+        lb,
+        T;
+        stationary = stationary,
+        invertible = invertible,
+        stationarityMargin = stationarityMargin,
+        invertibilityMargin = invertibilityMargin,
+    )
+
+    # Safeguard: cap the solve so a pathological (e.g. numerically hard) instance fails
+    # fast instead of blowing the per-series budget. The caller decides the fallback
+    # (e.g. use the box warm-start result).
+    #
+    # The wall-clock limit alone does NOT bound the work: Ipopt only checks it between
+    # iterations, and on long series with `initialization = :free` (≈2T variables) a
+    # single iteration can already take longer than the cap — measured overshoots of
+    # 2x-6x on M4 daily. Bounding the iteration count is the hard limit that actually
+    # holds, so cap both.
+    if !isnothing(maxTimeSeconds)
+        set_time_limit_sec(mod, Float64(maxTimeSeconds))
+        if solver_name(mod) == "Ipopt"
+            set_optimizer_attribute(mod, "max_iter", MAX_ITER_CAPPED_FIT)
+        end
+    end
+
     optimizeModel!(mod, model, objectiveFunction, lb)
     model.metadata["solverStatus"] = string(termination_status(mod))
     silent || @info(
@@ -1186,6 +1290,113 @@ function reflectionToAR(κ)
         prev = cur
     end
     return prev
+end
+
+"""
+    arToReflection(ϕ)
+
+Inverse of [`reflectionToAR`](@ref): maps AR coefficients back to reflection
+coefficients (partial autocorrelations) via the step-down Levinson-Durbin
+recursion. Used to warm-start the stationarity-by-construction fit from an
+unconstrained (box) solution. Numeric only.
+"""
+function arToReflection(ϕ::AbstractVector)
+    p = length(ϕ)
+    p == 0 && return Float64[]
+    a = collect(float.(ϕ))
+    κ = zeros(Float64, p)
+    for m = p:-1:1
+        κ[m] = a[m]
+        if m > 1
+            d = 1 - κ[m]^2
+            abs(d) < 1e-8 && (d = d >= 0 ? 1e-8 : -1e-8)
+            aprev = Vector{Float64}(undef, m - 1)
+            for i = 1:(m-1)
+                aprev[i] = (a[i] + κ[m] * a[m-i]) / d   # AR: opposite sign of MA
+            end
+            @inbounds a[1:m-1] .= aprev
+        end
+    end
+    return κ
+end
+
+"""
+    maToReflection(θ)
+
+Inverse of [`reflectionToMA`](@ref): maps MA coefficients back to reflection
+coefficients via the step-down recursion (MA sign convention). Numeric only.
+"""
+function maToReflection(θ::AbstractVector)
+    q = length(θ)
+    q == 0 && return Float64[]
+    a = collect(float.(θ))
+    κ = zeros(Float64, q)
+    for m = q:-1:1
+        κ[m] = a[m]
+        if m > 1
+            d = 1 - κ[m]^2
+            abs(d) < 1e-8 && (d = d >= 0 ? 1e-8 : -1e-8)
+            aprev = Vector{Float64}(undef, m - 1)
+            for i = 1:(m-1)
+                aprev[i] = (a[i] - κ[m] * a[m-i]) / d   # MA sign
+            end
+            @inbounds a[1:m-1] .= aprev
+        end
+    end
+    return κ
+end
+
+"""
+    applyWarmStart!(mod, ws, lb, T; stationary, invertible, stationarityMargin, invertibilityMargin)
+
+Seeds the JuMP variables of a SARIMA fit with the solution of a previous
+(cheaper) fit `ws`, so Ipopt starts near-feasible. The dominant win is seeding
+the O(T) residual vector `ϵ` (making the T identity constraints y = ŷ + ϵ almost
+satisfied at iteration 0); coefficients and — under the reflection
+parameterization — their reflection preimages (via [`arToReflection`](@ref) /
+[`maToReflection`](@ref), clamped to the bound box) are seeded too. Scalar
+mean/trend are left at their defaults. No-op for variables absent in this
+formulation.
+"""
+function applyWarmStart!(
+    mod::Model,
+    ws::SARIMAModel,
+    lb::Int,
+    T::Int;
+    stationary::Bool,
+    invertible::Bool,
+    stationarityMargin::AbstractFloat,
+    invertibilityMargin::AbstractFloat,
+)
+    od = JuMP.object_dictionary(mod)
+    clampκ(v, margin) = clamp(v, -(1 - margin - 1e-4), (1 - margin - 1e-4))
+
+    if !isnothing(ws.ϵ) && haskey(od, :ϵ)
+        ϵv = mod[:ϵ]
+        n = min(length(ws.ϵ), T - lb + 1)
+        for k = 1:n
+            set_start_value(ϵv[lb-1+k], ws.ϵ[k])
+        end
+    end
+
+    seedBlock!(sym, coefs, useRefl, refl, margin, ksym) = begin
+        (isnothing(coefs) || isempty(coefs) || !haskey(od, sym)) && return
+        for i in eachindex(coefs)
+            set_start_value(mod[sym][i], coefs[i])
+        end
+        if useRefl && haskey(od, ksym)
+            κ = refl(coefs)
+            for i in eachindex(κ)
+                set_start_value(mod[ksym][i], clampκ(κ[i], margin))
+            end
+        end
+    end
+
+    seedBlock!(:ϕ, ws.ϕ, stationary, arToReflection, stationarityMargin, :κAR)
+    seedBlock!(:Φ, ws.Φ, stationary, arToReflection, stationarityMargin, :κSAR)
+    seedBlock!(:θ, ws.θ, invertible, maToReflection, invertibilityMargin, :κ)
+    seedBlock!(:Θ, ws.Θ, invertible, maToReflection, invertibilityMargin, :κseasonal)
+    return nothing
 end
 
 function getParametersVector(model::SARIMAModel)
@@ -2035,6 +2246,8 @@ function auto(
     invertibilityMargin::AbstractFloat = 2e-3,
     constrainedRefit::Bool = false,
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
+    warmStartFromBox::Bool = false,
+    maxTimeSeconds::Union{Nothing,Real} = nothing,
     lambda::Union{Float64,Nothing} = nothing,
     alpha::Union{Float64,Nothing} = nothing,
 )
@@ -2162,6 +2375,13 @@ function auto(
         )
     end
 
+    # The search only needs information criteria that are comparable across candidates,
+    # so cap its fits tighter than the final refit: a candidate that cannot be solved
+    # quickly is not going to win, and paying the full budget on each of the dozens of
+    # candidates is what pushed hard series past the per-series timeout.
+    searchMaxTime =
+        isnothing(maxTimeSeconds) ? nothing : min(Float64(maxTimeSeconds), 10.0)
+
     # Set maximum orders
     maxp = min(maxp, floor(Int, length(values(y)) / 3))
     maxp = (seasonality == 1) ? maxp : min(maxp, seasonality-1) # Avoid overlap with seasonal orders
@@ -2198,6 +2418,8 @@ function auto(
             maxP = maxP,
             maxQ = maxQ,
             maxOrder = maxOrder,
+            warmStartFromBox = warmStartFromBox,
+            maxTimeSeconds = searchMaxTime,
             objectiveFunction = objectiveFunction,
             assertStationarity = assertStationarity,
             assertInvertibility = assertInvertibility,
@@ -2229,6 +2451,8 @@ function auto(
             maxP = maxP,
             maxQ = maxQ,
             maxOrder = maxOrder,
+            warmStartFromBox = warmStartFromBox,
+            maxTimeSeconds = searchMaxTime,
             objectiveFunction = objectiveFunction,
             assertStationarity = assertStationarity,
             assertInvertibility = assertInvertibility,
@@ -2262,6 +2486,8 @@ function auto(
             maxP = maxP,
             maxQ = maxQ,
             maxOrder = maxOrder,
+            warmStartFromBox = warmStartFromBox,
+            maxTimeSeconds = searchMaxTime,
             objectiveFunction = objectiveFunction,
             assertStationarity = assertStationarity,
             assertInvertibility = assertInvertibility,
@@ -2313,7 +2539,7 @@ function auto(
             )
         end
 
-        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs, minConditioningObs = searchLb, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer)
+        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs, minConditioningObs = searchLb, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds)
     end
 
     bestModel.exog = exog
@@ -3083,6 +3309,8 @@ function localSearch!(
     invertibilityMargin::AbstractFloat = 0.0,
     constrainedRefit::Bool = false,
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
+    warmStartFromBox::Bool = false,
+    maxTimeSeconds::Union{Nothing,Real} = nothing,
 ) where {Fl<:AbstractFloat}
     ModelFl = Fl
     localBestCriteria::ModelFl = Inf
@@ -3091,13 +3319,13 @@ function localSearch!(
     if parallel
         Threads.@threads for model in toFit
             try
-                fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer)
+                fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds)
             catch e
                 @warn "Parallel candidate fit failed" exception = e
             end
         end
     else
-        foreach(model -> fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer), toFit)
+        foreach(model -> fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds), toFit)
     end
     for model in toFit
         isFitted(model) || continue
@@ -3509,6 +3737,8 @@ function stepWiseSearchNaive(
     invertibilityMargin::AbstractFloat = 0.0,
     constrainedRefit::Bool = false,
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
+    warmStartFromBox::Bool = false,
+    maxTimeSeconds::Union{Nothing,Real} = nothing,
     fixConstant::Bool = false,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,Float64} = nothing,
@@ -3565,6 +3795,8 @@ function stepWiseSearchNaive(
         invertibilityMargin,
         constrainedRefit,
         optimizer,
+        warmStartFromBox,
+        maxTimeSeconds,
     )
 
     if isnothing(bestModel)
@@ -3624,6 +3856,8 @@ function stepWiseSearchNaive(
             invertibilityMargin,
             constrainedRefit,
             optimizer,
+            warmStartFromBox,
+            maxTimeSeconds,
         )
         showLogs && !isnothing(itBestModel) && @info(
             "Iteration $(iterations): Best model found is $(getId(itBestModel)) with $(itBestCriteria) criteria"
@@ -3745,6 +3979,8 @@ function stepwiseSearch(
     invertibilityMargin::AbstractFloat = 0.0,
     constrainedRefit::Bool = false,
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
+    warmStartFromBox::Bool = false,
+    maxTimeSeconds::Union{Nothing,Real} = nothing,
     maxModels::Int = 94,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
     lambda::Union{Nothing,<:AbstractFloat} = nothing,
@@ -3779,7 +4015,7 @@ function stepwiseSearch(
         alpha = alpha,
         lambda = lambda
     )
-    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer)
+    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds)
     showLogs && @info(
         "Fitted $(getId(bestModel)) with $(informationCriteriaFunction(bestModel; offset=icOffset)) criteria"
     )
@@ -3814,7 +4050,7 @@ function stepwiseSearch(
         alpha = alpha,
         lambda = lambda
     )
-    fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer)
+    fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds)
     showLogs && @info(
         "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
     )
@@ -3865,7 +4101,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -3912,7 +4148,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -3957,7 +4193,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -4008,7 +4244,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda,
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -4165,6 +4401,8 @@ function gridSearch(
     invertibilityMargin::AbstractFloat = 0.0,
     constrainedRefit::Bool = false,
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
+    warmStartFromBox::Bool = false,
+    maxTimeSeconds::Union{Nothing,Real} = nothing,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,Float64} = nothing,
 )
@@ -4210,7 +4448,7 @@ function gridSearch(
         )
     end
 
-    fitOne!(m) = fit!(m; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer)
+    fitOne!(m) = fit!(m; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds)
     if parallel
         Threads.@threads for m in candidates
             try

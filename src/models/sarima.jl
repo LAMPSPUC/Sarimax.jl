@@ -698,6 +698,28 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
   likelihood up to a near-constant log-determinant term, making information criteria
   comparable across candidate orders. Exact-likelihood (Kalman) initialization is out
   of scope by design.
+- `warmStart::Union{Nothing,SARIMAModel}`: A previously fitted model of the same
+  specification whose solution seeds this solve (residual vector, coefficients and —
+  under the reflection parameterisations — their reflection-space preimages via
+  [`arToReflection`](@ref)/[`maToReflection`](@ref)). A starting point only: the
+  problem being solved is unchanged. Default is `nothing`.
+- `warmStartFromBox::Bool`: When `true` and a constrained fit is requested
+  (`stationary` and/or `invertible`), first solves the cheap unconstrained (box)
+  problem and warm-starts the constrained one from it, falling back through three
+  tiers if it does not converge within the budget: full constraints → invertibility
+  only → the unconstrained seed. The tier reached is stored in
+  `model.metadata["warmStartTier"]` (1, 2 or 3). Default is `false`.
+- `maxTimeSeconds::Union{Nothing,Real}`: Budget for each solve. Sets both the solver
+  wall-clock limit and (for Ipopt) an iteration ceiling — a wall-clock limit alone is
+  only checked between iterations and cannot bound a single expensive iteration. On a
+  budget cut the fit returns with the corresponding solver status
+  (`TIME_LIMIT`/`ITERATION_LIMIT`) instead of running unbounded. Default is `nothing`
+  (no limit).
+
+Internally the differenced series is scaled by its standard deviation before the
+model is built and the scale-dependent estimates are mapped back afterwards, keeping
+the objective well conditioned for large-magnitude data; AR/MA coefficients are
+invariant to this and results where the solver already converged are unchanged.
 
 # Example
 ```jldoctest
@@ -1053,7 +1075,7 @@ function fit!(
         end
     end
 
-    model.keepProvidedCoefficients && setProvidedCoefficients!(mod, model)
+    model.keepProvidedCoefficients && setProvidedCoefficients!(mod, model, yScale)
     includeSolverParameters!(mod, silent; mipSolver = mipSolver, objectiveFunction = objectiveFunction)
 
     if model.seasonality > 1 && seasonalForm === :multiplicative
@@ -1432,16 +1454,26 @@ This function assigns the provided coefficients from the `model` to the correspo
 - If `model.Θ` is not `nothing`, it sets `jumpModel[:Θ]` to `model.Θ`.
 - If `model.exogCoefficients` is not `nothing`, it sets `jumpModel[:β]` to `model.exogCoefficients`.
 
+`yScale` is the factor the endogenous series was divided by before the model was
+built (see [`fit!`](@ref)). The provided values are expressed in the user's units, so
+the scale-dependent ones (`c`, `trend`, `β`) are converted to the internal units here;
+otherwise fixing them would state a different model than the caller asked for, and the
+un-scaling applied to the results afterwards would not return the values given.
+`ϕ`, `θ`, `Φ` and `Θ` are dimensionless and pass through untouched.
 """
-function setProvidedCoefficients!(jumpModel::Model, model::SARIMAModel)
-    !isnothing(model.c) && fix(jumpModel[:c], model.c)
-    !isnothing(model.trend) && fix(jumpModel[:trend], model.trend)
+function setProvidedCoefficients!(
+    jumpModel::Model,
+    model::SARIMAModel,
+    yScale::Real = 1.0,
+)
+    !isnothing(model.c) && fix(jumpModel[:c], model.c / yScale)
+    !isnothing(model.trend) && fix(jumpModel[:trend], model.trend / yScale)
     !isnothing(model.ϕ) && fix.(jumpModel[:ϕ], model.ϕ; force = true)
     !isnothing(model.θ) && fix.(jumpModel[:θ], model.θ; force = true)
     !isnothing(model.Φ) && fix.(jumpModel[:Φ], model.Φ; force = true)
     !isnothing(model.Θ) && fix.(jumpModel[:Θ], model.Θ; force = true)
     !isnothing(model.exogCoefficients) &&
-        fix.(jumpModel[:β], model.exogCoefficients; force = true)
+        fix.(jumpModel[:β], model.exogCoefficients ./ yScale; force = true)
 end
 
 """
@@ -2193,10 +2225,20 @@ Automatically fits the best SARIMA model according to the specified parameters.
   AR fit and cheaper than relying on rejection).
 - `stationarityMargin::AbstractFloat`: AR analogue of `invertibilityMargin`. Default `0.0`
   (the on-demand refit uses 2e-3 when the admissibility check bites).
-- `optimizer::DataType`: JuMP optimizer used to fit every candidate. Default
-  `Ipopt.Optimizer` (fast local solutions). Pass `SCIP.Optimizer` to solve each CSS
-  problem to certified global optimality (global certificate) — much slower; intended
-  for experiments and final refits rather than large-scale runs.
+- `optimizer::Union{DataType,MOI.OptimizerWithAttributes}`: JuMP optimizer used to fit
+  every candidate. Default `Ipopt.Optimizer` (fast local solutions). Pass
+  `SCIP.Optimizer` — or `optimizer_with_attributes(SCIP.Optimizer, "limits/gap" => …)`
+  to control its tolerances — to solve each CSS problem to certified global optimality
+  (global certificate). Certification is only practical on short series (roughly
+  T ≲ 100); much slower, intended for experiments and final refits rather than
+  large-scale runs.
+- `warmStartFromBox::Bool`: Forwarded to [`fit!`](@ref) for every candidate: seeds each
+  constrained fit from a cheap unconstrained solve with a tiered fallback. Default
+  `false`.
+- `maxTimeSeconds::Union{Nothing,Real}`: Per-fit budget forwarded to [`fit!`](@ref).
+  Within the search, candidate fits are capped at `min(maxTimeSeconds, 10)` seconds —
+  a candidate that cannot be solved quickly is not going to win — while the final
+  refit of the selected model keeps the full budget. Default `nothing`.
 - `seasonalIntegrationTest::String`: The integration test to be used for determining the seasonal integration order. Default is "seas".
 - `objectiveFunction::String`: The objective function to be used for model selection.
 - `parallel::Bool`: Fit candidate models across Julia threads (experimental; applies to

@@ -19,6 +19,9 @@
 
     initModel = SARIMA(airPassengersLog; exog=airPassengersLog, seasonalARCoefficients=[0.5], seasonality=12 ,exogCoefficients=[0.5])
     fit!(initModel;automaticExogDifferentiation=true)
-    @test initModel.exogCoefficients[1] == 0.5
+    # Scale-dependent provided values round-trip through the internal rescaling
+    # (value/yScale on entry, *yScale on exit), so they are preserved to 1 ulp,
+    # not bit-for-bit; dimensionless Φ passes through untouched and stays exact.
+    @test initModel.exogCoefficients[1] ≈ 0.5 atol = 1e-12
     @test initModel.Φ[1] == 0.5
 end

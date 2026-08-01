@@ -310,7 +310,7 @@ end
     # makes the old robust = true STL loop fail to converge and spin forever.
     y = vcat(fill(100.0, 60), [1.0e6], fill(100.0, 8))
     local res
-    @test (res = seasonalStrengthTest(y, 12)) isa Dict           # must terminate
+    @test (res = Sarimax.seasonalStrengthTest(y, 12)) isa Dict   # must terminate
     @test 0.0 <= res["seasonal_strength"] <= 1.0
     @test res["seasonal_difference"] in (0, 1)
 end

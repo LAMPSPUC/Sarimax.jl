@@ -44,6 +44,12 @@ using JSON
 
     include("statistical_properties.jl")
 
+    include("numerical_conditioning.jl")
+
+    include("warm_start.jl")
+
+    include("solver_interface.jl")
+
     include("missing_data.jl")
 
     include("aqua.jl")

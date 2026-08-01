@@ -124,7 +124,9 @@ end
         )
 
         @test modelAutoExog.D == 0
-        @test modelAuto.D == 0
+        # R 4.4.1 / forecast 8.23.0: auto.arima(log(AirPassengers)) selects D = 1
+        # (airline model); the D == 0 expectation predated the "seas" default.
+        @test modelAuto.D == 1
 
         modelAutoFixedD = auto(
             airPassengersLog;

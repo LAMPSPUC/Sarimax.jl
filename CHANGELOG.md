@@ -6,6 +6,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.0] - Unreleased
 
+### Fixed
+- **Internal data scaling (numerical conditioning).** `fit!` now solves in units of
+  the differenced series' standard deviation and maps the scale-dependent estimates
+  (constant, trend, exogenous coefficients, residuals, σ², fitted and imputed values)
+  back to the original units; AR/MA coefficients are scale-invariant and unaffected.
+  Without this, series in the 1e4+ range pushed Ipopt into its restoration phase where
+  a single iteration could exceed any time or iteration cap (measured: 208s without
+  convergence on an M4 daily series vs 1.1s converged after scaling). Where the solver
+  already converged, results are unchanged up to solver tolerance — verified by
+  fitting `y` and `y*1000`: identical AR/MA coefficients, forecasts equal to a
+  relative 1.35e-16, σ² ratio exactly 1e6. Provided (fixed) coefficients are
+  converted on entry and back on exit, and are preserved to 1 ulp.
+- **`kpssShort` now reproduces `forecast::ndiffs` exactly.** The mode's KPSS
+  bandwidth was urca's `lags = "short"` (`trunc(4(n/100)^0.25)`), but
+  `forecast::ndiffs` fixes `use.lag = trunc(3*sqrt(n)/13)` (verified in the
+  forecast 8.23.0 source); the two disagree on real data — on Box-Jenkins' classic
+  AirPassengers the wrong bandwidth selected `d = 0` where `auto.arima` selects
+  `d = 1`. The corrected bandwidth is exposed as `nlags = :ndiffs` on `kpss_test`
+  and is what `integrationTest = "kpssShort"` now uses. The KPSS statistic itself
+  matches `urca::ur.kpss` to ~1e-6 at both bandwidths (pinned in the test suite).
+- `test/test_statistical_tests.jl` referenced `seasonalStrengthTest` without the
+  module qualifier, erroring the suite since the STL internalization.
+
 ### Changed
 - **BREAKING — multiplicative seasonal form is the new default.** `fit!` and `auto`
   now estimate the Box-Jenkins multiplicative SARIMA
@@ -18,6 +41,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `predict` applies the multiplicative cross terms in the forecast recursion.
 
 ### Added
+- **`warmStartFromBox::Bool` keyword** on `fit!`/`auto`: solves the cheap
+  unconstrained (box) problem first and seeds the stationarity/invertibility-by-
+  construction fit from it — the O(T) residual vector makes the constrained problem
+  start near-feasible. Falls back through three tiers (full constraints →
+  invertibility only → the unconstrained seed), recording the tier reached in
+  `model.metadata["warmStartTier"]`. On the longest M4 weekly series the constrained
+  fit went from not converging in 48 minutes to 12.7s. `arToReflection` /
+  `maToReflection` (step-down Levinson-Durbin inverses) provide the reflection-space
+  starting points.
+- **`maxTimeSeconds` keyword** on `fit!`/`auto`: bounds each solve with both a
+  wall-clock limit and an Ipopt iteration ceiling (a wall-clock limit alone is only
+  checked between iterations and cannot bound a pathological fit). Inside `auto`'s
+  search, candidate fits are capped tighter (≤10s) than the final refit — a candidate
+  that cannot be solved quickly is not going to win.
+- **`optimizer` accepts `MOI.OptimizerWithAttributes`** (e.g.
+  `optimizer_with_attributes(SCIP.Optimizer, "limits/gap" => 0.01)`) in addition to a
+  bare constructor, so solver tolerances and limits are finally configurable from
+  `fit!`/`auto`.
+- `kpss_test(nlags = :ndiffs)`: the exact `forecast::ndiffs` KPSS bandwidth (see
+  Fixed).
+- Regression suites for the above: scale invariance and large-magnitude convergence
+  (`test/numerical_conditioning.jl`), reflection round-trips, warm-start tiers and
+  budget caps (`test/warm_start.jl`), configured-optimizer acceptance and
+  fit/auto reproducibility (`test/solver_interface.jl`).
 - **Missing-data estimation** (stationary models): `NaN` entries in the endogenous
   series are treated as free decision variables of the same JuMP problem. Retaining
   their residuals in the objective yields the two-sided conditional smoother (matching

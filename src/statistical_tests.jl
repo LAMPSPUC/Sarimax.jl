@@ -140,8 +140,17 @@ function kpss_test(y::Vector{Fl}; regression::Symbol=:c, nlags::Union{Symbol,Int
     if nlags == :legacy
         nlags = min(Int(ceil(12.0 * (nobs/100.0)^0.25)), nobs - 1)
     elseif nlags == :short
-        # urca lags = "short" (used by R's forecast::ndiffs / auto.arima)
+        # urca lags = "short" (Schwert). NOTE: this is NOT what forecast::ndiffs
+        # uses — see :ndiffs below.
         nlags = min(trunc(Int, 4.0 * (nobs/100.0)^0.25), nobs - 1)
+    elseif nlags == :ndiffs
+        # The exact bandwidth of forecast::ndiffs (verified against forecast 8.23.0):
+        # its internal kpss_wrap calls ur.kpss with use.lag = trunc(3*sqrt(n)/13).
+        # On the seasonally differenced log AirPassengers (n = 132) this gives 2 lags
+        # and a statistic of 0.5367 (reject at 5% -> d = 1), whereas urca's "short"
+        # gives 4 lags and 0.3682 (no rejection -> d = 0) — the source of a real
+        # d-selection divergence from auto.arima.
+        nlags = min(trunc(Int, 3.0 * sqrt(nobs) / 13.0), nobs - 1)
     elseif nlags == :auto
         nlags = _kpss_autolag(residuals, nobs)
     elseif isa(nlags, Integer)

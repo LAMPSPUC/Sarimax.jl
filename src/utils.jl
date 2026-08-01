@@ -233,9 +233,12 @@ function selectIntegrationOrder(
         return StateSpaceModels.repeated_kpss_test(y, maxd, D, seasonality)
     elseif test in ("kpss", "kpssShort")
         # "kpss": Hobijn et al. automatic lag selection (statsmodels-compatible).
-        # "kpssShort": urca-style lags = "short", matching R's forecast::ndiffs
-        # (and therefore auto.arima's differencing decisions).
-        lagMethod = (test == "kpssShort") ? :short : :auto
+        # "kpssShort": the intent of this mode is to match R's forecast::ndiffs (and
+        # therefore auto.arima's differencing decisions). ndiffs does NOT use urca's
+        # lags = "short": it fixes use.lag = trunc(3*sqrt(n)/13) (verified against
+        # forecast 8.23.0), which the :ndiffs bandwidth reproduces. The mode keeps its
+        # historical name; only the bandwidth was corrected.
+        lagMethod = (test == "kpssShort") ? :ndiffs : :auto
         for i in 0:maxd
             diffSeries = differentiate(y, i, D, seasonality)
             result = kpss_test(diffSeries; nlags=lagMethod)

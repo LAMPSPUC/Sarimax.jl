@@ -12,7 +12,7 @@
         for obj in ("mse", "mae", "ml", "stable")
             model = SARIMA(series, 1, 1, 1; seasonality = 12, P = 0, D = 1, Q = 1)
             fit!(model; objectiveFunction = obj)
-            @test isFitted(model)
+            @test Sarimax.isFitted(model)
             @test all(isfinite, model.ϕ)
             @test all(isfinite, model.θ)
             @test isfinite(model.σ²) && model.σ² > 0
@@ -79,7 +79,7 @@
 
         # A warning is expected here; an exception is not.
         @test (fit!(model; objectiveFunction = "elastic_net", alpha = 0.5); true)
-        @test isFitted(model)
+        @test Sarimax.isFitted(model)
         @test all(isfinite, model.ϕ)
         @test isfinite(model.σ²)
     end

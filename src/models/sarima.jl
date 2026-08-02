@@ -9,6 +9,16 @@ itself the signal that the candidate is not worth more time.
 const MAX_ITER_CAPPED_FIT = 200
 
 """
+Default confidence level of the `"stable"` objective, which minimises the Conditional
+Value-at-Risk of the squared residuals. At `α` the fit optimises the mean of the worst
+`(1-α)` fraction of squared residuals, so higher `α` concentrates on a thinner tail and
+`α → 1` degenerates to min-max. Note this is a *conservative* (worst-case) objective,
+not a robust one: it fits the tail rather than discounting it — `"mae"` is the robust
+choice in this package.
+"""
+const DEFAULT_CVAR_LEVEL = 0.9
+
+"""
 The `SARIMAModel` struct represents a SARIMA model. It contains the following fields:
 
 - `y`: The time series data.
@@ -749,7 +759,9 @@ function fit!(
     warmStart::Union{Nothing,SARIMAModel} = nothing,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
     warmStartFromBox::Bool = false,
+    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
 )
+    @assert 0.0 < cvarLevel < 1.0 "cvarLevel must lie strictly between 0 and 1."
     # Two-phase warm-start orchestration: when a stationarity/invertibility-by-
     # construction fit is requested with `warmStartFromBox`, first solve the cheap
     # unconstrained (box) problem, then solve the constrained one warm-started from it
@@ -760,7 +772,7 @@ function fit!(
     if warmStartFromBox && (stationary || invertible) && isnothing(warmStart)
         common = (;
             silent, optimizer, mipSolver, objectiveFunction, automaticExogDifferentiation,
-            alpha, lambda, minConditioningObs, seasonalForm, initialization,
+            alpha, lambda, minConditioningObs, seasonalForm, initialization, cvarLevel,
         )
         seed = deepcopy(model)
         fit!(seed; common..., stationary = false, invertible = false,
@@ -1132,7 +1144,7 @@ function fit!(
 
     includeModelConstraints!(mod, yData, T, objectiveFunction, lb)
 
-    objectiveFunctionDefinition!(mod, model, objectiveFunction, T, lb)
+    objectiveFunctionDefinition!(mod, model, objectiveFunction, T, lb, cvarLevel)
 
     isnothing(warmStart) || applyWarmStart!(
         mod,
@@ -1571,6 +1583,7 @@ Defines the objective function for optimization in the SARIMA model.
 - `model::SARIMAModel`: The SARIMA model to be optimized.
 - `objectiveFunction::String`: The objective function to be defined.
 - `T::Int`: The total number of observations.
+- `cvarLevel::AbstractFloat`: Confidence level of the `"stable"` (CVaR) objective.
 
 """
 function objectiveFunctionDefinition!(
@@ -1579,6 +1592,7 @@ function objectiveFunctionDefinition!(
     objectiveFunction::String,
     T::Int,
     lb::Int,
+    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
 )
     parametersVector::Vector{Symbol} = getParametersVector(model)
     parametersVectorExtended::Vector{VariableRef} =
@@ -1592,12 +1606,24 @@ function objectiveFunctionDefinition!(
         @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
         set_time_limit_sec(jumpModel, 1.0)
     elseif objectiveFunction == "stable"
+        # Conditional Value-at-Risk of the squared residuals, in the Rockafellar-Uryasev
+        # form: CVaR_α = min_δ  δ + 1/((1-α)·n) · Σ max(ℓ_t - δ, 0), with δ standing for
+        # the Value-at-Risk and u_t for the excess above it. The 1/((1-α)·n) factor is
+        # what pins the level: without it the objective `0.7·δ + Σu` normalises to
+        # `δ + Σu/0.7`, i.e. (1-α)·n = 0.7, so the effective level is α = 1 - 0.7/n —
+        # about 99.7% for a 200-point series, and *different for every sample size*.
+        # That is a min-max fit in disguise, which is why it chases outliers instead of
+        # tolerating them (measured: with one 10σ outlier it is the only objective that
+        # shrinks that residual, at the cost of a 5x worse median residual).
+        nObs = T - lb + 1
         @variable(jumpModel, δ >= 0)
         @variable(jumpModel, u[lb:T] >= 0)
         @constraint(jumpModel, [t = lb:T], δ + u[t] >= jumpModel[:ϵ][t]^2)
-
-        # 70% CVaR
-        @objective(jumpModel, Min, 0.7*δ + sum(u[t] for t = lb:T))
+        @objective(
+            jumpModel,
+            Min,
+            δ + sum(u[t] for t = lb:T) / ((1 - cvarLevel) * nObs)
+        )
     elseif objectiveFunction == "elastic_net"
         @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
     elseif objectiveFunction == "ml"
@@ -1647,13 +1673,28 @@ function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction:
             lb,
         )
 
+        # Residual degrees of freedom left after conditioning and estimation. The
+        # refinement widens the objective by the standard deviation of the residual
+        # sum of squares, Var(RSS) ≈ 2·ν·σ⁴, so it needs ν > 0 to exist at all. A
+        # saturated model (short series, or a seasonal one whose conditioning eats
+        # the sample) leaves ν ≤ 0: on M4 quarterly with T = 16 and T = 17 this hit
+        # sqrt(-6) and sqrt(-4) and threw a DomainError, losing an otherwise valid
+        # first-stage fit. Skip the refinement instead — the same graceful path
+        # already taken when there is at most one hyper-parameter to regularize.
         nu = length(jumpModel[:ϵ]) - lb - K + 1
-        objective_std = sqrt(2*nu)*model_variance
-
-        tolerance = objective_value(jumpModel) + objective_std
-        regularizationObjective(jumpModel, model, tolerance)
-        JuMP.optimize!(jumpModel)
-        checkSolverStatus(jumpModel)
+        if nu <= 0
+            @warn(
+                "Not enough residual degrees of freedom to calibrate the elastic-net " *
+                "tolerance (ν = $nu); keeping the unrefined fit. Shorten the model " *
+                "order, use a longer series, or set `lambda` explicitly."
+            )
+        else
+            objective_std = sqrt(2 * nu) * model_variance
+            tolerance = objective_value(jumpModel) + objective_std
+            regularizationObjective(jumpModel, model, tolerance)
+            JuMP.optimize!(jumpModel)
+            checkSolverStatus(jumpModel)
+        end
 
     elseif objectiveFunction == "bilevel"
 
@@ -2290,6 +2331,7 @@ function auto(
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
+    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
     lambda::Union{Float64,Nothing} = nothing,
     alpha::Union{Float64,Nothing} = nothing,
 )
@@ -2462,6 +2504,7 @@ function auto(
             maxOrder = maxOrder,
             warmStartFromBox = warmStartFromBox,
             maxTimeSeconds = searchMaxTime,
+            cvarLevel = cvarLevel,
             objectiveFunction = objectiveFunction,
             assertStationarity = assertStationarity,
             assertInvertibility = assertInvertibility,
@@ -2495,6 +2538,7 @@ function auto(
             maxOrder = maxOrder,
             warmStartFromBox = warmStartFromBox,
             maxTimeSeconds = searchMaxTime,
+            cvarLevel = cvarLevel,
             objectiveFunction = objectiveFunction,
             assertStationarity = assertStationarity,
             assertInvertibility = assertInvertibility,
@@ -2530,6 +2574,7 @@ function auto(
             maxOrder = maxOrder,
             warmStartFromBox = warmStartFromBox,
             maxTimeSeconds = searchMaxTime,
+            cvarLevel = cvarLevel,
             objectiveFunction = objectiveFunction,
             assertStationarity = assertStationarity,
             assertInvertibility = assertInvertibility,
@@ -2581,7 +2626,7 @@ function auto(
             )
         end
 
-        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs, minConditioningObs = searchLb, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds)
+        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs, minConditioningObs = searchLb, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel)
     end
 
     bestModel.exog = exog
@@ -3353,6 +3398,7 @@ function localSearch!(
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
+    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
 ) where {Fl<:AbstractFloat}
     ModelFl = Fl
     localBestCriteria::ModelFl = Inf
@@ -3361,13 +3407,13 @@ function localSearch!(
     if parallel
         Threads.@threads for model in toFit
             try
-                fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds)
+                fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel)
             catch e
                 @warn "Parallel candidate fit failed" exception = e
             end
         end
     else
-        foreach(model -> fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds), toFit)
+        foreach(model -> fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel), toFit)
     end
     for model in toFit
         isFitted(model) || continue
@@ -3781,6 +3827,7 @@ function stepWiseSearchNaive(
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
+    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
     fixConstant::Bool = false,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,Float64} = nothing,
@@ -3839,6 +3886,7 @@ function stepWiseSearchNaive(
         optimizer,
         warmStartFromBox,
         maxTimeSeconds,
+        cvarLevel,
     )
 
     if isnothing(bestModel)
@@ -3900,6 +3948,7 @@ function stepWiseSearchNaive(
             optimizer,
             warmStartFromBox,
             maxTimeSeconds,
+            cvarLevel,
         )
         showLogs && !isnothing(itBestModel) && @info(
             "Iteration $(iterations): Best model found is $(getId(itBestModel)) with $(itBestCriteria) criteria"
@@ -4023,6 +4072,7 @@ function stepwiseSearch(
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
+    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
     maxModels::Int = 94,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
     lambda::Union{Nothing,<:AbstractFloat} = nothing,
@@ -4057,7 +4107,7 @@ function stepwiseSearch(
         alpha = alpha,
         lambda = lambda
     )
-    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds)
+    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel)
     showLogs && @info(
         "Fitted $(getId(bestModel)) with $(informationCriteriaFunction(bestModel; offset=icOffset)) criteria"
     )
@@ -4092,7 +4142,7 @@ function stepwiseSearch(
         alpha = alpha,
         lambda = lambda
     )
-    fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds)
+    fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel)
     showLogs && @info(
         "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
     )
@@ -4143,7 +4193,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -4190,7 +4240,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -4235,7 +4285,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -4286,7 +4336,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda,
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -4445,6 +4495,7 @@ function gridSearch(
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
+    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,Float64} = nothing,
 )
@@ -4490,7 +4541,7 @@ function gridSearch(
         )
     end
 
-    fitOne!(m) = fit!(m; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds)
+    fitOne!(m) = fit!(m; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel)
     if parallel
         Threads.@threads for m in candidates
             try

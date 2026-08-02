@@ -46,6 +46,8 @@ using JSON
 
     include("numerical_conditioning.jl")
 
+    include("objective_functions.jl")
+
     include("warm_start.jl")
 
     include("solver_interface.jl")

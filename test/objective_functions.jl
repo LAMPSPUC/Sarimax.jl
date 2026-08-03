@@ -65,6 +65,78 @@
                                          objectiveFunction = "stable", cvarLevel = 0.0)
     end
 
+    @testset "ridge shrinks the AR/MA coefficients, not the level" begin
+        # Penalized ridge: min sum(e^2) + lambda*||coef||^2 with lambda fixed a priori.
+        # Distinct from "elastic_net" in this package, which is a two-stage constrained
+        # program (minimize the coefficient norm subject to an RSS tolerance).
+        #
+        # The scale of lambda is the part that silently goes wrong: the usual heuristic
+        # lambda = 1/sqrt(n) assumes a MEAN loss, while this objective is a SUM, so the
+        # equivalent value is sqrt(n). Getting that backwards makes the penalty about n
+        # times too weak and ridge becomes indistinguishable from mse — which is what
+        # these assertions are here to catch.
+        Random.seed!(7301)
+        n = 160
+        dates = Date(2000, 1, 1):Month(1):(Date(2000, 1, 1)+Month(n - 1))
+        # strongly autocorrelated: unpenalized AR lands near the unit circle
+        e = randn(n)
+        v = zeros(n)
+        for t = 2:n
+            v[t] = 0.97 * v[t-1] + e[t]
+        end
+        ta = TimeArray(collect(dates), 500.0 .+ v .* 5)
+
+        function fitWith(obj)
+            m = SARIMA(ta, 2, 1, 1; seasonality = 1)
+            fit!(m; objectiveFunction = obj, silent = true)
+            m
+        end
+
+        mse = fitWith("mse")
+        ridge = fitWith("ridge")
+
+        @test Sarimax.isFitted(ridge)
+        @test all(isfinite, ridge.ϕ)
+        @test all(isfinite, ridge.θ)
+
+        normAR(m) = sum(abs2, [m.ϕ...]) + sum(abs2, [m.θ...])
+        # The penalty must actually bind: shrinkage pulls the coefficients in.
+        @test normAR(ridge) < normAR(mse)
+
+        # The level is deliberately NOT penalized, so the fit must still track it.
+        predict!(ridge; stepsAhead = 6)
+        fc = values(ridge.forecast)
+        @test all(isfinite, fc)
+        @test minimum(fc) > 0          # nowhere near the origin: the level survived
+    end
+
+    @testset "over-differenced guard forces at least one AR/MA term" begin
+        # With d + D >= 2 and no AR/MA term the forecast is a bare extrapolation of the
+        # local slope, which runs off in a straight line. The guard removes that corner.
+        # It is opt-in: R's auto.arima has no equivalent rule, so the default must not
+        # change behaviour.
+        Random.seed!(7302)
+        n = 90
+        dates = Date(2000, 1, 1):Month(1):(Date(2000, 1, 1)+Month(n - 1))
+        # quadratic drift => the differencing tests ask for d = 2
+        ta = TimeArray(collect(dates),
+                       [1000.0 + 0.6 * t^2 + 8randn() for t = 1:n])
+
+        loose = auto(ta; seasonality = 12, integrationTest = "kpssShort",
+                     searchMethod = "stepwise", showLogs = false)
+        tight = auto(ta; seasonality = 12, integrationTest = "kpssShort",
+                     searchMethod = "stepwise", showLogs = false,
+                     requireTermsWhenOverDifferenced = true)
+
+        if loose.d + loose.D >= 2
+            # The guard binds only where the series is actually over-differenced.
+            @test tight.p + tight.q + tight.P + tight.Q >= 1
+        end
+        @test Sarimax.isFitted(tight)
+        predict!(tight; stepsAhead = 12)
+        @test all(isfinite, values(tight.forecast))
+    end
+
     @testset "elastic net survives a saturated model" begin
         # Regression: with few residual degrees of freedom after conditioning
         # (ν = n - lb - K + 1 ≤ 0) the tolerance refinement used to evaluate

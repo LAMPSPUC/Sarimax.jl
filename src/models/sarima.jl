@@ -829,7 +829,7 @@ function fit!(
     Fl = typeofModelElements(model)
     isFitted(model) &&
         @info("The model has already been fitted. Overwriting the previous results")
-    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable"] "The objective function $objectiveFunction is not supported. Please use 'mae', 'mse', 'ml', 'bilevel', 'elastic_net' or 'stable'"
+    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge"] "The objective function $objectiveFunction is not supported. Please use 'mae', 'mse', 'ml', 'bilevel', 'elastic_net', 'stable' or 'ridge'"
     @assert !(invertible && MACoefficientsAreModelParameters(objectiveFunction)) "The invertible MA parameterization is not compatible with the '$objectiveFunction' objective (MA coefficients are treated as outer parameters there)."
     @assert 0.0 <= invertibilityMargin < 1.0 "invertibilityMargin (ρ) must lie in [0, 1)."
     @assert 0.0 <= stationarityMargin < 1.0 "stationarityMargin must lie in [0, 1)."
@@ -1600,6 +1600,45 @@ function objectiveFunctionDefinition!(
         reduce(vcat, [Vector{VariableRef}([jumpModel[el]...]) for el in parametersVector])
     if objectiveFunction == "mse"
         @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
+    elseif objectiveFunction == "ridge"
+        # Penalized ridge, distinct from the two-stage "elastic_net" in this file: there
+        # the coefficient norm is minimized subject to an RSS tolerance; here it is a
+        # plain L2 term added to the objective, with lambda fixed a priori.
+        #
+        # SCALE OF LAMBDA. The heuristic is lambda = 1/sqrt(n) when the loss is the MEAN
+        # squared error. This objective is written as a SUM, so the equivalent value is
+        # lambda = sqrt(n) — multiplying (1/n)*RSS + l*||b||^2 by n gives RSS + n*l*||b||^2
+        # and n/sqrt(n) = sqrt(n). Using 1/sqrt(n) on a sum-form objective would make the
+        # penalty about n times too weak, i.e. no regularization at all.
+        #
+        # n IS THE EFFECTIVE SAMPLE, not the series length: observations before `lb` are
+        # conditioned out and contribute nothing. Under `auto` with :zeroed, `lb` carries
+        # the common conditioning length (29 by default at s = 12), so on a short series
+        # the effective sample is far smaller than T.
+        #
+        # WHAT IS PENALIZED. Only the AR/MA coefficients: they are dimensionless and the
+        # endogenous data is standardized internally, so the L2 term is scale-free without
+        # further rescaling. The intercept and drift are deliberately left out (penalizing
+        # the level has no shrinkage interpretation here). Exogenous coefficients are also
+        # left out: they carry the units of their own regressor, which this package does
+        # NOT standardize, so an L2 term over them would not be scale-invariant.
+        nEff = T - lb + 1
+        λ = sqrt(max(nEff, 1))
+        shrunk = Symbol[]
+        model.p > 0 && push!(shrunk, :ϕ)
+        model.q > 0 && push!(shrunk, :θ)
+        model.P > 0 && push!(shrunk, :Φ)
+        model.Q > 0 && push!(shrunk, :Θ)
+        if isempty(shrunk)
+            @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
+        else
+            coefs = reduce(vcat, [Vector{VariableRef}([jumpModel[el]...]) for el in shrunk])
+            @objective(
+                jumpModel,
+                Min,
+                sum(jumpModel[:ϵ] .^ 2) + λ * sum(coefs .^ 2)
+            )
+        end
     elseif objectiveFunction == "mae"
         @objective(jumpModel, Min, sum(jumpModel[:ϵ_plus] + jumpModel[:ϵ_minus]))
     elseif objectiveFunction == "bilevel"
@@ -2334,6 +2373,7 @@ function auto(
     cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
     lambda::Union{Float64,Nothing} = nothing,
     alpha::Union{Float64,Nothing} = nothing,
+    requireTermsWhenOverDifferenced::Bool = false,
 )
     # Parameter validation
     any(isnan, values(y)) && throw(
@@ -2358,7 +2398,7 @@ function auto(
     @assert informationCriteria ∈ ["aic", "aicc", "bic"]
     @assert integrationTest ∈ ["kpss", "kpssShort"]
     @assert seasonalIntegrationTest ∈ ["seas", "ch", "ocsb"]
-    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable"]
+    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge"]
     @assert objectiveFunction == "elastic_net" || isnothing(lambda)
     @assert objectiveFunction == "elastic_net" || isnothing(alpha)
     @assert searchMethod ∈ ["stepwise", "stepwiseNaive", "grid", "sarimax"]
@@ -2517,6 +2557,7 @@ function auto(
             invertible = invertible,
             invertibilityMargin = invertibilityMargin,
             constrainedRefit = constrainedRefit,
+            requireTermsWhenOverDifferenced = requireTermsWhenOverDifferenced,
             optimizer = optimizer,
             allowMean = allowMean,
             allowDrift = allowDrift,
@@ -4076,8 +4117,21 @@ function stepwiseSearch(
     maxModels::Int = 94,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
     lambda::Union{Nothing,<:AbstractFloat} = nothing,
+    requireTermsWhenOverDifferenced::Bool = false,
 )
     constant = allowDrift || allowMean
+    # With d + D >= 2 and no AR/MA term at all, the forecast is a pure extrapolation of
+    # the locally fitted slope: nothing damps it, so it runs off in a straight line and,
+    # on the strictly positive series of the M4, crosses zero — which pins sMAPE near its
+    # 200 ceiling. Measured on the M4 monthly tail, the residual failures after every
+    # other correction were exactly (0,2,0)(0,0,0) and (0,1,0)(0,1,0). This guard removes
+    # that degenerate corner from the search while leaving every other order reachable.
+    # Off by default: R's auto.arima has no such rule (it avoids the corner by scoring
+    # candidates on the full sample instead), so enabling it is a deliberate divergence
+    # from the reference implementation.
+    overDifferenced = requireTermsWhenOverDifferenced && (d + D) >= 2
+    orderAllowed(np::Int, nq::Int, nP::Int, nQ::Int) =
+        !(overDifferenced && (np + nq + nP + nQ) == 0)
     # The constant term must live in the slot that matches the differencing order:
     # mean when d + D == 0 (allowMean), drift when d + D == 1 (allowDrift). Using the
     # wrong slot adds a term that vanishes after differencing (not identifiable) while
@@ -4127,12 +4181,27 @@ function stepwiseSearch(
         optimizer = optimizer,
     )
 
+    # The "null" model is both a candidate and the safety net: the line below adopts it
+    # unconditionally when the first candidate turns out inadmissible. Guarding only the
+    # *adoption* therefore left the degenerate order reachable through that fallback,
+    # which is why the guard measured as completely inert on the M4 tail. Under the guard
+    # the safety net itself must carry a term, so the minimal admissible model takes its
+    # place. If no lag is available at all the guard simply cannot be honoured, and the
+    # plain null model stands.
+    nullp, nullq = 0, 0
+    if overDifferenced
+        if maxp > 0
+            nullp = 1
+        elseif maxq > 0
+            nullq = 1
+        end
+    end
     fitModel = SARIMA(
         y,
         exog,
-        0,
+        nullp,
         d,
-        0;
+        nullq;
         P = 0,
         D = D,
         Q = 0,
@@ -4163,12 +4232,16 @@ function stepwiseSearch(
         optimizer = optimizer,
     )
 
+    # The null model keeps its role as the safety net above (it is the fallback when the
+    # first candidate is inadmissible), but under the guard it must not be *adopted* as
+    # the best: (0,d,0)(0,D,0) with d + D >= 2 is precisely the degenerate corner.
     if considerModel &&
+       orderAllowed(nullp, nullq, 0, 0) &&
        informationCriteriaFunction(bestModel; offset = icOffset) >
        informationCriteriaFunction(fitModel; offset = icOffset)
         bestModel = fitModel
-        p = 0
-        q = 0
+        p = nullp
+        q = nullq
         P = 0
         Q = 0
     end
@@ -4317,6 +4390,7 @@ function stepwiseSearch(
     # Try one neighbour specification; when it improves the information
     # criterion and passes the admissibility checks, adopt it as the new best.
     function tryCandidate!(newp::Int, newq::Int, newP::Int, newQ::Int, cAllowMean::Bool, cAllowDrift::Bool)
+        orderAllowed(newp, newq, newP, newQ) || return false
         newModel(results, newp, d, newq, newP, D, newQ, seasonality, cAllowMean, cAllowDrift) ||
             return false
         k += 1

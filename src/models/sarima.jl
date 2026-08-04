@@ -1553,18 +1553,28 @@ function includeModelConstraints!(
     objectiveFunction::String,
     offset::Int,
 )
+    # Every objective shares the same defining relation, eps = y - yhat. The MAE branch
+    # only adds the split into non-negative parts that linearizes the absolute value.
+    #
+    # It used to omit that relation and pin eps through
+    #     eps == eps_plus - eps_minus ;  yhat - y <= eps_plus ;  y - yhat <= eps_minus
+    # which at the optimum yields eps = yhat - y, the OPPOSITE sign from every other
+    # objective. The objective value stayed correct (eps_plus + eps_minus = |yhat - y|), so
+    # the fit converged and nothing looked wrong -- but eps feeds the moving-average
+    # recursion: theta was estimated against inverted innovations while `predict!` builds
+    # forecasts with the standard convention, so the MA term entered the forecast with the
+    # wrong sign. Only q > 0 or Q > 0 models were affected, and residual or sigma^2
+    # diagnostics could not surface it because they square eps. Measured directly:
+    # corr(eps, y - yhat) was exactly -1 under "mae" and +1 under "mse" and "ridge".
+    @constraint(
+        jumpModel,
+        [t = offset:T],
+        yValues[t] == jumpModel[:ŷ][t] + jumpModel[:ϵ][t]
+    )
     if objectiveFunction == "mae"
         @variable(jumpModel, ϵ_plus[offset:T] >= 0)
         @variable(jumpModel, ϵ_minus[offset:T] >= 0)
         @constraint(jumpModel, [t = offset:T], jumpModel[:ϵ][t] == ϵ_plus[t] - ϵ_minus[t])
-        @constraint(jumpModel, [t = offset:T], jumpModel[:ŷ][t] - yValues[t] <= ϵ_plus[t])
-        @constraint(jumpModel, [t = offset:T], yValues[t] - jumpModel[:ŷ][t] <= ϵ_minus[t])
-    else
-        @constraint(
-            jumpModel,
-            [t = offset:T],
-            yValues[t] == jumpModel[:ŷ][t] + jumpModel[:ϵ][t]
-        )
     end
 end
 

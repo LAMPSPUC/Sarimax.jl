@@ -65,6 +65,38 @@
                                          objectiveFunction = "stable", cvarLevel = 0.0)
     end
 
+    @testset "every objective defines the residual with the same sign" begin
+        # Regression. The MAE branch used to skip the defining relation y = yhat + eps and
+        # pin eps through the split into non-negative parts alone, which at the optimum
+        # gives eps = yhat - y — inverted relative to every other objective. The objective
+        # value stayed correct, so the fit converged and the whole suite passed; but eps
+        # feeds the moving-average recursion, so theta was estimated against inverted
+        # innovations while `predict!` builds forecasts with the standard convention. Only
+        # q > 0 or Q > 0 models were affected, and nothing that squares eps (residual
+        # diagnostics, sigma^2) could reveal it. Hence this test compares the SIGN.
+        Random.seed!(8801)
+        n = 120
+        dates = Date(2000, 1, 1):Month(1):(Date(2000, 1, 1)+Month(n - 1))
+        ta = TimeArray(collect(dates), 100.0 .+ cumsum(randn(n) .* 2))
+
+        for obj in ("mse", "mae", "ridge", "ml")
+            for q in (0, 1)          # q = 1 is where the inverted sign actually bites
+                model = SARIMA(ta, 1, 1, q; seasonality = 1)
+                fit!(model; objectiveFunction = obj, silent = true)
+                fv = Float64.(values(fitted(model)))
+                ev = Float64.(model.ϵ)
+                k = min(length(fv), length(ev))
+                f = fv[end-k+1:end]
+                e = ev[end-k+1:end]
+                y = Float64.(values(ta))[end-k+1:end]
+                keep = [i for i = 1:k if isfinite(f[i]) && isfinite(e[i])]
+                @test !isempty(keep)
+                # eps must track y - yhat, never yhat - y
+                @test cor(e[keep], y[keep] .- f[keep]) > 0.9
+            end
+        end
+    end
+
     @testset "ridge shrinks the AR/MA coefficients, not the level" begin
         # Penalized ridge: min sum(e^2) + lambda*||coef||^2 with lambda fixed a priori.
         # Distinct from "elastic_net" in this package, which is a two-stage constrained

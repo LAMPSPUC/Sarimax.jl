@@ -19,6 +19,20 @@ choice in this package.
 const DEFAULT_CVAR_LEVEL = 0.9
 
 """
+    DEFAULT_HUBER_DELTA
+
+Threshold where the `"huber"` objective switches from quadratic to linear, in units of the
+residual standard deviation. 1.345 is the classical choice: it buys 95% of the efficiency
+of least squares under Gaussian errors while bounding the influence of an outlier.
+
+It is a bare constant rather than a keyword because the endogenous data is standardized
+internally before the fit (`yValues ./ yScale`), so residuals already live on a unit scale
+and the threshold needs no calibration per series. A package that did not standardize would
+have to estimate sigma first and scale delta by it.
+"""
+const DEFAULT_HUBER_DELTA = 1.345
+
+"""
 The `SARIMAModel` struct represents a SARIMA model. It contains the following fields:
 
 - `y`: The time series data.
@@ -829,7 +843,7 @@ function fit!(
     Fl = typeofModelElements(model)
     isFitted(model) &&
         @info("The model has already been fitted. Overwriting the previous results")
-    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge"] "The objective function $objectiveFunction is not supported. Please use 'mae', 'mse', 'ml', 'bilevel', 'elastic_net', 'stable' or 'ridge'"
+    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge", "huber"] "The objective function $objectiveFunction is not supported. Please use 'mae', 'mse', 'ml', 'bilevel', 'elastic_net', 'stable', 'ridge' or 'huber'"
     @assert !(invertible && MACoefficientsAreModelParameters(objectiveFunction)) "The invertible MA parameterization is not compatible with the '$objectiveFunction' objective (MA coefficients are treated as outer parameters there)."
     @assert 0.0 <= invertibilityMargin < 1.0 "invertibilityMargin (ρ) must lie in [0, 1)."
     @assert 0.0 <= stationarityMargin < 1.0 "stationarityMargin must lie in [0, 1)."
@@ -1610,6 +1624,35 @@ function objectiveFunctionDefinition!(
         reduce(vcat, [Vector{VariableRef}([jumpModel[el]...]) for el in parametersVector])
     if objectiveFunction == "mse"
         @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
+    elseif objectiveFunction == "huber"
+        # Huber: quadratica perto de zero, linear na cauda.
+        #     L(e) = e^2/2                se |e| <= delta
+        #          = delta*(|e| - delta/2) caso contrario
+        # E o M-estimador classico: mantem a eficiencia do "mse" sob erros gaussianos e
+        # limita a INFLUENCIA de um outlier. Note a diferenca em relacao ao "stable"
+        # (CVaR), que minimiza a media da cauda e portanto PERSEGUE o outlier em vez de
+        # descontar seu peso — sao objetivos opostos, apesar de ambos olharem a cauda.
+        #
+        # Formulacao por convolucao infimal, que a mantem no mesmo regime quadratico do
+        # "mse" (mais barato que o "stable", que acrescenta T variaveis E T restricoes):
+        #     Huber(e) = min { u^2/2 + delta*|v| : u + v = e }
+        # com |v| dividido em partes nao-negativas. A relacao eps = y - yhat ja esta
+        # imposta em includeModelConstraints! e NAO e substituida aqui — foi exatamente
+        # esse o erro do ramo "mae", que trocava o sinal do residuo.
+        δh = DEFAULT_HUBER_DELTA
+        @variable(jumpModel, uH[lb:T])
+        @variable(jumpModel, vH_plus[lb:T] >= 0)
+        @variable(jumpModel, vH_minus[lb:T] >= 0)
+        @constraint(
+            jumpModel,
+            [t = lb:T],
+            jumpModel[:ϵ][t] == uH[t] + vH_plus[t] - vH_minus[t]
+        )
+        @objective(
+            jumpModel,
+            Min,
+            sum(0.5 * uH[t]^2 + δh * (vH_plus[t] + vH_minus[t]) for t = lb:T)
+        )
     elseif objectiveFunction == "ridge"
         # Penalized ridge, distinct from the two-stage "elastic_net" in this file: there
         # the coefficient norm is minimized subject to an RSS tolerance; here it is a
@@ -2408,7 +2451,7 @@ function auto(
     @assert informationCriteria ∈ ["aic", "aicc", "bic"]
     @assert integrationTest ∈ ["kpss", "kpssShort"]
     @assert seasonalIntegrationTest ∈ ["seas", "ch", "ocsb"]
-    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge"]
+    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge", "huber"]
     @assert objectiveFunction == "elastic_net" || isnothing(lambda)
     @assert objectiveFunction == "elastic_net" || isnothing(alpha)
     @assert searchMethod ∈ ["stepwise", "stepwiseNaive", "grid", "sarimax"]

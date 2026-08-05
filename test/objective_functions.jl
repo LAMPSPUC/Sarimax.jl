@@ -97,6 +97,54 @@
         end
     end
 
+    @testset "huber sits between mse and mae under contamination" begin
+        # Huber is the classical M-estimator: quadratic near zero, linear in the tail, so
+        # it keeps least-squares efficiency under Gaussian errors while BOUNDING the
+        # influence of an outlier. That is the opposite of "stable" (CVaR), which
+        # minimizes the mean of the tail and therefore chases the outlier.
+        #
+        # The property to pin is that Huber BRACKETS the other two: faced with a single
+        # large contaminant, both the residual it leaves on the outlier and the median
+        # residual over the sample must fall between the mse and the mae values.
+        #
+        # Do not assume which end is which. Measured here, mse leaves the LARGEST residual
+        # on the outlier (5.06) and mae the smallest (exactly 0.00) — the opposite of the
+        # naive reading. Two reasons: the fitted value in an ARIMA recursion is driven by
+        # past observations rather than free to chase a point, and an L1 solution sits on a
+        # vertex, so it interpolates as many points exactly as there are parameters.
+        Random.seed!(9401)
+        n = 140
+        dates = Date(2000, 1, 1):Month(1):(Date(2000, 1, 1)+Month(n - 1))
+        y = 200.0 .+ cumsum(randn(n) .* 1.5)
+        hit = 70
+        y[hit] += 12 * std(diff(y))            # um unico outlier grande
+        ta = TimeArray(collect(dates), y)
+
+        function outlierResidual(obj)
+            m = SARIMA(ta, 1, 1, 1; seasonality = 1)
+            fit!(m; objectiveFunction = obj, silent = true)
+            (abs(m.ϵ[hit]), median(abs.(m.ϵ)))
+        end
+
+        rMse, medMse = outlierResidual("mse")
+        rMae, medMae = outlierResidual("mae")
+        rHub, medHub = outlierResidual("huber")
+
+        @test all(isfinite, (rMse, rMae, rHub))
+        # cercado pelos dois extremos, sem degenerar em nenhum deles
+        @test min(rMse, rMae) <= rHub <= max(rMse, rMae)
+        @test min(medMse, medMae) <= medHub <= max(medMse, medMae)
+        # e estritamente distinto de ambos: se coincidisse, o delta nao estaria agindo
+        @test abs(rHub - rMse) > 1e-6
+        @test abs(rHub - rMae) > 1e-6
+
+        model = SARIMA(ta, 1, 1, 1; seasonality = 1)
+        fit!(model; objectiveFunction = "huber", silent = true)
+        @test Sarimax.isFitted(model)
+        predict!(model; stepsAhead = 8)
+        @test all(isfinite, values(model.forecast))
+    end
+
     @testset "ridge shrinks the AR/MA coefficients, not the level" begin
         # Penalized ridge: min sum(e^2) + lambda*||coef||^2 with lambda fixed a priori.
         # Distinct from "elastic_net" in this package, which is a two-stage constrained

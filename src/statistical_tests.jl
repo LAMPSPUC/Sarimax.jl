@@ -369,19 +369,28 @@ Seasonal-strength heuristic for choosing the seasonal differencing order `D`,
 matching `forecast::nsdiffs(x, test = "seas")` — the default seasonal test of R's
 `auto.arima` since forecast v8.3 (Wang, Smith & Hyndman seasonal strength measure).
 
-The series is decomposed with a robust STL fit and the seasonal strength is
+The series is decomposed with STL and the seasonal strength is
 
     Fs = max(0, min(1, 1 - var(remainder) / var(seasonal + remainder)))
 
 `D = 1` is returned when `Fs > 0.64`, and `D = 0` otherwise.
 
-Note: `SeasonalTrendLoess.stl(...; robust = true)` ignores its outer-iteration cap
-`no` — the loop guard is `robust | (o <= no)`, which is always true — so it can spin
-forever when the seasonal convergence criterion is never met on degenerate series
-(this was observed hanging `auto` on some short M4 series). We instead request
-`robust = false` with a bounded number of robustness cycles (`no = 15, ni = 1`), which
-performs the same robust re-weighting for at most 15 outer cycles: identical `Fs` to
-`robust = true` on well-behaved series, and guaranteed termination on degenerate ones.
+The decomposition is `stlR`, this package's port of the STL that `stats::stl` runs, called
+with the settings `forecast::seas.heuristic` actually uses. That heuristic reads the
+components of `mstl(x)`, which for a plain `ts` reduces to `stl(x, s.window = 11)`: its
+`s.window = 7 + 4 * seq(6)` is indexed at the single seasonal period, and it never passes
+`robust`, so `stl`'s own default applies.
+
+The port exists because matching parameters was not enough. Against `SeasonalTrendLoess.jl`
+the components agreed only to 0.3-4% of sd(y) under *every* parameterisation tried, which
+is the same algorithm but a different implementation — R evaluates the loess every
+`ceiling(window/10)` points and interpolates linearly between them, an approximation the
+other package does not expose. That residual is small in the components and large in `Fs`,
+because `Fs = 1 - var(R)/var(R+S)` is a ratio of variances: when the remainder is small
+next to the seasonal figure, a small absolute change in it moves the ratio a lot. On 36.6k
+M4 monthly series that showed up as `D` disagreeing with `nsdiffs` on 7.4%, with 62% of
+the disagreements sitting in the 0.55-0.75 band around the 0.64 cutoff — the same statistic
+landing on opposite sides of the threshold. `stlR` reproduces `stats::stl` exactly.
 
 # Arguments
 - `y::Vector{T}`: Time series data
@@ -399,7 +408,7 @@ performs the same robust re-weighting for at most 15 outer cycles: identical `Fs
 function seasonalStrengthTest(y::Vector{T}, m::Int) where {T<:AbstractFloat}
     m > 1 || throw(ArgumentError("The seasonal period m must be greater than 1"))
     length(y) >= 2 * m || throw(ArgumentError("The series must span at least two seasonal periods"))
-    decomposition = SeasonalTrendLoess.stl(y, m; robust = false, no = 15, ni = 1)
+    decomposition = stlR(y, m; s_window = 11)
     remainderVariance = var(decomposition.remainder)
     strength = max(
         0.0,

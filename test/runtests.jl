@@ -52,6 +52,8 @@ using JSON
 
     include("solver_interface.jl")
 
+    include("stl_parity.jl")
+
     include("missing_data.jl")
 
     include("aqua.jl")

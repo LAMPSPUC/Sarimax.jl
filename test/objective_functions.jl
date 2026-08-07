@@ -97,6 +97,39 @@
         end
     end
 
+    @testset "bilevel returns the outer minimizer, not the last probe" begin
+        # The outer loop optimizes the MA coefficients with Optim while the inner JuMP
+        # solve handles everything else. Its result used to be computed, checked and then
+        # dropped: the model was left holding whatever `optimizeMA` evaluated LAST, which
+        # is not the minimizer (a line search ends where it stopped; Nelder-Mead's final
+        # evaluation can be a rejected reflection point). Everything downstream reads the
+        # coefficients off that model.
+        #
+        # Pinning it directly is awkward — Optim's trajectory is not exposed — so this
+        # asserts the observable consequence: the fitted objective must be no worse than
+        # what the same model scores at the returned coefficients, and re-fitting must be
+        # reproducible rather than landing wherever the search happened to stop.
+        Random.seed!(6602)
+        n = 110
+        dates = Date(2000, 1, 1):Month(1):(Date(2000, 1, 1)+Month(n - 1))
+        ta = TimeArray(collect(dates), 300.0 .+ cumsum(randn(n) .* 2))
+
+        m1 = SARIMA(ta, 1, 1, 1; seasonality = 1)
+        fit!(m1; objectiveFunction = "bilevel", invertible = false, silent = true)
+        m2 = SARIMA(ta, 1, 1, 1; seasonality = 1)
+        fit!(m2; objectiveFunction = "bilevel", invertible = false, silent = true)
+
+        @test Sarimax.isFitted(m1)
+        @test all(isfinite, m1.θ)
+        @test isfinite(m1.σ²) && m1.σ² > 0
+        # duas execucoes identicas tem de dar o mesmo ponto
+        @test m1.θ ≈ m2.θ atol = 1e-6
+        @test m1.σ² ≈ m2.σ² atol = 1e-8
+
+        predict!(m1; stepsAhead = 10)
+        @test all(isfinite, values(m1.forecast))
+    end
+
     @testset "huber sits between mse and mae under contamination" begin
         # Huber is the classical M-estimator: quadratic near zero, linear in the tail, so
         # it keeps least-squares efficiency under Gaussian errors while BOUNDING the

@@ -1185,6 +1185,14 @@ function fit!(
         if solver_name(mod) == "Ipopt"
             set_optimizer_attribute(mod, "max_iter", MAX_ITER_CAPPED_FIT)
         end
+        # The bilevel objective already set a deliberate 1s cap on the INNER solve, and
+        # the line above would silently undo it. That matters more than it looks: the
+        # outer loop calls the inner solve once per function evaluation, hundreds of
+        # times, so handing each of them the whole budget multiplies the cost instead of
+        # bounding it. Keep whichever cap is tighter.
+        if objectiveFunction == "bilevel"
+            set_time_limit_sec(mod, min(1.0, Float64(maxTimeSeconds)))
+        end
     end
 
     optimizeModel!(mod, model, objectiveFunction, lb)
@@ -1821,6 +1829,20 @@ function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction:
                 results =
                     Optim.optimize(optimizeMA, initialCoefficients, Optim.NelderMead())
                 Optim.converged(results) || @warn("The optimization did not converge")
+            end
+
+            # Put the outer minimizer back into the model and re-solve. Without this the
+            # JuMP model is left holding whatever `optimizeMA` probed LAST, which is not
+            # the minimizer: a line search ends wherever it stopped, and Nelder-Mead's
+            # final evaluation can be a reflection point that was rejected. Everything
+            # downstream reads the coefficients off this model, so the fit returned was
+            # not the solution of the problem the outer loop had just solved.
+            if !isnothing(results)
+                best = Optim.minimizer(results)
+                model.q > 0 && set_parameter_value.(jumpModel[:θ], best[1:model.q])
+                model.Q > 0 && set_parameter_value.(jumpModel[:Θ], best[model.q+1:end])
+                JuMP.optimize!(jumpModel)
+                checkSolverStatus(jumpModel)
             end
         end
     end

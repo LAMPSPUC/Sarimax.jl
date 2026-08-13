@@ -131,11 +131,14 @@
         @test model.Q == 1
         @test model.d == 1
         @test model.D == 1
-        # Valor repinado em 2026-08: o AICc passou a ser calculado sobre a verossimilhança
-        # gaussiana EXATA (`criterionLoglike`) em vez da CSS plug-in, e `K = ncoef + 1` (sem
-        # `nPresampleFree`), casando com o `forecast::Arima`. A ORDEM selecionada não mudou —
+        # Valor repinado em 2026-08 (duas vezes): (1) o AICc passou a ser calculado sobre a
+        # verossimilhança gaussiana EXATA (`criterionLoglike`) em vez da CSS plug-in, e
+        # `K = ncoef + 1` (sem `nPresampleFree`), casando com o `forecast::Arima`;
+        # (2) a correção de amostra pequena passou a usar o `n` da verossimilhança usada
+        # (`T` no caminho exato), não o `length(observedResiduals)` condicionado — era uma
+        # penalidade extra de ~0.115 aqui. A ORDEM selecionada não mudou em nenhum repin —
         # só o valor do critério, como tem que ser numa troca de escala de verossimilhança.
-        @test aicc(model) ≈ 521.9660727530161 atol = 1e-6
+        @test aicc(model) ≈ 521.8508218836669 atol = 1e-6
     end
 
     @testset "parallel candidate fitting (smoke)" begin

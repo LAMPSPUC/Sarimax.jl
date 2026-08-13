@@ -115,10 +115,10 @@ end
         end
     end
 
-    @testset "n do AICc casa com a amostra da verossimilhanca [defeito conhecido]" begin
-        # `aicc` corrige com n = length(observedResiduals) = T - lb + 1, mas a
-        # verossimilhanca exata que entra no criterio e avaliada sobre os T pontos da
-        # serie diferenciada. A correcao deveria usar o n da verossimilhanca usada.
+    @testset "n do AICc casa com a amostra da verossimilhanca" begin
+        # A verossimilhanca exata que entra no criterio e avaliada sobre os T pontos da
+        # serie diferenciada; a correcao de amostra pequena deve usar esse mesmo n, nao o
+        # `length(observedResiduals) = T - lb + 1` do conditioning da CSS.
         y = TimeArray(collect(Date(2000, 1, 1):Month(1):Date(2006, 12, 1)), randn(rng, 84))
         m = SARIMA(y, 2, 0, 0; allowMean = false)
         fit!(m)  # :zeroed => residualLags = p = 2 => lb = 3
@@ -128,9 +128,35 @@ end
             @test nRes < T   # premissa do teste: a truncagem existe de fato
             K = Sarimax.get_hyperparameters_number(m)
             correctionOn(n) = (2K^2 + 2K) / (n - K - 1)
-            @test aicc(m) ≈ aic(m) + correctionOn(nRes)          # comportamento atual
-            @test_broken aicc(m) ≈ aic(m) + correctionOn(T)       # comportamento correto
+            @test aicc(m) ≈ aic(m) + correctionOn(T)
+            @test aicc(m) ≉ aic(m) + correctionOn(nRes)   # o defeito antigo, nao regredir
+            llAndN = Sarimax.criterionLoglikeAndN(m)
+            @test llAndN[2] == T
+            @test llAndN[3] === true
+            @test m.metadata["criterionFallback"] === false
         end
+    end
+
+    @testset "selecao: recuo CSS nunca vence candidato com exata" begin
+        # O criterio de BUSCA (getInformationCriteriaFunction) penaliza candidatos cujo
+        # criterio veio do recuo; os acessores publicos nao mudam.
+        y = TimeArray(collect(Date(2000, 1, 1):Month(1):Date(2006, 12, 1)), randn(rng, 84))
+        m = SARIMA(y, 1, 0, 0; allowMean = false)
+        fit!(m)
+        searchAicc = Sarimax.getInformationCriteriaFunction("aicc")
+        publicValue = aicc(m)
+        if !isnothing(Sarimax.exactLoglike(m))
+            @test searchAicc(m) ≈ publicValue          # caminho exato: sem penalidade
+        end
+        # forca o recuo: coeficiente AR na fronteira mantido fixo
+        mBoundary = SARIMA(y; arCoefficients = [0.99999], allowMean = false)
+        fit!(mBoundary)
+        @test isnothing(Sarimax.exactLoglike(mBoundary))
+        publicBoundary = aicc(mBoundary)          # avalia o criterio e grava o metadata
+        @test publicBoundary isa AbstractFloat
+        @test mBoundary.metadata["criterionFallback"] === true
+        @test searchAicc(mBoundary) ≈ publicBoundary + Sarimax.FALLBACK_CRITERION_PENALTY
+        @test searchAicc(mBoundary) > searchAicc(m)
     end
 
     @testset "caminhos de busca antes mortos: grid e stepwiseNaive" begin

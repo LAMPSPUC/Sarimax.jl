@@ -715,9 +715,10 @@ function get_hyperparameters_number(model::SARIMAModel)
     k = (model.allowMean) ? 1 : 0
     k = (model.allowDrift) ? k + 1 : k
     β = isnothing(model.exog) ? 0 : length(colnames(model.exog))
-    # `K = ncoef + 1` (o +1 e sigma^2), exatamente a convencao do `forecast::Arima`. O `n` dos
-    # criterios ja casa: os residuos vivem na serie DIFERENCIADA (`T = length(diffY)`), entao
-    # `length(observedResiduals)` ja e o `n* = n - d - D*m` do R.
+    # `K = ncoef + 1` (o +1 e sigma^2), exatamente a convencao do `forecast::Arima`. O `n`
+    # dos criterios vem de `criterionLoglikeAndN`: `T = length(diffY)` (o `n* = n - d - D*m`
+    # do R) quando a verossimilhanca exata e usada, e `length(observedResiduals) = T - lb + 1`
+    # no recuo CSS — os residuos condicionados descontam o `lb`, entao NAO sao o `n*` do R.
     #
     # O `nPresampleFree` NAO entra mais. Ele cobrava os valores pre-amostrais livres do
     # `:free` como se fossem parametros, para impedir que candidatos sazonais de ordem alta
@@ -2955,9 +2956,13 @@ function auto(
     maxQ =
         (seasonality == 1) ? 0 : min(maxQ, floor(Int, length(values(y)) / 3 * seasonality))
 
-    # All search candidates are conditioned on the same pre-sample length so
-    # that their CSS likelihoods (and hence information criteria) are computed
-    # on the same effective sample.
+    # All search candidates are conditioned on the same pre-sample length so that their CSS
+    # objectives — and the CSS likelihoods of the criterion FALLBACK path — live on the same
+    # effective sample. Since the criteria moved to the exact likelihood (evaluated on the
+    # full differenced sample regardless of conditioning), this common `lb` no longer shapes
+    # the primary criterion path; it still governs the estimation objective and keeps the
+    # fallback comparisons consistent. Whether it should be removed altogether is an open
+    # question that needs M4-scale measurement (it changes the estimation, not just scoring).
     # With :free initialization every candidate already scores on the full differenced
     # sample (pre-sample values are estimated), so no common conditioning is needed.
     searchLb =
@@ -3129,24 +3134,28 @@ end
 """
     getInformationCriteriaFunction(informationCriteria)
 
-Returns the information criteria function corresponding to the given `informationCriteria`.
+Returns the SELECTION criterion function for the search: `aic`/`aicc`/`bic` wrapped by
+[`searchCriterionFunction`](@ref), so that candidates whose criterion came from the CSS
+fallback (no computable exact likelihood — typically roots at the boundary) are penalized
+and can never outrank a candidate scored by the exact likelihood. The public `aic`/`aicc`/
+`bic` accessors are NOT affected.
 
 # Arguments
 - `informationCriteria::String`: The name of the information criteria ("aic", "aicc", or "bic").
 
 # Returns
-- `Function`: The information criteria function corresponding to the input.
+- `Function`: The selection criterion function corresponding to the input.
 
 # Throws
 - `ArgumentError`: If the provided `informationCriteria` is not one of "aic", "aicc", or "bic".
 """
 function getInformationCriteriaFunction(informationCriteria::String)
     if informationCriteria == "aic"
-        return aic
+        return searchCriterionFunction(aic)
     elseif informationCriteria == "aicc"
-        return aicc
+        return searchCriterionFunction(aicc)
     elseif informationCriteria == "bic"
-        return bic
+        return searchCriterionFunction(bic)
     end
     throw(ArgumentError("The information criteria '$informationCriteria' is not supported"))
 end

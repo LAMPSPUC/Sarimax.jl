@@ -145,11 +145,17 @@ Numero de observacoes da verossimilhanca EXATA: o comprimento da serie diferenci
 `n` que o `stats::arima` usa. Nao confundir com `length(observedResiduals)`, que desconta o
 conditioning da CSS.
 
+Calculado por aritmetica (`n - d - D*s`) e nao por `length(values(differentiate(...)))`: a
+versao com `differentiate` alocava a serie diferenciada inteira so para medir o comprimento,
+custando ~7.5us por avaliacao de criterio (medido: 164.6us vs 157.1us por `aicc`, mediana de
+7 baterias de 3000 chamadas). A equivalencia das duas formas esta travada em
+`test/exact_likelihood.jl`.
+
 Sem anotacao de tipo porque `fit.jl` e incluido antes de `models/sarima.jl` definir
 `SARIMAModel`; so e chamada no caminho exato, que exige `applicable(exactLoglike, model)`.
 """
 criterionSampleSize(model) =
-    length(values(differentiate(model.y, model.d, model.D, model.seasonality)))
+    length(values(model.y)) - model.d - model.D * model.seasonality
 
 """
 Penalidade somada ao criterio de um candidato de BUSCA cujo criterio veio do recuo CSS.

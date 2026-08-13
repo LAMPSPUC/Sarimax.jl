@@ -137,6 +137,17 @@ end
         end
     end
 
+    @testset "criterionSampleSize: aritmetica == differentiate" begin
+        # `criterionSampleSize` usa `n - d - D*s` em vez de alocar a serie diferenciada.
+        # A equivalencia tem que valer para toda combinacao de ordens de diferenciacao.
+        yLong = TimeArray(collect(Date(2000, 1, 1):Month(1):Date(2010, 12, 1)), randn(rng, 132))
+        for (d, D, s) in ((0, 0, 1), (1, 0, 1), (2, 0, 1), (0, 1, 12), (1, 1, 12), (2, 1, 12), (1, 2, 4))
+            m = SARIMA(yLong, 1, d, 0; seasonality = s, D = D)
+            @test Sarimax.criterionSampleSize(m) ==
+                  length(values(differentiate(yLong, d, D, s)))
+        end
+    end
+
     @testset "selecao: recuo CSS nunca vence candidato com exata" begin
         # O criterio de BUSCA (getInformationCriteriaFunction) penaliza candidatos cujo
         # criterio veio do recuo; os acessores publicos nao mudam.

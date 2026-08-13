@@ -33,6 +33,89 @@ have to estimate sigma first and scale delta by it.
 const DEFAULT_HUBER_DELTA = 1.345
 
 """
+Margem de REJEICAO de candidatos: quao longe do circulo unitario a menor raiz tem que estar
+para o candidato ser considerado admissivel na SELECAO de ordem.
+
+Vale `1e-2` para casar com o `forecast::auto.arima`: o `myarima` dele poe `ic = Inf` em
+qualquer candidato cuja raiz minima caia a menos de 1% do circulo unitario.
+
+NAO usar este valor nas parametrizacoes por construcao — ver [`DEFAULT_DOMAIN_MARGIN`].
+`rootMargin` limita o modulo das raizes a `> 1 + rho`, enquanto `stationarityMargin` e
+`invertibilityMargin` limitam os coeficientes de reflexao a `|kappa| <= 1 - rho`. A
+correspondencia e exata na ordem 1: para um AR(1), `kappa = phi` e a raiz e `1/phi`, entao
+`|raiz| > 1.01` equivale a `|phi| < 0.9901`. Mas as duas margens respondem a perguntas
+diferentes — uma e regra de selecao, a outra e o dominio do estimador.
+"""
+const DEFAULT_ROOT_MARGIN = 1e-2
+
+"""
+Margem que mantem o DOMINIO da parametrizacao por construcao aberto, usada em
+`stationarityMargin` e `invertibilityMargin`.
+
+A verossimilhanca estacionaria existe em `|kappa| < 1` e diverge na fronteira; o unico papel
+desta margem e impedir que o solver avalie exatamente `|kappa| = 1`. Para isso `1e-6` basta.
+Ela NAO e uma regra de admissibilidade — quem rejeita candidato inadmissivel e
+`rootMargin`/`assertStationarity`, na etapa de selecao.
+
+Estas duas margens foram unificadas em `DEFAULT_ROOT_MARGIN = 1e-2` por um periodo, o que
+impunha a regra de SELECAO como restricao de ESTIMACAO. Medido em 88 ajustes AR(p) sobre
+niveis da M4 monthly (`dbg_divergencia_r.jl`), onde 57 das 88 series tem raiz minima abaixo
+de 1,02: com `rho = 1e-2`, 45,5% dos ajustes terminavam encostados na cota e a distancia
+mediana ao `phi` da ML exata do R saltava de 0,00005 para 0,00234 — a cota truncava
+estimativas legitimas de raiz quase-unitaria (ex.: serie 10 p=1, R-ML `phi = 0,99911`, nosso
+ajuste `0,99912` com dominio aberto e exatamente `0,99000` com `rho = 1e-2`). O R nao tem
+essa cota: com `transform.pars = TRUE` ele parametriza os coeficientes AR por `tanh`, cujo
+contradominio e o intervalo aberto `(-1, 1)`.
+"""
+const DEFAULT_DOMAIN_MARGIN = 1e-6
+
+"""
+Teto de modelos que uma busca stepwise pode visitar, equivalente ao `nmodels = 94` do
+`forecast::auto.arima`.
+
+Ele e a contraparte do escopo de `maxOrder`: o R nao limita `p+q+P+Q` na busca local, mas
+limita quantos modelos ela chega a ajustar. `stepwiseSearch` — o metodo default — ja
+implementava isso como `maxModels = 94`; `stepWiseSearchNaive` nao tinha teto algum, e a
+lacuna so ficou visivel quando o `maxOrder` deixou de restringir as buscas locais.
+
+Nota para quem for medir custo por aqui: como o caminho default ja era limitado, mexer neste
+teto NAO explica diferencas de tempo observadas com `searchMethod = "stepwise"`.
+"""
+const DEFAULT_NMODELS = 94
+
+"""
+    admissibleCoefficientBound(order::Int, i::Int) -> Float64
+
+Cota `|coef_i| <= C(order, i)` para a parametrizacao LIVRE (sem estacionariedade/
+invertibilidade por construcao). Escolhida por uma propriedade: **ela nao exclui nenhum
+modelo admissivel**.
+
+Um polinomio AR(p) estacionario fatora como `phi(z) = prod_i (1 - alpha_i z)` com
+`|alpha_i| < 1`, entao cada coeficiente e, a menos de sinal, uma simetrica elementar dos
+`alpha`, e `|phi_i| <= e_i(1,...,1) = C(p, i)`. Idem para o MA. Logo qualquer ponto fora
+desta caixa e necessariamente inadmissivel, e a caixa e equivalente a NAO ter cota nenhuma no
+que diz respeito aos modelos que podem ser selecionados.
+
+    p = 1 -> (1)        p = 2 -> (2, 1)        p = 3 -> (3, 3, 1)
+
+Na ordem 1 isso reproduz exatamente a caixa `[-1, 1]` de antes; a partir da ordem 2 ela
+divergia. A caixa antiga era `[-1, 1]` para TODO indice, o que simultaneamente admitia pontos
+inadmissiveis (um MA(2) em `(0.5, -0.9)` esta na caixa e nao e invertivel) e excluia pontos
+admissiveis (a ML do R em `(1.51, 0.79)` e invertivel e estava fora). Ela nunca foi uma
+restricao de admissibilidade — so coincidia com uma na ordem 1.
+
+Manter uma cota finita, em vez de deixar o coeficiente livre como o `stats::arima` faz, e
+deliberado: o R avalia a verossimilhanca por filtro de Kalman, que nao propaga a recursao
+`eps_t = y_t - sum_j theta_j eps_(t-j)`; nos propagamos, e fora da regiao invertivel ela
+explode numericamente em ~100 passos. Como a cota nao exclui nada selecionavel, ela da a
+liberdade do R sem o estouro.
+
+A admissibilidade de fato continua sendo garantida onde sempre foi: na REJEICAO, via
+[`DEFAULT_ROOT_MARGIN`] / `assertStationarity` / `ensureAdmissible!`.
+"""
+admissibleCoefficientBound(order::Int, i::Int) = Float64(binomial(order, i))
+
+"""
 The `SARIMAModel` struct represents a SARIMA model. It contains the following fields:
 
 - `y`: The time series data.
@@ -632,8 +715,18 @@ function get_hyperparameters_number(model::SARIMAModel)
     k = (model.allowMean) ? 1 : 0
     k = (model.allowDrift) ? k + 1 : k
     β = isnothing(model.exog) ? 0 : length(colnames(model.exog))
-    nPre = hasproperty(model, :metadata) ? get(model.metadata, "nPresampleFree", 0) : 0
-    return model.p + model.q + model.P + model.Q + k + β + 1 + nPre
+    # `K = ncoef + 1` (o +1 e sigma^2), exatamente a convencao do `forecast::Arima`. O `n` dos
+    # criterios ja casa: os residuos vivem na serie DIFERENCIADA (`T = length(diffY)`), entao
+    # `length(observedResiduals)` ja e o `n* = n - d - D*m` do R.
+    #
+    # O `nPresampleFree` NAO entra mais. Ele cobrava os valores pre-amostrais livres do
+    # `:free` como se fossem parametros, para impedir que candidatos sazonais de ordem alta
+    # absorvessem s*P graus de liberdade de graca. Era ajuste caseiro num criterio que se quer
+    # comparavel ao do R — e enquanto ele existir, comparar AICc ou trajetoria de stepwise com
+    # a do R e comparar objetos diferentes. Quem paga o prior dos pre-amostrais e o OBJETIVO
+    # sob `:penalized`; sob `:free` a folga volta a existir e a defesa passa a ser a regra de
+    # rejeicao, como no R.
+    return model.p + model.q + model.P + model.Q + k + β + 1
 end
 
 function get_hyperparameters_number(model::JuMP.Model)
@@ -666,7 +759,7 @@ end
         objectiveFunction::String="mse"
         automaticExogDifferentiation::Bool=false
         invertible::Bool=false
-        invertibilityMargin::AbstractFloat=0.0
+        invertibilityMargin::AbstractFloat=DEFAULT_DOMAIN_MARGIN
     )
 
 Estimate the SARIMA model parameters via conditional least squares (CSS) formulated
@@ -692,19 +785,29 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
 - `automaticExogDifferentiation::Bool`: Whether to automatically differentiate the exogenous variables. Default is `false`.
 - `invertible::Bool`: When `true`, the (seasonal) moving-average coefficients are generated from
   bounded reflection coefficients `κ` via [`reflectionToMA`](@ref), guaranteeing an invertible MA
-  polynomial by construction instead of imposing only box bounds on `θ`/`Θ`. For `q = Q = 1` this is
-  equivalent to the default box bounds; for higher orders it restricts the estimate to the
-  (non-box) invertibility region. Not compatible with the `"bilevel"` objective. Default is `false`.
+  polynomial by construction instead of imposing only box bounds on `θ`/`Θ`. Not compatible with
+  the `"bilevel"` objective. Default is `false`, mirroring `stats::arima`, which does NOT constrain
+  the MA during optimization and only converts to an invertible representation afterwards.
+
+  Note the two regions do not nest: the free path's box (see [`admissibleCoefficientBound`])
+  admits non-invertible points, while the invertibility region contains points outside any
+  per-coefficient box. They coincide only for `q = Q = 1`.
 - `invertibilityMargin::AbstractFloat`: Margin `ρ ∈ [0, 1)` that bounds the reflection coefficients to
   `[-(1-ρ), 1-ρ]`, keeping the solution `ρ` away from the unit circle. Only used when `invertible=true`.
-  Default is `0.0`.
+  Default is [`DEFAULT_DOMAIN_MARGIN`] (`1e-6`): enough to keep the domain open, small enough
+  not to truncate near-unit-root estimates. Do NOT set it to the rejection margin
+  [`DEFAULT_ROOT_MARGIN`] — that imposes a selection rule as an estimation constraint.
 - `seasonalForm::Symbol`: `:multiplicative` (Box-Jenkins, default) or `:additive`.
 - `stationary::Bool`: When `true`, the (seasonal) AR coefficients are generated from
   bounded reflection coefficients (partial autocorrelations) via [`reflectionToAR`](@ref),
   guaranteeing a stationary AR polynomial by construction (exact under `:multiplicative`;
-  per-block only under `:additive`). Default is `false`.
+  per-block only under `:additive`). Default is `true`, mirroring `stats::arima` with
+  `transform.pars = TRUE`, which parameterizes the AR through `tanh`. When `false`, the
+  coefficients are box-bounded by [`admissibleCoefficientBound`], which excludes no
+  admissible model.
 - `stationarityMargin::AbstractFloat`: Margin in `[0, 1)` bounding the AR reflection
   coefficients to `[-(1-margin), 1-margin]`. Only used when `stationary = true`.
+  Default is [`DEFAULT_DOMAIN_MARGIN`] (`1e-6`), the AR analogue of `invertibilityMargin`.
 - Missing observations: `NaN` entries in the endogenous series are supported for
   stationary models (`d = D = 0`, `mse`/`ml` objectives, no exogenous regressors). Each
   gap becomes a free decision variable whose residual is retained in the objective,
@@ -764,12 +867,15 @@ function fit!(
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
     lambda::Union{Nothing,<:AbstractFloat} = nothing,
     invertible::Bool = false,
-    invertibilityMargin::AbstractFloat = 0.0,
+    invertibilityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
     initialization::Symbol = :zeroed,
-    stationary::Bool = false,
-    stationarityMargin::AbstractFloat = 0.0,
+    # Default do R: `stats::arima` com `transform.pars = TRUE` parametriza o AR por `tanh`,
+    # isto e, estacionario POR CONSTRUCAO num dominio aberto. O MA fica livre (ver
+    # `invertible`), que e a outra metade do comportamento do R.
+    stationary::Bool = true,
+    stationarityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
     warmStart::Union{Nothing,SARIMAModel} = nothing,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
     warmStartFromBox::Bool = false,
@@ -783,6 +889,58 @@ function fit!(
     # time, fall back to the (valid) unconstrained fit. This keeps the guarantee when
     # affordable and a usable model otherwise — the fix for the O(T) reflection blow-up
     # on long series. Purely an optimization technique (starting point), no Kalman.
+    # The Huber objective is linear in the tail, so far from the optimum a large residual
+    # costs little and the surface is nearly flat — Ipopt wanders and, on the M4 monthly,
+    # returned LOCALLY_INFEASIBLE with forecasts of +-1e5 on orders that "mse" solved
+    # cleanly. Six series ended above MASE 100 (one at 5e5) where no other objective, not
+    # even Naive2, exceeded 38.55: the ceiling elsewhere is a property of those series,
+    # the excess was numerical.
+    #
+    # The classical remedy for an M-estimator is to start from least squares (IRLS begins
+    # at OLS). Solve `mse` first, warm start Huber from it, and keep the `mse` fit when the
+    # Huber solve does not reach an acceptable status — so Huber is never worse than the
+    # starting point it refines.
+    #
+    # Bounding `u` to [-delta, delta] was tried instead and made things worse: it is exact
+    # at the optimum but adds 2(T-lb+1) active box constraints, and LOCALLY_INFEASIBLE went
+    # from 2 to 3 of the six diagnosed series.
+    if objectiveFunction == "huber" && isnothing(warmStart)
+        passa = (;
+            silent, optimizer, mipSolver, automaticExogDifferentiation, alpha, lambda,
+            invertible, invertibilityMargin, minConditioningObs, seasonalForm,
+            initialization, stationary, stationarityMargin, maxTimeSeconds,
+            warmStartFromBox, cvarLevel,
+        )
+        base = deepcopy(model)
+        fit!(base; passa..., objectiveFunction = "mse")
+        aceitavel(m) = get(m.metadata, "solverStatus", "") in
+                       ("LOCALLY_SOLVED", "OPTIMAL", "ALMOST_LOCALLY_SOLVED")
+        ok = false
+        try
+            fit!(model; passa..., objectiveFunction = "huber", warmStart = base)
+            ok = aceitavel(model)
+        catch
+            ok = false
+        end
+        if !ok
+            model.c = base.c
+            model.trend = base.trend
+            model.ϕ = base.ϕ
+            model.θ = base.θ
+            model.Φ = base.Φ
+            model.Θ = base.Θ
+            model.ϵ = base.ϵ
+            model.σ² = base.σ²
+            model.fitInSample = base.fitInSample
+            model.exogCoefficients = base.exogCoefficients
+            merge!(model.metadata, base.metadata)
+            model.metadata["huberFallback"] = true
+        else
+            model.metadata["huberFallback"] = false
+        end
+        return model
+    end
+
     if warmStartFromBox && (stationary || invertible) && isnothing(warmStart)
         common = (;
             silent, optimizer, mipSolver, objectiveFunction, automaticExogDifferentiation,
@@ -843,7 +1001,7 @@ function fit!(
     Fl = typeofModelElements(model)
     isFitted(model) &&
         @info("The model has already been fitted. Overwriting the previous results")
-    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge", "huber"] "The objective function $objectiveFunction is not supported. Please use 'mae', 'mse', 'ml', 'bilevel', 'elastic_net', 'stable', 'ridge' or 'huber'"
+    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge", "huber", "ml_exact"] "The objective function $objectiveFunction is not supported. Please use 'mae', 'mse', 'ml', 'bilevel', 'elastic_net', 'stable', 'ridge', 'huber' or 'ml_exact'"
     @assert !(invertible && MACoefficientsAreModelParameters(objectiveFunction)) "The invertible MA parameterization is not compatible with the '$objectiveFunction' objective (MA coefficients are treated as outer parameters there)."
     @assert 0.0 <= invertibilityMargin < 1.0 "invertibilityMargin (ρ) must lie in [0, 1)."
     @assert 0.0 <= stationarityMargin < 1.0 "stationarityMargin must lie in [0, 1)."
@@ -861,7 +1019,16 @@ function fit!(
     seasonalForm === :free && throw(ArgumentError("seasonalForm :free is planned for a later release"))
     seasonalForm in (:multiplicative, :additive) ||
         throw(ArgumentError("seasonalForm must be :multiplicative or :additive"))
-    initialization in (:zeroed, :warmup, :free) ||
+    # O tratamento `:penalized` esta implementado apenas no objetivo `mse`. Antes ele era
+    # SILENCIOSAMENTE ignorado nos demais — o ajuste caia no branch normal e virava `:free`
+    # sem aviso nenhum, o que e pior do que nao existir.
+    (initialization !== :penalized || objectiveFunction == "mse") || throw(
+        ArgumentError(
+            "initialization = :penalized is implemented for objectiveFunction = \"mse\" only; " *
+            "got \"$(objectiveFunction)\". Use :free to keep the pre-sample values unpenalized.",
+        ),
+    )
+    initialization in (:zeroed, :warmup, :free, :penalized) ||
         throw(ArgumentError("initialization must be :zeroed or :warmup (exact-likelihood initialization requires a Kalman filter, which is out of scope by design)"))
 
     isnothing(lambda) || (model.lambda = lambda)
@@ -940,7 +1107,7 @@ function fit!(
     end
 
     residualLags =
-        initialization === :free ? 0 :
+        initialization in (:free, :penalized) ? 0 :
         initialization === :warmup ?
         (
             seasonalForm === :multiplicative ?
@@ -995,8 +1162,23 @@ function fit!(
             end
         end
     else
-        @variable(mod, -1 <= ϕ[1:model.p] <= 1)
-        @variable(mod, -1 <= Φ[1:model.P] <= 1)
+        # Cota que NAO exclui nenhum modelo admissivel — ver `admissibleCoefficientBound`.
+        # Antes era `-1 <= phi_i <= 1` para todo i, o que EXCLUI estimativas legitimas a
+        # partir da ordem 2: num AR(2) estacionario |phi_1| chega a 2. Medido contra o
+        # `stats::arima` em 125 ajustes, 11,2% das estimativas da ML do R caem fora da caixa
+        # antiga e 16,5% dos nossos ajustes terminavam colados nela (`dbg_ma_integra.jl`).
+        @variable(
+            mod,
+            -admissibleCoefficientBound(model.p, i) <=
+            ϕ[i = 1:model.p] <=
+            admissibleCoefficientBound(model.p, i)
+        )
+        @variable(
+            mod,
+            -admissibleCoefficientBound(model.P, k) <=
+            Φ[k = 1:model.P] <=
+            admissibleCoefficientBound(model.P, k)
+        )
     end
     @variable(mod, ϵ[1:T])
 
@@ -1011,7 +1193,8 @@ function fit!(
     # making information criteria comparable across candidates without common-sample
     # conditioning. Pre-sample variables enter only through the recursion (not the
     # objective) and are not counted as hyperparameters.
-    freeInit = initialization === :free
+    freeInit = initialization in (:free, :penalized)
+    penalizado = initialization === :penalized
     yLo = freeInit ? 1 - (model.p + model.seasonality * model.P) : 1
     epsLo = freeInit ? 1 - (model.q + model.seasonality * model.Q) : 1
     if freeInit && epsLo <= 0
@@ -1058,7 +1241,24 @@ function fit!(
     # Free pre-sample values are penalized as parameters in the information criteria:
     # the ULS approximation leaves them unpenalized, which lets high-seasonal-order
     # candidates absorb s*P backcast degrees of freedom for free (overfit).
-    model.metadata["nPresampleFree"] = freeInit ? (max(0, 1 - yLo) + max(0, 1 - epsLo)) : 0
+    #
+    # Com `:penalized` essa cobrança deixa de fazer sentido para quem paga o prior no
+    # OBJETIVO. Os ϵ pré-amostrais são a priori iid N(0,σ²), então incluí-los na soma de
+    # quadrados É o prior deles — encolhidos, não livres, e não entram na contagem. Do lado
+    # AR, a forma de Levinson cobre as `p` primeiras posições de `yback`; as `s*P` restantes
+    # continuam livres e seguem cobradas. Assim a penalidade fica onde tem sentido
+    # estatístico (o objetivo) em vez de num ajuste grosseiro do critério.
+    nYback, nEpsPre = max(0, 1 - yLo), max(0, 1 - epsLo)
+    # O credito depende do termo AR ter sido MONTADO, nao so de `:penalized` ter sido pedido.
+    # A forma de Levinson exige os coeficientes de reflexao, que so existem com
+    # `stationary = true`; com a parametrizacao livre nao ha `κAR` e as `p` posicoes de
+    # `yback` continuam sem prior. Creditar mesmo assim subestimava o AICc em ~2*min(p,nYback)
+    # pontos e enviesava a selecao para p alto.
+    penalARAtivo = penalizado && stationary && model.p > 0 && nYback > 0
+    nYbackPago = penalARAtivo ? min(model.p, nYback) : 0
+    model.metadata["nPresampleFree"] =
+        !freeInit ? 0 :
+        penalizado ? (nYback - nYbackPago) : (nYback + nEpsPre)
 
     if MACoefficientsAreModelParameters(objectiveFunction)
         @variable(mod, θ[i = 1:model.q] in Parameter(i))
@@ -1090,8 +1290,23 @@ function fit!(
             end
         end
     else
-        @variable(mod, -1 <= θ[1:model.q] <= 1)
-        @variable(mod, -1 <= Θ[1:model.Q] <= 1)
+        # MA livre durante a otimizacao, como no R — que so converte para a representacao
+        # invertivel DEPOIS. A cota e a nao-excludente (ver `admissibleCoefficientBound`),
+        # nao a antiga `[-1, 1]`, que a partir de q = 2 deixava de fora estimativas
+        # legitimas: na serie 36291 a ML do R da theta = (1,511, 0,794) para um MA(2)
+        # invertivel, inalcancavel sob a caixa antiga.
+        @variable(
+            mod,
+            -admissibleCoefficientBound(model.q, j) <=
+            θ[j = 1:model.q] <=
+            admissibleCoefficientBound(model.q, j)
+        )
+        @variable(
+            mod,
+            -admissibleCoefficientBound(model.Q, w) <=
+            Θ[w = 1:model.Q] <=
+            admissibleCoefficientBound(model.Q, w)
+        )
         for i = 1:model.q
             set_start_value(mod[:θ][i], 0.0)
         end
@@ -1158,7 +1373,8 @@ function fit!(
 
     includeModelConstraints!(mod, yData, T, objectiveFunction, lb)
 
-    objectiveFunctionDefinition!(mod, model, objectiveFunction, T, lb, cvarLevel)
+    objectiveFunctionDefinition!(mod, model, objectiveFunction, T, lb, cvarLevel, yValues,
+                                 penalizado, yLo, epsLo)
 
     isnothing(warmStart) || applyWarmStart!(
         mod,
@@ -1318,6 +1534,33 @@ function reflectionToMA(κ)
     end
     return prev
 end
+
+"""
+    reflectionToARStages(κ)
+
+Every stage of the Levinson-Durbin recursion, not just the last: `stages[m]` holds the
+AR(m) coefficients implied by `κ[1:m]`. The exact treatment of the initial observations
+needs them, because the one-step prediction of `y_t` for `t <= p` is the AR(t-1) fit —
+the full AR(p) is not available yet at that point in the sample.
+"""
+function reflectionToARStages(κ)
+    p = length(κ)
+    p == 0 && return Vector{Vector{Any}}()
+    est = Vector{Vector{Any}}(undef, p)
+    prev = Any[κ[1]]
+    est[1] = copy(prev)
+    for m = 2:p
+        cur = Vector{Any}(undef, m)
+        cur[m] = κ[m]
+        for i = 1:(m-1)
+            cur[i] = prev[i] - κ[m] * prev[m-i]
+        end
+        prev = cur
+        est[m] = copy(cur)
+    end
+    return est
+end
+
 
 
 """
@@ -1625,13 +1868,122 @@ function objectiveFunctionDefinition!(
     T::Int,
     lb::Int,
     cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
+    yValues::Union{Nothing,AbstractVector} = nothing,
+    penalizado::Bool = false,
+    yLo::Int = 1,
+    epsLo::Int = 1,
 )
     parametersVector::Vector{Symbol} = getParametersVector(model)
     parametersVectorExtended::Vector{VariableRef} =
         length(parametersVector) == 0 ? [] :
         reduce(vcat, [Vector{VariableRef}([jumpModel[el]...]) for el in parametersVector])
-    if objectiveFunction == "mse"
+    if objectiveFunction == "mse" && penalizado
+        # `:penalized` — os valores pre-amostrais entram no objetivo pagando o PRIOR deles,
+        # em vez de serem variaveis livres de graca como no `:free`.
+        #
+        #   ϵ pre-amostrais: a priori iid N(0, sigma^2), entao o log-prior negativo e
+        #   ϵ^2/2sigma^2 — ou seja, basta soma-los a soma de quadrados. Exato, e vale para
+        #   MA e sazonal sem nenhuma maquina nova.
+        #
+        #   yback (lado AR): o prior e a forma quadratica y'Gamma^-1 y, que na
+        #   parametrizacao por coeficientes de reflexao tem a forma fechada ja validada
+        #   contra o `arima(method="ML")` do R (mediana 3e-5 em phi): soma de e_k^2 * w_k
+        #   com w_k = prod_{j=k..p}(1 - kappa_j^2), mais o log-determinante.
+        #
+        # O log-determinante nao e decorativo: sem ele o otimizador levaria kappa -> +-1
+        # para anular w_k e zerar a penalidade de graca. Ele diverge na fronteira e a
+        # impede — a mesma barreira do `ml_exact`.
+        #
+        # ESCOPO: o bloco `yback` tem p + s*P posicoes e a forma de Levinson cobre as p
+        # primeiras. Com P > 0 as s*P restantes seguem livres, e continuam cobradas em
+        # `nPresampleFree`. Exato para P = 0.
+        nEpsPre = max(0, 1 - epsLo)
+        nYback = max(0, 1 - yLo)
+        temEps = nEpsPre > 0 && haskey(object_dictionary(jumpModel), :ϵpre)
+        temK = model.p > 0 && nYback > 0 && haskey(object_dictionary(jumpModel), :κAR) &&
+               haskey(object_dictionary(jumpModel), :yback)
+        S = sum(jumpModel[:ϵ] .^ 2)
+        temEps && (S = S + sum(jumpModel[:ϵpre][t0]^2 for t0 = epsLo:0))
+        nEf = T + (temEps ? nEpsPre : 0)
+        if temK
+            κ = jumpModel[:κAR]
+            yb = jumpModel[:yback]
+            estagios = reflectionToARStages([κ[i] for i = 1:model.p])
+            nb = min(model.p, nYback)
+            for k = 1:nb
+                idx = yLo + k - 1
+                pred = k == 1 ? 0.0 : sum(estagios[k-1][j] * yb[idx-j] for j = 1:(k-1))
+                S = S + (yb[idx] - pred)^2 * prod([(1 - κ[j]^2) for j = k:model.p])
+            end
+            nEf += nb
+            # Forma SIMPLIFICADA: o log cancela com a exponencial da gaussiana.
+            #
+            #   -2logL = nEf*log(sigma^2) + log|Omega| + S/sigma^2
+            # concentrando sigma^2 = S/nEf, o termo S/sigma^2 vira a constante nEf e sobra
+            #   -2logL = nEf*log(S) + log|Omega| + const
+            # com log|Omega| = -sum_j j*log(1 - kappa_j^2). Como
+            #   nEf*log(S) + log|Omega| = nEf*log( S * prod_j (1-kappa_j^2)^(-j/nEf) )
+            # e nEf*log(.) e monotona crescente, o argmin e o mesmo de
+            #   S * prod_j (1 - kappa_j^2)^(-j/nEf)
+            # ou seja a soma de quadrados (com as iniciais ponderadas) vezes um fator escalar.
+            #
+            # Isto NAO remove termo: os pesos w_k e o fator do determinante vem do |Omega| da
+            # covariancia, nao da exponencial, e continuam presentes. O que sai e apenas o
+            # `log` — e com ele a variavel auxiliar que existia so para evitar log(0) no ponto
+            # inicial, onde todas as variaveis partem de zero.
+            fator = prod([(1 - κ[j]^2)^(-j / nEf) for j = 1:model.p])
+            @objective(jumpModel, Min, S * fator)
+        else
+            @objective(jumpModel, Min, S)
+        end
+    elseif objectiveFunction == "mse"
         @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
+    elseif objectiveFunction == "ml_exact"
+        # Verossimilhanca exata quanto ao TRATAMENTO DAS OBSERVACOES INICIAIS, escrita em
+        # forma fechada em vez de obtida por filtro de Kalman.
+        #
+        # O CSS descarta as primeiras `lb-1` observacoes; a verossimilhanca exata as usa,
+        # ponderadas pelo inverso da variancia condicional. Para um AR(p) estacionario
+        # essas quantidades sao funcao fechada das autocorrelacoes parciais — que este
+        # pacote JA carrega como variaveis de decisao quando `stationary = true`. Com
+        #     v_t = Var(y_t | y_1..y_{t-1}) / sigma^2 = 1 / prod_{j=t..p} (1 - kappa_j^2)
+        # o peso e o INVERSO,
+        #     w_t = prod_{j=t..p} (1 - kappa_j^2),
+        # ou seja um POLINOMIO nos kappa: nenhuma matriz e montada, nada e invertido, e
+        # `y_t - yhat_t` usa o ajuste AR(t-1) dos estagios de Levinson.
+        #
+        # Concentrando sigma^2 analiticamente, minimiza-se `n*log(S) + log|Gamma*|` com
+        #     log|Gamma*| = -sum_j j*log(1 - kappa_j^2).
+        # Esse termo diverge a +infinito quando kappa -> +-1, entao ele age como BARREIRA
+        # que repele a fronteira de nao-estacionariedade — alinhado com um solver de
+        # pontos interiores, e na direcao que o fatorial 2x2 mostrou ser boa.
+        #
+        # ESCOPO: exato para P = q = Q = 0. Com termos MA ou sazonais o bloco inicial
+        # conjunto nao fatora assim, e o que se aplica e uma correcao parcial (so a parte
+        # autorregressiva nao-sazonal); os demais residuos seguem em CSS.
+        temK = haskey(object_dictionary(jumpModel), :κAR) && model.p > 0
+        if !temK || isnothing(yValues)
+            @objective(jumpModel, Min, sum(jumpModel[:ϵ][t]^2 for t = lb:T))
+        else
+            κ = jumpModel[:κAR]
+            pAR = model.p
+            estagios = reflectionToARStages([κ[i] for i = 1:pAR])
+            nIni = min(pAR, lb - 1, length(yValues))
+            termos = Any[]
+            for t = 1:nIni
+                # previsao de y_t pelo ajuste AR(t-1); para t = 1 nao ha regressor
+                pred = t == 1 ? 0.0 :
+                       sum(estagios[t-1][j] * yValues[t-j] for j = 1:(t-1))
+                e_t = yValues[t] - pred
+                w_t = prod([(1 - κ[j]^2) for j = t:pAR])
+                push!(termos, e_t^2 * w_t)
+            end
+            S = sum(jumpModel[:ϵ][t]^2 for t = lb:T)
+            isempty(termos) || (S = S + sum(termos))
+            nEf = (T - lb + 1) + nIni
+            logDet = -sum(j * log(1 - κ[j]^2) for j = 1:pAR)
+            @objective(jumpModel, Min, nEf * log(S) + logDet)
+        end
     elseif objectiveFunction == "huber"
         # Huber: quadratica perto de zero, linear na cauda.
         #     L(e) = e^2/2                se |e| <= delta
@@ -1648,6 +2000,12 @@ function objectiveFunctionDefinition!(
         # imposta em includeModelConstraints! e NAO e substituida aqui — foi exatamente
         # esse o erro do ramo "mae", que trocava o sinal do residuo.
         δh = DEFAULT_HUBER_DELTA
+        # Leaving `u` free is deliberate. At the optimum of
+        # min{u^2/2 + delta*|v| : u + v = e} one always has |u| <= delta, so bounding it
+        # looks exact and free — and measured on the M4 monthly it made things WORSE:
+        # LOCALLY_INFEASIBLE went from 2 to 3 of the six diagnosed series and one that had
+        # solved cleanly started returning forecasts of -6.5e5. Adding 2*(T-lb+1) active
+        # box constraints costs Ipopt more than the degenerate direction it removes.
         @variable(jumpModel, uH[lb:T])
         @variable(jumpModel, vH_plus[lb:T] >= 0)
         @variable(jumpModel, vH_minus[lb:T] >= 0)
@@ -2374,12 +2732,13 @@ Automatically fits the best SARIMA model according to the specified parameters.
   is therefore stationary and invertible either way; `invertible = true` merely forces the
   constrained parameterization on every fit (not compatible with the `"bilevel"` objective).
 - `invertibilityMargin::AbstractFloat`: Margin keeping MA reflection coefficients in
-  `[-(1-m), 1-m]` when `invertible = true`. Default `2e-3` (strictly inside the 1.001 rule).
+  `[-(1-m), 1-m]` when `invertible = true`. Default [`DEFAULT_DOMAIN_MARGIN`] (`1e-6`) — it
+  opens the domain, it does not enforce admissibility (that is `rootMargin`'s job).
 - `stationary::Bool`: Fit candidates with the stationarity-by-construction AR
   parameterization. Defaults to `assertStationarity` (empirically as accurate as the free
   AR fit and cheaper than relying on rejection).
-- `stationarityMargin::AbstractFloat`: AR analogue of `invertibilityMargin`. Default `0.0`
-  (the on-demand refit uses 2e-3 when the admissibility check bites).
+- `stationarityMargin::AbstractFloat`: AR analogue of `invertibilityMargin`. Default
+  [`DEFAULT_DOMAIN_MARGIN`] (`1e-6`).
 - `optimizer::Union{DataType,MOI.OptimizerWithAttributes}`: JuMP optimizer used to fit
   every candidate. Default `Ipopt.Optimizer` (fast local solutions). Pass
   `SCIP.Optimizer` — or `optimizer_with_attributes(SCIP.Optimizer, "limits/gap" => …)`
@@ -2437,11 +2796,16 @@ function auto(
     parallel::Bool = false,
     seasonalForm::Symbol = :multiplicative,
     initialization::Symbol = :zeroed,
-    stationary::Bool = assertStationarity,
-    stationarityMargin::AbstractFloat = 0.0,
+    # INDEPENDENTE de `assertStationarity`. Antes esta linha era `= assertStationarity`, o
+    # que amarrava duas decisoes distintas: impor estacionariedade POR CONSTRUCAO (mudar a
+    # parametrizacao) e REJEITAR candidatos inadmissiveis (regra de selecao). Sao coisas
+    # diferentes e o R so faz a segunda.
+    stationary::Bool = true,
+    stationarityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
     invertible::Bool = false,
-    invertibilityMargin::AbstractFloat = 2e-3,
+    invertibilityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
     constrainedRefit::Bool = false,
+    rootMargin::AbstractFloat = DEFAULT_ROOT_MARGIN,
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
@@ -2473,13 +2837,13 @@ function auto(
     @assert informationCriteria ∈ ["aic", "aicc", "bic"]
     @assert integrationTest ∈ ["kpss", "kpssShort"]
     @assert seasonalIntegrationTest ∈ ["seas", "ch", "ocsb"]
-    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge", "huber"]
+    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge", "huber", "ml_exact"]
     @assert objectiveFunction == "elastic_net" || isnothing(lambda)
     @assert objectiveFunction == "elastic_net" || isnothing(alpha)
     @assert searchMethod ∈ ["stepwise", "stepwiseNaive", "grid", "sarimax"]
     @assert !(invertible && objectiveFunction == "bilevel") "invertible = true is not compatible with the bilevel objective"
     @assert seasonalForm in (:multiplicative, :additive) "seasonalForm must be :multiplicative or :additive (:free is planned)"
-    @assert initialization in (:zeroed, :warmup, :free) "initialization must be :zeroed, :warmup or :free"
+    @assert initialization in (:zeroed, :warmup, :free, :penalized) "initialization must be :zeroed, :warmup, :free or :penalized"
 
     ModelFl = eltype(values(y))
     informationCriteriaFunction = getInformationCriteriaFunction(informationCriteria)
@@ -2597,7 +2961,7 @@ function auto(
     # With :free initialization every candidate already scores on the full differenced
     # sample (pre-sample values are estimated), so no common conditioning is needed.
     searchLb =
-        initialization === :free ? 0 :
+        initialization in (:free, :penalized) ? 0 :
         conditioningLags(maxp, maxq, maxP, maxQ, seasonality, seasonalForm)
 
     if outlierDetection
@@ -2616,7 +2980,13 @@ function auto(
             maxq = maxq,
             maxP = maxP,
             maxQ = maxQ,
-            maxOrder = maxOrder,
+            # `maxOrder` NAO se aplica na busca stepwise, para casar com o R: no `forecast`,
+            # `max.order` so e imposto dentro de `search.arima` (o caminho NAO-stepwise);
+            # verificado no fonte. Como o default do `auto.arima` e stepwise, o R rotineiramente
+            # escolhe ordens com p+q+P+Q > 5 que a nossa busca recusava por construcao.
+            # Medido na cauda: a ordem do R caia fora do nosso espaco em 4,5% das series ruins,
+            # carregando 4,8% do dano. As caixas por termo (maxp/maxq/maxP/maxQ) seguem valendo.
+            maxOrder = maxp + maxq + maxP + maxQ,
             warmStartFromBox = warmStartFromBox,
             maxTimeSeconds = searchMaxTime,
             cvarLevel = cvarLevel,
@@ -2638,6 +3008,7 @@ function auto(
             allowDrift = allowDrift,
             alpha = alpha,
             lambda = lambda,
+            rootMargin = rootMargin
         )
     elseif searchMethod == "stepwiseNaive"
         bestModel = stepWiseSearchNaive(
@@ -2651,7 +3022,8 @@ function auto(
             maxq = maxq,
             maxP = maxP,
             maxQ = maxQ,
-            maxOrder = maxOrder,
+            # idem `stepwise`: busca local, o R nao impoe `max.order` fora do `search.arima`
+            maxOrder = maxp + maxq + maxP + maxQ,
             warmStartFromBox = warmStartFromBox,
             maxTimeSeconds = searchMaxTime,
             cvarLevel = cvarLevel,
@@ -2667,6 +3039,7 @@ function auto(
             invertible = invertible,
             invertibilityMargin = invertibilityMargin,
             constrainedRefit = constrainedRefit,
+            rootMargin = rootMargin,
             optimizer = optimizer,
             parallel = parallel,
             allowMean = allowMean,
@@ -2709,6 +3082,7 @@ function auto(
             allowDrift = allowDrift,
             alpha = alpha,
             lambda = lambda,
+            rootMargin = rootMargin
         )
     elseif searchMethod == "sarimax"
         if isnothing(exog)
@@ -3346,7 +3720,11 @@ stationarity during optimization but lets solutions approach the boundary.
 - `showLogs::Bool`: Whether to suppress output.
 - `assertStationarity::Bool`: Whether to assert stationarity of the fitted models. Default is false.
 - `assertInvertibility::Bool`: Whether to assert invertibility of the fitted models. Default is false.
-- `rootMargin::AbstractFloat`: Rejection margin around the unit circle (R uses 1e-3).
+- `rootMargin::AbstractFloat`: Rejection margin around the unit circle. Default
+  [`DEFAULT_ROOT_MARGIN`] (`1e-2`), matching `forecast::auto.arima`: its `myarima` sets
+  `ic = Inf` for any candidate whose smallest root falls within 1% of the unit circle. This
+  is a SELECTION rule, not an estimation constraint — it does not touch the reflection
+  coefficient parameterization, whose domain is set by [`DEFAULT_DOMAIN_MARGIN`].
 
 # Returns
 - `Bool`: `true` if the model is stationary and invertible, `false` otherwise.
@@ -3357,7 +3735,7 @@ function checkModelStationarityInvertibility(
     assertStationarity::Bool,
     assertInvertibility::Bool,
     showLogs::Bool;
-    rootMargin::AbstractFloat = 1e-3,
+    rootMargin::AbstractFloat = DEFAULT_ROOT_MARGIN,
 )
     # Candidates whose solver did not succeed are never selected: their
     # "estimates" are whatever point the solver stopped at. (TIME_LIMIT is
@@ -3415,20 +3793,27 @@ function ensureAdmissible!(
     initialization::Symbol = :zeroed,
     refitMargin::AbstractFloat = 2e-3,
     refit::Bool = true,
+    stationary::Bool = assertStationarity,
+    invertible::Bool = assertInvertibility,
+    # Margem de admissibilidade das raizes. O default 1e-3 e o historico do pacote; o
+    # `myarima` do R usa 1e-2, ou seja poe `ic = Inf` em qualquer candidato cuja raiz minima
+    # fique a menos de 1% do circulo unitario. E regra de SELECAO, nao restricao de
+    # estimacao: nao encosta na parametrizacao por coeficientes de reflexao.
+    rootMargin::AbstractFloat = DEFAULT_ROOT_MARGIN,
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
 )
     checkModelStationarityInvertibility(
         model,
         assertStationarity,
         assertInvertibility,
-        showLogs,
+        showLogs;
+        rootMargin = rootMargin,
     ) && return true
     refit || return false
     (assertStationarity || assertInvertibility) || return false
     isFitted(model) || return false
     # The invertibility-by-construction parameterization does not support the bilevel
     # objective; in that case keep the plain rejection semantics.
-    useInvertible = assertInvertibility && objectiveFunction != "bilevel"
     showLogs && @info("Refitting $(getId(model)) with constrained parameterization (on demand)")
     try
         fit!(
@@ -3437,9 +3822,12 @@ function ensureAdmissible!(
             minConditioningObs = minConditioningObs,
             seasonalForm = seasonalForm,
             initialization = initialization,
-            stationary = assertStationarity,
+            # Ultima amarracao entre asserir e restringir: o refit sob demanda derivava a
+            # parametrizacao das flags de ASSERCAO. Agora recebe do chamador, que tem as
+            # duas decisoes separadas; o default preserva o comportamento anterior.
+            stationary = stationary,
             stationarityMargin = refitMargin,
-            invertible = useInvertible,
+            invertible = invertible && objectiveFunction != "bilevel",
             invertibilityMargin = refitMargin,
             optimizer = optimizer,
         )
@@ -3451,7 +3839,8 @@ function ensureAdmissible!(
         model,
         assertStationarity,
         assertInvertibility,
-        showLogs,
+        showLogs;
+        rootMargin = rootMargin,
     )
 end
 
@@ -3505,12 +3894,16 @@ function localSearch!(
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
     initialization::Symbol = :zeroed,
-    stationary::Bool = false,
-    stationarityMargin::AbstractFloat = 0.0,
+    # Default do R: `stats::arima` com `transform.pars = TRUE` parametriza o AR por `tanh`,
+    # isto e, estacionario POR CONSTRUCAO num dominio aberto. O MA fica livre (ver
+    # `invertible`), que e a outra metade do comportamento do R.
+    stationary::Bool = true,
+    stationarityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
     parallel::Bool = false,
     invertible::Bool = false,
-    invertibilityMargin::AbstractFloat = 0.0,
+    invertibilityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
     constrainedRefit::Bool = false,
+    rootMargin::AbstractFloat = DEFAULT_ROOT_MARGIN,
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
@@ -3546,6 +3939,9 @@ function localSearch!(
             initialization = initialization,
             refit = constrainedRefit,
             optimizer = optimizer,
+            rootMargin = rootMargin,
+            stationary = stationary,
+            invertible = invertible,
         )
         criteria = informationCriteriaFunction(model; offset = icOffset)
         showLogs && @info("Fitted $(getId(model)) with $(criteria)")
@@ -3934,12 +4330,20 @@ function stepWiseSearchNaive(
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
     initialization::Symbol = :zeroed,
-    stationary::Bool = false,
-    stationarityMargin::AbstractFloat = 0.0,
+    # Default do R: `stats::arima` com `transform.pars = TRUE` parametriza o AR por `tanh`,
+    # isto e, estacionario POR CONSTRUCAO num dominio aberto. O MA fica livre (ver
+    # `invertible`), que e a outra metade do comportamento do R.
+    stationary::Bool = true,
+    stationarityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
     parallel::Bool = false,
     invertible::Bool = false,
-    invertibilityMargin::AbstractFloat = 0.0,
+    invertibilityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
     constrainedRefit::Bool = false,
+    # Faltava aqui: o corpo repassa `rootMargin` para `localSearch!` (que o tem como 19o
+    # posicional), mas a assinatura nao o declarava — UndefVarError em todo `stepwiseNaive`.
+    rootMargin::AbstractFloat = DEFAULT_ROOT_MARGIN,
+    # Teto de modelos visitados, como no `stepwiseSearch`. Ver [`DEFAULT_NMODELS`].
+    maxModels::Int = DEFAULT_NMODELS,
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
@@ -3999,6 +4403,11 @@ function stepWiseSearchNaive(
         invertible,
         invertibilityMargin,
         constrainedRefit,
+        # `rootMargin` e o 19o POSICIONAL de localSearch!, entre constrainedRefit e optimizer.
+        # Omitir aqui fazia `optimizer` cair no slot dele e o despacho falhar com
+        # MethodError (::Type{Ipopt.Optimizer} onde se espera ::AbstractFloat), derrubando
+        # todo o `stepwiseNaive`.
+        rootMargin,
         optimizer,
         warmStartFromBox,
         maxTimeSeconds,
@@ -4017,7 +4426,13 @@ function stepWiseSearchNaive(
 
     ITERATION_LIMIT = 100
     iterations = 1
-    while iterations <= ITERATION_LIMIT
+    # Teto de MODELOS visitados, a la `nmodels = 94` do `forecast::auto.arima`.
+    #
+    # O `ITERATION_LIMIT` acima limita ITERACOES do hill-climb, nao modelos: cada iteracao
+    # ajusta uma vizinhanca inteira. O `stepwiseSearch` (metodo default) ja tinha este teto
+    # sob o nome `maxModels`; esta busca, nao — e a lacuna so ficou visivel quando o
+    # `maxOrder` saiu daqui para casar com o R, que o impoe apenas no `search.arima`.
+    while iterations <= ITERATION_LIMIT && length(visitedModels) < maxModels
 
         addNonSeasonalModels!(
             bestModel,
@@ -4061,6 +4476,7 @@ function stepWiseSearchNaive(
             invertible,
             invertibilityMargin,
             constrainedRefit,
+            rootMargin,
             optimizer,
             warmStartFromBox,
             maxTimeSeconds,
@@ -4180,16 +4596,20 @@ function stepwiseSearch(
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
     initialization::Symbol = :zeroed,
-    stationary::Bool = false,
-    stationarityMargin::AbstractFloat = 0.0,
+    # Default do R: `stats::arima` com `transform.pars = TRUE` parametriza o AR por `tanh`,
+    # isto e, estacionario POR CONSTRUCAO num dominio aberto. O MA fica livre (ver
+    # `invertible`), que e a outra metade do comportamento do R.
+    stationary::Bool = true,
+    stationarityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
     invertible::Bool = false,
-    invertibilityMargin::AbstractFloat = 0.0,
+    invertibilityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
     constrainedRefit::Bool = false,
+    rootMargin::AbstractFloat = DEFAULT_ROOT_MARGIN,
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
     cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
-    maxModels::Int = 94,
+    maxModels::Int = DEFAULT_NMODELS,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
     lambda::Union{Nothing,<:AbstractFloat} = nothing,
     requireTermsWhenOverDifferenced::Bool = false,
@@ -4356,6 +4776,9 @@ function stepwiseSearch(
             initialization = initialization,
             refit = constrainedRefit,
             optimizer = optimizer,
+            rootMargin = rootMargin,
+            stationary = stationary,
+            invertible = invertible,
         )
         results[getId(fitModel)] = fitModel
         if considerModel &&
@@ -4403,6 +4826,9 @@ function stepwiseSearch(
             initialization = initialization,
             refit = constrainedRefit,
             optimizer = optimizer,
+            rootMargin = rootMargin,
+            stationary = stationary,
+            invertible = invertible,
         )
         results[getId(fitModel)] = fitModel
         if considerModel &&
@@ -4448,6 +4874,9 @@ function stepwiseSearch(
             initialization = initialization,
             refit = constrainedRefit,
             optimizer = optimizer,
+            rootMargin = rootMargin,
+            stationary = stationary,
+            invertible = invertible,
         )
         results[getId(fitModel)] = fitModel
         if considerModel &&
@@ -4500,6 +4929,9 @@ function stepwiseSearch(
             initialization = initialization,
             refit = constrainedRefit,
             optimizer = optimizer,
+            rootMargin = rootMargin,
+            stationary = stationary,
+            invertible = invertible,
         )
         results[getId(fitModel)] = fitModel
         if considerModel &&
@@ -4635,12 +5067,16 @@ function gridSearch(
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
     initialization::Symbol = :zeroed,
-    stationary::Bool = false,
-    stationarityMargin::AbstractFloat = 0.0,
+    # Default do R: `stats::arima` com `transform.pars = TRUE` parametriza o AR por `tanh`,
+    # isto e, estacionario POR CONSTRUCAO num dominio aberto. O MA fica livre (ver
+    # `invertible`), que e a outra metade do comportamento do R.
+    stationary::Bool = true,
+    stationarityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
     parallel::Bool = false,
     invertible::Bool = false,
-    invertibilityMargin::AbstractFloat = 0.0,
+    invertibilityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
     constrainedRefit::Bool = false,
+    rootMargin::AbstractFloat = DEFAULT_ROOT_MARGIN,
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
@@ -4666,6 +5102,10 @@ function gridSearch(
             allowDrift = allowDrift,
             alpha = alpha,
             lambda = lambda,
+            # SEM `rootMargin`: e margem de REJEICAO, propriedade da selecao, nao do modelo —
+            # o construtor `SARIMA` nao tem esse keyword e a chamada morria com MethodError,
+            # derrubando todo o `searchMethod = "grid"`. Quem usa a margem e o
+            # `ensureAdmissible!` mais abaixo, que a recebe corretamente.
         ),
     )
     for p = 0:maxp, q = 0:maxq, P = 0:maxP, Q = 0:maxQ, kc = 0:maxK
@@ -4718,6 +5158,9 @@ function gridSearch(
             initialization = initialization,
             refit = constrainedRefit,
             optimizer = optimizer,
+            rootMargin = rootMargin,
+            stationary = stationary,
+            invertible = invertible,
         )
         ic = informationCriteriaFunction(m; offset = icOffset)
         showLogs && @info("Fitted $(getId(m)) with $(ic) criteria")

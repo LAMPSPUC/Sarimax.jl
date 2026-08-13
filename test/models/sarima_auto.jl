@@ -131,7 +131,11 @@
         @test model.Q == 1
         @test model.d == 1
         @test model.D == 1
-        @test aicc(model) ≈ 465.45706926625013 atol = 1e-6
+        # Valor repinado em 2026-08: o AICc passou a ser calculado sobre a verossimilhança
+        # gaussiana EXATA (`criterionLoglike`) em vez da CSS plug-in, e `K = ncoef + 1` (sem
+        # `nPresampleFree`), casando com o `forecast::Arima`. A ORDEM selecionada não mudou —
+        # só o valor do critério, como tem que ser numa troca de escala de verossimilhança.
+        @test aicc(model) ≈ 521.9660727530161 atol = 1e-6
     end
 
     @testset "parallel candidate fitting (smoke)" begin
@@ -161,26 +165,49 @@
         # naive heuristic now stops at (2,1,2)(0,1,1) instead. The broken tests keep
         # the grid optimum as the documented target so the gap stays visible; if the
         # heuristic is improved to reach it again, these flip to passing.
+        # 2026-08: `q`, `P` e `Q` voltaram a bater com o ótimo da grade. Duas mudanças
+        # contribuem: (i) `maxOrder` deixou de ser imposto nas buscas LOCAIS, espelhando o
+        # `forecast` — lá `max.order` só vive dentro de `search.arima`, e como o default do
+        # `auto.arima` é stepwise, o R rotineiramente escolhe ordens que a nossa busca
+        # recusava por construção; (ii) `K` deixou de incluir `nPresampleFree`, casando com
+        # `k = ncoef + 1` do `forecast::Arima`. `p` segue divergindo — a heurística ainda
+        # para num ponto diferente.
         @test_broken model.p == 1
-        @test_broken model.q == 1
-        @test_broken model.P == 2
-        @test_broken model.Q == 0
+        @test model.q == 1
+        @test model.P == 2
+        @test model.Q == 0
     end
 
     @testset "auto with grid search" begin
         airpassengers = load_dataset(AIR_PASSENGERS)
         log_airpassengers = log.(airpassengers)
         model = auto(airpassengers; searchMethod="grid", seasonality=12)
-        # Selected orders under CSS information criteria and the multiplicative
-        # seasonal form (see above).
-        @test model.p == 1
-        @test model.q == 1
-        @test model.P == 2
-        @test model.Q == 0
+        # 2026-08: com o AICc calculado sobre a verossimilhança EXATA, a grade passou de
+        # (1,1,1)(2,1,0) para (0,1,4)(0,1,1). A escolha nova é MELHOR, medida pelo critério do
+        # próprio R nesta série canônica:
+        #
+        #   auto.arima escolhe (2,1,1)(0,1,0)   AICc do R = 1018,165
+        #   escolha ANTIGA     (1,1,1)(2,1,0)   AICc do R = 1021,513
+        #   escolha NOVA       (0,1,4)(0,1,1)   AICc do R = 1020,854
+        #
+        # Ainda não alcança a do R, mas anda na direção dela — e o `P = 0, Q = 1` é a estrutura
+        # sazonal do modelo airline canônico, que a escolha antiga não tinha.
+        @test model.p == 0
+        @test model.q == 4
+        @test model.P == 0
+        @test model.Q == 1
         @test model.d == 1
         @test model.D == 1
-        # Exhaustive search must not do worse than the stepwise heuristic.
-        stepwiseModel = auto(airpassengers; searchMethod="stepwiseNaive", seasonality=12)
-        @test aicc(model) <= aicc(stepwiseModel) + 1e-6
+        # Exhaustive search must not do worse than the stepwise heuristic — mas só dentro do
+        # MESMO espaço de candidatos. Desde 2026-08 os dois métodos varrem espaços diferentes
+        # por design (o `maxOrder` vale na grade e não nas buscas locais, espelhando o
+        # `forecast`), então a comparação sem essa ressalva compara coisas distintas e o
+        # stepwise chega a vencer — foi o que quebrou este teste. Aqui as caixas por termo são
+        # apertadas e `maxOrder` é folgado o bastante para não morder em nenhum dos dois,
+        # o que restaura a propriedade de sanidade (e mantém a grade barata: 36 candidatos).
+        espaco = (maxp = 2, maxq = 2, maxP = 1, maxQ = 1, maxOrder = 6)
+        gridSame = auto(airpassengers; searchMethod="grid", seasonality=12, espaco...)
+        stepwiseModel = auto(airpassengers; searchMethod="stepwiseNaive", seasonality=12, espaco...)
+        @test aicc(gridSame) <= aicc(stepwiseModel) + 1e-6
     end
 end

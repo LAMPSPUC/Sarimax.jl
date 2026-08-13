@@ -56,6 +56,8 @@ include("exceptions.jl")
 include("fit.jl")
 include("models/sarima.jl")
 include("utils.jl")
+# depois de `utils.jl`: usa `differentiate` e `isFitted`
+include("exact_likelihood.jl")
 include("stl_r.jl")
 include("statistical_tests.jl")
 include("diagnostics.jl")

@@ -86,12 +86,40 @@ function bic(T::Int, K::Int, loglikeVal::Fl) where {Fl<:AbstractFloat}
 end
 
 """
+    criterionLoglike(model) -> Fl
+
+Log-verossimilhanca usada pelos CRITERIOS DE INFORMACAO: a gaussiana EXATA
+([`exactLoglike`](@ref)) quando ela e computavel, com recuo para a CSS plug-in
+([`loglike`](@ref)) quando nao e.
+
+Por que a exata e nao a CSS. O `forecast::auto.arima` seleciona por AICc calculado sobre a
+verossimilhanca exata; enquanto o nosso criterio usava CSS plug-in, comparar AICc ou
+trajetoria de busca com a dele era comparar objetos diferentes. Alem disso o CSS ignora a
+incerteza pre-amostral, e era essa lacuna que o `nPresampleFree` tentava tapar cobrando os
+valores pre-amostrais como parametros — remendo no criterio que agora sai, porque a exata
+contabiliza essa incerteza por construcao.
+
+O recuo existe porque `exactLoglike` devolve `nothing` de proposito em vez de um numero
+errado (ponto nao estacionario, autocovariancia sem positividade definida, truncagem dos psi
+mordendo). Nesses casos o criterio volta a ser o de antes — comportamento degradado, nunca
+silenciosamente incorreto.
+"""
+function criterionLoglike(model::SarimaxModel)
+    exact = try
+        exactLoglike(model)
+    catch
+        nothing
+    end
+    return isnothing(exact) ? loglike(model) : exact
+end
+
+"""
     aic(model::SarimaxModel; offset::Fl) -> Fl where Fl<:AbstractFloat
 
 Calculate the Akaike Information Criterion (AIC) for a Sarimax model:
-`AIC = 2K - 2ℓ`, where `ℓ` is the conditional (CSS) Gaussian log-likelihood
-([`loglike`](@ref)) and `K` the number of estimated parameters. Comparable to
-R's `arima(..., method = "CSS")` convention, not to exact-likelihood AICs.
+`AIC = 2K - 2ℓ`, where `ℓ` is [`criterionLoglike`](@ref) — the exact Gaussian
+log-likelihood when computable, falling back to the conditional (CSS) one — and
+`K = ncoef + 1` the number of estimated parameters, matching `forecast::Arima`.
 
 # Arguments
 - `model::SarimaxModel`: The Sarimax model for which AIC is calculated.
@@ -110,7 +138,7 @@ function aic(model::SarimaxModel; offset::Union{AbstractFloat,Nothing} = nothing
         throw(MissingMethodImplementation("get_hyperparameters_number"))
     K = isnothing(K) ? get_hyperparameters_number(model) : K
     offsetValue = isnothing(offset) ? 0.0 : offset
-    return 2 * K - 2 * loglike(model) + offsetValue
+    return 2 * K - 2 * criterionLoglike(model) + offsetValue
 end
 
 """
@@ -159,7 +187,7 @@ function bic(model::SarimaxModel; offset::Union{AbstractFloat,Nothing} = nothing
     K = isnothing(K) ? get_hyperparameters_number(model) : K
     n = length(observedResiduals(model))
     offsetValue = isnothing(offset) ? 0.0 : offset
-    return K * log(n) - 2 * loglike(model) + offsetValue
+    return K * log(n) - 2 * criterionLoglike(model) + offsetValue
 end
 
 

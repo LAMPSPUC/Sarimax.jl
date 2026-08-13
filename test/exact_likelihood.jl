@@ -137,6 +137,31 @@ end
         end
     end
 
+    @testset "contagem de hiperparametros sobrevive a nomes-string desligados" begin
+        # `fit!` desabilita os nomes-string das variaveis JuMP (custo de construcao). Com
+        # eles desligados `variable_by_name` devolve `nothing` SEM erro, entao qualquer
+        # consumidor que dependa dele passa a contar errado em silencio — foi o caso de
+        # `get_hyperparameters_number(::JuMP.Model)`, migrado para o dicionario de objetos.
+        # Este teste trava a diferenca para a migracao nao ser revertida por engano.
+        jm = Sarimax.JuMP.Model()
+        Sarimax.JuMP.set_string_names_on_creation(jm, false)
+        Sarimax.JuMP.@variable(jm, c)
+        Sarimax.JuMP.@variable(jm, trend)
+        @test Sarimax.JuMP.variable_by_name(jm, "c") === nothing
+        @test haskey(jm, :c)
+        @test haskey(jm, :trend)
+        @test !haskey(jm, :naoexiste)
+
+        # e o caminho que de fato consome isso (elastic_net) continua ajustando
+        yEN = TimeArray(
+            collect(Date(2000, 1, 1):Month(1):Date(2007, 6, 1)),
+            10 .+ 0.5 .* sin.(2π .* (1:90) ./ 12) .+ cumsum(randn(rng, 90) .* 0.2),
+        )
+        mEN = SARIMA(yEN, 1, 1, 1; seasonality = 12, P = 1, D = 0, Q = 1)
+        fit!(mEN; objectiveFunction = "elastic_net", alpha = 0.5)
+        @test Sarimax.isFitted(mEN)
+    end
+
     @testset "criterionSampleSize: aritmetica == differentiate" begin
         # `criterionSampleSize` usa `n - d - D*s` em vez de alocar a serie diferenciada.
         # A equivalencia tem que valer para toda combinacao de ordens de diferenciacao.

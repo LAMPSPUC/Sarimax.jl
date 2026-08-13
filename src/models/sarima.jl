@@ -733,8 +733,13 @@ end
 function get_hyperparameters_number(model::JuMP.Model)
     # is_solved_and_feasible(model) ||
     #     throw(ArgumentError("The model must be solved and feasible"))
-    c = variable_by_name(model, "c")
-    trend = variable_by_name(model, "trend")
+    # Pelo dicionario de objetos (`model[:c]`) e nao por `variable_by_name`: a construcao
+    # desabilita os nomes-string das variaveis (custo de build), e `variable_by_name` passaria
+    # a devolver `nothing` para `c` e `trend` — deixando de conta-los SEM erro nenhum, o que
+    # mudaria K silenciosamente no caminho do elastic-net. O dicionario de objetos e populado
+    # pelo `@variable` independentemente dos nomes-string.
+    c = haskey(model, :c) ? model[:c] : nothing
+    trend = haskey(model, :trend) ? model[:trend] : nothing
     hyperparametersNumber = (c !== nothing && abs(value(c)) > 1e-5) ? 1 : 0
     hyperparametersNumber += (trend !== nothing && abs(value(trend)) > 1e-5) ? 1 : 0
 
@@ -1128,6 +1133,12 @@ function fit!(
     lb = max(residualLags, minConditioningObs) + 1
 
     mod = Model(optimizer)
+    # Os nomes-string das variaveis so servem para impressao e `variable_by_name`, e cada um
+    # e uma String alocada por variavel — com ~2T variaveis sob `:free` isso e trabalho puro
+    # de construcao. Medido: build e ~22% do custo de uma busca, estavel em todos os regimes
+    # testados (nao e fenomeno de cauda). O unico consumidor era
+    # `get_hyperparameters_number(::JuMP.Model)`, migrado para o dicionario de objetos.
+    set_string_names_on_creation(mod, false)
 
     if (model.allowMean)
         @variable(mod, c)

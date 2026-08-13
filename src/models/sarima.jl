@@ -1037,6 +1037,15 @@ function fit!(
     model.metadata["seasonalForm"] = String(seasonalForm)
     model.metadata["initialization"] = String(initialization)
 
+    # Telemetria de custo (atribuicao de performance). O orcamento de uma busca e
+    # (nº de fits) x (custo por fit), e o custo por fit se divide em CONSTRUIR o problema
+    # JuMP (cresce com T e com a ordem — ~2T variaveis sob `:free`) e RESOLVE-lo (cresce com
+    # a dificuldade numerica: perto da fronteira o Ipopt itera muito mais). Sem separar os
+    # dois nao da para distinguir "mais candidatos", "modelos maiores" e "solves mais
+    # dificeis", que tem remedios diferentes. Puramente observacional — nada aqui altera a
+    # estimacao.
+    fitStartTime = time()
+
     diffY = differentiate(model.y, model.d, model.D, model.seasonality)
 
     if !isnothing(model.exog)
@@ -1412,8 +1421,23 @@ function fit!(
         end
     end
 
-    optimizeModel!(mod, model, objectiveFunction, lb)
+    # Ver `fitStartTime`: tudo ate aqui e construcao do problema JuMP; o que vem a seguir
+    # e solve. `solveTimeSec` mede o wall-clock do lado Julia (inclui o pos-processamento
+    # de `optimizeModel!`, como o refino do elastic-net e o laco externo do bilevel);
+    # `solverTimeSec` e o tempo que o proprio solver reporta.
+    model.metadata["buildTimeSec"] = time() - fitStartTime
+    model.metadata["solveTimeSec"] = @elapsed optimizeModel!(mod, model, objectiveFunction, lb)
     model.metadata["solverStatus"] = string(termination_status(mod))
+    model.metadata["solverTimeSec"] = try
+        MOI.get(mod, MOI.SolveTimeSec())
+    catch
+        missing
+    end
+    model.metadata["solverIterations"] = try
+        MOI.get(mod, MOI.BarrierIterations())
+    catch
+        missing
+    end
     silent || @info(
         "The model has been fitted with the objective function $objectiveFunction: $(objective_value(mod))"
     )
@@ -3954,7 +3978,22 @@ function localSearch!(
         )
         criteria = informationCriteriaFunction(model; offset = icOffset)
         showLogs && @info("Fitted $(getId(model)) with $(criteria)")
-        visitedModels[getId(model)] = Dict("criteria" => criteria)
+        # Alem do criterio, guardar o custo e a forma do candidato. E o que permite atribuir
+        # o tempo total de uma busca a "mais candidatos", "modelos maiores" ou "solves mais
+        # dificeis" — e, de brinde, medir a taxa de recuo do criterio, que so virou
+        # observavel quando `criterionLoglikeAndN` passou a gravar `criterionFallback`.
+        visitedModels[getId(model)] = Dict(
+            "criteria" => criteria,
+            "buildTimeSec" => get(model.metadata, "buildTimeSec", missing),
+            "solveTimeSec" => get(model.metadata, "solveTimeSec", missing),
+            "solverTimeSec" => get(model.metadata, "solverTimeSec", missing),
+            "solverIterations" => get(model.metadata, "solverIterations", missing),
+            "solverStatus" => get(model.metadata, "solverStatus", missing),
+            "criterionFallback" => get(model.metadata, "criterionFallback", missing),
+            "K" => get_hyperparameters_number(model),
+            "order" => (model.p, model.d, model.q, model.P, model.D, model.Q),
+            "admissible" => admissible,
+        )
         if admissible && criteria < localBestCriteria
             localBestCriteria = criteria
             localBestModel = model
@@ -4502,6 +4541,11 @@ function stepWiseSearchNaive(
         iterations += 1
     end
 
+    # `visitedModels` morre com esta funcao, entao a telemetria por candidato so escapa se
+    # viajar com o modelo escolhido. Vai no metadata (interno, nenhuma assinatura muda) para
+    # que a atribuicao de custo — nº de fits, split build/solve, distribuicao de K, iteracoes
+    # do solver, taxa de recuo do criterio — seja legivel de fora sem reinstrumentar.
+    bestModel.metadata["searchTelemetry"] = visitedModels
     return bestModel
 end
 
@@ -5003,7 +5047,42 @@ function stepwiseSearch(
         end
     end
 
+    # `results` guarda os modelos ajustados, cujo metadata ja carrega o custo medido em
+    # `fit!`. Resumir aqui (e nao anexar `results` inteiro) evita ciclo de referencia —
+    # `bestModel` esta dentro de `results` — e mantem o metadata serializavel.
+    bestModel.metadata["searchTelemetry"] = summarizeSearchCost(results)
     return bestModel
+end
+
+"""
+    summarizeSearchCost(results) -> Dict{String,Dict{String,Any}}
+
+Extrai, de um dicionario de modelos candidatos ajustados, o resumo por candidato que permite
+ATRIBUIR o custo de uma busca: `nº de fits x custo por fit`, com o custo separado em
+construcao do problema JuMP e solve, mais a forma do candidato (`K`, ordem) e a dificuldade
+numerica (iteracoes do solver, status).
+
+Sem isso nao da para distinguir as tres causas possiveis de uma regressao de tempo — mais
+candidatos, modelos maiores, ou solves mais dificeis — que tem remedios diferentes. De brinde
+sai a taxa de recuo do criterio (`criterionFallback`), observavel desde que
+`criterionLoglikeAndN` passou a grava-la.
+"""
+function summarizeSearchCost(results::Dict{String,SARIMAModel})
+    summary = Dict{String,Dict{String,Any}}()
+    for (id, m) in results
+        md = m.metadata
+        summary[id] = Dict{String,Any}(
+            "buildTimeSec" => get(md, "buildTimeSec", missing),
+            "solveTimeSec" => get(md, "solveTimeSec", missing),
+            "solverTimeSec" => get(md, "solverTimeSec", missing),
+            "solverIterations" => get(md, "solverIterations", missing),
+            "solverStatus" => get(md, "solverStatus", missing),
+            "criterionFallback" => get(md, "criterionFallback", missing),
+            "K" => get_hyperparameters_number(m),
+            "order" => (m.p, m.d, m.q, m.P, m.D, m.Q),
+        )
+    end
+    return summary
 end
 
 """

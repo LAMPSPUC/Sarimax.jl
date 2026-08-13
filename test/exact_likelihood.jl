@@ -137,6 +137,35 @@ end
         end
     end
 
+    @testset "telemetria de custo soma todos os ajustes do candidato" begin
+        # `warmStartFromBox` ajusta o mesmo candidato ate 3 vezes (solve da caixa + dois
+        # tiers restritos) e retorna cedo; `ensureAdmissible!` pode refitar por cima. Se a
+        # telemetria sobrescrevesse, ela reportaria um subconjunto do custo — e no tier 3,
+        # onde `merge!` copia o metadata do seed, justamente o solve MAIS BARATO dos tres.
+        yW = TimeArray(
+            collect(Date(2000, 1, 1):Month(1):Date(2007, 6, 1)),
+            10 .+ 0.5 .* sin.(2π .* (1:90) ./ 12) .+ cumsum(randn(rng, 90) .* 0.2),
+        )
+
+        mPlain = SARIMA(yW, 1, 1, 1; seasonality = 12, P = 1, D = 0, Q = 1)
+        fit!(mPlain)
+        @test mPlain.metadata["fitCount"] == 1
+        @test mPlain.metadata["buildTimeSecTotal"] ≈ mPlain.metadata["buildTimeSec"]
+        @test mPlain.metadata["solveTimeSecTotal"] ≈ mPlain.metadata["solveTimeSec"]
+
+        mWarm = SARIMA(yW, 1, 1, 1; seasonality = 12, P = 1, D = 0, Q = 1)
+        fit!(mWarm; stationary = true, invertible = true, warmStartFromBox = true)
+        # pelo menos o solve da caixa + uma tentativa restrita
+        @test mWarm.metadata["fitCount"] >= 2
+        @test mWarm.metadata["solveTimeSecTotal"] > mWarm.metadata["solveTimeSec"]
+        @test mWarm.metadata["buildTimeSecTotal"] >= mWarm.metadata["buildTimeSec"]
+
+        # refit sobre o mesmo objeto continua acumulando
+        before = mPlain.metadata["fitCount"]
+        fit!(mPlain)
+        @test mPlain.metadata["fitCount"] == before + 1
+    end
+
     @testset "contagem de hiperparametros sobrevive a nomes-string desligados" begin
         # `fit!` desabilita os nomes-string das variaveis JuMP (custo de construcao). Com
         # eles desligados `variable_by_name` devolve `nothing` SEM erro, entao qualquer

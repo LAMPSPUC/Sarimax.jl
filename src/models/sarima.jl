@@ -956,6 +956,14 @@ function fit!(
         fit!(seed; common..., stationary = false, invertible = false,
              stationarityMargin = 0.0, invertibilityMargin = 0.0,
              maxTimeSeconds = maxTimeSeconds)
+        # Acumula o custo das tentativas feitas SOBRE `model` (tiers 1 e 2). Fica fora do
+        # metadata porque o `merge!` do tier 3 sobrescreveria; reconciliado antes do return.
+        modelTimings = Dict{String,Float64}("build" => 0.0, "solve" => 0.0, "count" => 0.0)
+        accumulate!() = begin
+            modelTimings["build"] += get(model.metadata, "buildTimeSec", 0.0)
+            modelTimings["solve"] += get(model.metadata, "solveTimeSec", 0.0)
+            modelTimings["count"] += 1.0
+        end
         solved() = get(model.metadata, "solverStatus", "") in
                    ("LOCALLY_SOLVED", "OPTIMAL", "ALMOST_LOCALLY_SOLVED")
         tryFit(st, inv, sMargin, iMargin) = begin
@@ -968,6 +976,7 @@ function fit!(
             catch
                 ok = false
             end
+            accumulate!()
             ok
         end
         # tier 1: full stationarity + invertibility by construction
@@ -1001,6 +1010,17 @@ function fit!(
             tier = 3
         end
         model.metadata["warmStartTier"] = tier
+        # O solve da caixa acontece em `seed`, um objeto separado, entao seu custo nao entra
+        # nos acumuladores de `model` por conta propria — e no tier 3 o `merge!` acima ainda
+        # SOBRESCREVE os de `model` pelos de `seed`. Sem esta reconciliacao a telemetria de
+        # um candidato com warm start reporta um subconjunto do que ele custou (no tier 3,
+        # exatamente o mais barato dos solves). Reconstruir a soma explicitamente.
+        model.metadata["buildTimeSecTotal"] =
+            get(modelTimings, "build", 0.0) + get(seed.metadata, "buildTimeSecTotal", 0.0)
+        model.metadata["solveTimeSecTotal"] =
+            get(modelTimings, "solve", 0.0) + get(seed.metadata, "solveTimeSecTotal", 0.0)
+        model.metadata["fitCount"] =
+            Int(get(modelTimings, "count", 0.0)) + get(seed.metadata, "fitCount", 0)
         return model
     end
 
@@ -1436,8 +1456,20 @@ function fit!(
     # e solve. `solveTimeSec` mede o wall-clock do lado Julia (inclui o pos-processamento
     # de `optimizeModel!`, como o refino do elastic-net e o laco externo do bilevel);
     # `solverTimeSec` e o tempo que o proprio solver reporta.
-    model.metadata["buildTimeSec"] = time() - fitStartTime
-    model.metadata["solveTimeSec"] = @elapsed optimizeModel!(mod, model, objectiveFunction, lb)
+    buildElapsed = time() - fitStartTime
+    solveElapsed = @elapsed optimizeModel!(mod, model, objectiveFunction, lb)
+    model.metadata["buildTimeSec"] = buildElapsed
+    model.metadata["solveTimeSec"] = solveElapsed
+    # ...Total ACUMULA por objeto de modelo, enquanto os campos acima guardam so o ultimo
+    # ajuste. A distincao importa porque um mesmo modelo e ajustado mais de uma vez em dois
+    # caminhos: `warmStartFromBox` (solve da caixa + ate dois tiers restritos) e
+    # `ensureAdmissible!` (refit em cima do candidato). Sobrescrever perderia o custo real —
+    # e no tier 3 do warm start reportaria justamente o solve mais barato dos tres.
+    model.metadata["buildTimeSecTotal"] =
+        get(model.metadata, "buildTimeSecTotal", 0.0) + buildElapsed
+    model.metadata["solveTimeSecTotal"] =
+        get(model.metadata, "solveTimeSecTotal", 0.0) + solveElapsed
+    model.metadata["fitCount"] = get(model.metadata, "fitCount", 0) + 1
     model.metadata["solverStatus"] = string(termination_status(mod))
     model.metadata["solverTimeSec"] = try
         MOI.get(mod, MOI.SolveTimeSec())
@@ -5083,8 +5115,12 @@ function summarizeSearchCost(results::Dict{String,SARIMAModel})
     for (id, m) in results
         md = m.metadata
         summary[id] = Dict{String,Any}(
-            "buildTimeSec" => get(md, "buildTimeSec", missing),
-            "solveTimeSec" => get(md, "solveTimeSec", missing),
+            # ...Total e a soma sobre TODOS os ajustes do candidato (warm start faz ate 3,
+            # `ensureAdmissible!` pode refitar por cima). Os campos sem sufixo guardam apenas
+            # o ultimo ajuste e sub-reportam nesses caminhos.
+            "buildTimeSec" => get(md, "buildTimeSecTotal", get(md, "buildTimeSec", missing)),
+            "solveTimeSec" => get(md, "solveTimeSecTotal", get(md, "solveTimeSec", missing)),
+            "fitCount" => get(md, "fitCount", missing),
             "solverTimeSec" => get(md, "solverTimeSec", missing),
             "solverIterations" => get(md, "solverIterations", missing),
             "solverStatus" => get(md, "solverStatus", missing),

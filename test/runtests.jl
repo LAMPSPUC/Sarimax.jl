@@ -56,5 +56,7 @@ using JSON
 
     include("missing_data.jl")
 
+    include("exact_likelihood.jl")
+
     include("aqua.jl")
 end

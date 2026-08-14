@@ -103,14 +103,101 @@ O recuo existe porque `exactLoglike` devolve `nothing` de proposito em vez de um
 errado (ponto nao estacionario, autocovariancia sem positividade definida, truncagem dos psi
 mordendo). Nesses casos o criterio volta a ser o de antes — comportamento degradado, nunca
 silenciosamente incorreto.
+
+Sem `try/catch`: o contrato de `exactLoglike` ja e nothing-em-recusa, entao qualquer excecao
+aqui e bug e deve subir — um `catch` largo mascararia exatamente a classe de erro
+(`MethodError`, `UndefVarError`) que ja mordeu este arquivo, e tornaria a taxa de recuo
+impossivel de interpretar. Tipos de modelo sem `exactLoglike` recuam via `applicable`.
 """
 function criterionLoglike(model::SarimaxModel)
-    exact = try
-        exactLoglike(model)
-    catch
-        nothing
+    return first(criterionLoglikeAndN(model))
+end
+
+"""
+    criterionLoglikeAndN(model) -> (loglike, n, usedExact)
+
+Nucleo de [`criterionLoglike`](@ref): devolve tambem o TAMANHO DA AMOSTRA sobre o qual a
+log-verossimilhanca foi avaliada, e qual caminho foi usado.
+
+O `n` importa porque as duas verossimilhancas nao vivem na mesma amostra: a exata e avaliada
+sobre a serie diferenciada inteira (`T`), enquanto a CSS vive nos residuos condicionados
+(`length(observedResiduals) = T - lb + 1`, com `lb` ate 30 nos defaults mensais de `auto`).
+Correcoes de amostra finita (AICc) e o fator `log(n)` do BIC devem usar o `n` da
+verossimilhanca efetivamente usada — caso contrario o criterio aplica uma penalidade de
+tamanho extra, crescente em K, que o `forecast::Arima` nao tem.
+
+O recuo e registrado em `model.metadata["criterionFallback"]` para ser mensuravel.
+"""
+function criterionLoglikeAndN(model::SarimaxModel)
+    exact = applicable(exactLoglike, model) ? exactLoglike(model) : nothing
+    usedExact = !isnothing(exact)
+    if hasproperty(model, :metadata) && isa(model.metadata, AbstractDict)
+        model.metadata["criterionFallback"] = !usedExact
     end
-    return isnothing(exact) ? loglike(model) : exact
+    usedExact && return exact, criterionSampleSize(model), true
+    return loglike(model), length(observedResiduals(model)), false
+end
+
+"""
+    criterionSampleSize(model) -> Int
+
+Numero de observacoes da verossimilhanca EXATA: o comprimento da serie diferenciada, que e o
+`n` que o `stats::arima` usa. Nao confundir com `length(observedResiduals)`, que desconta o
+conditioning da CSS.
+
+Calculado por aritmetica (`n - d - D*s`) e nao por `length(values(differentiate(...)))`: a
+versao com `differentiate` alocava a serie diferenciada inteira so para medir o comprimento,
+custando ~7.5us por avaliacao de criterio (medido: 164.6us vs 157.1us por `aicc`, mediana de
+7 baterias de 3000 chamadas). A equivalencia das duas formas esta travada em
+`test/exact_likelihood.jl`.
+
+Sem anotacao de tipo porque `fit.jl` e incluido antes de `models/sarima.jl` definir
+`SARIMAModel`; so e chamada no caminho exato, que exige `applicable(exactLoglike, model)`.
+"""
+criterionSampleSize(model) =
+    length(values(model.y)) - model.d - model.D * model.seasonality
+
+"""
+Penalidade somada ao criterio de um candidato de BUSCA cujo criterio veio do recuo CSS.
+
+Sem ela, o recuo premia exatamente os candidatos errados: a CSS e avaliada sobre menos
+observacoes que a exata (`T - lb + 1` vs `T`), logo e menos negativa, logo AICc menor — e o
+que dispara o recuo e raiz perto da fronteira. Um candidato quase nao estacionario ganharia
+dezenas de unidades de AICc de vantagem por nao ter verossimilhanca exata computavel.
+
+A penalidade impoe uma ordem em dois niveis, analoga a do `myarima` (que devolve `Inf` quando
+a verossimilhanca nao e finita): candidato com verossimilhanca exata sempre vence candidato
+sem; entre candidatos sem, a comparacao CSS continua valida porque todos condicionam na mesma
+amostra (`searchLb`). Aditiva em vez de `Inf` para a busca nunca ficar sem selecao quando a
+exata falha em todos os candidatos (series curtas ou patologicas).
+
+So se aplica a SELECAO ([`searchCriterionFunction`](@ref)); os acessores publicos `aic`,
+`aicc` e `bic` continuam devolvendo o valor com recuo documentado.
+"""
+const FALLBACK_CRITERION_PENALTY = 1e10
+
+"""
+    searchCriterionFunction(baseCriterion) -> Function
+
+Envolve `aic`/`aicc`/`bic` com a semantica de SELECAO: soma
+[`FALLBACK_CRITERION_PENALTY`](@ref) quando o criterio do candidato veio do recuo CSS
+(lido de `model.metadata["criterionFallback"]`, gravado por [`criterionLoglikeAndN`](@ref)
+na propria avaliacao do criterio).
+"""
+function searchCriterionFunction(baseCriterion::Function)
+    # Transparente a argumentos: alem da forma de modelo, `aic`/`aicc`/`bic` tem formas
+    # escalares ((K, ll), (T, K, ll)) que continuam acessiveis pela funcao retornada; a
+    # penalidade so se aplica quando o primeiro argumento e um modelo.
+    return function (args...; kwargs...)
+        value = baseCriterion(args...; kwargs...)
+        model = first(args)
+        fallback =
+            model isa SarimaxModel &&
+            hasproperty(model, :metadata) &&
+            isa(model.metadata, AbstractDict) &&
+            get(model.metadata, "criterionFallback", false)
+        return fallback ? value + FALLBACK_CRITERION_PENALTY : value
+    end
 end
 
 """
@@ -161,8 +248,13 @@ function aicc(model::SarimaxModel; offset::Union{AbstractFloat,Nothing} = nothin
     !has_hyperparameters_methods(typeof(model)) &&
         throw(MissingMethodImplementation("get_hyperparameters_number"))
     K = isnothing(K) ? get_hyperparameters_number(model) : K
-    n = length(observedResiduals(model))
-    return aic(model; offset = offset, K = K) + ((2 * K * K + 2 * K) / (n - K - 1))
+    offsetValue = isnothing(offset) ? 0.0 : offset
+    # O `n` da correcao e o da amostra da verossimilhanca efetivamente usada: `T` (serie
+    # diferenciada inteira) no caminho exato, `length(observedResiduals)` no recuo CSS.
+    # Misturar — corrigir uma verossimilhanca sobre T com um n condicionado menor — cobra
+    # uma penalidade extra crescente em K que o `forecast::Arima` nao tem.
+    ll, n, _ = criterionLoglikeAndN(model)
+    return 2 * K - 2 * ll + offsetValue + ((2 * K * K + 2 * K) / (n - K - 1))
 end
 
 """
@@ -185,9 +277,10 @@ function bic(model::SarimaxModel; offset::Union{AbstractFloat,Nothing} = nothing
     !has_hyperparameters_methods(typeof(model)) &&
         throw(MissingMethodImplementation("get_hyperparameters_number"))
     K = isnothing(K) ? get_hyperparameters_number(model) : K
-    n = length(observedResiduals(model))
     offsetValue = isnothing(offset) ? 0.0 : offset
-    return K * log(n) - 2 * criterionLoglike(model) + offsetValue
+    # Mesmo `n` da verossimilhanca usada — ver `aicc`.
+    ll, n, _ = criterionLoglikeAndN(model)
+    return K * log(n) - 2 * ll + offsetValue
 end
 
 

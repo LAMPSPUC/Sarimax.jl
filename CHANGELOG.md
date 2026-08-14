@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.0] - Unreleased
 
 ### Fixed
+- **Criterion fallback no longer rewards boundary candidates.** When the exact
+  Gaussian likelihood is not computable (roots at the boundary), the criterion falls
+  back to the CSS likelihood — which is evaluated on the conditioned sample
+  (`T - lb + 1` observations vs `T` for the exact one) and is therefore less
+  negative, granting tens of AICc units of advantage precisely to near-nonstationary
+  candidates. The search criterion (`getInformationCriteriaFunction`) now adds a
+  fixed penalty to fallback-scored candidates, imposing a two-tier order analogous
+  to `forecast::myarima`'s `Inf` on non-finite likelihoods: an exact-scored
+  candidate always outranks a fallback-scored one, while fallback-scored candidates
+  remain comparable among themselves (same conditioning sample). The public
+  `aic`/`aicc`/`bic` accessors are unaffected. The fallback is recorded in
+  `model.metadata["criterionFallback"]` so its rate is measurable.
+- **AICc/BIC sample size matches the likelihood actually scored.** The small-sample
+  correction and the BIC `log(n)` factor used `n = length(observedResiduals)`
+  (the CSS-conditioned count) even when the likelihood was the exact one evaluated
+  on the full differenced sample — an undocumented extra size penalty, growing
+  with `K`, that `forecast::Arima` does not have. Both now use the sample size of
+  whichever likelihood was used.
+- **`criterionLoglike` no longer swallows exceptions.** `exactLoglike`'s contract is
+  `nothing`-on-refusal, so the blanket `try/catch` around it could only mask bugs
+  (`MethodError`, `UndefVarError`) and made the fallback rate uninterpretable;
+  model types without `exactLoglike` fall back via `applicable`.
 - **Internal data scaling (numerical conditioning).** `fit!` now solves in units of
   the differenced series' standard deviation and maps the scale-dependent estimates
   (constant, trend, exogenous coefficients, residuals, σ², fitted and imputed values)

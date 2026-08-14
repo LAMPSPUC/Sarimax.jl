@@ -1,0 +1,193 @@
+# Testes da verossimilhanca gaussiana exata (src/exact_likelihood.jl).
+#
+# A referencia independente e a MVN completa: para z ~ N(0, sigma^2 * Gamma) com
+# Gamma_{ij} = gamma(|i-j|) e sigma^2 concentrado,
+#
+#     l = -(n/2) (log(2 pi sigma2) + 1) - (1/2) logdet(Gamma),
+#     sigma2 = z' Gamma^{-1} z / n.
+#
+# E exatamente a quantidade que Durbin-Levinson calcula em O(n^2), obtida aqui por
+# algebra linear densa — nenhuma linha de codigo compartilhada com a implementacao.
+# (LinearAlgebra vem qualificado via Sarimax para nao exigir declaracao no test target.)
+referenceExactLoglike(z::Vector{Float64}, γ::Vector{Float64}) = begin
+    LA = Sarimax.LinearAlgebra
+    n = length(z)
+    Γ = [γ[abs(i - j)+1] for i = 1:n, j = 1:n]
+    σ² = LA.dot(z, Γ \ z) / n
+    -(n / 2) * (log(2π * σ²) + 1) - LA.logdet(Γ) / 2
+end
+
+@testset "exact likelihood" begin
+    rng = MersenneTwister(0x5A71)
+
+    @testset "expandMultiplicativePolynomial" begin
+        # (1 - 0.5B)(1 - 0.3B^12) = 1 - 0.5B - 0.3B^12 + 0.15B^13  (convencao AR)
+        ar = Sarimax.expandMultiplicativePolynomial([0.5], [0.3], 12; negate = true)
+        @test length(ar) == 13
+        @test ar[1] ≈ 0.5
+        @test ar[12] ≈ 0.3
+        @test ar[13] ≈ -0.15
+        @test all(iszero, ar[2:11])
+        # (1 + 0.5B)(1 + 0.3B^12): lado MA, produto cruzado com sinal positivo
+        ma = Sarimax.expandMultiplicativePolynomial([0.5], [0.3], 12; negate = false)
+        @test ma[13] ≈ 0.15
+        # casos degenerados
+        @test isempty(Sarimax.expandMultiplicativePolynomial(Float64[], Float64[], 12))
+        @test Sarimax.expandMultiplicativePolynomial([0.7], Float64[], 12) ≈ [0.7]
+    end
+
+    @testset "psi weights: sem colisao e base correta" begin
+        # ruido branco: psi_k = 0 para k >= 1, psi_0 = 1
+        @test Sarimax.psiWeights(Float64[], Float64[], 5) == zeros(5)
+        @test Sarimax.psiWeightsFromZero(Float64[], Float64[], 5) == [1.0; zeros(5)]
+        # AR(1): psi_k = phi^k
+        @test Sarimax.psiWeights([0.5], Float64[], 4) ≈ [0.5, 0.25, 0.125, 0.0625]
+        @test Sarimax.psiWeightsFromZero([0.5], Float64[], 4) ≈ [1.0, 0.5, 0.25, 0.125, 0.0625]
+        # a variancia de previsao de um ARMA(0,0) ajustado e constante = sigma^2
+        # (o bug historico de sobrescrita do psiWeights dava [1,2,2,2] * sigma^2)
+        yWN = TimeArray(
+            collect(Date(2000, 1, 1):Month(1):Date(2004, 12, 1)),
+            randn(rng, 60),
+        )
+        mWN = SARIMA(yWN, 0, 0, 0; allowMean = false)
+        fit!(mWN)
+        fe = Sarimax.forecastErrors(mWN, 4)
+        @test all(v -> isapprox(v, fe[1]; rtol = 1e-8), fe)
+    end
+
+    @testset "ruido branco: forma fechada" begin
+        z = randn(rng, 40)
+        n = length(z)
+        σ² = sum(abs2, z) / n
+        expected = -(n / 2) * (log(2π * σ²) + 1)
+        @test Sarimax.exactGaussianLogLikelihood(z, Float64[], Float64[]) ≈ expected
+    end
+
+    @testset "AR(1): forma fechada" begin
+        φ = 0.6
+        z = randn(rng, 50)
+        n = length(z)
+        # v_1 = 1/(1-phi^2), v_t = 1 (t >= 2); e_1 = z_1, e_t = z_t - phi z_{t-1}
+        σ² = ((1 - φ^2) * z[1]^2 + sum((z[t] - φ * z[t-1])^2 for t = 2:n)) / n
+        expected = -(n / 2) * (log(2π * σ²) + 1) - log(1 / (1 - φ^2)) / 2
+        @test Sarimax.exactGaussianLogLikelihood(z, [φ], Float64[]) ≈ expected
+    end
+
+    @testset "MA(1), ARMA(1,1) e sazonal: contra a MVN densa" begin
+        for (ar, ma) in (
+            (Float64[], [0.4]),                                  # MA(1)
+            ([0.5], [-0.3]),                                     # ARMA(1,1)
+            (
+                Sarimax.expandMultiplicativePolynomial([0.4], [0.3], 4; negate = true),
+                Sarimax.expandMultiplicativePolynomial([-0.2], [0.25], 4; negate = false),
+            ),                                                   # SARMA(1,1)(1,1)_4 expandido
+        )
+            z = randn(rng, 30)
+            γfull = Sarimax.theoreticalACF(ar, ma, length(z))
+            @test !isnothing(γfull)
+            @test Sarimax.exactGaussianLogLikelihood(z, ar, ma) ≈
+                  referenceExactLoglike(z, γfull) rtol = 1e-10
+        end
+    end
+
+    @testset "recusa principiada perto da fronteira" begin
+        # AR(1) com raiz quase unitaria: a cauda dos psi nao decai dentro da truncagem
+        # e a resposta certa e `nothing`, nunca um numero silenciosamente errado.
+        @test isnothing(Sarimax.theoreticalACF([0.99999], Float64[], 50))
+        @test isnothing(Sarimax.exactGaussianLogLikelihood(randn(rng, 50), [0.99999], Float64[]))
+        # ponto explosivo
+        @test isnothing(Sarimax.exactGaussianLogLikelihood(randn(rng, 50), [1.5], Float64[]))
+        # serie vazia
+        @test isnothing(Sarimax.exactGaussianLogLikelihood(Float64[], [0.5], Float64[]))
+        # modelo nao ajustado
+        yShort = TimeArray(collect(Date(2020, 1, 1):Month(1):Date(2021, 12, 1)), randn(rng, 24))
+        @test isnothing(Sarimax.exactLoglike(SARIMA(yShort, 1, 0, 0)))
+    end
+
+    @testset "exactLoglike do modelo ajustado bate com a avaliacao direta" begin
+        y = TimeArray(collect(Date(2000, 1, 1):Month(1):Date(2006, 12, 1)), randn(rng, 84))
+        m = SARIMA(y, 1, 0, 1; allowMean = false)
+        fit!(m)
+        ll = Sarimax.exactLoglike(m)
+        if !isnothing(ll)
+            z = Float64.(values(m.y))
+            @test ll ≈ Sarimax.exactGaussianLogLikelihood(z, [m.ϕ...], [m.θ...])
+        end
+    end
+
+    @testset "n do AICc casa com a amostra da verossimilhanca" begin
+        # A verossimilhanca exata que entra no criterio e avaliada sobre os T pontos da
+        # serie diferenciada; a correcao de amostra pequena deve usar esse mesmo n, nao o
+        # `length(observedResiduals) = T - lb + 1` do conditioning da CSS.
+        y = TimeArray(collect(Date(2000, 1, 1):Month(1):Date(2006, 12, 1)), randn(rng, 84))
+        m = SARIMA(y, 2, 0, 0; allowMean = false)
+        fit!(m)  # :zeroed => residualLags = p = 2 => lb = 3
+        if !isnothing(Sarimax.exactLoglike(m))   # criterio esta no caminho exato
+            T = length(values(m.y))
+            nRes = length(Sarimax.observedResiduals(m))
+            @test nRes < T   # premissa do teste: a truncagem existe de fato
+            K = Sarimax.get_hyperparameters_number(m)
+            correctionOn(n) = (2K^2 + 2K) / (n - K - 1)
+            @test aicc(m) ≈ aic(m) + correctionOn(T)
+            @test aicc(m) ≉ aic(m) + correctionOn(nRes)   # o defeito antigo, nao regredir
+            llAndN = Sarimax.criterionLoglikeAndN(m)
+            @test llAndN[2] == T
+            @test llAndN[3] === true
+            @test m.metadata["criterionFallback"] === false
+        end
+    end
+
+    @testset "criterionSampleSize: aritmetica == differentiate" begin
+        # `criterionSampleSize` usa `n - d - D*s` em vez de alocar a serie diferenciada.
+        # A equivalencia tem que valer para toda combinacao de ordens de diferenciacao.
+        yLong = TimeArray(collect(Date(2000, 1, 1):Month(1):Date(2010, 12, 1)), randn(rng, 132))
+        for (d, D, s) in ((0, 0, 1), (1, 0, 1), (2, 0, 1), (0, 1, 12), (1, 1, 12), (2, 1, 12), (1, 2, 4))
+            m = SARIMA(yLong, 1, d, 0; seasonality = s, D = D)
+            @test Sarimax.criterionSampleSize(m) ==
+                  length(values(differentiate(yLong, d, D, s)))
+        end
+    end
+
+    @testset "selecao: recuo CSS nunca vence candidato com exata" begin
+        # O criterio de BUSCA (getInformationCriteriaFunction) penaliza candidatos cujo
+        # criterio veio do recuo; os acessores publicos nao mudam.
+        y = TimeArray(collect(Date(2000, 1, 1):Month(1):Date(2006, 12, 1)), randn(rng, 84))
+        m = SARIMA(y, 1, 0, 0; allowMean = false)
+        fit!(m)
+        searchAicc = Sarimax.getInformationCriteriaFunction("aicc")
+        publicValue = aicc(m)
+        if !isnothing(Sarimax.exactLoglike(m))
+            @test searchAicc(m) ≈ publicValue          # caminho exato: sem penalidade
+        end
+        # forca o recuo: coeficiente AR na fronteira mantido fixo
+        mBoundary = SARIMA(y; arCoefficients = [0.99999], allowMean = false)
+        fit!(mBoundary)
+        @test isnothing(Sarimax.exactLoglike(mBoundary))
+        publicBoundary = aicc(mBoundary)          # avalia o criterio e grava o metadata
+        @test publicBoundary isa AbstractFloat
+        @test mBoundary.metadata["criterionFallback"] === true
+        @test searchAicc(mBoundary) ≈ publicBoundary + Sarimax.FALLBACK_CRITERION_PENALTY
+        @test searchAicc(mBoundary) > searchAicc(m)
+    end
+
+    @testset "caminhos de busca antes mortos: grid e stepwiseNaive" begin
+        yAuto = TimeArray(
+            collect(Date(2000, 1, 1):Month(1):Date(2004, 12, 1)),
+            0.7 .* sin.(2π .* (1:60) ./ 12) .+ randn(rng, 60) .* 0.5,
+        )
+        for method in ("grid", "stepwiseNaive")
+            m = auto(
+                yAuto;
+                seasonality = 1,
+                d = 0,
+                D = 0,
+                maxp = 1,
+                maxq = 1,
+                maxP = 0,
+                maxQ = 0,
+                searchMethod = method,
+            )
+            @test Sarimax.isFitted(m)
+        end
+    end
+end

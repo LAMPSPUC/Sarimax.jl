@@ -59,6 +59,7 @@ Sarimax.aic
 Sarimax.aicc
 Sarimax.bic
 Sarimax.criterionLoglike
+Sarimax.exactLoglike
 ```
 
 ## Residual diagnostics

@@ -800,7 +800,7 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
   per-coefficient box. They coincide only for `q = Q = 1`.
 - `invertibilityMargin::AbstractFloat`: Margin `ρ ∈ [0, 1)` that bounds the reflection coefficients to
   `[-(1-ρ), 1-ρ]`, keeping the solution `ρ` away from the unit circle. Only used when `invertible=true`.
-  Default is [`DEFAULT_DOMAIN_MARGIN`] (`1e-6`): enough to keep the domain open, small enough
+  Default is `DEFAULT_DOMAIN_MARGIN` (`1e-6`): enough to keep the domain open, small enough
   not to truncate near-unit-root estimates. Do NOT set it to the rejection margin
   [`DEFAULT_ROOT_MARGIN`] — that imposes a selection rule as an estimation constraint.
 - `seasonalForm::Symbol`: `:multiplicative` (Box-Jenkins, default) or `:additive`.
@@ -813,7 +813,7 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
   admissible model.
 - `stationarityMargin::AbstractFloat`: Margin in `[0, 1)` bounding the AR reflection
   coefficients to `[-(1-margin), 1-margin]`. Only used when `stationary = true`.
-  Default is [`DEFAULT_DOMAIN_MARGIN`] (`1e-6`), the AR analogue of `invertibilityMargin`.
+  Default is `DEFAULT_DOMAIN_MARGIN` (`1e-6`), the AR analogue of `invertibilityMargin`.
 - Missing observations: `NaN` entries in the endogenous series are supported for
   stationary models (`d = D = 0`, `mse`/`ml` objectives, no exogenous regressors). Each
   gap becomes a free decision variable whose residual is retained in the objective,
@@ -2800,13 +2800,13 @@ Automatically fits the best SARIMA model according to the specified parameters.
   is therefore stationary and invertible either way; `invertible = true` merely forces the
   constrained parameterization on every fit (not compatible with the `"bilevel"` objective).
 - `invertibilityMargin::AbstractFloat`: Margin keeping MA reflection coefficients in
-  `[-(1-m), 1-m]` when `invertible = true`. Default [`DEFAULT_DOMAIN_MARGIN`] (`1e-6`) — it
+  `[-(1-m), 1-m]` when `invertible = true`. Default `DEFAULT_DOMAIN_MARGIN` (`1e-6`) — it
   opens the domain, it does not enforce admissibility (that is `rootMargin`'s job).
 - `stationary::Bool`: Fit candidates with the stationarity-by-construction AR
   parameterization. Defaults to `assertStationarity` (empirically as accurate as the free
   AR fit and cheaper than relying on rejection).
 - `stationarityMargin::AbstractFloat`: AR analogue of `invertibilityMargin`. Default
-  [`DEFAULT_DOMAIN_MARGIN`] (`1e-6`).
+  `DEFAULT_DOMAIN_MARGIN` (`1e-6`).
 - `optimizer::Union{DataType,MOI.OptimizerWithAttributes}`: JuMP optimizer used to fit
   every candidate. Default `Ipopt.Optimizer` (fast local solutions). Pass
   `SCIP.Optimizer` — or `optimizer_with_attributes(SCIP.Optimizer, "limits/gap" => …)`

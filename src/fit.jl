@@ -108,6 +108,17 @@ Sem `try/catch`: o contrato de `exactLoglike` ja e nothing-em-recusa, entao qual
 aqui e bug e deve subir — um `catch` largo mascararia exatamente a classe de erro
 (`MethodError`, `UndefVarError`) que ja mordeu este arquivo, e tornaria a taxa de recuo
 impossivel de interpretar. Tipos de modelo sem `exactLoglike` recuam via `applicable`.
+
+QUASI-AIC, NAO AIC. Esta verossimilhanca e avaliada nos coeficientes que o OBJETIVO DO USUARIO
+produziu (`mae`, `huber`, `CVaR`, ridge, ...), nao no maximo da gaussiana. Como estatistica de
+comparacao entre candidatos e legitima — a mesma funcao pontua todos —, mas nao e a
+verossimilhanca maximizada que a teoria do AIC supoe. Medido em ARMA(1,1) simulado, o deficit
+`2*(l(EMV) - l(ponto ajustado))` tem mediana 0,01 sob `mse` e sobe com o raio da raiz MA:
+mediana 0,98 e p90 7,03 com raiz em 0,98, isto e, ja na escala em que o AICc decide. Sob
+`ridge` a mediana vai a 1,79, porque o encolhimento afasta o ponto do maximo de proposito.
+Refinar por um passo de Newton NAO resolve: no regime que importa o otimo esta na fronteira de
+invertibilidade (theta_EMV empilha em 1), onde a equivalencia assintotica de Le Cam nao vale —
+medido, um passo fecha 6% do deficit e piora o valor em 40% dos casos.
 """
 function criterionLoglike(model::SarimaxModel)
     return first(criterionLoglikeAndN(model))

@@ -60,5 +60,7 @@ using JSON
 
     include("objective_guardrails.jl")
 
+    include("deterministic_term.jl")
+
     include("aqua.jl")
 end

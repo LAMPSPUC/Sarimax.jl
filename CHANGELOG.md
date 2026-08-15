@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.0] - Unreleased
 
 ### Fixed
+- **The exact likelihood removed the wrong deterministic term.** Two conversions were
+  missing in `exactLoglike`, both verified against `stats::arima(method = "ML")`:
+  - `model.c` is the regression **constant**, not the mean. The level to remove is
+    `mu = c / (1 - sum(ar))`. Measured on M4 monthly series 44895: subtracting `c` gave
+    a log-likelihood of -2305.891, subtracting `mu` gave -2304.253, and R gives
+    -2304.253 — an error of 1.64, i.e. 3.3 AICc units, enough to flip a selection.
+  - `model.trend` **multiplies** the differenced time regressor (`trend * driftValues[t]`),
+    and that regressor is not 1 in general: it is 1 for `d = 1, D = 0` (where the scalar
+    happened to be right), but **12** for `d = 0, D = 1` at monthly frequency, so the
+    scalar was off by a factor of `s` for that whole class.
+
+  Incidence on M4 monthly: **15.7% of the 48,000 series** (10.7% seasonal-differenced
+  drift + 5.0% mean models) were scored on a wrong likelihood. Within those 7,529 series
+  the fix improves OWA from 0.8551 to **0.8464 (-0.0087)**; over the full 48k it moves the
+  benchmark from 0.9080 to **0.9065** and changes the selected order for 5.6% of series.
+
+  The existing acceptance test (`dbg_valida_exata.jl`) could not catch this: it centres the
+  series and calls R with `include.mean = FALSE`, exercising precisely the path where no
+  deterministic term exists. `test/deterministic_term.jl` covers that gap.
 - **A `lambda` the estimation ignores no longer moves the information criteria.** The sparse
   parameter count was triggered by the *presence* of `lambda`/`alpha` on the model rather
   than by the objective that actually fitted it. Measured: with fixed coefficients

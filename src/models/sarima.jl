@@ -1020,15 +1020,19 @@ function fit!(
     seasonalForm === :free && throw(ArgumentError("seasonalForm :free is planned for a later release"))
     seasonalForm in (:multiplicative, :additive) ||
         throw(ArgumentError("seasonalForm must be :multiplicative or :additive"))
-    # O tratamento `:penalized` esta implementado apenas no objetivo `mse`. Antes ele era
-    # SILENCIOSAMENTE ignorado nos demais — o ajuste caia no branch normal e virava `:free`
-    # sem aviso nenhum, o que e pior do que nao existir.
-    (initialization !== :penalized || objectiveFunction == "mse") || throw(
-        ArgumentError(
-            "initialization = :penalized is implemented for objectiveFunction = \"mse\" only; " *
-            "got \"$(objectiveFunction)\". Use :free to keep the pre-sample values unpenalized.",
-        ),
-    )
+    # O tratamento `:penalized` esta implementado apenas no objetivo `mse`. Nos demais ele
+    # era SILENCIOSAMENTE ignorado — o ajuste caia no branch normal e virava `:free` sem
+    # aviso nenhum, o que e pior do que nao existir.
+    #
+    # AVISO e nao erro, para casar com a politica das demais degradacoes do pacote
+    # (`ml_exact` recuando para CSS, `ridge` ignorando `lambda`): o ajuste continua valido,
+    # so nao e o que foi pedido, e recusar quebraria varreduras que combinam inicializacao
+    # com objetivo sem saber de antemao quais pares estao cobertos.
+    if initialization === :penalized && objectiveFunction != "mse"
+        @warn "initialization = :penalized is implemented for objectiveFunction = \"mse\" " *
+              "only; got \"$(objectiveFunction)\". The pre-sample values stay unpenalized, " *
+              "i.e. the fit degrades to :free."
+    end
     initialization in (:zeroed, :warmup, :free, :penalized) ||
         throw(ArgumentError("initialization must be :zeroed or :warmup (exact-likelihood initialization requires a Kalman filter, which is out of scope by design)"))
 

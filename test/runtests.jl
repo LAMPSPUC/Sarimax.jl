@@ -58,5 +58,7 @@ using JSON
 
     include("exact_likelihood.jl")
 
+    include("order_guards.jl")
+
     include("aqua.jl")
 end

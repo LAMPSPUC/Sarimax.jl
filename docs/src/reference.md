@@ -58,6 +58,8 @@ Sarimax.loglike
 Sarimax.aic
 Sarimax.aicc
 Sarimax.bic
+Sarimax.criterionLoglike
+Sarimax.exactLoglike
 ```
 
 ## Residual diagnostics
@@ -103,6 +105,8 @@ Sarimax.to_ma
 ```@docs
 Sarimax.reflectionToMA
 Sarimax.reflectionToAR
+Sarimax.arToReflection
+Sarimax.maToReflection
 ```
 
 ## Data handling

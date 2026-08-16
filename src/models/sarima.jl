@@ -733,8 +733,13 @@ end
 function get_hyperparameters_number(model::JuMP.Model)
     # is_solved_and_feasible(model) ||
     #     throw(ArgumentError("The model must be solved and feasible"))
-    c = variable_by_name(model, "c")
-    trend = variable_by_name(model, "trend")
+    # Pelo dicionario de objetos (`model[:c]`) e nao por `variable_by_name`: a construcao
+    # desabilita os nomes-string das variaveis (custo de build), e `variable_by_name` passaria
+    # a devolver `nothing` para `c` e `trend` — deixando de conta-los SEM erro nenhum, o que
+    # mudaria K silenciosamente no caminho do elastic-net. O dicionario de objetos e populado
+    # pelo `@variable` independentemente dos nomes-string.
+    c = haskey(model, :c) ? model[:c] : nothing
+    trend = haskey(model, :trend) ? model[:trend] : nothing
     hyperparametersNumber = (c !== nothing && abs(value(c)) > 1e-5) ? 1 : 0
     hyperparametersNumber += (trend !== nothing && abs(value(trend)) > 1e-5) ? 1 : 0
 
@@ -795,7 +800,7 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
   per-coefficient box. They coincide only for `q = Q = 1`.
 - `invertibilityMargin::AbstractFloat`: Margin `ρ ∈ [0, 1)` that bounds the reflection coefficients to
   `[-(1-ρ), 1-ρ]`, keeping the solution `ρ` away from the unit circle. Only used when `invertible=true`.
-  Default is [`DEFAULT_DOMAIN_MARGIN`] (`1e-6`): enough to keep the domain open, small enough
+  Default is `DEFAULT_DOMAIN_MARGIN` (`1e-6`): enough to keep the domain open, small enough
   not to truncate near-unit-root estimates. Do NOT set it to the rejection margin
   [`DEFAULT_ROOT_MARGIN`] — that imposes a selection rule as an estimation constraint.
 - `seasonalForm::Symbol`: `:multiplicative` (Box-Jenkins, default) or `:additive`.
@@ -808,7 +813,7 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
   admissible model.
 - `stationarityMargin::AbstractFloat`: Margin in `[0, 1)` bounding the AR reflection
   coefficients to `[-(1-margin), 1-margin]`. Only used when `stationary = true`.
-  Default is [`DEFAULT_DOMAIN_MARGIN`] (`1e-6`), the AR analogue of `invertibilityMargin`.
+  Default is `DEFAULT_DOMAIN_MARGIN` (`1e-6`), the AR analogue of `invertibilityMargin`.
 - Missing observations: `NaN` entries in the endogenous series are supported for
   stationary models (`d = D = 0`, `mse`/`ml` objectives, no exogenous regressors). Each
   gap becomes a free decision variable whose residual is retained in the objective,
@@ -951,6 +956,14 @@ function fit!(
         fit!(seed; common..., stationary = false, invertible = false,
              stationarityMargin = 0.0, invertibilityMargin = 0.0,
              maxTimeSeconds = maxTimeSeconds)
+        # Acumula o custo das tentativas feitas SOBRE `model` (tiers 1 e 2). Fica fora do
+        # metadata porque o `merge!` do tier 3 sobrescreveria; reconciliado antes do return.
+        modelTimings = Dict{String,Float64}("build" => 0.0, "solve" => 0.0, "count" => 0.0)
+        accumulate!() = begin
+            modelTimings["build"] += get(model.metadata, "buildTimeSec", 0.0)
+            modelTimings["solve"] += get(model.metadata, "solveTimeSec", 0.0)
+            modelTimings["count"] += 1.0
+        end
         solved() = get(model.metadata, "solverStatus", "") in
                    ("LOCALLY_SOLVED", "OPTIMAL", "ALMOST_LOCALLY_SOLVED")
         tryFit(st, inv, sMargin, iMargin) = begin
@@ -963,6 +976,7 @@ function fit!(
             catch
                 ok = false
             end
+            accumulate!()
             ok
         end
         # tier 1: full stationarity + invertibility by construction
@@ -996,6 +1010,17 @@ function fit!(
             tier = 3
         end
         model.metadata["warmStartTier"] = tier
+        # O solve da caixa acontece em `seed`, um objeto separado, entao seu custo nao entra
+        # nos acumuladores de `model` por conta propria — e no tier 3 o `merge!` acima ainda
+        # SOBRESCREVE os de `model` pelos de `seed`. Sem esta reconciliacao a telemetria de
+        # um candidato com warm start reporta um subconjunto do que ele custou (no tier 3,
+        # exatamente o mais barato dos solves). Reconstruir a soma explicitamente.
+        model.metadata["buildTimeSecTotal"] =
+            get(modelTimings, "build", 0.0) + get(seed.metadata, "buildTimeSecTotal", 0.0)
+        model.metadata["solveTimeSecTotal"] =
+            get(modelTimings, "solve", 0.0) + get(seed.metadata, "solveTimeSecTotal", 0.0)
+        model.metadata["fitCount"] =
+            Int(get(modelTimings, "count", 0.0)) + get(seed.metadata, "fitCount", 0)
         return model
     end
 
@@ -1040,6 +1065,15 @@ function fit!(
     isnothing(alpha) || (model.alpha = alpha)
     model.metadata["seasonalForm"] = String(seasonalForm)
     model.metadata["initialization"] = String(initialization)
+
+    # Telemetria de custo (atribuicao de performance). O orcamento de uma busca e
+    # (nº de fits) x (custo por fit), e o custo por fit se divide em CONSTRUIR o problema
+    # JuMP (cresce com T e com a ordem — ~2T variaveis sob `:free`) e RESOLVE-lo (cresce com
+    # a dificuldade numerica: perto da fronteira o Ipopt itera muito mais). Sem separar os
+    # dois nao da para distinguir "mais candidatos", "modelos maiores" e "solves mais
+    # dificeis", que tem remedios diferentes. Puramente observacional — nada aqui altera a
+    # estimacao.
+    fitStartTime = time()
 
     diffY = differentiate(model.y, model.d, model.D, model.seasonality)
 
@@ -1123,6 +1157,12 @@ function fit!(
     lb = max(residualLags, minConditioningObs) + 1
 
     mod = Model(optimizer)
+    # Os nomes-string das variaveis so servem para impressao e `variable_by_name`, e cada um
+    # e uma String alocada por variavel — com ~2T variaveis sob `:free` isso e trabalho puro
+    # de construcao. Medido: build e ~22% do custo de uma busca, estavel em todos os regimes
+    # testados (nao e fenomeno de cauda). O unico consumidor era
+    # `get_hyperparameters_number(::JuMP.Model)`, migrado para o dicionario de objetos.
+    set_string_names_on_creation(mod, false)
 
     if (model.allowMean)
         @variable(mod, c)
@@ -1416,8 +1456,35 @@ function fit!(
         end
     end
 
-    optimizeModel!(mod, model, objectiveFunction, lb)
+    # Ver `fitStartTime`: tudo ate aqui e construcao do problema JuMP; o que vem a seguir
+    # e solve. `solveTimeSec` mede o wall-clock do lado Julia (inclui o pos-processamento
+    # de `optimizeModel!`, como o refino do elastic-net e o laco externo do bilevel);
+    # `solverTimeSec` e o tempo que o proprio solver reporta.
+    buildElapsed = time() - fitStartTime
+    solveElapsed = @elapsed optimizeModel!(mod, model, objectiveFunction, lb)
+    model.metadata["buildTimeSec"] = buildElapsed
+    model.metadata["solveTimeSec"] = solveElapsed
+    # ...Total ACUMULA por objeto de modelo, enquanto os campos acima guardam so o ultimo
+    # ajuste. A distincao importa porque um mesmo modelo e ajustado mais de uma vez em dois
+    # caminhos: `warmStartFromBox` (solve da caixa + ate dois tiers restritos) e
+    # `ensureAdmissible!` (refit em cima do candidato). Sobrescrever perderia o custo real —
+    # e no tier 3 do warm start reportaria justamente o solve mais barato dos tres.
+    model.metadata["buildTimeSecTotal"] =
+        get(model.metadata, "buildTimeSecTotal", 0.0) + buildElapsed
+    model.metadata["solveTimeSecTotal"] =
+        get(model.metadata, "solveTimeSecTotal", 0.0) + solveElapsed
+    model.metadata["fitCount"] = get(model.metadata, "fitCount", 0) + 1
     model.metadata["solverStatus"] = string(termination_status(mod))
+    model.metadata["solverTimeSec"] = try
+        MOI.get(mod, MOI.SolveTimeSec())
+    catch
+        missing
+    end
+    model.metadata["solverIterations"] = try
+        MOI.get(mod, MOI.BarrierIterations())
+    catch
+        missing
+    end
     silent || @info(
         "The model has been fitted with the objective function $objectiveFunction: $(objective_value(mod))"
     )
@@ -2737,13 +2804,13 @@ Automatically fits the best SARIMA model according to the specified parameters.
   is therefore stationary and invertible either way; `invertible = true` merely forces the
   constrained parameterization on every fit (not compatible with the `"bilevel"` objective).
 - `invertibilityMargin::AbstractFloat`: Margin keeping MA reflection coefficients in
-  `[-(1-m), 1-m]` when `invertible = true`. Default [`DEFAULT_DOMAIN_MARGIN`] (`1e-6`) — it
+  `[-(1-m), 1-m]` when `invertible = true`. Default `DEFAULT_DOMAIN_MARGIN` (`1e-6`) — it
   opens the domain, it does not enforce admissibility (that is `rootMargin`'s job).
 - `stationary::Bool`: Fit candidates with the stationarity-by-construction AR
   parameterization. Defaults to `assertStationarity` (empirically as accurate as the free
   AR fit and cheaper than relying on rejection).
 - `stationarityMargin::AbstractFloat`: AR analogue of `invertibilityMargin`. Default
-  [`DEFAULT_DOMAIN_MARGIN`] (`1e-6`).
+  `DEFAULT_DOMAIN_MARGIN` (`1e-6`).
 - `optimizer::Union{DataType,MOI.OptimizerWithAttributes}`: JuMP optimizer used to fit
   every candidate. Default `Ipopt.Optimizer` (fast local solutions). Pass
   `SCIP.Optimizer` — or `optimizer_with_attributes(SCIP.Optimizer, "limits/gap" => …)`
@@ -3958,7 +4025,22 @@ function localSearch!(
         )
         criteria = informationCriteriaFunction(model; offset = icOffset)
         showLogs && @info("Fitted $(getId(model)) with $(criteria)")
-        visitedModels[getId(model)] = Dict("criteria" => criteria)
+        # Alem do criterio, guardar o custo e a forma do candidato. E o que permite atribuir
+        # o tempo total de uma busca a "mais candidatos", "modelos maiores" ou "solves mais
+        # dificeis" — e, de brinde, medir a taxa de recuo do criterio, que so virou
+        # observavel quando `criterionLoglikeAndN` passou a gravar `criterionFallback`.
+        visitedModels[getId(model)] = Dict(
+            "criteria" => criteria,
+            "buildTimeSec" => get(model.metadata, "buildTimeSec", missing),
+            "solveTimeSec" => get(model.metadata, "solveTimeSec", missing),
+            "solverTimeSec" => get(model.metadata, "solverTimeSec", missing),
+            "solverIterations" => get(model.metadata, "solverIterations", missing),
+            "solverStatus" => get(model.metadata, "solverStatus", missing),
+            "criterionFallback" => get(model.metadata, "criterionFallback", missing),
+            "K" => get_hyperparameters_number(model),
+            "order" => (model.p, model.d, model.q, model.P, model.D, model.Q),
+            "admissible" => admissible,
+        )
         if admissible && criteria < localBestCriteria
             localBestCriteria = criteria
             localBestModel = model
@@ -4506,6 +4588,11 @@ function stepWiseSearchNaive(
         iterations += 1
     end
 
+    # `visitedModels` morre com esta funcao, entao a telemetria por candidato so escapa se
+    # viajar com o modelo escolhido. Vai no metadata (interno, nenhuma assinatura muda) para
+    # que a atribuicao de custo — nº de fits, split build/solve, distribuicao de K, iteracoes
+    # do solver, taxa de recuo do criterio — seja legivel de fora sem reinstrumentar.
+    bestModel.metadata["searchTelemetry"] = visitedModels
     return bestModel
 end
 
@@ -5007,7 +5094,46 @@ function stepwiseSearch(
         end
     end
 
+    # `results` guarda os modelos ajustados, cujo metadata ja carrega o custo medido em
+    # `fit!`. Resumir aqui (e nao anexar `results` inteiro) evita ciclo de referencia —
+    # `bestModel` esta dentro de `results` — e mantem o metadata serializavel.
+    bestModel.metadata["searchTelemetry"] = summarizeSearchCost(results)
     return bestModel
+end
+
+"""
+    summarizeSearchCost(results) -> Dict{String,Dict{String,Any}}
+
+Extrai, de um dicionario de modelos candidatos ajustados, o resumo por candidato que permite
+ATRIBUIR o custo de uma busca: `nº de fits x custo por fit`, com o custo separado em
+construcao do problema JuMP e solve, mais a forma do candidato (`K`, ordem) e a dificuldade
+numerica (iteracoes do solver, status).
+
+Sem isso nao da para distinguir as tres causas possiveis de uma regressao de tempo — mais
+candidatos, modelos maiores, ou solves mais dificeis — que tem remedios diferentes. De brinde
+sai a taxa de recuo do criterio (`criterionFallback`), observavel desde que
+`criterionLoglikeAndN` passou a grava-la.
+"""
+function summarizeSearchCost(results::Dict{String,SARIMAModel})
+    summary = Dict{String,Dict{String,Any}}()
+    for (id, m) in results
+        md = m.metadata
+        summary[id] = Dict{String,Any}(
+            # ...Total e a soma sobre TODOS os ajustes do candidato (warm start faz ate 3,
+            # `ensureAdmissible!` pode refitar por cima). Os campos sem sufixo guardam apenas
+            # o ultimo ajuste e sub-reportam nesses caminhos.
+            "buildTimeSec" => get(md, "buildTimeSecTotal", get(md, "buildTimeSec", missing)),
+            "solveTimeSec" => get(md, "solveTimeSecTotal", get(md, "solveTimeSec", missing)),
+            "fitCount" => get(md, "fitCount", missing),
+            "solverTimeSec" => get(md, "solverTimeSec", missing),
+            "solverIterations" => get(md, "solverIterations", missing),
+            "solverStatus" => get(md, "solverStatus", missing),
+            "criterionFallback" => get(md, "criterionFallback", missing),
+            "K" => get_hyperparameters_number(m),
+            "order" => (m.p, m.d, m.q, m.P, m.D, m.Q),
+        )
+    end
+    return summary
 end
 
 """

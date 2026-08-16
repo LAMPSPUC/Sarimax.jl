@@ -1326,7 +1326,11 @@ function fit!(
     # `yback` continuam sem prior. Creditar mesmo assim subestimava o AICc em ~2*min(p,nYback)
     # pontos e enviesava a selecao para p alto.
     penalARAtivo = penalizado && stationary && model.p > 0 && nYback > 0
-    nYbackPago = penalARAtivo ? min(model.p, nYback) : 0
+    # com o prior sazonal, as `s*P` posicoes restantes tambem passam a pagar
+    penalSARAtivo = penalizado && stationary && model.P > 0 && nYback > 0
+    nYbackPago = (penalARAtivo ? min(model.p, nYback) : 0) +
+                 (penalSARAtivo ? min(model.seasonality * model.P,
+                                      nYback - (penalARAtivo ? min(model.p, nYback) : 0)) : 0)
     model.metadata["nPresampleFree"] =
         !freeInit ? 0 :
         penalizado ? (nYback - nYbackPago) : (nYback + nEpsPre)
@@ -2003,6 +2007,19 @@ function objectiveFunctionDefinition!(
         S = sum(jumpModel[:ϵ] .^ 2)
         temEps && (S = S + sum(jumpModel[:ϵpre][t0]^2 for t0 = epsLo:0))
         nEf = T + (temEps ? nEpsPre : 0)
+        # PRIOR SAZONAL sobre as `s*P` posicoes que a forma nao-sazonal deixa descobertas.
+        #
+        # Com `p = 0` o processo so liga `y_t` a `y_{t-s}, y_{t-2s}, ...`, entao a serie se
+        # decompoe em `s` subseries INDEPENDENTES, cada uma um AR(P) no indice sazonal. As
+        # `s*P` pre-amostrais viram `s` grupos de `P`, e cada grupo tem exatamente a
+        # distribuicao inicial de um AR(P) — mesma forma de Levinson, com os coeficientes de
+        # reflexao SAZONAIS. Exato, e cobre tudo.
+        #
+        # Com `p > 0` E `P > 0` o desacoplamento quebra (os termos cruzados phi_i*Phi_k ligam
+        # as subseries), e o que se aplica e correcao parcial. Nao ha aqui a pretensao de
+        # exatidao nesse caso.
+        temSAR = model.P > 0 && nYback > 0 && haskey(object_dictionary(jumpModel), :κSAR) &&
+                 haskey(object_dictionary(jumpModel), :yback)
         if temK
             κ = jumpModel[:κAR]
             yb = jumpModel[:yback]
@@ -2030,10 +2047,35 @@ function objectiveFunctionDefinition!(
             # `log` — e com ele a variavel auxiliar que existia so para evitar log(0) no ponto
             # inicial, onde todas as variaveis partem de zero.
             fator = prod([(1 - κ[j]^2)^(-j / nEf) for j = 1:model.p])
-            @objective(jumpModel, Min, S * fator)
         else
-            @objective(jumpModel, Min, S)
+            fator = 1.0
         end
+        if temSAR
+            κS = jumpModel[:κSAR]
+            yb = jumpModel[:yback]
+            estS = reflectionToARStages([κS[k] for k = 1:model.P])
+            # as posicoes de `yback` cobertas pelo bloco nao-sazonal ja pagaram
+            jaPago = temK ? min(model.p, nYback) : 0
+            nbS = 0
+            for r = 0:(model.seasonality-1)          # classe de residuo (subserie)
+                for k = 1:model.P
+                    idx = yLo + jaPago + r + (k - 1) * model.seasonality
+                    idx > 0 && continue
+                    pred = k == 1 ? 0.0 :
+                           sum(estS[k-1][j] * yb[idx-j*model.seasonality]
+                               for j = 1:(k-1) if idx - j * model.seasonality >= yLo)
+                    S = S + (yb[idx] - pred)^2 * prod([(1 - κS[j]^2) for j = k:model.P])
+                    nbS += 1
+                end
+            end
+            if nbS > 0
+                nEf += nbS
+                # `s` copias do determinante do bloco AR(P), uma por subserie
+                fator = fator * prod([(1 - κS[j]^2)^(-model.seasonality * j / nEf)
+                                      for j = 1:model.P])
+            end
+        end
+        @objective(jumpModel, Min, S * fator)
     elseif objectiveFunction == "mse"
         @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
     elseif objectiveFunction == "ml_exact"

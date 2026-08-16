@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.0] - Unreleased
 
 ### Fixed
+- **A `lambda` the estimation ignores no longer moves the information criteria.** The sparse
+  parameter count was triggered by the *presence* of `lambda`/`alpha` on the model rather
+  than by the objective that actually fitted it. Measured: with fixed coefficients
+  `[0.5, 0.0, 0.0]` and `objectiveFunction = "mse"`, passing `lambda = 1.0` left the
+  coefficients bit-identical but took `K` from 4 to 2 and the AICc from 190.9058 to
+  186.3890 — 4.5 units, on a scale where decisions turn at ~2. The count now keys off
+  `model.metadata["objectiveFunction"]`. `elastic_net` keeps its sparse count at every
+  `alpha`; restricting it to the lasso case (`alpha = 1`), the only one with a
+  degrees-of-freedom result behind it, is a policy question and is left open.
+- **`objectiveFunction = "ridge"` now warns that it ignores `lambda`.** The shrinkage is
+  fixed at `sqrt(effective sample size)` in the objective; the argument was accepted,
+  stored and silently discarded (verified: `lambda` from 0.01 to 100 gives identical
+  coefficients to six decimals). Whether to honour it or reject it outright is left open —
+  accepting it silently was the one indefensible option.
+- **`objectiveFunction = "ml_exact"` now warns when it degrades to plain CSS**, i.e. when
+  the reflection parameterization is off (`stationary = false`) or there is no non-seasonal
+  AR part (`p = 0`). In those cases the user asked for an exact likelihood and got the
+  conditional one verbatim (verified: identical coefficients to `"mse"`). The partial
+  coverage on ARMA/seasonal models is documented scope and does not warn.
+
+### Documentation
+- `auto`'s `maxOrder` now documents that it applies to `searchMethod = "grid"` only. At the
+  monthly defaults the grid therefore reaches 96 of the 324 order combinations in the box
+  while the stepwise search reaches all 324 — the exhaustive method searches a smaller space
+  than the heuristic one and can lose to it. The stepwise behaviour is deliberate parity with
+  `forecast`; the surprise was that it went unstated.
+- `criterionLoglike` documents that the criteria are a **quasi-AIC**: the likelihood is
+  evaluated at the coefficients the user's objective produced, not at the Gaussian maximum,
+  with the measured size of the deficit and why a one-step Newton refinement does not close
+  it (the optimum sits on the invertibility boundary, where Le Cam equivalence fails).
+
 - **Criterion fallback no longer rewards boundary candidates.** When the exact
   Gaussian likelihood is not computable (roots at the boundary), the criterion falls
   back to the CSS likelihood — which is evaluated on the conditioned sample

@@ -700,7 +700,19 @@ of-freedom estimate for L1-type regularization (Zou, Hastie & Tibshirani, 2007).
 
 """
 function get_hyperparameters_number(model::SARIMAModel)
-    usesSparseCount = !isnothing(model.lambda) || !isnothing(model.alpha)
+    # Pelo OBJETIVO que ajustou o modelo, nao pela presenca de `lambda`/`alpha` nos campos.
+    # O gatilho antigo (`!isnothing(model.lambda) || !isnothing(model.alpha)`) fazia um
+    # parametro que a estimacao IGNORA mexer no criterio: com coeficientes fixos
+    # `[0.5, 0.0, 0.0]`, passar `lambda = 1.0` num ajuste `mse` deixava os coeficientes
+    # bit-a-bit identicos mas levava K de 4 para 2 e o AICc de 190.9058 para 186.3890 —
+    # 4,5 unidades num limiar de decisao de ~2.
+    #
+    # ESCOPO desta correcao: mata o gatilho vazio e nada mais. A contagem de nao-nulos segue
+    # valendo para `elastic_net` em qualquer `alpha`, como hoje. Restringi-la ao lasso
+    # (`alpha = 1`), que e o unico caso com respaldo teorico (Zou-Hastie-Tibshirani 2007 —
+    # sob ridge a contagem degenera para a nominal, porque ridge encolhe e nao zera), e
+    # mudanca de politica, nao correcao de defeito.
+    usesSparseCount = get(model.metadata, "objectiveFunction", "") == "elastic_net"
     if isFitted(model) && usesSparseCount
         hyperparametersNumber = 1
         fields = [:c, :trend, :ϕ, :θ, :Φ, :Θ, :exogCoefficients]
@@ -1065,6 +1077,20 @@ function fit!(
     isnothing(alpha) || (model.alpha = alpha)
     model.metadata["seasonalForm"] = String(seasonalForm)
     model.metadata["initialization"] = String(initialization)
+    # Registrado porque a CONTAGEM DE PARAMETROS depende do objetivo que de fato ajustou o
+    # modelo, e nao da presenca dos campos `lambda`/`alpha` — ver `get_hyperparameters_number`.
+    model.metadata["objectiveFunction"] = objectiveFunction
+
+    # O objetivo `ridge` fixa `lambda = sqrt(nEff)` internamente (ver a definicao do objetivo)
+    # e IGNORA o argumento. Aceitar em silencio e o pior dos mundos: o usuario pensa estar
+    # controlando o encolhimento, o ajuste nao muda, e — antes da correcao do gatilho de
+    # `usesSparseCount` — o `lambda` ainda mexia no criterio. Honrar o argumento ou recusa-lo
+    # com erro sao decisoes de comportamento; avisar nao e.
+    if objectiveFunction == "ridge" && !isnothing(lambda)
+        @warn "objectiveFunction = \"ridge\" ignores `lambda`: the shrinkage is fixed at " *
+              "sqrt(effective sample size) by construction. The value passed has no effect " *
+              "on the fit." maxlog = 1
+    end
 
     # Telemetria de custo (atribuicao de performance). O orcamento de uma busca e
     # (nº de fits) x (custo por fit), e o custo por fit se divide em CONSTRUIR o problema
@@ -2034,6 +2060,21 @@ function objectiveFunctionDefinition!(
         # conjunto nao fatora assim, e o que se aplica e uma correcao parcial (so a parte
         # autorregressiva nao-sazonal); os demais residuos seguem em CSS.
         temK = haskey(object_dictionary(jumpModel), :κAR) && model.p > 0
+        # Sem `κAR` (isto e, `stationary = false`) ou sem parte AR (`p = 0`), a correcao dos
+        # valores iniciais nao tem por onde ser escrita e o objetivo vira CSS PURO — o usuario
+        # pediu verossimilhanca exata e recebe exatamente o `mse` condicionado, verificado:
+        # AR(2) com `stationary = false` produz coeficientes identicos ao `mse` (diferenca 0,0).
+        # Avisar so na degradacao TOTAL; a cobertura parcial em ARMA/sazonal e escopo declarado
+        # na documentacao acima, nao surpresa.
+        #
+        # Isto tambem e o alarme do lead de performance que propoe `stationary = false` como
+        # default de busca: se aquilo entrar, o `ml_exact` vira CSS silenciosamente.
+        if !temK || isnothing(yValues)
+            @warn "objectiveFunction = \"ml_exact\" degrades to plain CSS here: it needs " *
+                  "the reflection parameterization (`stationary = true`) and a non-seasonal " *
+                  "AR part (`p > 0`). Got " *
+                  "stationary=$(haskey(object_dictionary(jumpModel), :κAR)), p=$(model.p)." maxlog = 1
+        end
         if !temK || isnothing(yValues)
             @objective(jumpModel, Min, sum(jumpModel[:ϵ][t]^2 for t = lb:T))
         else
@@ -2788,7 +2829,15 @@ Automatically fits the best SARIMA model according to the specified parameters.
 - `maxP::Int`: The maximum autoregressive order for the seasonal part. Default is 2.
 - `maxD::Int`: The maximum integration order for the seasonal part. Default is 1.
 - `maxQ::Int`: The maximum moving average order for the seasonal part. Default is 2.
-- `maxOrder::Int`: The maximum order for the non-seasonal part. Default is 5.
+- `maxOrder::Int`: Cap on `p + q + P + Q`. Default is 5. **Applies to
+  `searchMethod = "grid"` only.** The stepwise searches deliberately run with the cap
+  disabled, to match `forecast`: there `max.order` lives inside `search.arima` (the
+  non-stepwise path), and since `auto.arima` defaults to stepwise, R routinely selects
+  orders whose sum exceeds 5. The consequence is that at the monthly defaults
+  (`maxp = maxq = 5`, `maxP = maxQ = 2`) the grid reaches 96 of the 324 order combinations
+  in the box while the stepwise search reaches all 324 — i.e. the exhaustive method
+  searches a *smaller* space than the heuristic one, and can lose to it. Raise `maxOrder`
+  (up to `maxp + maxq + maxP + maxQ`) to make `"grid"` genuinely exhaustive.
 - `informationCriteria::String`: The information criteria to be used for model selection. Options are "aic", "aicc", or "bic". Default is "aicc".
 - `allowMean::Union{Bool,Nothing}`: Whether to include a mean term in the model. Default is nothing.
 - `allowDrift::Union{Bool,Nothing}`: Whether to include a drift term in the model. Default is nothing.

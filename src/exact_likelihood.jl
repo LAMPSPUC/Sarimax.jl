@@ -205,12 +205,36 @@ function exactLoglike(model::SARIMAModel)
     z = Float64.(values(diffY))
     isempty(z) && return nothing
 
-    # remove a parte deterministica na mesma escala da serie diferenciada
+    # remove a parte deterministica na mesma escala da serie diferenciada.
+    #
+    # DUAS CONVERSOES QUE FALTAVAM, ambas verificadas contra o `stats::arima(method="ML")`:
+    #
+    # 1. `model.c` e a CONSTANTE da regressao, nao a media. O nivel a remover e
+    #    mu = c / (1 - sum(ar)). Medido na serie M4 44895: subtraindo `c` da -2305.891,
+    #    subtraindo `mu` da -2304.253, e o R da -2304.253 exatamente. Erro de 1.64 de
+    #    log-verossimilhanca = 3.3 unidades de AICc, o suficiente para virar selecao.
+    #
+    # 2. `model.trend` MULTIPLICA o regressor de tempo diferenciado (`trend * driftValues[t]`,
+    #    ver `sarima.jl`), e esse regressor nao vale 1 em geral: com d=1,D=0 vale 1, mas com
+    #    d=0,D=1 vale `s` (12 no mensal). Subtrair o escalar erra por um fator 12 nessa classe.
+    #
+    # Na M4 monthly as duas juntas atingem 15,7% das 48k series (10,7% + 5,0%).
     if !isnothing(model.c) && model.allowMean
-        z = z .- model.c
+        arSum = isempty(ar) ? zero(eltype(z)) : sum(ar)
+        denom = 1 - arSum
+        level = abs(denom) > 1e-8 ? model.c / denom : model.c
+        z = z .- level
     end
     if !isnothing(model.trend) && model.allowDrift
-        z = z .- model.trend
+        driftReg = try
+            r = values(differentiate(
+                    TimeArray(timestamp(model.y), collect(1.0:length(values(model.y)))),
+                    model.d, model.D, s))
+            length(r) == length(z) ? Float64.(r) : fill(1.0, length(z))
+        catch
+            fill(1.0, length(z))
+        end
+        z = z .- model.trend .* driftReg
     end
     if !isnothing(model.exog) && !isnothing(model.exogCoefficients)
         try

@@ -7,6 +7,7 @@ using Test
 using Random
 using TimeSeries
 using JSON
+using LinearAlgebra
 
 # Testes dos modelos
 
@@ -61,6 +62,8 @@ using JSON
     include("objective_guardrails.jl")
 
     include("deterministic_term.jl")
+
+    include("exact_ml_determinant.jl")
 
     include("aqua.jl")
 end

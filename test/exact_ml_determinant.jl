@@ -36,3 +36,13 @@
         @test abs(conjunto - soma) > 0.1
     end
 end
+
+@testset "MA determinant does not require the invertible parameterisation" begin
+    # A recursao inversa de Levinson-Durbin produz os `kappa` a partir dos proprios `theta`,
+    # entao o termo vale com `theta` LIVRE. E ele proprio e a barreira: diverge em |kappa| -> 1.
+    for θ in ([0.5], [0.4, 0.2], [0.6, -0.3])
+        κ = Sarimax.maToReflection(θ)
+        expr = Sarimax.maToReflectionExpr(θ, length(θ))
+        @test isapprox(Float64.(expr), κ; atol = 1e-12)
+    end
+end

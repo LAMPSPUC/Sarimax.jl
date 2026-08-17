@@ -2070,8 +2070,17 @@ function objectiveFunctionDefinition!(
             end
             if nbS > 0
                 nEf += nbS
-                # `s` copias do determinante do bloco AR(P), uma por subserie
-                fator = fator * prod([(1 - κS[j]^2)^(-model.seasonality * j / nEf)
+                # `s` copias do determinante do bloco AR(P), uma por subserie.
+                #
+                # O expoente divide por `T`, nao por `nEf`, pela mesma razao do bloco
+                # nao-sazonal: concentrando sigma^2 numa densidade de `T` OBSERVACOES sai
+                # `S * |Omega|^(1/T)`, e perfilar posicoes pre-amostrais nao aumenta a
+                # dimensao do dado. Aqui o erro seria grande, nao de segunda ordem: o bloco
+                # vale `s*P`, entao `T/nEf` cai a 0,88 com P=2 e s=12 contra 0,995 no bloco
+                # nao-sazonal. Medido em 6 replicas de AR sazonal puro (s=12, T=180, P=2)
+                # contra a covariancia teorica construida: com `nEf` o argmin vai para 0,950
+                # — a borda do dominio — em 6 de 6; com `T` reproduz o argmin exato em 6 de 6.
+                fator = fator * prod([(1 - κS[j]^2)^(-model.seasonality * j / T)
                                       for j = 1:model.P])
             end
         end

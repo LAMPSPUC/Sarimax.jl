@@ -898,6 +898,7 @@ function fit!(
     maxTimeSeconds::Union{Nothing,Real} = nothing,
     warmStartFromBox::Bool = false,
     cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
+    multistart::Bool = false,
 )
     @assert 0.0 < cvarLevel < 1.0 "cvarLevel must lie strictly between 0 and 1."
     # Two-phase warm-start orchestration: when a stationarity/invertibility-by-
@@ -922,6 +923,84 @@ function fit!(
     # Bounding `u` to [-delta, delta] was tried instead and made things worse: it is exact
     # at the optimum but adds 2(T-lb+1) active box constraints, and LOCALLY_INFEASIBLE went
     # from 2 to 3 of the six diagnosed series.
+    # MULTISTART {zero, CSS}. O ponto inicial importa muito mais do que parecia: medido em
+    # tres series da M4 com ordem (2,1,2), tres partidas distintas dao SSE que difere por
+    # fator 4 a 5, e em duas delas a partida NAO-nula chega a SSE cinco vezes MENOR que a do
+    # zero. O caminho de producao usava so o zero.
+    #
+    # As partidas sao {zero, ajuste CSS}, que e o caminho do proprio `stats::arima` (CSS
+    # seguido de ML). Deterministico e sem constantes a escolher.
+    #
+    # O desempate e pelo CRITERIO, nao pelo SSE. Isso e essencial: pelo SSE ganharia a
+    # partida que satura `theta` na cota do dominio irrestrito (medido: [2.0, -1.0]), e e
+    # exatamente o ponto cuja previsao nao amortece. Com a ordem fixa, `K` e `n` coincidem
+    # entre as duas, entao comparar AICc equivale a comparar a verossimilhanca do criterio.
+    if multistart && isnothing(warmStart)
+        passaM = (;
+            silent, optimizer, mipSolver, automaticExogDifferentiation, alpha, lambda,
+            invertible, invertibilityMargin, minConditioningObs, seasonalForm,
+            stationary, stationarityMargin, maxTimeSeconds, warmStartFromBox, cvarLevel,
+        )
+        criterio(m) = try
+            v = aicc(m)
+            isfinite(v) ? v : Inf
+        catch
+            Inf
+        end
+        okStatus(m) = get(m.metadata, "solverStatus", "") in
+                      ("LOCALLY_SOLVED", "OPTIMAL", "ALMOST_LOCALLY_SOLVED", "TIME_LIMIT")
+
+        # semente CSS: o mesmo objetivo, condicionado (`:zeroed`)
+        semente = nothing
+        try
+            cand = deepcopy(model)
+            fit!(cand; passaM..., objectiveFunction = objectiveFunction,
+                 initialization = :zeroed, multistart = false)
+            okStatus(cand) && (semente = cand)
+        catch
+        end
+
+        # partida do zero
+        aZero = nothing
+        try
+            cand = deepcopy(model)
+            fit!(cand; passaM..., objectiveFunction = objectiveFunction,
+                 initialization = initialization, multistart = false)
+            okStatus(cand) && (aZero = cand)
+        catch
+        end
+        # partida da semente CSS
+        aCSS = nothing
+        if !isnothing(semente)
+            try
+                cand = deepcopy(model)
+                fit!(cand; passaM..., objectiveFunction = objectiveFunction,
+                     initialization = initialization, warmStart = semente, multistart = false)
+                okStatus(cand) && (aCSS = cand)
+            catch
+            end
+        end
+
+        cands = filter(!isnothing, [aZero, aCSS])
+        if isempty(cands)
+            # nenhuma partida convergiu: cai no caminho normal e deixa o erro aparecer la
+            return fit!(model; passaM..., objectiveFunction = objectiveFunction,
+                        initialization = initialization, multistart = false)
+        end
+        vencedor = cands[argmin([criterio(c) for c in cands])]
+        # `:y` entra na lista porque o ajuste imputa faltantes DENTRO do proprio modelo
+        # (`model.y = ...`); sem copiar, o `y` do vencedor e os residuos ficariam de
+        # amostras diferentes nas series com buraco.
+        for f in (:ϕ, :θ, :Φ, :Θ, :c, :trend, :ϵ, :σ², :fitInSample, :exogCoefficients,
+                  :icOffset, :y)
+            hasproperty(model, f) && setfield!(model, f, getfield(vencedor, f))
+        end
+        merge!(model.metadata, vencedor.metadata)
+        model.metadata["multistartPartidas"] = length(cands)
+        model.metadata["multistartVenceuCSS"] = (vencedor === aCSS)
+        return model
+    end
+
     if objectiveFunction == "huber" && isnothing(warmStart)
         passa = (;
             silent, optimizer, mipSolver, automaticExogDifferentiation, alpha, lambda,
@@ -2971,6 +3050,7 @@ function auto(
     parallel::Bool = false,
     seasonalForm::Symbol = :multiplicative,
     initialization::Symbol = :zeroed,
+    multistart::Bool = false,
     # INDEPENDENTE de `assertStationarity`. Antes esta linha era `= assertStationarity`, o
     # que amarrava duas decisoes distintas: impor estacionariedade POR CONSTRUCAO (mudar a
     # parametrizacao) e REJEITAR candidatos inadmissiveis (regra de selecao). Sao coisas
@@ -3169,7 +3249,7 @@ function auto(
             maxOrder = maxp + maxq + maxP + maxQ,
             warmStartFromBox = warmStartFromBox,
             maxTimeSeconds = searchMaxTime,
-            cvarLevel = cvarLevel,
+            cvarLevel = cvarLevel, multistart = multistart,
             objectiveFunction = objectiveFunction,
             assertStationarity = assertStationarity,
             assertInvertibility = assertInvertibility,
@@ -3207,7 +3287,7 @@ function auto(
             maxOrder = maxp + maxq + maxP + maxQ,
             warmStartFromBox = warmStartFromBox,
             maxTimeSeconds = searchMaxTime,
-            cvarLevel = cvarLevel,
+            cvarLevel = cvarLevel, multistart = multistart,
             objectiveFunction = objectiveFunction,
             assertStationarity = assertStationarity,
             assertInvertibility = assertInvertibility,
@@ -3244,7 +3324,7 @@ function auto(
             maxOrder = maxOrder,
             warmStartFromBox = warmStartFromBox,
             maxTimeSeconds = searchMaxTime,
-            cvarLevel = cvarLevel,
+            cvarLevel = cvarLevel, multistart = multistart,
             objectiveFunction = objectiveFunction,
             assertStationarity = assertStationarity,
             assertInvertibility = assertInvertibility,
@@ -3297,7 +3377,7 @@ function auto(
             )
         end
 
-        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs, minConditioningObs = searchLb, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel)
+        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs, minConditioningObs = searchLb, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
     end
 
     bestModel.exog = exog
@@ -3976,6 +4056,7 @@ function ensureAdmissible!(
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
     initialization::Symbol = :zeroed,
+    multistart::Bool = false,
     refitMargin::AbstractFloat = 2e-3,
     refit::Bool = true,
     stationary::Bool = assertStationarity,
@@ -4093,6 +4174,9 @@ function localSearch!(
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
     cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
+    # ULTIMO posicional, de proposito: qualquer outra posicao desloca `rootMargin`/
+    # `optimizer` e reproduz o MethodError documentado acima.
+    multistart::Bool = false,
 ) where {Fl<:AbstractFloat}
     ModelFl = Fl
     localBestCriteria::ModelFl = Inf
@@ -4101,13 +4185,13 @@ function localSearch!(
     if parallel
         Threads.@threads for model in toFit
             try
-                fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel)
+                fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
             catch e
                 @warn "Parallel candidate fit failed" exception = e
             end
         end
     else
-        foreach(model -> fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel), toFit)
+        foreach(model -> fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart), toFit)
     end
     for model in toFit
         isFitted(model) || continue
@@ -4530,6 +4614,7 @@ function stepWiseSearchNaive(
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
     initialization::Symbol = :zeroed,
+    multistart::Bool = false,
     # Default do R: `stats::arima` com `transform.pars = TRUE` parametriza o AR por `tanh`,
     # isto e, estacionario POR CONSTRUCAO num dominio aberto. O MA fica livre (ver
     # `invertible`), que e a outra metade do comportamento do R.
@@ -4612,6 +4697,7 @@ function stepWiseSearchNaive(
         warmStartFromBox,
         maxTimeSeconds,
         cvarLevel,
+        multistart,
     )
 
     if isnothing(bestModel)
@@ -4681,6 +4767,7 @@ function stepWiseSearchNaive(
             warmStartFromBox,
             maxTimeSeconds,
             cvarLevel,
+            multistart,
         )
         showLogs && !isnothing(itBestModel) && @info(
             "Iteration $(iterations): Best model found is $(getId(itBestModel)) with $(itBestCriteria) criteria"
@@ -4801,6 +4888,7 @@ function stepwiseSearch(
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
     initialization::Symbol = :zeroed,
+    multistart::Bool = false,
     # Default do R: `stats::arima` com `transform.pars = TRUE` parametriza o AR por `tanh`,
     # isto e, estacionario POR CONSTRUCAO num dominio aberto. O MA fica livre (ver
     # `invertible`), que e a outra metade do comportamento do R.
@@ -4880,7 +4968,7 @@ function stepwiseSearch(
         alpha = alpha,
         lambda = lambda
     )
-    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel)
+    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
     showLogs && @info(
         "Fitted $(getId(bestModel)) with $(informationCriteriaFunction(bestModel; offset=icOffset)) criteria"
     )
@@ -4935,7 +5023,7 @@ function stepwiseSearch(
         alpha = alpha,
         lambda = lambda
     )
-    fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel)
+    fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
     showLogs && @info(
         "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
     )
@@ -4990,7 +5078,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -5041,7 +5129,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -5090,7 +5178,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -5146,7 +5234,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda,
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -5338,6 +5426,7 @@ function gridSearch(
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
     initialization::Symbol = :zeroed,
+    multistart::Bool = false,
     # Default do R: `stats::arima` com `transform.pars = TRUE` parametriza o AR por `tanh`,
     # isto e, estacionario POR CONSTRUCAO num dominio aberto. O MA fica livre (ver
     # `invertible`), que e a outra metade do comportamento do R.
@@ -5401,7 +5490,7 @@ function gridSearch(
         )
     end
 
-    fitOne!(m) = fit!(m; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel)
+    fitOne!(m) = fit!(m; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
     if parallel
         Threads.@threads for m in candidates
             try

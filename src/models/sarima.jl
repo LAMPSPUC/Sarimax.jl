@@ -923,18 +923,22 @@ function fit!(
     # Bounding `u` to [-delta, delta] was tried instead and made things worse: it is exact
     # at the optimum but adds 2(T-lb+1) active box constraints, and LOCALLY_INFEASIBLE went
     # from 2 to 3 of the six diagnosed series.
-    # MULTISTART {zero, CSS}. O ponto inicial importa muito mais do que parecia: medido em
-    # tres series da M4 com ordem (2,1,2), tres partidas distintas dao SSE que difere por
-    # fator 4 a 5, e em duas delas a partida NAO-nula chega a SSE cinco vezes MENOR que a do
-    # zero. O caminho de producao usava so o zero.
+
+    # MULTISTART {zero, CSS}: o caminho de producao partia sempre do zero. As partidas sao
+    # {zero, ajuste CSS}, que e o caminho do proprio `stats::arima` (CSS seguido de ML) —
+    # deterministico e sem constante nova para calibrar.
     #
-    # As partidas sao {zero, ajuste CSS}, que e o caminho do proprio `stats::arima` (CSS
-    # seguido de ML). Deterministico e sem constantes a escolher.
+    # O desempate e pelo CRITERIO, nao pelo SSE. Com a ordem fixa `K` e `n` coincidem entre
+    # as partidas, entao comparar AICc equivale a comparar a verossimilhanca do criterio —
+    # que aqui e a EXATA (ver o recuo em `loglikelihood`, src/fit.jl). Pelo SSE ganharia a
+    # partida de menor erro dentro da amostra, que nao e a de melhor previsao.
     #
-    # O desempate e pelo CRITERIO, nao pelo SSE. Isso e essencial: pelo SSE ganharia a
-    # partida que satura `theta` na cota do dominio irrestrito (medido: [2.0, -1.0]), e e
-    # exatamente o ponto cuja previsao nao amortece. Com a ordem fixa, `K` e `n` coincidem
-    # entre as duas, entao comparar AICc equivale a comparar a verossimilhanca do criterio.
+    # Efeito medido a ORDEM FIXA (40 series da M4 monthly, (2,1,2), `:penalized`): a semente
+    # CSS vence o argmin em 35% dos casos mas o ganho de AICc so passa de 1e-6 em 17,5%, e o
+    # AICc nunca piora — nao pode piorar, o zero segue candidato. Ou seja, a ordem fixa quase
+    # nao se move; o que justifica o passo e o efeito por dentro da BUSCA, onde um criterio
+    # marginalmente melhor pode trocar a ordem escolhida. Medir sempre pelo `auto`, nunca por
+    # um ajuste de ordem fixa.
     if multistart && isnothing(warmStart)
         passaM = (;
             silent, optimizer, mipSolver, automaticExogDifferentiation, alpha, lambda,
@@ -960,14 +964,19 @@ function fit!(
         catch
         end
 
-        # partida do zero
+        # partida do zero. Sob `:zeroed` ela e IDENTICA a semente (mesma inicializacao,
+        # mesmos argumentos): reaproveita em vez de pagar o mesmo ajuste duas vezes.
         aZero = nothing
-        try
-            cand = deepcopy(model)
-            fit!(cand; passaM..., objectiveFunction = objectiveFunction,
-                 initialization = initialization, multistart = false)
-            okStatus(cand) && (aZero = cand)
-        catch
+        if initialization === :zeroed
+            aZero = semente
+        else
+            try
+                cand = deepcopy(model)
+                fit!(cand; passaM..., objectiveFunction = objectiveFunction,
+                     initialization = initialization, multistart = false)
+                okStatus(cand) && (aZero = cand)
+            catch
+            end
         end
         # partida da semente CSS
         aCSS = nothing

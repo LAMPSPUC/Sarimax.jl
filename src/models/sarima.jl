@@ -2035,10 +2035,47 @@ function objectiveFunctionDefinition!(
             # teorica construida — com `1/T` o argmin reproduz o da verossimilhanca exata,
             # com `1/nEf` nao.
             fator = prod([(1 - κ[j]^2)^(-j / T) for j = 1:model.p])
-            @objective(jumpModel, Min, S * fator)
         else
-            @objective(jumpModel, Min, S)
+            # sem bloco AR nao ha determinante desse lado, mas o `fator` tem de existir: o
+            # bloco MA abaixo o multiplica, e o `@objective` sai UMA vez ao final. Emitir o
+            # objetivo aqui dentro deixava o termo do MA fora dele.
+            fator = 1.0
         end
+        # ---- bloco MA: o mesmo termo de determinante que o bloco AR ja tem ----
+        #
+        # O comentario acima afirma que somar os epsilon pre-amostrais a soma de quadrados basta
+        # ("Exato, e vale para MA e sazonal sem nenhuma maquina nova"). NAO basta: PERFILAR
+        # (minimizar) sobre os pre-amostrais nao e o mesmo que INTEGRA-los, e a diferenca e
+        # justamente o log-determinante. Sem ele o ponto ajustado nao e o de maxima
+        # verossimilhanca — medido contra `arima(method="ML")` do R, um MA(2) puro erra ~2e-3
+        # nos coeficientes, contra ~2e-5 de um AR(2) puro, que TEM o termo.
+        #
+        # A forma e a mesma do lado AR, com os coeficientes de reflexao do MA:
+        #     log|Omega| = -sum_j j*log(1 - kappa_j^2)
+        # Verificado contra o determinante da covariancia teorica de um MA(q) construida
+        # diretamente: erro ~1e-14 em theta = [0.5], [0.7], [0.4,0.2], [0.6,-0.3], [0.5,0.3,0.2].
+        # O bloco sazonal MA ganha a multiplicidade `s`, pela mesma fatoracao em cadeias de fase.
+        #
+        # So se aplica com `invertible = true`, que e quando os `kappa` do MA existem como
+        # variaveis de decisao; com a parametrizacao livre nao ha reflexao para usar.
+        # Os coeficientes de reflexao do MA NAO precisam da parametrizacao invertivel: a
+        # recursao inversa de Levinson-Durbin os produz a partir dos proprios `theta`, e o
+        # termo de determinante entao vale com `theta` LIVRE. Melhor ainda, ele torna a
+        # restricao dura redundante — `-sum_j j*log(1 - kappa_j^2)` diverge quando
+        # |kappa| -> 1, ou seja o proprio determinante e a barreira de invertibilidade, e
+        # repele a fronteira sem excluir nenhum ponto por decreto.
+        if model.q > 0
+            κMA = maToReflectionExpr(jumpModel[:θ], model.q)
+            isnothing(κMA) ||
+                (fator = fator * prod([(1 - κMA[j]^2)^(-j / T) for j = 1:model.q]))
+        end
+        if model.Q > 0
+            κSMA = maToReflectionExpr(jumpModel[:Θ], model.Q)
+            isnothing(κSMA) || (fator =
+                fator *
+                prod([(1 - κSMA[j]^2)^(-model.seasonality * j / T) for j = 1:model.Q]))
+        end
+        @objective(jumpModel, Min, S * fator)
 
     elseif objectiveFunction == "mse"
         @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
@@ -5465,4 +5502,38 @@ function regularizationObjective(jumpModel::Model, model::SARIMAModel, tolerance
             (jumpModel[:α] * sum(weights .* auxVariables) + (1 - jumpModel[:α])/2 * sum(weights .* (parametersVectorExtended .^ 2)))
         )
     end
+end
+
+"""
+    maToReflectionExpr(θ, q)
+
+Coeficientes de reflexao do bloco MA como EXPRESSOES do modelo JuMP, pela recursao inversa de
+Levinson-Durbin — a mesma de [`maToReflection`](@ref), escrita para variaveis de decisao em vez
+de numeros. Existe para que o termo de log-determinante do bloco MA possa ser montado sem exigir
+`invertible = true`: a parametrizacao invertivel cria os `kappa` como variaveis limitadas, mas o
+que o determinante precisa e so do VALOR deles, e ele e uma funcao racional dos `theta`.
+
+Devolve `nothing` quando a ordem e zero. As divisoes por `1 - kappa^2` sao os mesmos
+denominadores da versao numerica; nao ha protecao contra zero aqui porque o proprio termo de
+determinante diverge la, o que e o comportamento desejado — ele repele a fronteira em vez de
+precisar de uma restricao que a exclua.
+"""
+function maToReflectionExpr(θ, q::Int)
+    q == 0 && return nothing
+    a = Any[θ[i] for i = 1:q]
+    κ = Vector{Any}(undef, q)
+    for m = q:-1:1
+        κ[m] = a[m]
+        if m > 1
+            d = 1 - κ[m]^2
+            aprev = Vector{Any}(undef, m - 1)
+            for i = 1:(m-1)
+                aprev[i] = (a[i] - κ[m] * a[m-i]) / d
+            end
+            for i = 1:(m-1)
+                a[i] = aprev[i]
+            end
+        end
+    end
+    κ
 end

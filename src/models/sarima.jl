@@ -2029,11 +2029,17 @@ function objectiveFunctionDefinition!(
             # covariancia, nao da exponencial, e continuam presentes. O que sai e apenas o
             # `log` — e com ele a variavel auxiliar que existia so para evitar log(0) no ponto
             # inicial, onde todas as variaveis partem de zero.
-            fator = prod([(1 - κ[j]^2)^(-j / nEf) for j = 1:model.p])
+            # O expoente divide pela dimensao da DENSIDADE (`T` observacoes), nao pelo
+            # numero de termos quadrados em que `S` se decompoe: perfilar posicoes
+            # pre-amostrais nao aumenta a dimensao do dado. Verificado contra a covariancia
+            # teorica construida — com `1/T` o argmin reproduz o da verossimilhanca exata,
+            # com `1/nEf` nao.
+            fator = prod([(1 - κ[j]^2)^(-j / T) for j = 1:model.p])
             @objective(jumpModel, Min, S * fator)
         else
             @objective(jumpModel, Min, S)
         end
+
     elseif objectiveFunction == "mse"
         @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
     elseif objectiveFunction == "ml_exact"

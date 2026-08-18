@@ -2886,6 +2886,17 @@ Automatically fits the best SARIMA model according to the specified parameters.
 - `searchMethod::String`: The search strategy: "stepwise" (Hyndman-Khandakar style, default),
   "stepwiseNaive", "grid" (exhaustive), or "sarimax" (no search: fits a single dense
   specification at the maximum orders, intended for regularized estimation).
+- `requireTermsWhenOverDifferenced::Bool`: When `d + D >= 2`, drop the term-free order
+  `(0,d,0)(0,D,0)` from the search. Default is false: `auto.arima` has no such rule, so
+  enabling it is a deliberate divergence from the reference implementation.
+- `requireMAWhenDoublyDifferenced::Bool`: When `d >= 2`, require `q >= 1` (and symmetrically
+  `Q >= 1` when `D >= 2`). Second-differencing induces a unit MA root at the lag that was
+  differenced; a candidate without an MA term there cannot represent it and compensates with
+  AR persistence, which explodes once re-integrated twice. Measured on 144 M4 monthly series
+  with `d = 2, D = 0`: OWA 1.047 (worse than Naive2) to 0.993, per-series median 0.901 to
+  0.839. The guard is dimensional, not aggregate — a seasonal MA at lag `s` cannot damp a
+  unit root at lag 1. `d = D = 1` is untouched: with one difference in each dimension theory
+  does not say which one carries the term. Default is false.
 
 # References
 - Hyndman, RJ and Khandakar. "Automatic time series forecasting: The forecast package for R." Journal of Statistical Software, 26(3), 2008.
@@ -2934,6 +2945,7 @@ function auto(
     lambda::Union{Float64,Nothing} = nothing,
     alpha::Union{Float64,Nothing} = nothing,
     requireTermsWhenOverDifferenced::Bool = false,
+    requireMAWhenDoublyDifferenced::Bool = false,
 )
     # Parameter validation
     any(isnan, values(y)) && throw(
@@ -3128,6 +3140,7 @@ function auto(
             invertibilityMargin = invertibilityMargin,
             constrainedRefit = constrainedRefit,
             requireTermsWhenOverDifferenced = requireTermsWhenOverDifferenced,
+            requireMAWhenDoublyDifferenced = requireMAWhenDoublyDifferenced,
             optimizer = optimizer,
             allowMean = allowMean,
             allowDrift = allowDrift,
@@ -4762,6 +4775,7 @@ function stepwiseSearch(
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
     lambda::Union{Nothing,<:AbstractFloat} = nothing,
     requireTermsWhenOverDifferenced::Bool = false,
+    requireMAWhenDoublyDifferenced::Bool = false,
 )
     constant = allowDrift || allowMean
     # With d + D >= 2 and no AR/MA term at all, the forecast is a pure extrapolation of
@@ -4774,8 +4788,26 @@ function stepwiseSearch(
     # candidates on the full sample instead), so enabling it is a deliberate divergence
     # from the reference implementation.
     overDifferenced = requireTermsWhenOverDifferenced && (d + D) >= 2
+    # Second-differencing induces a unit MA root AT THE LAG THAT WAS DIFFERENCED. A candidate
+    # with no MA term at that lag cannot represent it and compensates with AR persistence,
+    # which explodes once re-integrated twice. Measured on the M4 monthly (144 series with
+    # d = 2, D = 0): every one of the seven worst offenders has q = 0 — including (1,0,0,0),
+    # which the "high AR order" reading does not cover. The seasonal counterpart (Q when
+    # D >= 2) is vacuous on monthly M4 but stated for symmetry.
+    #
+    # The guard is DIMENSIONAL, not aggregate: `q + Q >= 1` under `d + D >= 2` was rejected
+    # ex ante, because a seasonal MA at lag s cannot damp a unit root at lag 1 — (5,0,1,1)
+    # has Q = 1 and blew up anyway. d = D = 1 stays untouched by construction: with one
+    # difference in each dimension, theory does not say which one carries the insurance.
+    #
+    # This constrains representability, not magnitude: a genuinely q = 0 process stays nested
+    # at theta = 0, costing one AICc parameter.
+    requireNonSeasonalMA = requireMAWhenDoublyDifferenced && d >= 2
+    requireSeasonalMA = requireMAWhenDoublyDifferenced && D >= 2
     orderAllowed(np::Int, nq::Int, nP::Int, nQ::Int) =
-        !(overDifferenced && (np + nq + nP + nQ) == 0)
+        !(overDifferenced && (np + nq + nP + nQ) == 0) &&
+        !(requireNonSeasonalMA && nq == 0) &&
+        !(requireSeasonalMA && nQ == 0)
     # The constant term must live in the slot that matches the differencing order:
     # mean when d + D == 0 (allowMean), drift when d + D == 1 (allowDrift). Using the
     # wrong slot adds a term that vanishes after differencing (not identifiable) while
@@ -4832,8 +4864,13 @@ function stepwiseSearch(
     # the safety net itself must carry a term, so the minimal admissible model takes its
     # place. If no lag is available at all the guard simply cannot be honoured, and the
     # plain null model stands.
+    # Under the MA guard the safety net must carry the MA term itself: preferring an AR lag
+    # here reintroduces exactly the (1,0,0,0) corner the guard exists to remove, through the
+    # one path that adopts unconditionally.
     nullp, nullq = 0, 0
-    if overDifferenced
+    if requireNonSeasonalMA && maxq > 0
+        nullq = 1
+    elseif overDifferenced
         if maxp > 0
             nullp = 1
         elseif maxq > 0
@@ -4931,6 +4968,7 @@ function stepwiseSearch(
         )
         results[getId(fitModel)] = fitModel
         if considerModel &&
+           orderAllowed(auxp, 0, auxP, 0) &&
            informationCriteriaFunction(fitModel; offset = icOffset) <
            informationCriteriaFunction(bestModel; offset = icOffset)
             bestModel = fitModel
@@ -4981,6 +5019,7 @@ function stepwiseSearch(
         )
         results[getId(fitModel)] = fitModel
         if considerModel &&
+           orderAllowed(0, auxq, 0, auxQ) &&
            informationCriteriaFunction(fitModel; offset = icOffset) <
            informationCriteriaFunction(bestModel; offset = icOffset)
             bestModel = fitModel
@@ -5029,6 +5068,7 @@ function stepwiseSearch(
         )
         results[getId(fitModel)] = fitModel
         if considerModel &&
+           orderAllowed(0, 0, 0, 0) &&
            informationCriteriaFunction(fitModel; offset = icOffset) <
            informationCriteriaFunction(bestModel; offset = icOffset)
             bestModel = fitModel

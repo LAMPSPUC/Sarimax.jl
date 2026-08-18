@@ -62,5 +62,7 @@ using JSON
 
     include("deterministic_term.jl")
 
+    include("order_guards.jl")
+
     include("aqua.jl")
 end

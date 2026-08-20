@@ -67,6 +67,8 @@ using LinearAlgebra
 
     include("exact_ml_determinant.jl")
 
+    include("exog_penalty_position.jl")
+
     include("multistart.jl")
 
     include("aqua.jl")

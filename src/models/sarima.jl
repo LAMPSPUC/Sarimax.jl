@@ -5554,9 +5554,16 @@ function regularizationObjective(jumpModel::Model, model::SARIMAModel, tolerance
         aux_vector = [jumpModel[param]...]
         aux_weights = []
         aux_lags = []
+        # O peso adaptativo e multiplicado pela POSICAO do parametro no bloco. Para phi,
+        # theta, Phi e Theta a posicao E a ordem da defasagem, e escalonar a penalidade
+        # com ela e deliberado: defasagem alta e menos parcimoniosa. Para :beta a posicao
+        # e a ordem em que o usuario passou as colunas exogenas, que nao tem ordenacao
+        # nenhuma -- com 120 regressores a ultima coluna pagaria 120x a penalidade da
+        # primeira, e trocar duas colunas de lugar mudaria o modelo selecionado.
+        posicaoImportaNaOrdem = param !== :β
         for (lag,el) in enumerate(aux_vector)
             push!(aux_weights, min(1/(abs(value(el)) + 1e-6), 1e6))
-            push!(aux_lags, lag * seasonalOffset)
+            push!(aux_lags, posicaoImportaNaOrdem ? lag * seasonalOffset : 1)
         end
 
         # get the median of the aux_weights

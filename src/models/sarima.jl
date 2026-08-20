@@ -1155,18 +1155,35 @@ function fit!(
     seasonalForm === :free && throw(ArgumentError("seasonalForm :free is planned for a later release"))
     seasonalForm in (:multiplicative, :additive) ||
         throw(ArgumentError("seasonalForm must be :multiplicative or :additive"))
-    # O tratamento `:penalized` esta implementado apenas no objetivo `mse`. Nos demais ele
-    # era SILENCIOSAMENTE ignorado — o ajuste caia no branch normal e virava `:free` sem
-    # aviso nenhum, o que e pior do que nao existir.
+    # O tratamento `:penalized` esta implementado apenas no objetivo `mse`. Nos demais o
+    # ajuste cai no branch normal e vira `:free`.
     #
-    # AVISO e nao erro, para casar com a politica das demais degradacoes do pacote
-    # (`ml_exact` recuando para CSS, `ridge` ignorando `lambda`): o ajuste continua valido,
-    # so nao e o que foi pedido, e recusar quebraria varreduras que combinam inicializacao
-    # com objetivo sem saber de antemao quais pares estao cobertos.
+    # ERRO e nao aviso. A politica do pacote separa duas coisas que antes estavam juntas:
+    #
+    #   COMBINACAO DE ARGUMENTOS invalida (esta, e `ridge` com `lambda`) -> ArgumentError.
+    #   E fixa na chamada, o chamador pode checar antes, e nao ha interpretacao valida do
+    #   que foi pedido.
+    #
+    #   DEGRADACAO EM TEMPO DE EXECUCAO (`ml_exact` recuando para CSS) -> @warn. Depende do
+    #   candidato — o `p` varia dentro da busca — entao erro ali abortaria o `auto`.
+    #
+    # O argumento anterior para avisar era nao quebrar varreduras que combinam inicializacao
+    # com objetivo. A experiencia desmentiu: numa varredura de 10 workers o `@warn` e
+    # invisivel no log, e uma varredura em que parte das celulas significa outra coisa e uma
+    # varredura quebrada — o erro forca o desenho correto em vez de depender de alguem ler
+    # o portao do objetivo.
+    # A lista tem de espelhar EXATAMENTE o portao do objetivo penalizado (busque por
+    # `&& penalizado` neste arquivo). Se ela permitir um objetivo que o portao nao cobre,
+    # o erro deixa passar e o ajuste degrada em silencio — o defeito que ele existe para
+    # impedir.
     if initialization === :penalized && objectiveFunction != "mse"
-        @warn "initialization = :penalized is implemented for objectiveFunction = \"mse\" " *
-              "only; got \"$(objectiveFunction)\". The pre-sample values stay unpenalized, " *
-              "i.e. the fit degrades to :free."
+        throw(
+            ArgumentError(
+                "initialization = :penalized is implemented for objectiveFunction = " *
+                "\"mse\" only; got \"$(objectiveFunction)\". The pre-sample values would " *
+                "stay unpenalized, i.e. the fit would silently degrade to :free.",
+            ),
+        )
     end
     initialization in (:zeroed, :warmup, :free, :penalized) ||
         throw(ArgumentError("initialization must be :zeroed or :warmup (exact-likelihood initialization requires a Kalman filter, which is out of scope by design)"))
@@ -1186,9 +1203,13 @@ function fit!(
     # `usesSparseCount` — o `lambda` ainda mexia no criterio. Honrar o argumento ou recusa-lo
     # com erro sao decisoes de comportamento; avisar nao e.
     if objectiveFunction == "ridge" && !isnothing(lambda)
-        @warn "objectiveFunction = \"ridge\" ignores `lambda`: the shrinkage is fixed at " *
-              "sqrt(effective sample size) by construction. The value passed has no effect " *
-              "on the fit." maxlog = 1
+        throw(
+            ArgumentError(
+                "objectiveFunction = \"ridge\" ignores `lambda`: the shrinkage is fixed at " *
+                "sqrt(effective sample size) by construction. Passing it would have no " *
+                "effect on the fit; drop the argument or use \"elastic_net\".",
+            ),
+        )
     end
 
     # Telemetria de custo (atribuicao de performance). O orcamento de uma busca e

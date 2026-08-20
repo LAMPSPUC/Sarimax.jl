@@ -46,15 +46,40 @@
         @test m.metadata["objectiveFunction"] == "elastic_net"
     end
 
-    @testset "ridge avisa que ignora lambda" begin
+    @testset "ridge RECUSA lambda em vez de ignorar" begin
+        # Era aviso e passou a ser erro. A politica do pacote separa dois casos que antes
+        # estavam juntos: COMBINACAO DE ARGUMENTOS invalida (esta) recusa, porque e fixa na
+        # chamada e o chamador pode checar antes; DEGRADACAO EM TEMPO DE EXECUCAO (o
+        # `ml_exact` do testset seguinte) avisa, porque depende do candidato e erro ali
+        # abortaria a busca.
+        #
+        # O que motivou a troca: num run paralelo o `@warn` e invisivel, e uma varredura em
+        # que parte das celulas silenciosamente significa outra coisa e uma varredura
+        # quebrada.
         n = 90
         y = TimeArray(dates(n), 10 .+ cumsum(randn(rng, n) .* 0.3))
         mk() = SARIMA(y, 2, 1, 1; allowMean = false)
-        @test_logs (:warn, r"ignores `lambda`") match_mode = :any fit!(
+        @test_throws ArgumentError fit!(
             mk(); objectiveFunction = "ridge", alpha = 0.0, lambda = 1.0
         )
-        # sem `lambda` nao ha o que avisar
+        # sem `lambda` nao ha o que recusar, e o ajuste corre sem aviso
         @test_logs match_mode = :any fit!(mk(); objectiveFunction = "ridge", alpha = 0.0)
+    end
+
+    @testset ":penalized RECUSA objetivo nao coberto" begin
+        # Mesma politica. A lista aceita tem de espelhar o portao do objetivo penalizado;
+        # se ela permitir algo que o portao nao cobre, o ajuste degrada para :free em
+        # silencio — o defeito que este erro existe para impedir.
+        n = 90
+        y = TimeArray(dates(n), 10 .+ cumsum(randn(rng, n) .* 0.3))
+        mk() = SARIMA(y, 2, 1, 1; allowMean = false)
+        @test_throws ArgumentError fit!(
+            mk(); objectiveFunction = "mae", initialization = :penalized
+        )
+        # `mse` e o caso coberto: nao recusa
+        @test_logs match_mode = :any fit!(
+            mk(); objectiveFunction = "mse", initialization = :penalized
+        )
     end
 
     @testset "ml_exact avisa quando degrada por completo" begin

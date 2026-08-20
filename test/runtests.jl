@@ -69,6 +69,8 @@ using LinearAlgebra
 
     include("exog_dynamics.jl")
 
+    include("exog_penalty_position.jl")
+
     include("multistart.jl")
 
     include("aqua.jl")

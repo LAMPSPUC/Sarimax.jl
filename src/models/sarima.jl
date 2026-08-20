@@ -889,6 +889,11 @@ function fit!(
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
     initialization::Symbol = :zeroed,
+    # Semantica do bloco exogeno. Ver `arAcc` na construcao do modelo para as duas
+    # equacoes. O default `:armax` preserva o comportamento historico e o resultado
+    # numerico de todo caller existente; a virada de default e mudanca de release
+    # breaking, nao de kwarg.
+    exogDynamics::Symbol = :armax,
     # Default do R: `stats::arima` com `transform.pars = TRUE` parametriza o AR por `tanh`,
     # isto e, estacionario POR CONSTRUCAO num dominio aberto. O MA fica livre (ver
     # `invertible`), que e a outra metade do comportamento do R.
@@ -901,6 +906,11 @@ function fit!(
     multistart::Bool = false,
 )
     @assert 0.0 < cvarLevel < 1.0 "cvarLevel must lie strictly between 0 and 1."
+    exogDynamics in (:armax, :regression_errors) || throw(
+        ArgumentError(
+            "exogDynamics must be :armax or :regression_errors, got $(exogDynamics)",
+        ),
+    )
     # Two-phase warm-start orchestration: when a stationarity/invertibility-by-
     # construction fit is requested with `warmStartFromBox`, first solve the cheap
     # unconstrained (box) problem, then solve the constrained one warm-started from it
@@ -1164,6 +1174,7 @@ function fit!(
     isnothing(lambda) || (model.lambda = lambda)
     isnothing(alpha) || (model.alpha = alpha)
     model.metadata["seasonalForm"] = String(seasonalForm)
+    model.metadata["exogDynamics"] = String(exogDynamics)
     model.metadata["initialization"] = String(initialization)
     # Registrado porque a CONTAGEM DE PARAMETROS depende do objetivo que de fato ajustou o
     # modelo, e nao da presenca dos campos `lambda`/`alpha` — ver `get_hyperparameters_number`.
@@ -1397,6 +1408,38 @@ function fit!(
     else
         yAcc = OffsetArrays.OffsetVector(Any[yData...], 0)
     end
+
+    # SEMANTICA DO BLOCO EXOGENO. Duas equacoes distintas, ambas na literatura, e a
+    # escolha entre elas nao e detalhe de implementacao (Hyndman, "The ARIMAX model
+    # muddle", 2010):
+    #
+    #   :armax               phi(B) Phi(B^s) y_t = X_t'b + theta(B) Theta(B^s) e_t
+    #   :regression_errors   y_t = X_t'b + eta_t ,
+    #                        phi(B) Phi(B^s) eta_t = theta(B) Theta(B^s) e_t
+    #
+    # As duas coincidem SSE o polinomio AR (regular e sazonal) e unitario e nao ha
+    # diferenciacao. Fora dessa classe, b tem interpretacoes diferentes: sob :armax e
+    # multiplicador de impacto (condicional aos y passados), sob :regression_errors e o
+    # efeito marginal usual de regressao. `forecast::Arima(xreg=)` implementa a segunda,
+    # e por isso uma comparacao entre os dois pacotes fora dessa classe compara modelos
+    # diferentes -- medido em delta log(RMSE) de +-0,40 num DGP com T=180.
+    #
+    # A implementacao e uma substituicao so: os termos AR passam a operar sobre
+    # eta_t = y_t - X_t'b em vez de y_t. Os valores pre-amostrais livres ja representam
+    # eta diretamente (nao existe X antes do inicio da amostra), logo indices <= 0 passam
+    # intactos. O produto b*phi torna a expressao bilinear; o objetivo CSS ja e
+    # nao-convexo pelos termos MA, entao isso nao muda a classe do problema.
+    arAcc = if nExog == 0 || exogDynamics === :armax
+        yAcc
+    else
+        OffsetArrays.OffsetVector(
+            Any[
+                t <= 0 ? yAcc[t] :
+                yAcc[t] - sum(β[j] * exogValues[t, j] for j = 1:nExog) for t = yLo:T
+            ],
+            yLo - 1,
+        )
+    end
     # Free pre-sample values are penalized as parameters in the information criteria:
     # the ULS approximation leaves them unpenalized, which lets high-seasonal-order
     # candidates absorb s*P backcast degrees of freedom for free (overfit).
@@ -1487,15 +1530,15 @@ function fit!(
             c +
             trend * driftValues[t] +
             sum(β[i] * exogValues[t, i] for i = 1:nExog) +
-            sum(ϕ[i] * yAcc[t-i] for i = 1:model.p if (t - i >= yLo)) +
+            sum(ϕ[i] * arAcc[t-i] for i = 1:model.p if (t - i >= yLo)) +
             sum(θ[j] * epsAcc[t-j] for j = 1:model.q if (t - j >= epsLo)) +
             sum(
-                Φ[k] * yAcc[t-(model.seasonality*k)] for
+                Φ[k] * arAcc[t-(model.seasonality*k)] for
                 k = 1:model.P if (t - (model.seasonality * k) >= yLo)
             ) +
             sum(Θ[w] * epsAcc[t-(model.seasonality*w)] for w = 1:model.Q if (t - (model.seasonality * w) >= epsLo)) -
             sum(
-                ϕ[i] * Φ[k] * yAcc[t-i-(model.seasonality*k)] for
+                ϕ[i] * Φ[k] * arAcc[t-i-(model.seasonality*k)] for
                 i = 1:model.p, k = 1:model.P if (t - i - (model.seasonality * k) >= yLo)
             ) +
             sum(
@@ -1510,10 +1553,10 @@ function fit!(
             c +
             trend * driftValues[t] +
             sum(β[i] * exogValues[t, i] for i = 1:nExog) +
-            sum(ϕ[i] * yAcc[t-i] for i = 1:model.p if (t - i >= yLo)) +
+            sum(ϕ[i] * arAcc[t-i] for i = 1:model.p if (t - i >= yLo)) +
             sum(θ[j] * epsAcc[t-j] for j = 1:model.q if (t - j >= epsLo)) +
             sum(
-                Φ[k] * yAcc[t-(model.seasonality*k)] for
+                Φ[k] * arAcc[t-(model.seasonality*k)] for
                 k = 1:model.P if (t - (model.seasonality * k) >= yLo)
             ) +
             sum(Θ[w] * epsAcc[t-(model.seasonality*w)] for w = 1:model.Q if (t - (model.seasonality * w) >= epsLo))
@@ -1525,7 +1568,7 @@ function fit!(
             c +
             trend * driftValues[t] +
             sum(β[i] * exogValues[t, i] for i = 1:nExog) +
-            sum(ϕ[i] * yAcc[t-i] for i = 1:model.p if (t - i >= yLo)) +
+            sum(ϕ[i] * arAcc[t-i] for i = 1:model.p if (t - i >= yLo)) +
             sum(θ[j] * epsAcc[t-j] for j = 1:model.q if (t - j >= epsLo))
         )
     end
@@ -2796,6 +2839,20 @@ function predict(
 
     yValues::Vector{ModelFl} = deepcopy(values(diffY))
 
+    # Espelha a semantica da estimacao (ver `arAcc` em `fit!`). Sob :regression_errors o
+    # estado sobre o qual os termos AR recorrem e eta_t = y_t - X_t'b, e nao y_t; o bloco
+    # exogeno volta a entrar so no nivel, no fim de cada passo. Sob :armax `arValues` e o
+    # PROPRIO `yValues` (mesmo objeto), de modo que o `push!` alimenta os dois e o caminho
+    # historico fica bit-identico.
+    regErr::Bool =
+        !isnothing(model.exog) &&
+        get(model.metadata, "exogDynamics", "armax") == "regression_errors"
+    arValues::Vector{ModelFl} = if regErr
+        yValues .- valuesExog[1:length(yValues), :] * model.exogCoefficients
+    else
+        yValues
+    end
+
     driftFuture::Vector{ModelFl} = model.allowDrift ?
         differentiate(
             collect(ModelFl, 1:(length(values(model.y)) + stepsAhead)),
@@ -2807,10 +2864,10 @@ function predict(
         forecastedValue::ModelFl =
             model.c + (model.allowDrift ? model.trend * driftFuture[T+step] : model.trend)
         errorsLength = length(errors)
-        yLength = length(yValues)
+        yLength = length(arValues)
         if model.p > 0
             # ∑ϕᵢyₜ -i
-            forecastedValue += sum(model.ϕ[i] * yValues[end-i+1] for i = 1:model.p)
+            forecastedValue += sum(model.ϕ[i] * arValues[end-i+1] for i = 1:model.p)
         end
         if model.q > 0
             # ∑θᵢϵₜ-i
@@ -2822,7 +2879,7 @@ function predict(
         if model.P > 0
             # ∑Φₖyₜ-(s*k)
             forecastedValue += sum(
-                model.Φ[k] * yValues[end-(model.seasonality*k)+1] for
+                model.Φ[k] * arValues[end-(model.seasonality*k)+1] for
                 k = 1:model.P if (yLength - model.seasonality * k + 1 > 0)
             )
         end
@@ -2837,7 +2894,7 @@ function predict(
             if model.p > 0 && model.P > 0
                 for i = 1:model.p, k = 1:model.P
                     idx = yLength - i - model.seasonality * k + 1
-                    idx > 0 && (forecastedValue -= model.ϕ[i] * model.Φ[k] * yValues[idx])
+                    idx > 0 && (forecastedValue -= model.ϕ[i] * model.Φ[k] * arValues[idx])
                 end
             end
             if model.q > 0 && model.Q > 0
@@ -2847,15 +2904,21 @@ function predict(
                 end
             end
         end
-        if !isnothing(model.exog)
-            forecastedValue += valuesExog[T+step, :]'model.exogCoefficients
-        end
+        exogTerm::ModelFl =
+            isnothing(model.exog) ? zero(ModelFl) :
+            valuesExog[T+step, :]'model.exogCoefficients
+        regErr || (forecastedValue += exogTerm)
 
         ϵₜ = isSimulation ? rand(Normal(0, sqrt(model.σ²))) : 0
         forecastedValue += ϵₜ
 
         push!(errors, ϵₜ)
-        push!(yValues, forecastedValue)
+        if regErr
+            push!(arValues, forecastedValue)          # eta previsto alimenta a recursao AR
+            push!(yValues, forecastedValue + exogTerm)  # o nivel soma o bloco exogeno
+        else
+            push!(yValues, forecastedValue)           # arValues === yValues, alimentado junto
+        end
     end
     initialValuesLength = model.d + model.D * model.seasonality
     initialValuesOffset = length(values(model.y)) - initialValuesLength + 1

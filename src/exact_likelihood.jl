@@ -222,16 +222,36 @@ function exactLoglike(model::SARIMAModel)
     if !isnothing(model.c) && model.allowMean
         arSum = isempty(ar) ? zero(eltype(z)) : sum(ar)
         denom = 1 - arSum
+        # `denom = phi(1)*Phi(1)`, ja com o polinomio expandido. Quando ele vai a zero o
+        # processo tem raiz unitaria e a MEDIA NAO EXISTE — nenhum valor aqui esta certo.
+        # Cai-se em `model.c` por ser finito, nao por ser correto; e o candidato deveria ter
+        # sido rejeitado pela admissibilidade antes de chegar aqui.
+        if abs(denom) <= 1e-8
+            @warn "exactGaussianLogLikelihood: phi(1)*Phi(1) = $(denom) ~ 0 (raiz unitaria); " *
+                  "a media do processo nao existe e o nivel removido e apenas finito, nao correto."
+        end
         level = abs(denom) > 1e-8 ? model.c / denom : model.c
         z = z .- level
     end
     if !isnothing(model.trend) && model.allowDrift
+        # O fallback `fill(1.0, ...)` E EXATAMENTE O BUG que este commit corrige: subtrair o
+        # escalar em vez do regressor diferenciado. Se ele disparar em silencio, o defeito
+        # volta numa configuracao que ninguem testou e sem deixar rastro. Avisa.
         driftReg = try
             r = values(differentiate(
                     TimeArray(timestamp(model.y), collect(1.0:length(values(model.y)))),
                     model.d, model.D, s))
-            length(r) == length(z) ? Float64.(r) : fill(1.0, length(z))
-        catch
+            if length(r) == length(z)
+                Float64.(r)
+            else
+                @warn "exactGaussianLogLikelihood: regressor de drift diferenciado tem " *
+                      "comprimento $(length(r)), esperado $(length(z)); usando 1.0. " *
+                      "Com d=$(model.d), D=$(model.D), s=$s o termo deterministico fica errado."
+                fill(1.0, length(z))
+            end
+        catch e
+            @warn "exactGaussianLogLikelihood: falha ao diferenciar o regressor de drift " *
+                  "($(typeof(e))); usando 1.0, o que reintroduz o erro de escala."
             fill(1.0, length(z))
         end
         z = z .- model.trend .* driftReg

@@ -14,11 +14,16 @@
     mkTX(X) = TimeArray(
         collect(Date(2000, 1, 1):Month(1):Date(2000, 1, 1)+Month(size(X, 1)-1)), X)
 
+    # `y` tem T pontos; `X` tem T + HMAX, porque o `predict!` exige o regressor futuro
+    # para o horizonte pedido -- e foi exatamente esse descasamento que fez a primeira
+    # versao deste arquivo lancar em vez de testar.
+    HMAX = 12
+
     "y = X*b + eta, com eta ~ ARMA(1,1)x(P,0,Q)[12]. P = 0 => polinomio AR unitario."
     function geraErrosArima(seed, P; T = 120, S = 12, β = [2.0, -1.5])
         rng = MersenneTwister(seed)
         burn, K = 300, length(β)
-        n = burn + T
+        n = burn + T + HMAX
         X, e = randn(rng, n, K), randn(rng, n)
         ϕ, θ, Φ, Θ = 0.5, 0.4, (P > 0 ? 0.6 : 0.0), (P > 0 ? 0.0 : 0.7)
         η = zeros(n)
@@ -27,8 +32,8 @@
                    e[t] + θ * e[t-1] + Θ * e[t-12] + θ * Θ * e[t-13]
         end
         y = X * β .+ η
-        rg = (n-T+1):n
-        (mkTA(y[rg]), mkTX(X[rg, :]))
+        rg = (n-T-HMAX+1):n
+        (mkTA(y[rg][1:T]), mkTX(X[rg, :]))
     end
 
     ajusta(y, X, p, P, q, Q; kw...) = begin

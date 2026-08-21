@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.0] - Unreleased
 
 ### Fixed
+- **`identifyOutliers` no longer flags every value that is not bit-identical to the
+  quartiles.** When the interquartile range is zero the IQR fences collapse onto `q1` and
+  `q3`, so the rule degenerates into an equality test against a float. `detectOutliers`
+  feeds it residuals that are JuMP variables tied by an equality constraint and satisfied
+  only up to the solver's tolerance, so which residuals count as "identical" is decided by
+  the last bit and therefore by the machine the solver ran on. Measured on the constant
+  fixture the old `detectOutliers` test used (`ones(31)` with one spike): 30 of the 31
+  residuals came out bit-identical here and exactly one outlier was reported, while shifting
+  three of them by 1-2 ULP — the difference between one runner and another — turns the
+  answer into four. That is the whole flake; the same two assertions failed with the same
+  values on unrelated branches, on whichever CI job happened to land on the other side.
+
+  `identifyOutliers` now returns no outliers when the IQR is below `DEGENERATE_IQR_RTOL`
+  (1e-8) times `max(|q1|, |q3|)`. The tolerance is **relative** to the data's own scale, and
+  the comparison is `<=` so that `q1 == q3 == 0` is covered too. Zero dispersion is zero
+  evidence of atypicality.
+
+  This inverts the contract for constant-plus-spike inputs — they now yield nothing — which
+  is why the `detectOutliers` fixture had to change with it: it now carries real dispersion
+  (IQR = 2 on a 10..14 pattern) plus an unambiguous spike, leaving a measured margin of
+  ~2.0 in data units between the outermost inlier and the fence, against solver noise of
+  order 1e-8. The degenerate case itself is covered directly, as a unit test over
+  constructed vectors, in `identifyOutliers dispersao degenerada`.
 - **The exact likelihood removed the wrong deterministic term.** Two conversions were
   missing in `exactLoglike`, both verified against `stats::arima(method = "ML")`:
   - `model.c` is the regression **constant**, not the mean. The level to remove is

@@ -351,6 +351,18 @@ end
 
 
 """
+Tolerância *relativa* abaixo da qual a amplitude interquartil é considerada degenerada,
+isto é, indistinguível de zero na escala dos próprios dados. Ver `identifyOutliers`.
+
+O valor acompanha a tolerância default do Ipopt (1e-8): os resíduos que alimentam
+`identifyOutliers` não são subtrações, são variáveis de um modelo JuMP amarradas por
+restrição de igualdade e satisfeitas apenas até a tolerância do solver. Fica ~8 ordens de
+grandeza acima do piso de ruído de ponto flutuante (ULP) e ~8 abaixo de qualquer dispersão
+com significado estatístico.
+"""
+const DEGENERATE_IQR_RTOL = 1e-8
+
+"""
     identifyOutliers(series::Vector{Fl}, method::String="iqr", threshold::Float64=1.5) where Fl<:AbstractFloat
 
 Identify outliers in a time series using the specified method.
@@ -362,6 +374,16 @@ Identify outliers in a time series using the specified method.
 
 # Returns
 A boolean vector indicating the outliers in the time series.
+
+# Dispersão degenerada
+
+Quando a amplitude interquartil é nula — ou pequena demais na escala dos dados, abaixo de
+`DEGENERATE_IQR_RTOL` vezes `max(|q1|, |q3|)` — a regra do IQR perde sentido: as cercas
+colapsam sobre os próprios quartis e *tudo* que não for bit-idêntico a eles é sinalizado.
+Nesse regime a resposta é nenhum outlier. Dispersão zero é evidência zero de atipicidade,
+e a diferença entre "igual" e "quase igual" ao quartil é ruído de tolerância numérica, não
+sinal. Sem essa guarda a saída da função depende do último bit dos resíduos e, portanto,
+do runner em que o solver rodou.
 """
 function identifyOutliers(
     series::Vector{Fl},
@@ -375,8 +397,17 @@ function identifyOutliers(
     if method == "iqr"
         q1 = quantile(series, 0.25)
         q3 = quantile(series, 0.75)
-        lower = q1 - threshold * (q3 - q1)
-        upper = q3 + threshold * (q3 - q1)
+        iqr = q3 - q1
+        # Guarda de dispersão degenerada. A comparação é relativa à escala dos quartis (e
+        # não a uma constante absoluta) para que a guarda signifique a mesma coisa em
+        # séries de qualquer magnitude. O `<=` cobre também `q1 == q3 == 0`, em que a
+        # escala é nula.
+        scale = max(abs(q1), abs(q3))
+        if iqr <= DEGENERATE_IQR_RTOL * scale
+            return falses(length(series))
+        end
+        lower = q1 - threshold * iqr
+        upper = q3 + threshold * iqr
         # make a list where 1 indicates an outlier and 0 indicates no outlier
         return (series .< lower) .| (series .> upper)
     end

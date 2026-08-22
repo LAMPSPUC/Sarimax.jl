@@ -314,7 +314,7 @@ end
         mDisp = SARIMA(TimeArray(collect(dispDates), cumsum(randn(60))), 1, 1, 0; allowMean = false)
         show(io, mDisp)
         @test occursin("not fitted", String(take!(io)))
-        fit!(mDisp)
+        fit!(mDisp; seasonalForm = :multiplicative)  # modo NOMEADO: nao depender do valor do default (ver 22/08)
         show(io, MIME("text/plain"), mDisp)
         str = String(take!(io))
         @test occursin("coefficient", str)
@@ -344,7 +344,8 @@ end
         yMult = TimeArray(collect(multDates), vals)
 
         mMult = SARIMA(yMult, 1, 0, 0; seasonality = 12, P = 1, allowMean = false)
-        fit!(mMult; initialization = :zeroed)   # default :multiplicative
+        # `seasonalForm` NOMEADO: nao depender do valor do default.
+        fit!(mMult; initialization = :zeroed, seasonalForm = :multiplicative)
         @test mMult.ϕ[1] ≈ 0.4 atol = 1e-3
         @test mMult.Φ[1] ≈ 0.5 atol = 1e-3
 
@@ -394,7 +395,8 @@ end
 
         # q = 1: the reflection parameterization coincides with the box bounds
         boxMA1 = SARIMA(airPassengers, 1, 0, 1)
-        fit!(boxMA1; objectiveFunction = "mse", initialization = :zeroed)
+        # `invertible` NOMEADO: nao depender do valor do default.
+        fit!(boxMA1; objectiveFunction = "mse", initialization = :zeroed, invertible = false)
         refMA1 = SARIMA(airPassengers, 1, 0, 1)
         fit!(refMA1; objectiveFunction = "mse", invertible = true, initialization = :zeroed)
         @test isapprox(boxMA1.θ[1], refMA1.θ[1]; atol = 1e-4)
@@ -405,7 +407,7 @@ end
         # The unit-root boundary pile-up documented here is a property of the
         # ADDITIVE-form fit (under :multiplicative the airline θ stays interior).
         boxAir = SARIMA(airPassengers, 0, 1, 1; seasonality = 12, P = 0, D = 1, Q = 1)
-        fit!(boxAir; objectiveFunction = "mse", seasonalForm = :additive, initialization = :zeroed)
+        fit!(boxAir; objectiveFunction = "mse", seasonalForm = :additive, initialization = :zeroed, invertible = false)
         refAir = SARIMA(airPassengers, 0, 1, 1; seasonality = 12, P = 0, D = 1, Q = 1)
         fit!(refAir; objectiveFunction = "mse", invertible = true, invertibilityMargin = ρ, seasonalForm = :additive, initialization = :zeroed)
         @test abs(boxAir.θ[1]) >= 0.99

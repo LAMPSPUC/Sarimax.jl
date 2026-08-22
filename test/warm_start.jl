@@ -65,7 +65,7 @@
 
         plain = SARIMA(TimeArray(collect(dates), y), 1, 1, 1; allowMean = false)
         warm = SARIMA(TimeArray(collect(dates), y), 1, 1, 1; allowMean = false)
-        fit!(plain; stationary = true, invertible = true)
+        fit!(plain; stationary = true, invertible = true, warmStartFromBox = false)
         fit!(warm; stationary = true, invertible = true,
              warmStartFromBox = true, maxTimeSeconds = 60.0)
 

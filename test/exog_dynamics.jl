@@ -50,10 +50,13 @@
         @test_throws ArgumentError fit!(m; exogDynamics = :naosei)
     end
 
-    @testset "o default nao mudou: :armax e bit-identico a omitir o kwarg" begin
+    # O DEFAULT E `:regression_errors` (era `:armax` ate a virada deliberada). Este teste
+    # afirma que nomear o default explicitamente da o mesmo resultado que omiti-lo — se
+    # divergirem, o kwarg nao esta sendo lido no caminho que o default toma.
+    @testset "o default e :regression_errors, e nomea-lo e bit-identico a omitir" begin
         y, X = geraErrosArima(2, 1)
         a = ajusta(y, X, 1, 1, 1, 0)
-        b = ajusta(y, X, 1, 1, 1, 0; exogDynamics = :armax)
+        b = ajusta(y, X, 1, 1, 1, 0; exogDynamics = :regression_errors)
         @test a.exogCoefficients == b.exogCoefficients
         @test a.ϕ == b.ϕ
         @test a.Φ == b.Φ
@@ -80,9 +83,13 @@
 
     # ... e so ali. Com p > 0 as duas TEM que divergir: se nao divergirem, o flag nao
     # esta vinculando, que e a classe de defeito que ja custou caro neste pacote.
+    # Os DOIS lados nomeados de proposito. Antes este teste usava o default de um lado, e
+    # quando o default virou ele passou a comparar `:regression_errors` consigo mesmo — a
+    # diferenca deu 0,0 e o teste falhou por motivo que nao era o defeito que ele vigia.
+    # Teste de divergencia entre dois modos tem de nomear os dois.
     @testset "p > 0: as duas semanticas divergem (o flag vincula)" begin
         y, X = geraErrosArima(4, 1)
-        a = ajusta(y, X, 1, 1, 1, 0)
+        a = ajusta(y, X, 1, 1, 1, 0; exogDynamics = :armax)
         b = ajusta(y, X, 1, 1, 1, 0; exogDynamics = :regression_errors)
         predict!(a; stepsAhead = 12)
         predict!(b; stepsAhead = 12)

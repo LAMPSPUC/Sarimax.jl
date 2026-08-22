@@ -889,10 +889,23 @@ function fit!(
     seasonalForm::Symbol = :multiplicative,
     initialization::Symbol = :zeroed,
     # Semantica do bloco exogeno. Ver `arAcc` na construcao do modelo para as duas
-    # equacoes. O default `:armax` preserva o comportamento historico e o resultado
-    # numerico de todo caller existente; a virada de default e mudanca de release
-    # breaking, nao de kwarg.
-    exogDynamics::Symbol = :armax,
+    # equacoes.
+    #
+    # O default e `:regression_errors` — regressao com erros ARIMA, a forma que o
+    # `forecast::Arima(xreg=)` estima e que o Hyndman recomenda em "The ARIMAX model
+    # muddle" (2010), pela interpretabilidade do coeficiente: sob esta forma `b` e o efeito
+    # marginal, sob `:armax` e multiplicador de impacto condicional aos `y` passados.
+    #
+    # Discriminador de tres DGPs com os sinais preditos antes de rodar (20 replicas, ordem
+    # fixada na verdade): sob DGP de erros ARIMA o R ganhava por Dlog +0,4262 e agora
+    # empatamos (+0,0020, IC95 incluindo zero, `b` batendo em tres casas); sob DGP ARMAX o
+    # modo `:armax` continua disponivel e e o correto.
+    #
+    # MUDANCA BREAKING, e deliberada. Afeta SO quem passa exogenas: com `nExog == 0` o
+    # `arAcc` toma o mesmo ramo nos dois modos, entao nenhum resultado sem regressor muda —
+    # inclusive toda a M4, que nao usa exogenas. Quem depender da forma antiga passa
+    # `exogDynamics = :armax` explicitamente.
+    exogDynamics::Symbol = :regression_errors,
     # Janela extra de inovacoes pre-amostrais sob `initialization = :innovations`.
     # So tem efeito nesse modo. O default cobre um ciclo sazonal alem do que a ordem
     # exige, que e o bastante para a condicao inicial nula decair.
@@ -3006,6 +3019,11 @@ function predict(
     # exogeno volta a entrar so no nivel, no fim de cada passo. Sob :armax `arValues` e o
     # PROPRIO `yValues` (mesmo objeto), de modo que o `push!` alimenta os dois e o caminho
     # historico fica bit-identico.
+    # O recuo e `"armax"` DE PROPOSITO, e nao acompanha o default do `fit!` — que hoje e
+    # `:regression_errors`. Quem chega aqui sem a chave no metadata e modelo ajustado por
+    # uma versao anterior, cujos coeficientes foram estimados sob a semantica ARMAX; prever
+    # sob a outra forma daria previsao errada para coeficientes certos. O recuo preserva a
+    # semantica de quem os produziu, nao o default de hoje.
     regErr::Bool =
         !isnothing(model.exog) &&
         get(model.metadata, "exogDynamics", "armax") == "regression_errors"

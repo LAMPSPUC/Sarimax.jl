@@ -1197,12 +1197,21 @@ function fit!(
     # `penalizado = initialization in (:penalized, :innovations)`. Sem os dois nomes nesta
     # guarda, `:innovations` com um objetivo nao coberto passaria e degradaria em silencio
     # — que e precisamente o defeito que ela existe para impedir.
-    if initialization in (:penalized, :innovations) && objectiveFunction != "mse"
+    #
+    # `ridge` entrou na lista porque o termo L2 NAO muda a metrica da perda: o ajuste
+    # continua sendo soma de quadrados, e o prior pre-amostral — que tambem e forma
+    # quadratica — segue somavel a ela sem mistura de escalas. `huber` e `mae` continuam
+    # fora por isso mesmo: eles TROCAM a metrica, e cobrar o bloco inicial numa escala
+    # quadratica enquanto a perda e linear na cauda seria outra decisao de modelagem, nao
+    # uma extensao desta.
+    if initialization in (:penalized, :innovations) &&
+       !(objectiveFunction in ("mse", "ridge"))
         throw(
             ArgumentError(
                 "initialization = :$(initialization) is implemented for objectiveFunction " *
-                "= \"mse\" only; got \"$(objectiveFunction)\". The pre-sample values " *
-                "would stay unpenalized, i.e. the fit would silently degrade to :free.",
+                "= \"mse\" or \"ridge\" only; got \"$(objectiveFunction)\". The " *
+                "pre-sample values would stay unpenalized, i.e. the fit would silently " *
+                "degrade to :free.",
             ),
         )
     end
@@ -2248,6 +2257,38 @@ function includeModelConstraints!(
 end
 
 """
+    ridgeShrinkage(jumpModel, model, T, lb)
+
+Termo L2 do objetivo `ridge`, compartilhado pelo ramo condicional e pelo penalizado.
+
+Devolve `nothing` quando o candidato nao tem coeficiente algum a encolher (p = q = P = Q =
+0); caso contrario devolve a expressao `lambda * sum(b.^2)`.
+
+`lambda = sqrt(nEff)` com `nEff = T - lb + 1`. A heuristica classica e `1/sqrt(n)` para
+perda MEDIA; como este objetivo e escrito como SOMA, o equivalente e `sqrt(n)`. Sob
+`:penalized`/`:innovations` o `auto` zera o `searchLb`, entao `lb = 1` e `lambda = sqrt(T)`
+— constante ao longo do torneio, porque `d` e `D` sao fixados antes da busca e todos os
+candidatos compartilham o mesmo `diffY`. Deliberadamente NAO se usa `T + nEpsPre`: o numero
+de inovacoes pre-amostrais depende da ordem do candidato, e um `lambda` que varia entre
+competidores mudaria a regua dentro do proprio torneio.
+
+Encolhe apenas os coeficientes AR/MA. Intercepto e drift ficam de fora (penalizar o nivel
+nao tem interpretacao de encolhimento aqui) e os exogenos tambem, porque carregam a unidade
+do proprio regressor, que o pacote nao padroniza.
+"""
+function ridgeShrinkage(jumpModel::Model, model::SARIMAModel, T::Int, lb::Int)
+    shrunk = Symbol[]
+    model.p > 0 && push!(shrunk, :ϕ)
+    model.q > 0 && push!(shrunk, :θ)
+    model.P > 0 && push!(shrunk, :Φ)
+    model.Q > 0 && push!(shrunk, :Θ)
+    isempty(shrunk) && return nothing
+    λ = sqrt(max(T - lb + 1, 1))
+    coefs = reduce(vcat, [Vector{VariableRef}([jumpModel[el]...]) for el in shrunk])
+    return λ * sum(coefs .^ 2)
+end
+
+"""
     objectiveFunctionDefinition!(
         jumpModel::Model,
         model::SARIMAModel,
@@ -2281,7 +2322,7 @@ function objectiveFunctionDefinition!(
     parametersVectorExtended::Vector{VariableRef} =
         length(parametersVector) == 0 ? [] :
         reduce(vcat, [Vector{VariableRef}([jumpModel[el]...]) for el in parametersVector])
-    if objectiveFunction == "mse" && penalizado
+    if objectiveFunction in ("mse", "ridge") && penalizado
         # `:penalized` — os valores pre-amostrais entram no objetivo pagando o PRIOR deles,
         # em vez de serem variaveis livres de graca como no `:free`.
         #
@@ -2380,6 +2421,24 @@ function objectiveFunctionDefinition!(
             isnothing(κSMA) || (fator =
                 fator *
                 prod([(1 - κSMA[j]^2)^(-model.seasonality * j / T) for j = 1:model.Q]))
+        end
+        # ---- termo ridge, quando pedido ----
+        #
+        # A penalidade entra DENTRO de `S`, antes da multiplicacao pelo `fator`. Nao e
+        # detalhe de escrita: `S * fator` e a forma multiplicativa equivalente a
+        # `T*log(S) + log|Omega|` depois de concentrar sigma^2, e o `lambda = sqrt(nEff)`
+        # foi calibrado para a escala de uma SOMA DE QUADRADOS. Somando aqui obtem-se
+        #     T*log(S + lambda*||b||^2) + log|Omega|   ==   (S + lambda*||b||^2) * fator,
+        # que e o MAP com prior gaussiano nos coeficientes escalado por sigma^2 (o ridge
+        # bayesiano conjugado) — e o `fator` multiplica os dois termos igualmente, entao a
+        # razao ajuste/penalidade fica intacta.
+        #
+        # Somar do lado de FORA (`S * fator + lambda*||b||^2`) seria o erro simetrico:
+        # misturaria a escala da soma de quadrados com a do criterio ja transformado, e o
+        # `lambda` deixaria de significar o que promete.
+        if objectiveFunction == "ridge"
+            penalidade = ridgeShrinkage(jumpModel, model, T, lb)
+            isnothing(penalidade) || (S = S + penalidade)
         end
         @objective(jumpModel, Min, S * fator)
 
@@ -2503,22 +2562,14 @@ function objectiveFunctionDefinition!(
         # the level has no shrinkage interpretation here). Exogenous coefficients are also
         # left out: they carry the units of their own regressor, which this package does
         # NOT standardize, so an L2 term over them would not be scale-invariant.
-        nEff = T - lb + 1
-        λ = sqrt(max(nEff, 1))
-        shrunk = Symbol[]
-        model.p > 0 && push!(shrunk, :ϕ)
-        model.q > 0 && push!(shrunk, :θ)
-        model.P > 0 && push!(shrunk, :Φ)
-        model.Q > 0 && push!(shrunk, :Θ)
-        if isempty(shrunk)
+        # A escolha do lambda e de quais coeficientes encolher vive em `ridgeShrinkage`,
+        # compartilhada com o ramo penalizado acima — se as duas divergirem, as celulas
+        # `:zeroed` e `:innovations` deixam de medir o mesmo encolhimento.
+        penalidade = ridgeShrinkage(jumpModel, model, T, lb)
+        if isnothing(penalidade)
             @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
         else
-            coefs = reduce(vcat, [Vector{VariableRef}([jumpModel[el]...]) for el in shrunk])
-            @objective(
-                jumpModel,
-                Min,
-                sum(jumpModel[:ϵ] .^ 2) + λ * sum(coefs .^ 2)
-            )
+            @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2) + penalidade)
         end
     elseif objectiveFunction == "mae"
         @objective(jumpModel, Min, sum(jumpModel[:ϵ_plus] + jumpModel[:ϵ_minus]))

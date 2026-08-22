@@ -81,11 +81,20 @@
         # precisam estar na guarda. Este teste e o que impede a lista e o portao de se
         # separarem quando alguem acrescentar um modo novo.
         @test_throws ArgumentError fit!(
-            mk(); objectiveFunction = "ridge", initialization = :innovations
+            mk(); objectiveFunction = "stable", initialization = :innovations
         )
-        # `mse` e o caso coberto: nao recusa
+        # `mse` e `ridge` sao os casos cobertos: nao recusam.
+        #
+        # O `ridge` ESTAVA nesta lista de recusados e saiu: o termo L2 nao muda a metrica da
+        # perda — o ajuste segue sendo soma de quadrados — entao o prior pre-amostral, que
+        # tambem e forma quadratica, e somavel a ela. A penalidade entra dentro de `S` antes
+        # do fator do determinante; ver `test/ridge_innovations.jl` para a verificacao de
+        # que as duas formas tem o mesmo argmin.
         @test_logs match_mode = :any fit!(
             mk(); objectiveFunction = "mse", initialization = :penalized
+        )
+        @test_logs match_mode = :any fit!(
+            mk(); objectiveFunction = "ridge", initialization = :innovations
         )
     end
 

@@ -73,5 +73,7 @@ using LinearAlgebra
 
     include("multistart.jl")
 
+    include("ridge_innovations.jl")
+
     include("aqua.jl")
 end

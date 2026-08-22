@@ -240,6 +240,47 @@
         @test_throws ArgumentError Sarimax.identifyOutliers([1.0, 2.0, 3.0], "unknown")
     end
 
+    @testset "identifyOutliers dispersao degenerada" begin
+        # Contrato: IQR nulo — ou desprezivel na escala dos dados — implica nenhum outlier.
+        # Sem dispersao as cercas do IQR colapsam sobre os quartis e a regra passa a
+        # sinalizar tudo que nao for bit-identico a eles. Dispersao zero e evidencia zero de
+        # atipicidade. Testado como UNIDADE, sobre vetores construidos: uma fixture que roda
+        # o solver herdaria a tolerancia do solver, que e exatamente como o flake nasceu.
+
+        # Maioria identica mais um pico: sem dispersao central nao ha do que o pico destoar.
+        degenerateWithSpike = vcat(fill(5.0, 30), 100.0)
+        @test Sarimax.identifyOutliers(degenerateWithSpike) == falses(31)
+
+        # O flake medido, reconstruido a mao. Estes sao os residuos do ajuste SARIMA(0,0,0)
+        # da antiga fixture constante de `detectOutliers`, com tres valores deslocados de
+        # 1-2 ULP — a diferenca entre um runner e outro. Sem a guarda, as posicoes 7, 24 e 30
+        # aparecem como outliers junto da 5; com ela, nenhuma aparece, em qualquer runner.
+        base = -3.1935483870967762
+        solverNoise = fill(base, 31)
+        solverNoise[5] = 95.80645161290323
+        solverNoise[7] = prevfloat(base)
+        solverNoise[24] = nextfloat(base)
+        solverNoise[30] = nextfloat(base, 2)
+        @test Sarimax.identifyOutliers(solverNoise) == falses(31)
+
+        # Escala nula: os dois quartis em zero. A guarda usa `<=`, entao cobre este caso.
+        allZeros = zeros(20)
+        allZeros[3] = 1e-9
+        @test Sarimax.identifyOutliers(allZeros) == falses(20)
+
+        # Controle de vinculacao — a guarda tem de ficar MUDA quando ha dispersao de verdade.
+        # Mesma forma dos casos acima, mas com IQR real: o pico continua sendo sinalizado.
+        nonDegenerate = vcat(repeat([10.0, 11.0, 12.0, 13.0, 14.0], 6), 100.0)
+        @test findall(Sarimax.identifyOutliers(nonDegenerate)) == [31]
+
+        # E a dispersao minima que ainda NAO e degenerada segue tratada como dispersao:
+        # IQR relativo de 1e-6, cem vezes acima de `DEGENERATE_IQR_RTOL`, preserva a regra.
+        justAboveTolerance = fill(1.0, 30)
+        justAboveTolerance[1:15] .= 1.0 + 1e-6
+        push!(justAboveTolerance, 100.0)
+        @test findall(Sarimax.identifyOutliers(justAboveTolerance)) == [31]
+    end
+
     @testset "createOutliersDummies Tests" begin
         # Test with no outliers
         outliers1 = falses(5)

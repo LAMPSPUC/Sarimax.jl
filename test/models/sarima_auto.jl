@@ -77,24 +77,39 @@
     end
 
     @testset "detectOutliers" begin
-        series = TimeArray(Dates.Date(2019, 1, 1):Dates.Day(1):Dates.Date(2019, 1, 31), ones(31))
+        # A fixture precisa ser NAO-DEGENERADA. A versao anterior era uma serie constante
+        # (`ones(31)`) com um unico pico: os 30 residuos restantes eram iguais, o IQR dava
+        # exatamente zero e as cercas colapsavam sobre a mediana, de modo que era sinalizado
+        # tudo que nao fosse bit-identico a ela. Como os residuos sao variaveis JuMP presas
+        # por restricao de igualdade — satisfeitas so ate a tolerancia do Ipopt — o conjunto
+        # de residuos "identicos" variava de runner para runner, e o teste alternava entre 1
+        # e 3 outliers detectados sem nenhuma mudanca de codigo.
+        #
+        # A base abaixo tem dispersao real (padrao 10..14, IQR = 2) mais um pico inequivoco.
+        # Medido: dispersao relativa ~0,54 e margem do inlier mais extremo ate a cerca ~2,0,
+        # contra ruido de solver da ordem de 1e-8. O resultado nao depende do ultimo bit.
+        dates = Dates.Date(2019, 1, 1):Dates.Day(1):Dates.Date(2019, 1, 31)
+        baseValues = [10.0 + ((i - 1) % 5) for i = 1:31]
+
+        series = TimeArray(dates, copy(baseValues))
         outliers = Sarimax.detectOutliers(series, nothing, 0, 0, 1, false)
         @test isnothing(outliers)
 
+        series = TimeArray(dates, copy(baseValues))
         values(series)[5] = 100
         outliers = Sarimax.detectOutliers(series, nothing, 0, 0, 1, false)
         @test isa(outliers, TimeSeries.TimeArray)
         @test length(colnames(outliers)) == 1
         @test colnames(outliers)[1] == Symbol("outlier_5")
 
-        values(series)[5] = 1
+        series = TimeArray(dates, copy(baseValues))
         values(series)[10] = 100
         outliers = Sarimax.detectOutliers(series, nothing, 0, 0, 1, false)
         @test isa(outliers, TimeSeries.TimeArray)
         @test length(colnames(outliers)) == 1
         @test colnames(outliers)[1] == Symbol("outlier_10")
 
-        values(series)[10] = 1
+        series = TimeArray(dates, copy(baseValues))
         values(series)[15] = 100
         outliers = Sarimax.detectOutliers(series, nothing, 0, 0, 1, false)
         @test isa(outliers, TimeSeries.TimeArray)
@@ -109,7 +124,7 @@
         @test colnames(outliers)[2] == Symbol("outlier_20")
 
         # test with exog
-        exog = TimeArray(Dates.Date(2019, 1, 1):Dates.Day(1):Dates.Date(2019, 1, 31), 2 .* ones(31))
+        exog = TimeArray(dates, 2 .* ones(31))
         outliers = Sarimax.detectOutliers(series, exog, 0, 0, 1, false)
         @test !isnothing(outliers)
         @test length(colnames(outliers)) == 3
@@ -117,6 +132,13 @@
         @test colnames(outliers)[2] == Symbol("outlier_15")
         @test colnames(outliers)[3] == Symbol("outlier_20")
 
+        # Contrato degenerado ponta a ponta: a fixture antiga (serie constante com um pico)
+        # agora nao produz outlier nenhum, porque a dispersao dos residuos e nula. E o outro
+        # lado da moeda do teste unitario em `identifyOutliers Tests` — e a razao pela qual
+        # a fixture acima precisou mudar, em vez de so a funcao.
+        degenerate = TimeArray(dates, ones(31))
+        values(degenerate)[5] = 100
+        @test isnothing(Sarimax.detectOutliers(degenerate, nothing, 0, 0, 1, false))
     end
 
     @testset "auto with default stepwise" begin

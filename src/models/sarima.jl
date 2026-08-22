@@ -68,7 +68,6 @@ essa cota: com `transform.pars = TRUE` ele parametriza os coeficientes AR por `t
 contradominio e o intervalo aberto `(-1, 1)`.
 """
 const DEFAULT_DOMAIN_MARGIN = 1e-6
-
 """
 Teto de modelos que uma busca stepwise pode visitar, equivalente ao `nmodels = 94` do
 `forecast::auto.arima`.
@@ -894,6 +893,10 @@ function fit!(
     # numerico de todo caller existente; a virada de default e mudanca de release
     # breaking, nao de kwarg.
     exogDynamics::Symbol = :armax,
+    # Janela extra de inovacoes pre-amostrais sob `initialization = :innovations`.
+    # So tem efeito nesse modo. O default cobre um ciclo sazonal alem do que a ordem
+    # exige, que e o bastante para a condicao inicial nula decair.
+    presampleBurnIn::Int = 12,
     # Default do R: `stats::arima` com `transform.pars = TRUE` parametriza o AR por `tanh`,
     # isto e, estacionario POR CONSTRUCAO num dominio aberto. O MA fica livre (ver
     # `invertible`), que e a outra metade do comportamento do R.
@@ -1185,8 +1188,11 @@ function fit!(
             ),
         )
     end
-    initialization in (:zeroed, :warmup, :free, :penalized) ||
-        throw(ArgumentError("initialization must be :zeroed or :warmup (exact-likelihood initialization requires a Kalman filter, which is out of scope by design)"))
+    initialization in (:zeroed, :warmup, :free, :penalized, :innovations) || throw(
+        ArgumentError(
+            "initialization must be :zeroed, :warmup, :free, :penalized or :innovations",
+        ),
+    )
 
     isnothing(lambda) || (model.lambda = lambda)
     isnothing(alpha) || (model.alpha = alpha)
@@ -1292,7 +1298,7 @@ function fit!(
     end
 
     residualLags =
-        initialization in (:free, :penalized) ? 0 :
+        initialization in (:free, :penalized, :innovations) ? 0 :
         initialization === :warmup ?
         (
             seasonalForm === :multiplicative ?
@@ -1384,10 +1390,44 @@ function fit!(
     # making information criteria comparable across candidates without common-sample
     # conditioning. Pre-sample variables enter only through the recursion (not the
     # objective) and are not counted as hyperparameters.
-    freeInit = initialization in (:free, :penalized)
-    penalizado = initialization === :penalized
+    # `:innovations` — o bloco pre-amostral parametrizado SO POR INOVACOES.
+    #
+    # Os modos `:free` e `:penalized` deixam `yback` livre E `ϵpre` livre ao mesmo tempo.
+    # Isso SUPERPARAMETRIZA o bloco inicial: ha mais graus de liberdade do que a forma
+    # quadratica exata admite, e o minimo cai muito abaixo dela. Medido num
+    # (1,0,1)(1,0,1)[12] com T=200: o `S` do pacote da 66,3 onde y'Omega^-1 y da 211,6 —
+    # fora por 3,2x. Nao e o minimo da forma quadratica certa; e o minimo de outra coisa.
+    #
+    # O perfilamento correto e por NORMA MINIMA SOBRE INOVACOES: escolhe-se e_{-M..0}
+    # minimizando ||e||^2 sujeito a reproduzir y, o que da y'(Psi Psi')^-1 y e converge a
+    # y'Omega^-1 y. Verificado: exato a 1e-16 no arnes de referencia, e 0,6% ja com a
+    # janela `q + s*Q` que o pacote usa.
+    #
+    # POR QUE ISTO EXISTE: o termo de determinante da verossimilhanca exata foi derivado
+    # PARA y'Omega^-1 y. Soma-lo a uma forma quadratica que nao e essa quebra o equilibrio
+    # entre os dois, e o desequilibrio e maximo onde as duas mais divergem. `:free` nao e
+    # defeito — como objetivo CSS ele e legitimo; ele falha SO quando pareado com o
+    # determinante exato.
+    #
+    # Aqui `yback` deixa de ser variavel livre e passa a ser GERADO pela recursao a partir
+    # das inovacoes pre-amostrais, com tudo antes da janela em zero.
+    inovacoes = initialization === :innovations
+    freeInit = initialization in (:free, :penalized, :innovations)
+    penalizado = initialization in (:penalized, :innovations)
     yLo = freeInit ? 1 - (model.p + model.seasonality * model.P) : 1
     epsLo = freeInit ? 1 - (model.q + model.seasonality * model.Q) : 1
+    if inovacoes
+        # A janela de inovacoes cobre o bloco AR tambem, porque `yback` sai dela.
+        # Quando NAO ha bloco AR (p = P = 0) nao existe `z` pre-amostral para gerar, e
+        # criar variaveis e restricoes para ele seria custo puro: o `:innovations`
+        # coincide com o `:penalized` por construcao nesse caso.
+        if model.p == 0 && model.P == 0
+            yLo = 1
+        else
+            epsLo = min(epsLo, yLo) - presampleBurnIn
+            yLo = min(yLo, epsLo + 1)
+        end
+    end
     if freeInit && epsLo <= 0
         @variable(mod, ϵpre[epsLo:0])
         for t0 = epsLo:0
@@ -1421,11 +1461,15 @@ function fit!(
         ArgumentError("initialization = :free is not compatible with missing data yet"),
     )
     if freeInit && yLo <= 0
-        @variable(mod, yback[yLo:0])
-        for t0 = yLo:0
-            set_start_value(yback[t0], 0.0)
+        if inovacoes
+            yAcc = nothing   # adiado: depende de theta/Theta, criados adiante
+        else
+            @variable(mod, yback[yLo:0])
+            for t0 = yLo:0
+                set_start_value(yback[t0], 0.0)
+            end
+            yAcc = OffsetArrays.OffsetVector(Any[[yback[t0] for t0 = yLo:0]; yData], yLo - 1)
         end
-        yAcc = OffsetArrays.OffsetVector(Any[[yback[t0] for t0 = yLo:0]; yData], yLo - 1)
     else
         yAcc = OffsetArrays.OffsetVector(Any[yData...], 0)
     end
@@ -1450,7 +1494,9 @@ function fit!(
     # eta diretamente (nao existe X antes do inicio da amostra), logo indices <= 0 passam
     # intactos. O produto b*phi torna a expressao bilinear; o objetivo CSS ja e
     # nao-convexo pelos termos MA, entao isso nao muda a classe do problema.
-    arAcc = if nExog == 0 || exogDynamics === :armax
+    arAcc = if inovacoes
+        nothing   # adiado junto com yAcc
+    elseif nExog == 0 || exogDynamics === :armax
         yAcc
     else
         OffsetArrays.OffsetVector(
@@ -1471,7 +1517,10 @@ function fit!(
     # AR, a forma de Levinson cobre as `p` primeiras posições de `yback`; as `s*P` restantes
     # continuam livres e seguem cobradas. Assim a penalidade fica onde tem sentido
     # estatístico (o objetivo) em vez de num ajuste grosseiro do critério.
-    nYback, nEpsPre = max(0, 1 - yLo), max(0, 1 - epsLo)
+    # Sob `:innovations` nao existe `yback` livre — o passado e gerado — logo nao ha
+    # bloco AR pre-amostral a penalizar nem hiperparametro a contar desse lado.
+    nYback, nEpsPre = inovacoes ? (0, max(0, 1 - epsLo)) :
+                                  (max(0, 1 - yLo), max(0, 1 - epsLo))
     # O credito depende do termo AR ter sido MONTADO, nao so de `:penalized` ter sido pedido.
     # A forma de Levinson exige os coeficientes de reflexao, que so existem com
     # `stationary = true`; com a parametrizacao livre nao ha `κAR` e as `p` posicoes de
@@ -1536,6 +1585,80 @@ function fit!(
 
         for i = 1:model.Q
             set_start_value(mod[:Θ][i], 0.0)
+        end
+    end
+
+if inovacoes
+        # y pre-amostral GERADO pela recursao a partir das inovacoes livres.
+        # Indices antes da janela valem zero; a janela e longa o bastante para que a
+        # condicao inicial nula decaia (o efeito decai como o maior modulo de raiz
+        # inversa elevado ao numero de periodos).
+        # O passado e VARIAVEL DE DECISAO amarrada pela recursao, nao expressao aninhada.
+        #
+        # A primeira versao disto encadeava `@expression`: z_0 continha phi*z_{-1}, que
+        # continha phi*z_{-2}, ate o fim da janela. O JuMP INLINA, entao z_0 virava um
+        # polinomio de grau ~M nos coeficientes, completamente expandido — com os termos
+        # cruzados multiplicativos, cada nivel multiplicava a contagem por ~6. Sem
+        # acrescentar uma unica variavel, o custo foi de 0,183s para 57,0s na mesma serie
+        # da M4 (312x). O inchaco era de EXPRESSAO, nao de dimensao.
+        #
+        # A forma certa e a que o resto do pacote ja usa e que e a identidade da
+        # formulacao: variavel + restricao de igualdade. O jacobiano fica esparso e o
+        # solver ve a recursao em vez de um polinomio de grau alto. Custo: +|W| variaveis
+        # e +|W| restricoes.
+        #
+        # NAO e bilinear: os termos cruzados `phi*Phi*zpre` e `theta*Theta*epsilon` sao
+        # de GRAU 3. Isso e admissivel porque o proprio yhat em-amostra ja carrega
+        # `theta*Theta*epsilon` em todo ajuste multiplicativo — o caminho de 0,183s paga
+        # grau 3 tambem.
+        @variable(mod, zpre[yLo:0])
+        for t0 = yLo:0
+            set_start_value(zpre[t0], 0.0)
+        end
+        # O gerador pre-amostral tem de satisfazer A MESMA equacao do bloco em-amostra,
+        # que inclui `c` e `trend`. Omiti-los faz o `zpre` pairar perto de zero enquanto o
+        # `yData` carrega o nivel, e as primeiras contribuicoes AR saem sistematicamente
+        # erradas. Invisivel em sintetico de media zero (onde `c` e parametro fixo em 0) —
+        # e e por isso que o gate sintetico nao pegou.
+        # `driftValues` so existe para t = 1..T; para o passado, extrapola-se pela mesma
+        # regra: constante quando ha diferenciacao, linear quando nao ha.
+        driftPre(t0) =
+            length(driftValues) >= 2 ?
+            driftValues[1] + (t0 - 1) * (driftValues[2] - driftValues[1]) :
+            (isempty(driftValues) ? zero(Fl) : driftValues[1])
+        lerY(t) = t < yLo ? zero(AffExpr) : (t <= 0 ? one(Fl) * zpre[t] : yData[t])
+        lerE(t) = t < epsLo ? zero(AffExpr) : (t <= 0 ? one(Fl) * mod[:ϵpre][t] : one(Fl) * mod[:ϵ][t])
+        for t0 = yLo:0
+            @constraint(
+                mod,
+                zpre[t0] ==
+                mod[:c] +
+                mod[:trend] * driftPre(t0) +
+                lerE(t0) +
+                sum(mod[:ϕ][i] * lerY(t0 - i) for i = 1:model.p; init = zero(AffExpr)) +
+                sum(mod[:θ][j] * lerE(t0 - j) for j = 1:model.q; init = zero(AffExpr)) +
+                sum(mod[:Φ][k] * lerY(t0 - model.seasonality * k) for k = 1:model.P; init = zero(AffExpr)) +
+                sum(mod[:Θ][w] * lerE(t0 - model.seasonality * w) for w = 1:model.Q; init = zero(AffExpr)) -
+                (model.seasonality > 1 && seasonalForm === :multiplicative ?
+                    sum(mod[:ϕ][i] * mod[:Φ][k] * lerY(t0 - i - model.seasonality * k)
+                        for i = 1:model.p, k = 1:model.P; init = zero(AffExpr)) : zero(AffExpr)) +
+                (model.seasonality > 1 && seasonalForm === :multiplicative ?
+                    sum(mod[:θ][j] * mod[:Θ][w] * lerE(t0 - j - model.seasonality * w)
+                        for j = 1:model.q, w = 1:model.Q; init = zero(AffExpr)) : zero(AffExpr))
+            )
+        end
+        yAcc = OffsetArrays.OffsetVector(
+            Any[[zpre[t0] for t0 = yLo:0]; yData], yLo - 1)
+        arAcc = if nExog == 0 || exogDynamics === :armax
+            yAcc
+        else
+            OffsetArrays.OffsetVector(
+                Any[
+                    t <= 0 ? yAcc[t] :
+                    yAcc[t] - sum(β[j] * exogValues[t, j] for j = 1:nExog) for t = yLo:T
+                ],
+                yLo - 1,
+            )
         end
     end
 
@@ -1653,6 +1776,14 @@ function fit!(
         get(model.metadata, "solveTimeSecTotal", 0.0) + solveElapsed
     model.metadata["fitCount"] = get(model.metadata, "fitCount", 0) + 1
     model.metadata["solverStatus"] = string(termination_status(mod))
+    # O valor do objetivo nao era registrado em lugar nenhum. Sem ele, qualquer verificacao
+    # que precise comparar DUAS formulacoes nos mesmos coeficientes fica cega — foi o que
+    # impediu o gate do termo cruzado de rodar. E diagnostico, nao gancho de teste.
+    model.metadata["objectiveValue"] = try
+        objective_value(mod)
+    catch
+        nothing
+    end
     model.metadata["solverTimeSec"] = try
         MOI.get(mod, MOI.SolveTimeSec())
     catch
@@ -3192,7 +3323,7 @@ function auto(
     @assert searchMethod ∈ ["stepwise", "stepwiseNaive", "grid", "sarimax"]
     @assert !(invertible && objectiveFunction == "bilevel") "invertible = true is not compatible with the bilevel objective"
     @assert seasonalForm in (:multiplicative, :additive) "seasonalForm must be :multiplicative or :additive (:free is planned)"
-    @assert initialization in (:zeroed, :warmup, :free, :penalized) "initialization must be :zeroed, :warmup, :free or :penalized"
+    @assert initialization in (:zeroed, :warmup, :free, :penalized, :innovations) "initialization must be :zeroed, :warmup, :free, :penalized or :innovations"
 
     ModelFl = eltype(values(y))
     informationCriteriaFunction = getInformationCriteriaFunction(informationCriteria)
@@ -3314,7 +3445,7 @@ function auto(
     # With :free initialization every candidate already scores on the full differenced
     # sample (pre-sample values are estimated), so no common conditioning is needed.
     searchLb =
-        initialization in (:free, :penalized) ? 0 :
+        initialization in (:free, :penalized, :innovations) ? 0 :
         conditioningLags(maxp, maxq, maxP, maxQ, seasonality, seasonalForm)
 
     if outlierDetection

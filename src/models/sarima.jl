@@ -1179,12 +1179,17 @@ function fit!(
     # `&& penalizado` neste arquivo). Se ela permitir um objetivo que o portao nao cobre,
     # o erro deixa passar e o ajuste degrada em silencio — o defeito que ele existe para
     # impedir.
-    if initialization === :penalized && objectiveFunction != "mse"
+    #
+    # `:innovations` entra aqui JUNTO com `:penalized` porque o portao e
+    # `penalizado = initialization in (:penalized, :innovations)`. Sem os dois nomes nesta
+    # guarda, `:innovations` com um objetivo nao coberto passaria e degradaria em silencio
+    # — que e precisamente o defeito que ela existe para impedir.
+    if initialization in (:penalized, :innovations) && objectiveFunction != "mse"
         throw(
             ArgumentError(
-                "initialization = :penalized is implemented for objectiveFunction = " *
-                "\"mse\" only; got \"$(objectiveFunction)\". The pre-sample values would " *
-                "stay unpenalized, i.e. the fit would silently degrade to :free.",
+                "initialization = :$(initialization) is implemented for objectiveFunction " *
+                "= \"mse\" only; got \"$(objectiveFunction)\". The pre-sample values " *
+                "would stay unpenalized, i.e. the fit would silently degrade to :free.",
             ),
         )
     end
@@ -1395,8 +1400,13 @@ function fit!(
     # Os modos `:free` e `:penalized` deixam `yback` livre E `ϵpre` livre ao mesmo tempo.
     # Isso SUPERPARAMETRIZA o bloco inicial: ha mais graus de liberdade do que a forma
     # quadratica exata admite, e o minimo cai muito abaixo dela. Medido num
-    # (1,0,1)(1,0,1)[12] com T=200: o `S` do pacote da 66,3 onde y'Omega^-1 y da 211,6 —
-    # fora por 3,2x. Nao e o minimo da forma quadratica certa; e o minimo de outra coisa.
+    # (1,0,1)(1,0,1)[12] com T=200 o `S` do pacote fica ABAIXO de y'Omega^-1 y. Nao e o
+    # minimo da forma quadratica certa; e o minimo de outra coisa.
+    #
+    # NAO citar aqui o fator "3,2x" que circulou: o proprio autor o retratou (confusao
+    # entre yScale^2 e magnitude; o valor era ~12%). O sinal do defeito e o que importa e
+    # esta medido na razao S / y'Omega^-1 y: 0,925 sob `:free` contra 1,014 sob
+    # `:innovations`, com a referencia em 1.
     #
     # O perfilamento correto e por NORMA MINIMA SOBRE INOVACOES: escolhe-se e_{-M..0}
     # minimizando ||e||^2 sujeito a reproduzir y, o que da y'(Psi Psi')^-1 y e converge a

@@ -76,6 +76,13 @@
         @test_throws ArgumentError fit!(
             mk(); objectiveFunction = "mae", initialization = :penalized
         )
+        # `:innovations` tem de recusar pelo MESMO motivo: o portao do objetivo e
+        # `penalizado = initialization in (:penalized, :innovations)`, entao os dois nomes
+        # precisam estar na guarda. Este teste e o que impede a lista e o portao de se
+        # separarem quando alguem acrescentar um modo novo.
+        @test_throws ArgumentError fit!(
+            mk(); objectiveFunction = "ridge", initialization = :innovations
+        )
         # `mse` e o caso coberto: nao recusa
         @test_logs match_mode = :any fit!(
             mk(); objectiveFunction = "mse", initialization = :penalized

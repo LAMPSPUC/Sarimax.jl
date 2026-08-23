@@ -1214,7 +1214,8 @@ function fit!(
     # Os demais objetivos seguem barrados: para eles o bloco ficaria sem penalidade e o
     # ajuste degradaria em silencio para `:free`.
     if initialization in (:penalized, :innovations) &&
-       !(objectiveFunction in ("mse", "mae", "huber"))
+       !(objectiveFunction in
+         ("mse", "mae", "huber", "ml", "ml_exact", "ridge", "stable", "bilevel", "elastic_net"))
         throw(
             ArgumentError(
                 "initialization = :$(initialization) is implemented for objectiveFunction " *
@@ -1803,7 +1804,7 @@ if inovacoes
     # de `optimizeModel!`, como o refino do elastic-net e o laco externo do bilevel);
     # `solverTimeSec` e o tempo que o proprio solver reporta.
     buildElapsed = time() - fitStartTime
-    solveElapsed = @elapsed optimizeModel!(mod, model, objectiveFunction, lb)
+    solveElapsed = @elapsed optimizeModel!(mod, model, objectiveFunction, lb, penalizado)
     model.metadata["buildTimeSec"] = buildElapsed
     model.metadata["solveTimeSec"] = solveElapsed
     # ...Total ACUMULA por objeto de modelo, enquanto os campos acima guardam so o ultimo
@@ -2274,6 +2275,30 @@ function includeModelConstraints!(
 end
 
 """
+    presampleSquares(jumpModel, penalizado) -> soma dos quadrados pre-amostrais, ou 0
+
+O TERMO DE AJUSTE de todo objetivo deste arquivo mede o erro sobre os residuos. Sob
+`:penalized`/`:innovations` o bloco pre-amostral e' feito de residuos como quaisquer
+outros — apenas de indice `t <= 0` — entao **o somatorio do ajuste comeca em `t = epsLo`,
+nao em `t = lb`**.
+
+Isto NAO toca a parte que regulariza. O `lambda` do `ridge` penaliza COEFICIENTES; a
+estrutura de cauda do `stable` e' sobre a distribuicao dos residuos; o `elastic_net`
+encolhe coeficientes sob tolerancia de ajuste. Nenhuma delas muda: o que muda e' de onde
+o erro de ajuste comeca a ser contado.
+
+Devolve `0.0` quando nao ha bloco (modos de bloco fixo, ou sem indices pre-amostrais),
+o que torna a chamada segura em todo objetivo.
+"""
+function presampleSquares(jumpModel::Model, penalizado::Bool)
+    (penalizado && haskey(object_dictionary(jumpModel), :ϵpre)) || return 0.0
+    pre = jumpModel[:ϵpre]
+    lo = first(axes(pre, 1))
+    lo > 0 && return 0.0
+    return sum(pre[t]^2 for t = lo:0)
+end
+
+"""
     objectiveFunctionDefinition!(
         jumpModel::Model,
         model::SARIMAModel,
@@ -2451,7 +2476,8 @@ function objectiveFunctionDefinition!(
                   "stationary=$(haskey(object_dictionary(jumpModel), :κAR)), p=$(model.p)." maxlog = 1
         end
         if !temK || isnothing(yValues)
-            @objective(jumpModel, Min, sum(jumpModel[:ϵ][t]^2 for t = lb:T))
+            @objective(jumpModel, Min,
+                sum(jumpModel[:ϵ][t]^2 for t = lb:T) + presampleSquares(jumpModel, penalizado))
         else
             κ = jumpModel[:κAR]
             pAR = model.p
@@ -2466,7 +2492,7 @@ function objectiveFunctionDefinition!(
                 w_t = prod([(1 - κ[j]^2) for j = t:pAR])
                 push!(termos, e_t^2 * w_t)
             end
-            S = sum(jumpModel[:ϵ][t]^2 for t = lb:T)
+            S = sum(jumpModel[:ϵ][t]^2 for t = lb:T) + presampleSquares(jumpModel, penalizado)
             isempty(termos) || (S = S + sum(termos))
             nEf = (T - lb + 1) + nIni
             logDet = -sum(j * log(1 - κ[j]^2) for j = 1:pAR)
@@ -2553,13 +2579,15 @@ function objectiveFunctionDefinition!(
         model.P > 0 && push!(shrunk, :Φ)
         model.Q > 0 && push!(shrunk, :Θ)
         if isempty(shrunk)
-            @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
+            @objective(jumpModel, Min,
+                sum(jumpModel[:ϵ] .^ 2) + presampleSquares(jumpModel, penalizado))
         else
             coefs = reduce(vcat, [Vector{VariableRef}([jumpModel[el]...]) for el in shrunk])
             @objective(
                 jumpModel,
                 Min,
-                sum(jumpModel[:ϵ] .^ 2) + λ * sum(coefs .^ 2)
+                sum(jumpModel[:ϵ] .^ 2) + presampleSquares(jumpModel, penalizado) +
+                λ * sum(coefs .^ 2)
             )
         end
     elseif objectiveFunction == "mae"
@@ -2578,7 +2606,14 @@ function objectiveFunctionDefinition!(
         end
         @objective(jumpModel, Min, maeObj)
     elseif objectiveFunction == "bilevel"
-        @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
+        # O `bilevel` nao e' uma perda diferente: e' uma ESTRATEGIA DE SOLUCAO, com os
+        # coeficientes MA tirados do JuMP e otimizados por laco externo. O problema
+        # interno e' soma de quadrados, entao a extensao vale por heranca.
+        @objective(
+            jumpModel,
+            Min,
+            sum(jumpModel[:ϵ] .^ 2) + presampleSquares(jumpModel, penalizado)
+        )
         set_time_limit_sec(jumpModel, 1.0)
     elseif objectiveFunction == "stable"
         # Conditional Value-at-Risk of the squared residuals, in the Rockafellar-Uryasev
@@ -2590,14 +2625,28 @@ function objectiveFunctionDefinition!(
         # That is a min-max fit in disguise, which is why it chases outliers instead of
         # tolerating them (measured: with one 10σ outlier it is the only objective that
         # shrinks that residual, at the cost of a 5x worse median residual).
-        nObs = T - lb + 1
+        # O bloco pre-amostral entra no MESMO conjunto de perdas: sao residuos como os
+        # outros, so de indice t <= 0. Isto nao muda a estrutura de cauda do CVaR — muda
+        # de onde o erro de ajuste comeca a ser contado, e o `nObs` acompanha.
+        temPre = penalizado && haskey(object_dictionary(jumpModel), :ϵpre)
+        preLo = temPre ? first(axes(jumpModel[:ϵpre], 1)) : 1
+        temPre = temPre && preLo <= 0
+        nPre = temPre ? (1 - preLo) : 0
+        nObs = (T - lb + 1) + nPre
         @variable(jumpModel, δ >= 0)
         @variable(jumpModel, u[lb:T] >= 0)
         @constraint(jumpModel, [t = lb:T], δ + u[t] >= jumpModel[:ϵ][t]^2)
+        cvarSum = sum(u[t] for t = lb:T)
+        if temPre
+            pre = jumpModel[:ϵpre]
+            @variable(jumpModel, upre[preLo:0] >= 0)
+            @constraint(jumpModel, [t = preLo:0], δ + upre[t] >= pre[t]^2)
+            cvarSum = cvarSum + sum(upre[t] for t = preLo:0)
+        end
         @objective(
             jumpModel,
             Min,
-            δ + sum(u[t] for t = lb:T) / ((1 - cvarLevel) * nObs)
+            δ + cvarSum / ((1 - cvarLevel) * nObs)
         )
     elseif objectiveFunction == "elastic_net"
         @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
@@ -2607,7 +2656,11 @@ function objectiveFunctionDefinition!(
         # to minimizing the sum of squared residuals over the effective sample.
         # Keeping sigma as a decision variable is degenerate when RSS -> 0
         # (noise-free data drives sigma -> 0 and the objective to +Inf).
-        @objective(jumpModel, Min, sum(jumpModel[:ϵ][t]^2 for t = lb:T))
+        @objective(
+            jumpModel,
+            Min,
+            sum(jumpModel[:ϵ][t]^2 for t = lb:T) + presampleSquares(jumpModel, penalizado)
+        )
     end
 end
 
@@ -2634,7 +2687,8 @@ Optimizes the SARIMA model using the specified objective function.
 - `objectiveFunction::String`: The objective function used for optimization.
 
 """
-function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction::String, lb::Int)
+function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction::String, lb::Int,
+                        penalizado::Bool = false)
     JuMP.optimize!(jumpModel)
     checkSolverStatus(jumpModel)
 
@@ -2666,7 +2720,7 @@ function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction:
         else
             objective_std = sqrt(2 * nu) * model_variance
             tolerance = objective_value(jumpModel) + objective_std
-            regularizationObjective(jumpModel, model, tolerance)
+            regularizationObjective(jumpModel, model, tolerance, penalizado)
             JuMP.optimize!(jumpModel)
             checkSolverStatus(jumpModel)
         end
@@ -5840,7 +5894,8 @@ function gridSearch(
     return bestModel
 end
 
-function regularizationObjective(jumpModel::Model, model::SARIMAModel, tolerance::Float64)
+function regularizationObjective(jumpModel::Model, model::SARIMAModel, tolerance::Float64,
+                                 penalizado::Bool = false)
     parametersVector::Vector{Symbol} = getParametersVector(model)
     parametersVectorExtended::Vector{VariableRef} =
         length(parametersVector) == 0 ? [] :
@@ -5896,7 +5951,11 @@ function regularizationObjective(jumpModel::Model, model::SARIMAModel, tolerance
         set_parameter_value(jumpModel[:α], alpha_value)
 
         # Set constraints for the regularization
-        @constraint(jumpModel,  sum(jumpModel[:ϵ] .^ 2) <= tolerance)
+        # A tolerancia limita o ERRO DE AJUSTE, e sob os modos de bloco livre penalizado
+        # o ajuste inclui os residuos pre-amostrais. O encolhimento dos COEFICIENTES,
+        # que e' o objetivo desta funcao, nao muda.
+        @constraint(jumpModel,
+            sum(jumpModel[:ϵ] .^ 2) + presampleSquares(jumpModel, penalizado) <= tolerance)
 
         # Elastic net objective: [α * L1 + (1-α) * L2]
         @objective(

@@ -73,9 +73,20 @@
         n = 90
         y = TimeArray(dates(n), 10 .+ cumsum(randn(rng, n) .* 0.3))
         mk() = SARIMA(y, 2, 1, 1; allowMean = false)
-        @test_throws ArgumentError fit!(
-            mk(); objectiveFunction = "mae", initialization = :penalized
-        )
+        # 23/08: `mae` e `huber` SAIRAM da lista de recusados. O bloco pre-amostral passou
+        # a entrar NA MESMA PERDA dos dados nesses dois — `|eps_pre|` para o `mae`,
+        # `Huber(eps_pre)` para o `huber` — entao nao ha mistura de escalas a impedir.
+        # Sem fator de determinante nos dois, deliberadamente: aquele fator vem de
+        # concentrar sigma^2, algebra que exige perda quadratica.
+        #
+        # O INVARIANTE deste testset nao mudou, e e' ele que importa: a lista aceita
+        # espelha o portao do objetivo penalizado. Quem acrescentar modo ou objetivo tem
+        # de mexer nos dois lugares, ou este teste quebra.
+        for obj in ("mae", "huber"), init in (:penalized, :innovations)
+            m = mk()
+            fit!(m; objectiveFunction = obj, initialization = init)
+            @test Sarimax.isFitted(m)
+        end
         # `:innovations` tem de recusar pelo MESMO motivo: o portao do objetivo e
         # `penalizado = initialization in (:penalized, :innovations)`, entao os dois nomes
         # precisam estar na guarda. Este teste e o que impede a lista e o portao de se

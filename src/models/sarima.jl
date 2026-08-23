@@ -1197,12 +1197,30 @@ function fit!(
     # `penalizado = initialization in (:penalized, :innovations)`. Sem os dois nomes nesta
     # guarda, `:innovations` com um objetivo nao coberto passaria e degradaria em silencio
     # — que e precisamente o defeito que ela existe para impedir.
-    if initialization in (:penalized, :innovations) && objectiveFunction != "mse"
+    # O bloco pre-amostral penalizado e' implementado para as perdas em que o PROPRIO
+    # termo do bloco pode ser escrito NA MESMA PERDA dos dados — e' o que impede a
+    # mistura de escalas (penalidade L2 do bloco contra perda L1 dos dados).
+    #
+    # `mse`  -> bloco entra como soma de quadrados, e o fator do determinante se aplica
+    #           (a concentracao de sigma^2 e' algebra gaussiana).
+    # `mae`  -> bloco entra como soma de |eps|, MESMA perda dos dados.
+    # `huber`-> bloco entra como soma de Huber(eps), MESMA perda dos dados.
+    #
+    # Para `mae` e `huber` o FATOR DO DETERMINANTE NAO SE APLICA: ele vem de concentrar
+    # sigma^2 em `T*log(S) + log|Omega|`, passagem que so vale sob perda quadratica. Sem
+    # ele, esses dois modos movem-se apenas no eixo pre-amostral, sem cruzar o eixo do
+    # objetivo — o que e' mais limpo do que o `mse`, nao menos.
+    #
+    # Os demais objetivos seguem barrados: para eles o bloco ficaria sem penalidade e o
+    # ajuste degradaria em silencio para `:free`.
+    if initialization in (:penalized, :innovations) &&
+       !(objectiveFunction in ("mse", "mae", "huber"))
         throw(
             ArgumentError(
                 "initialization = :$(initialization) is implemented for objectiveFunction " *
-                "= \"mse\" only; got \"$(objectiveFunction)\". The pre-sample values " *
-                "would stay unpenalized, i.e. the fit would silently degrade to :free.",
+                "in (\"mse\", \"mae\", \"huber\") only; got \"$(objectiveFunction)\". " *
+                "The pre-sample values would stay unpenalized, i.e. the fit would " *
+                "silently degrade to :free.",
             ),
         )
     end
@@ -2244,6 +2262,14 @@ function includeModelConstraints!(
         @variable(jumpModel, ϵ_plus[offset:T] >= 0)
         @variable(jumpModel, ϵ_minus[offset:T] >= 0)
         @constraint(jumpModel, [t = offset:T], jumpModel[:ϵ][t] == ϵ_plus[t] - ϵ_minus[t])
+        # Bloco pre-amostral na MESMA perda: |eps_pre| pelo mesmo par nao-negativo.
+        if haskey(object_dictionary(jumpModel), :ϵpre)
+            pre = jumpModel[:ϵpre]
+            lo = first(axes(pre, 1))
+            @variable(jumpModel, ϵpre_plus[lo:0] >= 0)
+            @variable(jumpModel, ϵpre_minus[lo:0] >= 0)
+            @constraint(jumpModel, [t = lo:0], pre[t] == ϵpre_plus[t] - ϵpre_minus[t])
+        end
     end
 end
 
@@ -2476,11 +2502,27 @@ function objectiveFunctionDefinition!(
             [t = lb:T],
             jumpModel[:ϵ][t] == uH[t] + vH_plus[t] - vH_minus[t]
         )
-        @objective(
-            jumpModel,
-            Min,
-            sum(0.5 * uH[t]^2 + δh * (vH_plus[t] + vH_minus[t]) for t = lb:T)
-        )
+        # Sob `:penalized`/`:innovations`, o bloco pre-amostral entra NA MESMA PERDA:
+        # cada `eps_pre` ganha a sua propria decomposicao de Huber. Mesma justificativa
+        # do `mae` — uma perda so, aplicada a todos os residuos — e igualmente SEM fator
+        # de determinante, que e' algebra gaussiana.
+        hubObj = sum(0.5 * uH[t]^2 + δh * (vH_plus[t] + vH_minus[t]) for t = lb:T)
+        if penalizado && haskey(object_dictionary(jumpModel), :ϵpre)
+            preH = jumpModel[:ϵpre]
+            loH = first(axes(preH, 1))
+            @variable(jumpModel, uHpre[loH:0])
+            @variable(jumpModel, vHpre_plus[loH:0] >= 0)
+            @variable(jumpModel, vHpre_minus[loH:0] >= 0)
+            @constraint(
+                jumpModel,
+                [t = loH:0],
+                preH[t] == uHpre[t] + vHpre_plus[t] - vHpre_minus[t]
+            )
+            hubObj = hubObj +
+                     sum(0.5 * uHpre[t]^2 + δh * (vHpre_plus[t] + vHpre_minus[t])
+                         for t = loH:0)
+        end
+        @objective(jumpModel, Min, hubObj)
     elseif objectiveFunction == "ridge"
         # Penalized ridge, distinct from the two-stage "elastic_net" in this file: there
         # the coefficient norm is minimized subject to an RSS tolerance; here it is a
@@ -2521,7 +2563,20 @@ function objectiveFunctionDefinition!(
             )
         end
     elseif objectiveFunction == "mae"
-        @objective(jumpModel, Min, sum(jumpModel[:ϵ_plus] + jumpModel[:ϵ_minus]))
+        # Sob `:penalized`/`:innovations` o bloco pre-amostral entra NA MESMA PERDA dos
+        # dados. E' o que torna a extensao inequivoca: nao ha mistura de escalas, porque
+        # nao ha duas perdas — ha uma so, aplicada a todos os residuos, dos pre-amostrais
+        # em diante.
+        #
+        # SEM fator de determinante, deliberadamente. O fator do `mse` vem de concentrar
+        # sigma^2 em `T*log(S) + log|Omega|`, passagem que exige perda quadratica. Aqui o
+        # modo move-se apenas no eixo pre-amostral e nao cruza o eixo do objetivo.
+        maeObj = sum(jumpModel[:ϵ_plus] + jumpModel[:ϵ_minus])
+        if penalizado && haskey(object_dictionary(jumpModel), :ϵpre_plus)
+            maeObj = maeObj +
+                     sum(jumpModel[:ϵpre_plus] + jumpModel[:ϵpre_minus])
+        end
+        @objective(jumpModel, Min, maeObj)
     elseif objectiveFunction == "bilevel"
         @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
         set_time_limit_sec(jumpModel, 1.0)

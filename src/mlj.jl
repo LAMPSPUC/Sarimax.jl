@@ -10,7 +10,7 @@
     SARIMAForecaster(; p = 0, d = 0, q = 0, P = 0, D = 0, Q = 0, seasonality = 1,
                      allowMean = true, allowDrift = false,
                      objectiveFunction = "mse", seasonalForm = :multiplicative,
-                     initialization = :zeroed)
+                     initialization = :innovations)
 
 MLJ-compatible deterministic forecaster wrapping [`SARIMA`](@ref)/[`fit!`](@ref).
 The target `y` is a real vector sampled at equal intervals; features `X` are
@@ -31,7 +31,7 @@ MLJModelInterface.@mlj_model mutable struct SARIMAForecaster <:
     allowDrift::Bool = false
     objectiveFunction::String = "mse"
     seasonalForm::Symbol = :multiplicative
-    initialization::Symbol = :zeroed
+    initialization::Symbol = :innovations
 end
 
 function MLJModelInterface.fit(spec::SARIMAForecaster, verbosity::Int, X, y)

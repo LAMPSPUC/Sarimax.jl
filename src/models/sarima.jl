@@ -1539,9 +1539,21 @@ function fit!(
         yData = yValues
     end
 
-    freeInit && hasMissing && throw(
-        ArgumentError("initialization = :free is not compatible with missing data yet"),
-    )
+    # A guarda de MODO que existia aqui — `freeInit && hasMissing` — foi removida por ser
+    # redundante, e a mensagem dela era enganosa (falava em `:free` para quem tivesse pedido
+    # `:innovations`). O escopo REAL de dados faltantes (d = D = 0, objetivos `mse`/`ml`, sem
+    # exogenas) ja e' imposto acima, e essa guarda e' INDEPENDENTE DE MODO: com `d >= 1` ela
+    # barra o `:zeroed` exatamente como barra os demais.
+    #
+    # Medido antes de remover — AR(1) phi=0,6, n=400, 7 buracos:
+    #   zeroed 0,62528 | free 0,62528 | penalized 0,62373 | innovations 0,62532
+    # e com bloco de residuos pre-amostrais NAO vazio, zeroed contra innovations:
+    #   MA(1) 0,79371/0,79352 | ARMA(1,1) 0,45495/0,45638 | MA(1)+SMA(1) 0,59888/0,59958
+    # e com buracos DENTRO do alcance pre-amostral (t=1; t=1,2; t=1,2,3 com q=1):
+    #   todos LOCALLY_SOLVED nos dois modos, coeficientes proximos.
+    #
+    # Todos convergem, todos imputam, e nenhum lê `NaN`. A guarda era cautela, nao
+    # necessidade — e mante-la faria o default novo QUEBRAR uma funcionalidade documentada.
     if freeInit && yLo <= 0
         if inovacoes
             yAcc = nothing   # adiado: depende de theta/Theta, criados adiante

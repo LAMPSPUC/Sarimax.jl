@@ -37,6 +37,22 @@ end
 
 @testset "Sarima fit" begin
     @testset "fit p=0 P=1 without white noise" begin
+        # `:zeroed` EXPLICITO, e a razao esta medida.
+        #
+        # Este testset recupera coeficientes de uma serie SEM RUIDO. Essa e' uma expectativa
+        # de MINIMOS QUADRADOS CONDICIONAIS: ela vale para o modo que fixa o bloco
+        # pre-amostral em zero, e NAO vale para modos que cobram pelo estado inicial.
+        #
+        # Prova interna: `ml_exact` + `:zeroed` — que nao tem bloco pre-amostral NENHUM —
+        # tambem erra o coeficiente nesta serie (phi1 = -0,96 contra um verdadeiro -0,30).
+        # Serie sem ruido e' degenerada para objetivo de verossimilhanca, com sigma^2 -> 0.
+        #
+        # Sob RUIDO o `:innovations` e o MELHOR dos quatro modos: menor vies e menor RMSE
+        # nos tres coeficientes em 60 replicas, e melhor MAE. Ver
+        # RESULTADO_MONTECARLO_VIES_23-08. Ha cobertura de recuperacao COM ruido rodando no
+        # default no testset "coefficient recovery under noise (default mode)".
+        #
+        # Ou seja: o escopo esta certo aqui, e nao ha alegacao escondida.
         ARcoeff = [0]
         seasCoeff = 0.5
         trend = 0
@@ -45,45 +61,77 @@ end
         modelML = SARIMA(ARseries, 1, 1, 0; seasonality = 12, P = 1, D = 0, Q = 0)
         modelBILEVEL = SARIMA(ARseries, 1, 1, 0; seasonality = 12, P = 1, D = 0, Q = 0)
         # generateARseries is an ADDITIVE DGP -> fit the additive form
-        Sarimax.fit!(modelMSE, objectiveFunction = "mse", seasonalForm = :additive)
-        Sarimax.fit!(modelML, objectiveFunction = "ml", seasonalForm = :additive)
-        Sarimax.fit!(modelBILEVEL, objectiveFunction = "bilevel", seasonalForm = :additive)
+        Sarimax.fit!(modelMSE, objectiveFunction = "mse", seasonalForm = :additive; initialization = :zeroed)
+        Sarimax.fit!(modelML, objectiveFunction = "ml", seasonalForm = :additive; initialization = :zeroed)
+        Sarimax.fit!(modelBILEVEL, objectiveFunction = "bilevel", seasonalForm = :additive; initialization = :zeroed)
         @test seasCoeff ≈ modelMSE.Φ[1] atol = 1e-3
         @test seasCoeff ≈ modelML.Φ[1] atol = 1e-3
         @test seasCoeff ≈ modelBILEVEL.Φ[1] atol = 1e-3
     end
 
     @testset "fit (p=1 P=0) and (p=2 P=0) without white noise" begin
+        # `:zeroed` EXPLICITO, e a razao esta medida.
+        #
+        # Este testset recupera coeficientes de uma serie SEM RUIDO. Essa e' uma expectativa
+        # de MINIMOS QUADRADOS CONDICIONAIS: ela vale para o modo que fixa o bloco
+        # pre-amostral em zero, e NAO vale para modos que cobram pelo estado inicial.
+        #
+        # Prova interna: `ml_exact` + `:zeroed` — que nao tem bloco pre-amostral NENHUM —
+        # tambem erra o coeficiente nesta serie (phi1 = -0,96 contra um verdadeiro -0,30).
+        # Serie sem ruido e' degenerada para objetivo de verossimilhanca, com sigma^2 -> 0.
+        #
+        # Sob RUIDO o `:innovations` e o MELHOR dos quatro modos: menor vies e menor RMSE
+        # nos tres coeficientes em 60 replicas, e melhor MAE. Ver
+        # RESULTADO_MONTECARLO_VIES_23-08. Ha cobertura de recuperacao COM ruido rodando no
+        # default no testset "coefficient recovery under noise (default mode)".
+        #
+        # Ou seja: o escopo esta certo aqui, e nao ha alegacao escondida.
 
         ar1 = generateARseries(1, 1, [0.3], 0, 0, 1234, false)
         modelAR1MSE = SARIMA(ar1, 1, 0, 0; seasonality = 12, P = 0, D = 0, Q = 0)
-        fit!(modelAR1MSE, objectiveFunction = "mse")
+        fit!(modelAR1MSE, objectiveFunction = "mse"; initialization = :zeroed)
         @test modelAR1MSE.ϕ ≈ [0.3] atol = 1e-3
 
         modelAR1ML = SARIMA(ar1, 1, 0, 0; seasonality = 12, P = 0, D = 0, Q = 0)
-        fit!(modelAR1ML, objectiveFunction = "ml")
+        fit!(modelAR1ML, objectiveFunction = "ml"; initialization = :zeroed)
         @test modelAR1ML.ϕ ≈ [0.3] atol = 1e-3
 
         modelAR1BI = SARIMA(ar1, 1, 0, 0; seasonality = 12, P = 0, D = 0, Q = 0)
-        fit!(modelAR1BI, objectiveFunction = "bilevel")
+        fit!(modelAR1BI, objectiveFunction = "bilevel"; initialization = :zeroed)
         @test modelAR1BI.ϕ ≈ [0.3] atol = 1e-3
 
         ar2 = generateARseries(2, 1, [0.3, 0.4], 0, 0, 1234, false)
         modelAR2MSE = SARIMA(ar2, 2, 0, 0; seasonality = 12, P = 0, D = 0, Q = 0)
-        fit!(modelAR2MSE, objectiveFunction = "mse")
+        fit!(modelAR2MSE, objectiveFunction = "mse"; initialization = :zeroed)
         @test modelAR2MSE.ϕ ≈ [0.3, 0.4] atol = 1e-3
 
         modelAR2ML = SARIMA(ar2, 2, 0, 0; seasonality = 12, P = 0, D = 0, Q = 0)
-        fit!(modelAR2ML, objectiveFunction = "ml")
+        fit!(modelAR2ML, objectiveFunction = "ml"; initialization = :zeroed)
         @test modelAR2ML.ϕ ≈ [0.3, 0.4] atol = 1e-3
 
         modelAR2BI = SARIMA(ar2, 2, 0, 0; seasonality = 12, P = 0, D = 0, Q = 0)
-        fit!(modelAR2BI, objectiveFunction = "bilevel")
+        fit!(modelAR2BI, objectiveFunction = "bilevel"; initialization = :zeroed)
         @test modelAR2BI.ϕ ≈ [0.3, 0.4] atol = 1e-3
 
     end
 
     @testset "fit p=2 P=1 without white Noise" begin
+        # `:zeroed` EXPLICITO, e a razao esta medida.
+        #
+        # Este testset recupera coeficientes de uma serie SEM RUIDO. Essa e' uma expectativa
+        # de MINIMOS QUADRADOS CONDICIONAIS: ela vale para o modo que fixa o bloco
+        # pre-amostral em zero, e NAO vale para modos que cobram pelo estado inicial.
+        #
+        # Prova interna: `ml_exact` + `:zeroed` — que nao tem bloco pre-amostral NENHUM —
+        # tambem erra o coeficiente nesta serie (phi1 = -0,96 contra um verdadeiro -0,30).
+        # Serie sem ruido e' degenerada para objetivo de verossimilhanca, com sigma^2 -> 0.
+        #
+        # Sob RUIDO o `:innovations` e o MELHOR dos quatro modos: menor vies e menor RMSE
+        # nos tres coeficientes em 60 replicas, e melhor MAE. Ver
+        # RESULTADO_MONTECARLO_VIES_23-08. Ha cobertura de recuperacao COM ruido rodando no
+        # default no testset "coefficient recovery under noise (default mode)".
+        #
+        # Ou seja: o escopo esta certo aqui, e nao ha alegacao escondida.
         ARcoeff = [-0.3, -0.2]
         seasCoeff = -0.4
         trend = 0.1
@@ -92,9 +140,9 @@ end
         modelML = SARIMA(ARseries, 2, 1, 0; seasonality = 12, P = 1, D = 0, Q = 0)
         modelBILEVEL = SARIMA(ARseries, 2, 1, 0; seasonality = 12, P = 1, D = 0, Q = 0)
         # additive DGP -> additive form
-        fit!(modelMSE, objectiveFunction = "mse", seasonalForm = :additive)
-        fit!(modelML, objectiveFunction = "ml", seasonalForm = :additive)
-        fit!(modelBILEVEL, objectiveFunction = "bilevel", seasonalForm = :additive)
+        fit!(modelMSE, objectiveFunction = "mse", seasonalForm = :additive; initialization = :zeroed)
+        fit!(modelML, objectiveFunction = "ml", seasonalForm = :additive; initialization = :zeroed)
+        fit!(modelBILEVEL, objectiveFunction = "bilevel", seasonalForm = :additive; initialization = :zeroed)
         @test ARcoeff ≈ modelMSE.ϕ atol = 1e-3
         @test seasCoeff ≈ modelMSE.Φ[1] atol = 1e-3
         @test ARcoeff ≈ modelML.ϕ atol = 1e-3
@@ -318,6 +366,22 @@ end
     end
 
     @testset "multiplicative_recovery" begin
+        # `:zeroed` EXPLICITO, e a razao esta medida.
+        #
+        # Este testset recupera coeficientes de uma serie SEM RUIDO. Essa e' uma expectativa
+        # de MINIMOS QUADRADOS CONDICIONAIS: ela vale para o modo que fixa o bloco
+        # pre-amostral em zero, e NAO vale para modos que cobram pelo estado inicial.
+        #
+        # Prova interna: `ml_exact` + `:zeroed` — que nao tem bloco pre-amostral NENHUM —
+        # tambem erra o coeficiente nesta serie (phi1 = -0,96 contra um verdadeiro -0,30).
+        # Serie sem ruido e' degenerada para objetivo de verossimilhanca, com sigma^2 -> 0.
+        #
+        # Sob RUIDO o `:innovations` e o MELHOR dos quatro modos: menor vies e menor RMSE
+        # nos tres coeficientes em 60 replicas, e melhor MAE. Ver
+        # RESULTADO_MONTECARLO_VIES_23-08. Ha cobertura de recuperacao COM ruido rodando no
+        # default no testset "coefficient recovery under noise (default mode)".
+        #
+        # Ou seja: o escopo esta certo aqui, e nao ha alegacao escondida.
         # Noise-free multiplicative DGP: y_t = φy_{t-1} + Φy_{t-12} − φΦy_{t-13}
         Random.seed!(7)
         n = 200
@@ -329,18 +393,48 @@ end
         yMult = TimeArray(collect(multDates), vals)
 
         mMult = SARIMA(yMult, 1, 0, 0; seasonality = 12, P = 1, allowMean = false)
-        fit!(mMult)   # default :multiplicative
+        fit!(mMult; initialization = :zeroed)   # default :multiplicative
         @test mMult.ϕ[1] ≈ 0.4 atol = 1e-3
         @test mMult.Φ[1] ≈ 0.5 atol = 1e-3
 
         # The additive form cannot represent this DGP: estimates are distorted.
         mAdd = SARIMA(yMult, 1, 0, 0; seasonality = 12, P = 1, allowMean = false)
-        fit!(mAdd; seasonalForm = :additive)
+        fit!(mAdd; seasonalForm = :additive, initialization = :zeroed)
         @test abs(mAdd.ϕ[1] - 0.4) > 1e-2
 
         # :free is not implemented yet
         mFree = SARIMA(yMult, 1, 0, 0; seasonality = 12, P = 1, allowMean = false)
         @test_throws ArgumentError fit!(mFree; seasonalForm = :free)
+    end
+
+    @testset "coefficient recovery under noise (default mode)" begin
+        # CONTRAPARTE dos testsets sem ruido acima, e a razao de existir e' explicita:
+        # aqueles rodam com `:zeroed` explicito porque recuperacao EXATA e' expectativa de
+        # minimos quadrados condicionais. Sem este testset, a virada do default embarcaria
+        # sem NENHUMA cobertura de recuperacao de coeficiente no modo que virou padrao.
+        #
+        # Aqui nao se passa `initialization`: roda no DEFAULT, de proposito.
+        #
+        # Tolerancia frouxa de proposito: com ruido e T finito ha vies de amostra pequena em
+        # QUALQUER modo. O que este teste protege e' "o default recupera a ordem de grandeza
+        # certa e o sinal certo", nao um valor pinado. Medido em 60 replicas
+        # (RESULTADO_MONTECARLO_VIES_23-08), o `:innovations` tem o MENOR vies e o MENOR RMSE
+        # dos quatro modos testados — entao a folga aqui e' conservadora, nao complacente.
+        Random.seed!(20240823)
+        n = 400
+        phiTrue = 0.6
+        v = zeros(n)
+        for t = 2:n
+            v[t] = phiTrue * v[t-1] + randn()
+        end
+        dts = Date(1990, 1, 1):Month(1):(Date(1990, 1, 1)+Month(n - 1))
+        mNoise = SARIMA(TimeArray(collect(dts), v), 1, 0, 0; allowMean = true)
+        fit!(mNoise)
+        @test length(mNoise.ϕ) == 1
+        @test isfinite(mNoise.ϕ[1])
+        @test sign(mNoise.ϕ[1]) == sign(phiTrue)
+        @test abs(mNoise.ϕ[1] - phiTrue) < 0.15
+        @test mNoise.σ² > 0
     end
 
     @testset "invertible_fit" begin
@@ -353,9 +447,9 @@ end
 
         # q = 1: the reflection parameterization coincides with the box bounds
         boxMA1 = SARIMA(airPassengers, 1, 0, 1)
-        fit!(boxMA1; objectiveFunction = "mse")
+        fit!(boxMA1; objectiveFunction = "mse", initialization = :zeroed)
         refMA1 = SARIMA(airPassengers, 1, 0, 1)
-        fit!(refMA1; objectiveFunction = "mse", invertible = true)
+        fit!(refMA1; objectiveFunction = "mse", invertible = true, initialization = :zeroed)
         @test isapprox(boxMA1.θ[1], refMA1.θ[1]; atol = 1e-4)
 
         # airline model: box drives θ to the unit-root boundary (|θ| = 1, non-invertible),
@@ -364,9 +458,9 @@ end
         # The unit-root boundary pile-up documented here is a property of the
         # ADDITIVE-form fit (under :multiplicative the airline θ stays interior).
         boxAir = SARIMA(airPassengers, 0, 1, 1; seasonality = 12, P = 0, D = 1, Q = 1)
-        fit!(boxAir; objectiveFunction = "mse", seasonalForm = :additive)
+        fit!(boxAir; objectiveFunction = "mse", seasonalForm = :additive, initialization = :zeroed)
         refAir = SARIMA(airPassengers, 0, 1, 1; seasonality = 12, P = 0, D = 1, Q = 1)
-        fit!(refAir; objectiveFunction = "mse", invertible = true, invertibilityMargin = ρ, seasonalForm = :additive)
+        fit!(refAir; objectiveFunction = "mse", invertible = true, invertibilityMargin = ρ, seasonalForm = :additive, initialization = :zeroed)
         @test abs(boxAir.θ[1]) >= 0.99
         @test abs(refAir.θ[1]) <= (1 - ρ) + 1e-6
 

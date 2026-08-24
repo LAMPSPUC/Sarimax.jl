@@ -73,20 +73,35 @@
         n = 90
         y = TimeArray(dates(n), 10 .+ cumsum(randn(rng, n) .* 0.3))
         mk() = SARIMA(y, 2, 1, 1; allowMean = false)
-        @test_throws ArgumentError fit!(
-            mk(); objectiveFunction = "mae", initialization = :penalized
-        )
-        # `:innovations` tem de recusar pelo MESMO motivo: o portao do objetivo e
-        # `penalizado = initialization in (:penalized, :innovations)`, entao os dois nomes
-        # precisam estar na guarda. Este teste e o que impede a lista e o portao de se
-        # separarem quando alguem acrescentar um modo novo.
-        @test_throws ArgumentError fit!(
-            mk(); objectiveFunction = "ridge", initialization = :innovations
-        )
-        # `mse` e o caso coberto: nao recusa
-        @test_logs match_mode = :any fit!(
-            mk(); objectiveFunction = "mse", initialization = :penalized
-        )
+        # 23/08: `mae` e `huber` SAIRAM da lista de recusados. O bloco pre-amostral passou
+        # a entrar NA MESMA PERDA dos dados nesses dois — `|eps_pre|` para o `mae`,
+        # `Huber(eps_pre)` para o `huber` — entao nao ha mistura de escalas a impedir.
+        # Sem fator de determinante nos dois, deliberadamente: aquele fator vem de
+        # concentrar sigma^2, algebra que exige perda quadratica.
+        #
+        # O INVARIANTE deste testset nao mudou, e e' ele que importa: a lista aceita
+        # espelha o portao do objetivo penalizado. Quem acrescentar modo ou objetivo tem
+        # de mexer nos dois lugares, ou este teste quebra.
+        # 23/08: a lista de recusados esvaziou. O bloco pre-amostral passou a entrar no
+        # TERMO DE AJUSTE de cada objetivo — que todos tem — e as partes que regularizam
+        # ficaram intocadas. Nao sobrou objetivo suportado que a guarda recuse.
+        #
+        # O INVARIANTE que este testset vigia muda de forma, nao de proposito: era
+        # "a lista de aceitos espelha o portao"; passa a ser **"todo objetivo suportado
+        # funciona sob os modos de bloco livre penalizado"**. Se alguem acrescentar um
+        # objetivo ao pacote e nao estender o termo de ajuste dele, este teste quebra —
+        # que e' exatamente o que o anterior fazia, do outro lado da mesma fronteira.
+        #
+        # `ml_exact` fica de fora por degeneracao PRE-EXISTENTE, nao por esta mudanca:
+        # ele devolve sigma2 = 0 tambem na `dev`, com `:free`, e ja emite aviso proprio.
+        # O testset seguinte cobre esse aviso.
+        suportados = ("mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge", "huber")
+        for obj in suportados, init in (:penalized, :innovations)
+            m = mk()
+            kw = obj == "elastic_net" ? (; alpha = 0.5) : (;)
+            fit!(m; objectiveFunction = obj, initialization = init, kw...)
+            @test Sarimax.isFitted(m)
+        end
     end
 
     @testset "ml_exact avisa quando degrada por completo" begin

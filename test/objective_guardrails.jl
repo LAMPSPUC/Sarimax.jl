@@ -61,8 +61,24 @@
         # [NAO MEDIDO] o mecanismo. O `lambda` escolhido nao fica acessivel (`m.lambda` vem
         # `NaN` nos dois modos), entao nao da para dizer se o `lambda` por BIC colapsou.
         # E a primeira medicao a fazer se for perseguir a causa.
-        @test_broken any(c -> abs(c) <= 1e-5, coefs)      # premissa: houve zeragem
-        @test_broken get_hyperparameters_number(m) < nominal
+        # `@test_skip`, NAO `@test_broken`: o comportamento DEPENDE DE VERSAO. O robo de
+        # teste na Julia 1.10 PASSA nestas duas assercoes; na 1.12 daqui, falha. E em Julia
+        # um `@test_broken` que passa vira ERRO — foi o que derrubou o CI em a0f1ba4.
+        #
+        # E a dependencia de versao e' informativa: defeito ESTRUTURAL do modo nao dependeria
+        # da versao da linguagem; escolha de `lambda` numa superficie quase plana, sim.
+        #
+        # Medido, alpha = 1,0, Julia 1.12:
+        #   :zeroed       3 de 7 zerados   min|coef| 4,4e-12   hiperparam 5
+        #   :innovations  0 de 7           min|coef| 3,1e-02   hiperparam 8
+        #
+        # E um defeito PRE-EXISTENTE que a varredura descobriu no caminho: o kwarg `lambda`
+        # e' gravado em `m.lambda` mas NAO entra na otimizacao. De 0,01 a 1.000 o objetivo
+        # fica identico a nove algarismos (92,4929349), sob `:zeroed`. Ou seja, o unico
+        # caminho em que o `lambda` age e' a selecao por BIC — e e' la que os dois modos
+        # divergem, porque a escala do somatorio mudou. Ver DEFEITO_LAMBDA_INERTE_23-08.
+        @test_skip any(c -> abs(c) <= 1e-5, coefs)      # premissa: houve zeragem
+        @test_skip get_hyperparameters_number(m) < nominal
         @test m.metadata["objectiveFunction"] == "elastic_net"
     end
 

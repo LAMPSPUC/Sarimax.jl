@@ -82,6 +82,11 @@ function MAE(actual, forecast)
 end
 @testset "Sarima predict" begin
     @testset "predict sarima without white noise" begin
+        # `:zeroed` explicito nas previsoes SEM RUIDO deste testset. Recuperacao/previsao
+        # exata e' expectativa de MINIMOS QUADRADOS CONDICIONAIS e nao vale para modos que
+        # cobram pelo estado inicial — o `ml_exact`, que nao tem bloco pre-amostral nenhum,
+        # tambem falha nesta serie. Ver RESULTADO_MONTECARLO_VIES_23-08, onde sob RUIDO o
+        # `:innovations` da o menor vies e o melhor MAE dos quatro modos.
         #p=2 P=1 trend =0.1
         ARcoeff = [-0.3, -0.2]
         seasCoeff = 0.4
@@ -89,7 +94,7 @@ end
         ARseries = generateARseries(2, 12, ARcoeff, seasCoeff, trend, 1234, false)
         trainingSet, testingSet = split_train_test(ARseries)
         modelMSE = SARIMA(trainingSet, 2, 1, 0; seasonality = 12, P = 1, D = 0, Q = 0)
-        Sarimax.fit!(modelMSE; seasonalForm = :additive)  # additive DGP
+        Sarimax.fit!(modelMSE; seasonalForm = :additive, initialization = :zeroed)
         print(modelMSE)
         forecastMSE = Sarimax.predict!(modelMSE; stepsAhead = length(testingSet))
         maeMSE = MAE(testingSet, forecastMSE)
@@ -109,6 +114,11 @@ end
     end
 
     @testset "auto predict without white noise" begin
+        # `:zeroed` explicito nas previsoes SEM RUIDO deste testset. Recuperacao/previsao
+        # exata e' expectativa de MINIMOS QUADRADOS CONDICIONAIS e nao vale para modos que
+        # cobram pelo estado inicial — o `ml_exact`, que nao tem bloco pre-amostral nenhum,
+        # tambem falha nesta serie. Ver RESULTADO_MONTECARLO_VIES_23-08, onde sob RUIDO o
+        # `:innovations` da o menor vies e o melhor MAE dos quatro modos.
         #p=2 P=1 trend =1
         ARcoeff = [0.3, 0.3]
         seasCoeff = 0.5
@@ -132,7 +142,8 @@ end
         seriesARSeas = generateSeries(2, 12, [0.3, 0.2], 0.1, 1234, false)
         trainingARSeas, testingARSeas = split_train_test(seriesARSeas)
         modelARSeasAuto =
-            Sarimax.auto(trainingARSeas; seasonality = 12, objectiveFunction = "mse")
+            Sarimax.auto(trainingARSeas; seasonality = 12, objectiveFunction = "mse",
+                         initialization = :zeroed)
         forecastARSeasAuto = Sarimax.predict!(modelARSeasAuto; stepsAhead = 40)
         mapeARSeasAuto = MAPE(testingARSeas, forecastARSeasAuto)
         maeARSeasAuto = MAE(testingARSeas, forecastARSeasAuto)

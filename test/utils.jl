@@ -206,9 +206,14 @@
 
         fit!(testModel)
 
-        # CSS loglik of the (3,0,1)(1,1,1)12 fit under the multiplicative form
-        @test loglikelihood(testModel) ≈ 247.8863386095342 atol = 1e-1
-        @test loglike(testModel) ≈ 247.8863386095342 atol = 1e-1
+        # CSS loglik of the (3,0,1)(1,1,1)12 fit under the multiplicative form.
+        #
+        # Repinado em 2026-08 com a virada do default para `:innovations`: 247,886 -> 277,602.
+        # A causa e a mesma do repin do `aicc` em sarima_auto.jl — o somatorio do erro passa
+        # a comecar em t = 1, entao a amostra efetiva vai de `T - lb + 1` para `T` e a
+        # loglik e avaliada sobre mais pontos. Nao e melhora nem piora: e' outra escala.
+        @test loglikelihood(testModel) ≈ 277.6017213855341 atol = 1e-1
+        @test loglike(testModel) ≈ 277.6017213855341 atol = 1e-1
     end
 
     @testset "identifyOutliers Tests" begin

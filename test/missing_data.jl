@@ -22,8 +22,15 @@
 
         # coefficient stays close to the complete-data fit
         @test abs(mMiss.ϕ[1] - mFull.ϕ[1]) < 0.05
-        # effective sample excludes the gaps
-        @test nobs(mMiss) == (n - 1) - length(holes)
+        # Amostra efetiva: exclui os buracos, E depende do CONDICIONAMENTO do modo.
+        # Sob o default (`:innovations`) o somatorio do erro comeca em t = 1 e NENHUMA
+        # observacao e condicionada fora; sob `:zeroed` a primeira sai (p = 1). Os dois
+        # regimes ficam pinados aqui de proposito, em vez de um numero magico: e' o eixo
+        # que muda, e o teste tem de mostrar qual.
+        @test nobs(mMiss) == n - length(holes)
+        mMissZeroed = SARIMA(TimeArray(collect(dts), ym), 1, 0, 0; allowMean = false)
+        fit!(mMissZeroed; initialization = :zeroed)
+        @test nobs(mMissZeroed) == (n - 1) - length(holes)
         @test mMiss.metadata["nMissing"] == length(holes)
         @test length(residuals(mMiss)) == nobs(mMiss)
 
@@ -54,7 +61,11 @@
         m = SARIMA(TimeArray(collect(dts), ym), 0, 0, 1; allowMean = false)
         fit!(m)
         @test abs(m.θ[1] - θtrue) < 0.2
-        @test nobs(m) == (n - 1) - 6
+        # ver nota sobre condicionamento no testset AR(1) acima
+        @test nobs(m) == n - 6
+        mZeroed = SARIMA(TimeArray(collect(dts), ym), 0, 0, 1; allowMean = false)
+        fit!(mZeroed; initialization = :zeroed)
+        @test nobs(mZeroed) == (n - 1) - 6
     end
 
     @testset "unsupported combinations throw" begin

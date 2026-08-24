@@ -39,7 +39,12 @@
     @testset "initialization modes are distinct but same family" begin
         zeroed = SARIMA(airPassengersLog, 0, 1, 1;
             seasonality = 12, P = 0, D = 1, Q = 1, allowMean = false)
-        fit!(zeroed)   # default :zeroed
+        # Explicito de proposito: este testset EXISTE para contrastar `:zeroed` com
+        # `:warmup`, e a assercao `nobs(warmup) - nobs(zeroed) == 13` e' sobre o
+        # condicionamento que o `:zeroed` aplica. Depois que o default virou
+        # `:innovations` (lb = 1, nenhuma observacao descartada), depender do default
+        # aqui mediria outra coisa. Os numeros ficam intactos.
+        fit!(zeroed; initialization = :zeroed)
         warmup = SARIMA(airPassengersLog, 0, 1, 1;
             seasonality = 12, P = 0, D = 1, Q = 1, allowMean = false)
         fit!(warmup; initialization = :warmup)

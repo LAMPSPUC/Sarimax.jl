@@ -83,6 +83,29 @@ teto NAO explica diferencas de tempo observadas com `searchMethod = "stepwise"`.
 const DEFAULT_NMODELS = 94
 
 """
+Convencao de condicionamento CSS usada por default no ajuste.
+
+`:innovations` deixa o bloco pre-amostral LIVRE (as inovacoes anteriores a `t = 1` sao
+variaveis de decisao, nao zeros impostos) e PENALIZA esse bloco no objetivo, de modo que o
+somatorio do erro de ajuste comeca em `t = 1` em vez de comecar depois do condicionamento.
+
+Estes sao dois eixos independentes, nao dois degraus de uma escada: `:free` abre o bloco sem
+penalizar, `:penalized` abre e penaliza, `:zeroed` mantem o bloco fixo em zero. Um nome de
+modo e um ponto num plano.
+
+Por que o default deixou de ser `:zeroed`: sob um teste 2x2 de partida (ponto inicial do
+solver x modo), `:zeroed` foi o UNICO modo cujo otimo depende de onde o solver comeca;
+`:free`, `:penalized` e `:innovations` deram o mesmo otimo a partir de partidas diferentes.
+Invariancia nao e globalidade — ha caso com o Ipopt certificadamente 1,911% acima do global
+DENTRO do modo invariante —, mas a dependencia de partida do `:zeroed` significa que o
+mesmo dado e a mesma chamada podiam devolver estimativas diferentes conforme o ponto inicial.
+
+BREAKING: quem dependia do comportamento anterior deve passar `initialization = :zeroed`
+explicitamente.
+"""
+const DEFAULT_INITIALIZATION = :innovations
+
+"""
     admissibleCoefficientBound(order::Int, i::Int) -> Float64
 
 Cota `|coef_i| <= C(order, i)` para a parametrizacao LIVRE (sem estacionariedade/
@@ -831,17 +854,34 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
   yielding the two-sided conditional smoother; σ², the log-likelihood, the effective
   sample size and the residual diagnostics all exclude the imputed indices. The imputed
   values are written back into `model.y` and recorded in `model.metadata["nMissing"]`.
-- `initialization::Symbol`: CSS conditioning convention. `:zeroed` (default) fixes the
-  pre-sample residuals at zero and drops the first `max(p+sP, q+sQ)` differenced
-  observations; `:warmup` conditions only on the AR-side lags and warm-starts the MA
-  recursion from the beginning of the differenced sample, matching R's
-  `arima(..., method = "CSS")`; `:free` estimates the pre-sample residuals and the
-  pre-sample differenced endogenous values as free variables (Box-Jenkins
-  backcasting / unconditional least squares) and keeps every differenced observation
-  in the objective — the resulting concentrated likelihood tracks the exact (Kalman)
-  likelihood up to a near-constant log-determinant term, making information criteria
-  comparable across candidate orders. Exact-likelihood (Kalman) initialization is out
-  of scope by design.
+- `initialization::Symbol`: CSS conditioning convention. The five modes are points in a
+  SPACE of independent choices, not rungs on a ladder. Three are known: whether the
+  pre-sample block is free or held at zero; whether that block is penalised in the
+  objective; and how the block is parameterised. Read the axes below, not the names —
+  two modes sharing the first two axes still estimate different models.
+  `:innovations` (**default**) is free-and-penalised: the pre-sample innovations are
+  decision variables, the objective carries the determinant factor
+  `∏ⱼ(1-κⱼ²)^(-j/T)`, and the fit-error sum starts at `t = 1` for EVERY objective
+  function rather than after the conditioning lag.
+  `:penalized` is free-and-penalised too, but parameterises the pre-sample block
+  differently: it leaves the pre-sample differenced values AND the pre-sample residuals
+  free at the same time, whereas `:innovations` generates the pre-sample past from the
+  innovations alone. The two are NOT interchangeable — measured on 6 M4 monthly series
+  at fixed order (2,1,2), they disagree in all 6, with `φ₁` flipping from `0.886` to
+  `-0.618` on one of them. Which of the two admits the other's optimum is an open
+  question, not a documented property.
+  `:free` estimates the pre-sample residuals and the pre-sample differenced endogenous
+  values as free variables (Box-Jenkins backcasting / unconditional least squares) and
+  keeps every differenced observation in the objective, but does NOT penalise the block.
+  `:zeroed` fixes the pre-sample residuals at zero and drops the first
+  `max(p+sP, q+sQ)` differenced observations — it is the only mode whose optimum was
+  measured to depend on the solver's starting point.
+  `:warmup` conditions only on the AR-side lags and warm-starts the MA recursion from the
+  beginning of the differenced sample, matching R's `arima(..., method = "CSS")`.
+  The free-and-penalised concentrated likelihood tracks the exact (Kalman) likelihood up
+  to a near-constant log-determinant term, making information criteria comparable across
+  candidate orders. Exact-likelihood (Kalman) initialization is out of scope by design.
+  See [`DEFAULT_INITIALIZATION`].
 - `warmStart::Union{Nothing,SARIMAModel}`: A previously fitted model of the same
   specification whose solution seeds this solve (residual vector, coefficients and —
   under the reflection parameterisations — their reflection-space preimages via
@@ -887,7 +927,7 @@ function fit!(
     invertibilityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
-    initialization::Symbol = :zeroed,
+    initialization::Symbol = DEFAULT_INITIALIZATION,
     # Semantica do bloco exogeno. Ver `arAcc` na construcao do modelo para as duas
     # equacoes.
     #
@@ -1499,9 +1539,21 @@ function fit!(
         yData = yValues
     end
 
-    freeInit && hasMissing && throw(
-        ArgumentError("initialization = :free is not compatible with missing data yet"),
-    )
+    # A guarda de MODO que existia aqui — `freeInit && hasMissing` — foi removida por ser
+    # redundante, e a mensagem dela era enganosa (falava em `:free` para quem tivesse pedido
+    # `:innovations`). O escopo REAL de dados faltantes (d = D = 0, objetivos `mse`/`ml`, sem
+    # exogenas) ja e' imposto acima, e essa guarda e' INDEPENDENTE DE MODO: com `d >= 1` ela
+    # barra o `:zeroed` exatamente como barra os demais.
+    #
+    # Medido antes de remover — AR(1) phi=0,6, n=400, 7 buracos:
+    #   zeroed 0,62528 | free 0,62528 | penalized 0,62373 | innovations 0,62532
+    # e com bloco de residuos pre-amostrais NAO vazio, zeroed contra innovations:
+    #   MA(1) 0,79371/0,79352 | ARMA(1,1) 0,45495/0,45638 | MA(1)+SMA(1) 0,59888/0,59958
+    # e com buracos DENTRO do alcance pre-amostral (t=1; t=1,2; t=1,2,3 com q=1):
+    #   todos LOCALLY_SOLVED nos dois modos, coeficientes proximos.
+    #
+    # Todos convergem, todos imputam, e nenhum lê `NaN`. A guarda era cautela, nao
+    # necessidade — e mante-la faria o default novo QUEBRAR uma funcionalidade documentada.
     if freeInit && yLo <= 0
         if inovacoes
             yAcc = nothing   # adiado: depende de theta/Theta, criados adiante
@@ -3410,7 +3462,7 @@ function auto(
     searchMethod::String = "stepwise",
     parallel::Bool = false,
     seasonalForm::Symbol = :multiplicative,
-    initialization::Symbol = :zeroed,
+    initialization::Symbol = DEFAULT_INITIALIZATION,
     multistart::Bool = false,
     # INDEPENDENTE de `assertStationarity`. Antes esta linha era `= assertStationarity`, o
     # que amarrava duas decisoes distintas: impor estacionariedade POR CONSTRUCAO (mudar a
@@ -4416,7 +4468,7 @@ function ensureAdmissible!(
     objectiveFunction::String = "mse",
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
-    initialization::Symbol = :zeroed,
+    initialization::Symbol = DEFAULT_INITIALIZATION,
     multistart::Bool = false,
     refitMargin::AbstractFloat = 2e-3,
     refit::Bool = true,
@@ -4520,7 +4572,7 @@ function localSearch!(
     icOffset::Fl = 0.0,
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
-    initialization::Symbol = :zeroed,
+    initialization::Symbol = DEFAULT_INITIALIZATION,
     # Default do R: `stats::arima` com `transform.pars = TRUE` parametriza o AR por `tanh`,
     # isto e, estacionario POR CONSTRUCAO num dominio aberto. O MA fica livre (ver
     # `invertible`), que e a outra metade do comportamento do R.
@@ -4974,7 +5026,7 @@ function stepWiseSearchNaive(
     icOffset::AbstractFloat = 0.0,
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
-    initialization::Symbol = :zeroed,
+    initialization::Symbol = DEFAULT_INITIALIZATION,
     multistart::Bool = false,
     # Default do R: `stats::arima` com `transform.pars = TRUE` parametriza o AR por `tanh`,
     # isto e, estacionario POR CONSTRUCAO num dominio aberto. O MA fica livre (ver
@@ -5248,7 +5300,7 @@ function stepwiseSearch(
     icOffset::AbstractFloat = 0.0,
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
-    initialization::Symbol = :zeroed,
+    initialization::Symbol = DEFAULT_INITIALIZATION,
     multistart::Bool = false,
     # Default do R: `stats::arima` com `transform.pars = TRUE` parametriza o AR por `tanh`,
     # isto e, estacionario POR CONSTRUCAO num dominio aberto. O MA fica livre (ver
@@ -5786,7 +5838,7 @@ function gridSearch(
     icOffset::AbstractFloat = 0.0,
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
-    initialization::Symbol = :zeroed,
+    initialization::Symbol = DEFAULT_INITIALIZATION,
     multistart::Bool = false,
     # Default do R: `stats::arima` com `transform.pars = TRUE` parametriza o AR por `tanh`,
     # isto e, estacionario POR CONSTRUCAO num dominio aberto. O MA fica livre (ver

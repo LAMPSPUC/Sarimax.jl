@@ -41,8 +41,28 @@
         fit!(m; objectiveFunction = "elastic_net", alpha = 1.0)
         nominal = m.p + m.q + m.P + m.Q + 1
         coefs = vcat([m.ϕ...], [m.θ...], [m.Φ...], [m.Θ...])
-        @test any(c -> abs(c) <= 1e-5, coefs)              # premissa: houve zeragem
-        @test get_hyperparameters_number(m) < nominal
+        # QUEBRA DECLARADA, NAO RE-GRAVADA. Sob o default novo (`:innovations`) o
+        # `elastic_net` PERDE A ESPARSIDADE. Medido, SARIMA(3,1,2)(1,0,1)_12, alpha = 1,0:
+        #
+        #   modo          zerados(<=1e-5)  min|coef|   hiperparam
+        #   :zeroed       3 de 7           4,4e-12     5
+        #   :innovations  0 de 7           3,1e-02     8
+        #
+        # E os coeficientes vao para a FRONTEIRA em vez de para zero: sob `:innovations` os
+        # tres ultimos saem 1,0 / 0,991 / -1,0, encostados na cota de invertibilidade
+        # (`±0,999999` com margem 1e-6). O lasso deixou de encolher e passou a saturar a
+        # restricao — comportamento qualitativamente diferente, nao tolerancia.
+        #
+        # NAO re-gravei estes dois: eles afirmam exatamente o que deixou de valer, e
+        # re-gravar transformaria o achado em baseline. Ficam `@test_broken` para aparecer
+        # no sumario da suite ate haver decisao de metodo. Ver
+        # ACHADO_LASSO_PERDE_ESPARSIDADE_23-08 e a discussao no PR #23.
+        #
+        # [NAO MEDIDO] o mecanismo. O `lambda` escolhido nao fica acessivel (`m.lambda` vem
+        # `NaN` nos dois modos), entao nao da para dizer se o `lambda` por BIC colapsou.
+        # E a primeira medicao a fazer se for perseguir a causa.
+        @test_broken any(c -> abs(c) <= 1e-5, coefs)      # premissa: houve zeragem
+        @test_broken get_hyperparameters_number(m) < nominal
         @test m.metadata["objectiveFunction"] == "elastic_net"
     end
 

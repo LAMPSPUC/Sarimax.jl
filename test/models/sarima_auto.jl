@@ -160,7 +160,11 @@
         # (`T` no caminho exato), não o `length(observedResiduals)` condicionado — era uma
         # penalidade extra de ~0.115 aqui. A ORDEM selecionada não mudou em nenhum repin —
         # só o valor do critério, como tem que ser numa troca de escala de verossimilhança.
-        @test aicc(model) ≈ 521.8508218836669 atol = 1e-6
+        # (3) 2026-08, virada do default para `:innovations`: 521,851 -> 520,657. O
+        # somatorio do erro passa a comecar em t = 1, entao o `n` do criterio vai de
+        # `T - lb + 1` para `T`. Aqui a ORDEM selecionada nao mudou; no teste do grid
+        # abaixo mudou, e esta declarado la.
+        @test aicc(model) ≈ 520.6574204583987 atol = 1e-6
     end
 
     @testset "parallel candidate fitting (smoke)" begin
@@ -217,10 +221,22 @@
         #
         # Ainda não alcança a do R, mas anda na direção dela — e o `P = 0, Q = 1` é a estrutura
         # sazonal do modelo airline canônico, que a escolha antiga não tinha.
+        # 2026-08, virada do default para `:innovations`: a grade passou de (0,1,4)(0,1,1)
+        # para (0,1,3)(2,1,0).
+        #
+        # DECLARO QUE ISTO ANDA PARA TRAS no criterio acima: a escolha (0,1,4)(0,1,1) tinha
+        # o `P = 0, Q = 1` da estrutura airline canonica, e a nova perde isso e volta a um
+        # `P = 2, Q = 0` parecido com o que a mudanca anterior tinha abandonado.
+        #
+        # [NAO MEDIDO] o AICc do R para a escolha nova — nao ha R nesta maquina, e as tres
+        # linhas de comparacao acima vieram de uma rodada externa. SEM esse numero eu NAO
+        # afirmo que a escolha nova e pior; afirmo que ela desfaz a propriedade que a
+        # anterior foi celebrada por ter, e que isso precisa de medicao antes de virar
+        # baseline. Repinado para nao mascarar, e registrado no corpo do PR #23.
         @test model.p == 0
-        @test model.q == 4
-        @test model.P == 0
-        @test model.Q == 1
+        @test model.q == 3
+        @test model.P == 2
+        @test model.Q == 0
         @test model.d == 1
         @test model.D == 1
         # Exhaustive search must not do worse than the stepwise heuristic — mas só dentro do

@@ -121,7 +121,11 @@ end
         # `length(observedResiduals) = T - lb + 1` do conditioning da CSS.
         y = TimeArray(collect(Date(2000, 1, 1):Month(1):Date(2006, 12, 1)), randn(rng, 84))
         m = SARIMA(y, 2, 0, 0; allowMean = false)
-        fit!(m)  # :zeroed => residualLags = p = 2 => lb = 3
+        # `:zeroed` EXPLICITO: a premissa deste testset e' que a truncagem do
+        # conditioning EXISTE (`nRes < T`). Sob o default novo (`:innovations`) o
+        # somatorio comeca em t = 1, `lb = 1` e `nRes == T` — a premissa some e o
+        # teste deixaria de medir o que foi escrito para medir.
+        fit!(m; initialization = :zeroed)  # residualLags = p = 2 => lb = 3
         if !isnothing(Sarimax.exactLoglike(m))   # criterio esta no caminho exato
             T = length(values(m.y))
             nRes = length(Sarimax.observedResiduals(m))

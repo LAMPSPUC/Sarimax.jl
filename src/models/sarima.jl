@@ -1285,12 +1285,45 @@ function fit!(
     # controlando o encolhimento, o ajuste nao muda, e — antes da correcao do gatilho de
     # `usesSparseCount` — o `lambda` ainda mexia no criterio. Honrar o argumento ou recusa-lo
     # com erro sao decisoes de comportamento; avisar nao e.
+    # `elastic_net` com `lambda` DESLIGAVA a regularizacao em silencio, e este e o defeito
+    # mais grave do lote porque falha numa API publica sem dizer nada.
+    #
+    # Mecanismo: o `elastic_net` tem DUAS etapas. A primeira minimiza o ajuste; a segunda
+    # calibra uma tolerancia (`objetivo + 1 desvio-padrao do RSS`) e roda o encolhimento
+    # sujeito a ela. O portao dessa segunda etapa em `optimizeModel!` e
+    # `isnothing(model.lambda)` — entao passar `lambda` PULA a etapa inteira e o ajuste
+    # fica com a solucao da primeira, que e o `mse` puro. Medido: com lambda de 0,01 a
+    # 1.000 (cem mil vezes) o objetivo fica identico ao do `mse` em NOVE algarismos
+    # (92,4929349), zero coeficientes zerados.
+    #
+    # Por que ERRO e nao "fazer o lambda agir": nao ha onde ele agir. O objetivo de
+    # `regularizationObjective` e `alpha*L1 + (1-alpha)/2*L2` SUJEITO A `ajuste <=
+    # tolerancia` — formulacao RESTRITA, nao penalizada. Nao existe multiplicador lambda
+    # nela; o botao de forca e a tolerancia. Dar semantica a `lambda` aqui seria decidir
+    # que ele E a tolerancia, o que e decisao de projeto e nao conserto de defeito.
+    #
+    # Enquanto essa decisao nao e tomada, a politica do pacote ja cobre o caso: combinacao
+    # de argumentos invalida, fixa na chamada, sem interpretacao valida -> ArgumentError.
+    # A mensagem NAO manda usar outro objetivo, porque era exatamente isso que a guarda do
+    # `ridge` fazia — mandava para ca, onde o argumento era ignorado em silencio.
+    if objectiveFunction == "elastic_net" && !isnothing(lambda)
+        throw(
+            ArgumentError(
+                "objectiveFunction = \"elastic_net\" ignores `lambda`: the shrinkage is " *
+                "controlled by the fit tolerance, which the second stage calibrates from " *
+                "the data, and the objective has no lambda multiplier. Passing it " *
+                "currently SKIPS the regularization stage entirely, leaving a plain " *
+                "least-squares fit. Drop the argument.",
+            ),
+        )
+    end
+
     if objectiveFunction == "ridge" && !isnothing(lambda)
         throw(
             ArgumentError(
                 "objectiveFunction = \"ridge\" ignores `lambda`: the shrinkage is fixed at " *
                 "sqrt(effective sample size) by construction. Passing it would have no " *
-                "effect on the fit; drop the argument or use \"elastic_net\".",
+                "effect on the fit; drop the argument.",
             ),
         )
     end

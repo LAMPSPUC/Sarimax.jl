@@ -1251,15 +1251,38 @@ function fit!(
     # ele, esses dois modos movem-se apenas no eixo pre-amostral, sem cruzar o eixo do
     # objetivo — o que e' mais limpo do que o `mse`, nao menos.
     #
-    # Os demais objetivos seguem barrados: para eles o bloco ficaria sem penalidade e o
-    # ajuste degradaria em silencio para `:free`.
+    # Os NOVE objetivos abaixo estao cobertos. Tres deles entram por caminhos distintos e
+    # vale dizer qual:
+    #
+    # `ml`, `ml_exact`, `ridge`, `stable`, `bilevel` -> o termo do bloco entra na mesma soma
+    #           de quadrados que a perda dos dados, pelo `presampleSquares`.
+    # `elastic_net` -> entra pela RESTRICAO DE TOLERANCIA da segunda etapa, nao pelo
+    #           objetivo; o bloco fica coberto do mesmo jeito.
+    #
+    # O que segue barrado e o que NAO esta na lista — hoje, `cvar`. Para ele o bloco ficaria
+    # sem penalidade e o ajuste degradaria em silencio para `:free`.
+    #
+    # ESTA GUARDA E' HOJE INALCANCAVEL, e o registro fica aqui de proposito.
+    #
+    # Depois que o PR #22 estendeu o bloco aos nove objetivos, a lista desta guarda passou a
+    # coincidir EXATAMENTE com a da asserção de objetivos suportados (linha ~1156). Verificado
+    # comparando os dois conjuntos: a diferenca e vazia nos dois sentidos. Qualquer valor que
+    # falharia aqui ja falhou la — o `cvar`, por exemplo, morre na assercao com outra
+    # mensagem.
+    #
+    # Fica como defesa em profundidade: se alguem acrescentar um objetivo novo a assercao e
+    # esquecer de cobrir o bloco pre-amostral, esta guarda volta a ser o que impede a
+    # degradacao silenciosa para `:free`. Por isso a mensagem enumera a lista REAL — ela
+    # nomeava so tres enquanto a guarda liberava nove, o que descreveria errado o que e'
+    # aceito no dia em que ela voltar a disparar.
     if initialization in (:penalized, :innovations) &&
        !(objectiveFunction in
          ("mse", "mae", "huber", "ml", "ml_exact", "ridge", "stable", "bilevel", "elastic_net"))
         throw(
             ArgumentError(
                 "initialization = :$(initialization) is implemented for objectiveFunction " *
-                "in (\"mse\", \"mae\", \"huber\") only; got \"$(objectiveFunction)\". " *
+                "in (\"mse\", \"mae\", \"huber\", \"ml\", \"ml_exact\", \"ridge\", " *
+                "\"stable\", \"bilevel\", \"elastic_net\"); got \"$(objectiveFunction)\". " *
                 "The pre-sample values would stay unpenalized, i.e. the fit would " *
                 "silently degrade to :free.",
             ),

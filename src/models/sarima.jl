@@ -2384,7 +2384,7 @@ function objectiveFunctionDefinition!(
     parametersVectorExtended::Vector{VariableRef} =
         length(parametersVector) == 0 ? [] :
         reduce(vcat, [Vector{VariableRef}([jumpModel[el]...]) for el in parametersVector])
-    if objectiveFunction == "mse" && penalizado
+    if objectiveFunction in ("mse", "ridge") && penalizado
         # `:penalized` — os valores pre-amostrais entram no objetivo pagando o PRIOR deles,
         # em vez de serem variaveis livres de graca como no `:free`.
         #
@@ -2483,6 +2483,41 @@ function objectiveFunctionDefinition!(
             isnothing(κSMA) || (fator =
                 fator *
                 prod([(1 - κSMA[j]^2)^(-model.seasonality * j / T) for j = 1:model.Q]))
+        end
+        # ---- termo ridge, quando pedido ----
+        #
+        # O PR #22 admitiu o `ridge` no bloco penalizado com o argumento de que o termo L2
+        # NAO muda a metrica da perda — o ajuste continua soma de quadrados — e depois
+        # retirou o fator do determinante de tudo que nao e `mse`, com o argumento de que o
+        # fator e algebra gaussiana e exige perda quadratica. Os dois argumentos estao
+        # certos, mas o segundo NAO se aplica ao ridge: a perda dele E quadratica. O
+        # `lambda` penaliza COEFICIENTES, nao os residuos.
+        #
+        # Sem o fator, o bloco pre-amostral do ridge fica PERFILADO em vez de INTEGRADO — e
+        # a diferenca entre as duas coisas e exatamente o log-determinante, como o
+        # comentario do bloco MA neste arquivo ja registra com medicao (MA(2) erra ~2e-3 nos
+        # coeficientes sem o termo, contra ~2e-5 de um AR(2) que o tem). Alem disso o fator e
+        # a barreira que repele a fronteira: sem ele o bloco livre volta a sair de graca, que
+        # e a falha que motivou o `:innovations` a existir em vez do `:free`.
+        #
+        # A penalidade entra DENTRO de `S`, antes da multiplicacao. `S * fator` e a forma
+        # multiplicativa de `T*log(S) + log|Omega|` depois de concentrar sigma^2, e o
+        # `lambda = sqrt(nEff)` foi calibrado para a escala de uma SOMA DE QUADRADOS.
+        # Somando aqui obtem-se `T*log(S + lambda*||b||^2) + log|Omega|`, que e o MAP com
+        # prior gaussiano nos coeficientes escalado por sigma^2 — o ridge bayesiano
+        # conjugado. O fator multiplica os dois termos igualmente, entao a razao
+        # ajuste/penalidade fica intacta.
+        if objectiveFunction == "ridge"
+            shrunk = Symbol[]
+            model.p > 0 && push!(shrunk, :ϕ)
+            model.q > 0 && push!(shrunk, :θ)
+            model.P > 0 && push!(shrunk, :Φ)
+            model.Q > 0 && push!(shrunk, :Θ)
+            if !isempty(shrunk)
+                λR = sqrt(max(T - lb + 1, 1))
+                coefsR = reduce(vcat, [Vector{VariableRef}([jumpModel[el]...]) for el in shrunk])
+                S = S + λR * sum(coefsR .^ 2)
+            end
         end
         @objective(jumpModel, Min, S * fator)
 

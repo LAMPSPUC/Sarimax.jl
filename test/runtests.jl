@@ -61,6 +61,8 @@ using LinearAlgebra
 
     include("objective_guardrails.jl")
 
+    include("ridge_determinante.jl")
+
     include("deterministic_term.jl")
 
     include("order_guards.jl")

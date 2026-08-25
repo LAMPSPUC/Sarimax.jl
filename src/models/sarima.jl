@@ -33,6 +33,29 @@ have to estimate sigma first and scale delta by it.
 const DEFAULT_HUBER_DELTA = 1.345
 
 """
+    SUPPORTED_OBJECTIVES
+
+Objetivos que `fit!` aceita. Fonte unica: as guardas derivam desta tupla em vez de repetir
+a lista, porque uma lista repetida e' uma lista que diverge.
+"""
+const SUPPORTED_OBJECTIVES =
+    ("mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge", "huber", "ml_exact")
+
+"""
+    PRESAMPLE_PENALIZED_OBJECTIVES
+
+Objetivos que implementam o bloco pre-amostral penalizado (`:penalized`/`:innovations`).
+
+HOJE E' IGUAL a `SUPPORTED_OBJECTIVES`, e por isso a guarda que compara os dois nunca
+dispara. Isso NAO a torna inutil: ela e' um estopim para o proximo objetivo. Quem
+acrescentar um decimo objetivo a `SUPPORTED_OBJECTIVES` sem lhe dar tratamento do bloco
+pre-amostral faz a guarda disparar, em vez de o ajuste degradar em silencio para `:free` —
+que e' o defeito que ela existe para impedir. Enquanto as duas listas eram escritas a mao
+em lugares diferentes, o estopim dependia de alguem lembrar de editar as duas.
+"""
+const PRESAMPLE_PENALIZED_OBJECTIVES = SUPPORTED_OBJECTIVES
+
+"""
 Margem de REJEICAO de candidatos: quao longe do circulo unitario a menor raiz tem que estar
 para o candidato ser considerado admissivel na SELECAO de ordem.
 
@@ -860,9 +883,14 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
   objective; and how the block is parameterised. Read the axes below, not the names —
   two modes sharing the first two axes still estimate different models.
   `:innovations` (**default**) is free-and-penalised: the pre-sample innovations are
-  decision variables, the objective carries the determinant factor
-  `∏ⱼ(1-κⱼ²)^(-j/T)`, and the fit-error sum starts at `t = 1` for EVERY objective
-  function rather than after the conditioning lag.
+  decision variables and the fit-error sum starts at `t = 1` for EVERY objective function
+  rather than after the conditioning lag. The determinant factor `∏ⱼ(1-κⱼ²)^(-j/T)` rides
+  along ONLY where the fit loss is quadratic — `mse` and `ridge` — because it comes from
+  concentrating `σ²` out of `T·log(S) + log|Ω|`, which is Gaussian algebra. Under `mae`,
+  `huber` and the rest the pre-sample block is charged in each objective's OWN loss, with
+  no factor: those losses change the metric, and borrowing the factor would be using a
+  derivation where it does not hold. `ridge` keeps it because its `λ` penalises
+  COEFFICIENTS — the residual loss stays quadratic.
   `:penalized` is free-and-penalised too, but parameterises the pre-sample block
   differently: it leaves the pre-sample differenced values AND the pre-sample residuals
   free at the same time, whereas `:innovations` generates the pre-sample past from the
@@ -1193,7 +1221,7 @@ function fit!(
     Fl = typeofModelElements(model)
     isFitted(model) &&
         @info("The model has already been fitted. Overwriting the previous results")
-    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge", "huber", "ml_exact"] "The objective function $objectiveFunction is not supported. Please use 'mae', 'mse', 'ml', 'bilevel', 'elastic_net', 'stable', 'ridge', 'huber' or 'ml_exact'"
+    @assert objectiveFunction ∈ SUPPORTED_OBJECTIVES "The objective function $objectiveFunction is not supported. Please use one of: $(join(SUPPORTED_OBJECTIVES, ", "))"
     @assert !(invertible && MACoefficientsAreModelParameters(objectiveFunction)) "The invertible MA parameterization is not compatible with the '$objectiveFunction' objective (MA coefficients are treated as outer parameters there)."
     @assert 0.0 <= invertibilityMargin < 1.0 "invertibilityMargin (ρ) must lie in [0, 1)."
     @assert 0.0 <= stationarityMargin < 1.0 "stationarityMargin must lie in [0, 1)."
@@ -1254,14 +1282,13 @@ function fit!(
     # Os demais objetivos seguem barrados: para eles o bloco ficaria sem penalidade e o
     # ajuste degradaria em silencio para `:free`.
     if initialization in (:penalized, :innovations) &&
-       !(objectiveFunction in
-         ("mse", "mae", "huber", "ml", "ml_exact", "ridge", "stable", "bilevel", "elastic_net"))
+       !(objectiveFunction in PRESAMPLE_PENALIZED_OBJECTIVES)
         throw(
             ArgumentError(
                 "initialization = :$(initialization) is implemented for objectiveFunction " *
-                "in (\"mse\", \"mae\", \"huber\") only; got \"$(objectiveFunction)\". " *
-                "The pre-sample values would stay unpenalized, i.e. the fit would " *
-                "silently degrade to :free.",
+                "in ($(join(PRESAMPLE_PENALIZED_OBJECTIVES, ", "))) only; got " *
+                "\"$(objectiveFunction)\". The pre-sample values would stay unpenalized, " *
+                "i.e. the fit would silently degrade to :free.",
             ),
         )
     end
@@ -2637,6 +2664,11 @@ function objectiveFunctionDefinition!(
         end
         @objective(jumpModel, Min, hubObj)
     elseif objectiveFunction == "ridge"
+        # CAMINHO NAO-PENALIZADO. Sob `:penalized`/`:innovations` o `ridge` NAO chega aqui:
+        # ele e' tratado no primeiro ramo deste `if`, junto com o `mse`, porque a perda de
+        # ajuste dele e' a MESMA soma de quadrados e portanto carrega o fator do
+        # determinante. Aqui ficam os modos de bloco fixo (`:zeroed`, `:warmup`) e o
+        # `:free`, onde nao ha bloco penalizado e nao ha fator.
         # Penalized ridge, distinct from the two-stage "elastic_net" in this file: there
         # the coefficient norm is minimized subject to an RSS tolerance; here it is a
         # plain L2 term added to the objective, with lambda fixed a priori.
@@ -3541,7 +3573,7 @@ function auto(
     @assert informationCriteria ∈ ["aic", "aicc", "bic"]
     @assert integrationTest ∈ ["kpss", "kpssShort"]
     @assert seasonalIntegrationTest ∈ ["seas", "ch", "ocsb"]
-    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge", "huber", "ml_exact"]
+    @assert objectiveFunction ∈ SUPPORTED_OBJECTIVES
     @assert objectiveFunction == "elastic_net" || isnothing(lambda)
     @assert objectiveFunction == "elastic_net" || isnothing(alpha)
     @assert searchMethod ∈ ["stepwise", "stepwiseNaive", "grid", "sarimax"]

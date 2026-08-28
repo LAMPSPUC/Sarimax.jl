@@ -1,0 +1,21 @@
+================================================================================================
+objectives_monthly_penalized.csv
+================================================================================================
+
+-   1113 series, 67 complete across all 3 arms (93.98% dropped as incomplete)
+  arm                sMAPE      MASE vs huber_pe       wins    errors    non-LS    >=120s
+  ------------------------------------------------------------------------------------------
+  huber_pen        13.2949    0.9623           -          -         0       n/r       250
+  mae_pen          12.5119    0.9262     -0.7830      50.7%         0       n/r       128
+  ridge_pen        12.9123    0.9665     -0.3827      44.8%         0       n/r        11
+
+  paired deltas against huber_pen (negative = better than huber_pen):
+    mae_pen        mean  -0.7830   median  -0.0027   p05   -7.763   p95   +3.405
+    ridge_pen      mean  -0.3827   median  +0.0000   p05   -1.078   p95   +1.857
+
+non-LS = returned candidate not LOCALLY_SOLVED; `n/r` = solver status not recorded
+in this file. NOTE: the status describes the RETURNED candidate only. Candidates
+that failed inside the search are absorbed by `auto` and are not counted anywhere;
+see REPRODUCE.md, finding 5.
+>=120s counts fits at or beyond the 120 s cap where one was set, and is a
+CENSORING RATE for those campaigns. Where no cap was set it is a cost tail only.

@@ -1,0 +1,23 @@
+================================================================================================
+axes_weekly_earlier_commit.csv
+================================================================================================
+
+WEEKLY   359 series, 359 complete across all 4 arms (0.00% dropped as incomplete)
+  arm                sMAPE      MASE     vs base       wins    errors    non-LS    >=120s
+  ------------------------------------------------------------------------------------------
+  base              8.5536    2.2586           -          -         0       n/r         2
+  req               8.5536    2.2586     +0.0000       0.0%         0       n/r         2
+  req+testes        8.5536    2.2586     +0.0000       0.0%         0       n/r         2
+  testes            8.5536    2.2586     +0.0000       0.0%         0       n/r         2
+
+  paired deltas against base (negative = better than base):
+    req            mean  +0.0000   median  +0.0000   p05   +0.000   p95   +0.000
+    req+testes     mean  +0.0000   median  +0.0000   p05   +0.000   p95   +0.000
+    testes         mean  +0.0000   median  +0.0000   p05   +0.000   p95   +0.000
+
+non-LS = returned candidate not LOCALLY_SOLVED; `n/r` = solver status not recorded
+in this file. NOTE: the status describes the RETURNED candidate only. Candidates
+that failed inside the search are absorbed by `auto` and are not counted anywhere;
+see REPRODUCE.md, finding 5.
+>=120s counts fits at or beyond the 120 s cap where one was set, and is a
+CENSORING RATE for those campaigns. Where no cap was set it is a cost tail only.

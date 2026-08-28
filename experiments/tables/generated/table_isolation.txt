@@ -1,0 +1,28 @@
+================================================================================================
+isolation.csv
+================================================================================================
+
+WEEKLY   359 series, 359 complete across all 2 arms (0.00% dropped as incomplete)
+  arm                sMAPE      MASE vs innovati       wins    errors    non-LS    >=120s
+  ------------------------------------------------------------------------------------------
+  innovations       8.3979    2.4403           -          -         0       n/r         0
+  v0_6              8.4895    2.4553     +0.0916      44.0%         0       n/r         8
+
+  paired deltas against innovations (negative = better than innovations):
+    v0_6           mean  +0.0916   median  +0.0000   p05   -1.603   p95   +1.819
+
+YEARLY   23000 series, 23000 complete across all 2 arms (0.00% dropped as incomplete)
+  arm                sMAPE      MASE vs innovati       wins    errors    non-LS    >=120s
+  ------------------------------------------------------------------------------------------
+  innovations      15.2441    3.4067           -          -         0       n/r         0
+  v0_6             15.0718    3.3791     -0.1722      35.2%         0       n/r         0
+
+  paired deltas against innovations (negative = better than innovations):
+    v0_6           mean  -0.1722   median  +0.0000   p05   -3.690   p95   +3.283
+
+non-LS = returned candidate not LOCALLY_SOLVED; `n/r` = solver status not recorded
+in this file. NOTE: the status describes the RETURNED candidate only. Candidates
+that failed inside the search are absorbed by `auto` and are not counted anywhere;
+see REPRODUCE.md, finding 5.
+>=120s counts fits at or beyond the 120 s cap where one was set, and is a
+CENSORING RATE for those campaigns. Where no cap was set it is a cost tail only.

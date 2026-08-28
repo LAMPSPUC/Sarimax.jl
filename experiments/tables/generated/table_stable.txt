@@ -1,0 +1,32 @@
+================================================================================================
+stable_weekly_yearly.csv
+================================================================================================
+
+WEEKLY   359 series, 359 complete across all 3 arms (0.00% dropped as incomplete)
+  arm                sMAPE      MASE      vs mse       wins    errors    non-LS    >=120s
+  ------------------------------------------------------------------------------------------
+  mse               8.3979    2.4403           -          -         0       n/r         0
+  stable_050        8.4897    2.6352     +0.0918      43.7%         0       n/r         8
+  stable_090        9.1625    2.6397     +0.7645      45.7%         0       n/r         6
+
+  paired deltas against mse (negative = better than mse):
+    stable_050     mean  +0.0918   median  +0.0006   p05   -2.700   p95   +2.301
+    stable_090     mean  +0.7645   median  +0.0000   p05   -4.232   p95   +7.770
+
+YEARLY   23000 series, 23000 complete across all 3 arms (0.00% dropped as incomplete)
+  arm                sMAPE      MASE      vs mse       wins    errors    non-LS    >=120s
+  ------------------------------------------------------------------------------------------
+  mse              15.2441    3.4067           -          -         0       n/r         0
+  stable_050       15.0841    3.3791     -0.1600      40.7%         0       n/r         0
+  stable_090       15.7789    3.5315     +0.5348      36.0%         0       n/r         0
+
+  paired deltas against mse (negative = better than mse):
+    stable_050     mean  -0.1600   median  +0.0000   p05   -3.823   p95   +3.544
+    stable_090     mean  +0.5348   median  +0.0000   p05   -6.734   p95   +9.968
+
+non-LS = returned candidate not LOCALLY_SOLVED; `n/r` = solver status not recorded
+in this file. NOTE: the status describes the RETURNED candidate only. Candidates
+that failed inside the search are absorbed by `auto` and are not counted anywhere;
+see REPRODUCE.md, finding 5.
+>=120s counts fits at or beyond the 120 s cap where one was set, and is a
+CENSORING RATE for those campaigns. Where no cap was set it is a cost tail only.

@@ -1,0 +1,25 @@
+================================================================================================
+objectives_monthly.csv
+================================================================================================
+
+-   4000 series, 1500 complete across all 5 arms (62.50% dropped as incomplete)
+  arm                sMAPE      MASE    vs huber       wins    errors    non-LS    >=120s
+  ------------------------------------------------------------------------------------------
+  huber            13.1618    0.8890           -          -         0       n/r         1
+  mae              13.3169    0.8980     +0.1551      44.3%         0       n/r         0
+  mse              13.1257    0.8880     -0.0360      45.5%         0       n/r        98
+  mse_zeroed       13.1754    0.8886     +0.0137      39.5%         0       n/r         0
+  ridge            13.1641    0.9007     +0.0023      43.9%         0       n/r         0
+
+  paired deltas against huber (negative = better than huber):
+    mae            mean  +0.1551   median  +0.0000   p05   -4.049   p95   +4.220
+    mse            mean  -0.0360   median  +0.0000   p05   -4.834   p95   +4.981
+    mse_zeroed     mean  +0.0137   median  +0.0000   p05   -1.249   p95   +1.458
+    ridge          mean  +0.0023   median  +0.0000   p05   -3.526   p95   +3.682
+
+non-LS = returned candidate not LOCALLY_SOLVED; `n/r` = solver status not recorded
+in this file. NOTE: the status describes the RETURNED candidate only. Candidates
+that failed inside the search are absorbed by `auto` and are not counted anywhere;
+see REPRODUCE.md, finding 5.
+>=120s counts fits at or beyond the 120 s cap where one was set, and is a
+CENSORING RATE for those campaigns. Where no cap was set it is a cost tail only.

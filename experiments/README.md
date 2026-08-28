@@ -33,9 +33,24 @@ experiments/
     backfill_provenance.jl   adds provenance columns to the archived raw results
     verify_reproduction.jl   re-fits a seeded sample and compares against the archive
   results/raw/               raw per-series output, one row per (series, arm)
-  tables/                    table generators; consume results/raw/, fit nothing
-  SHA256SUMS
+  results/verification/      output of verify_reproduction.jl; the evidence behind the
+                             reproduction claims in REPRODUCE.md section 3
+  tables/                    table generators; consume results/, fit nothing
+  tables/generated/          the tables as published, regenerated from results/raw/
+  SHA256SUMS                 covers every file in this directory; `sha256sum -c SHA256SUMS`
 ```
+
+## Checking it before trusting it
+
+```bash
+cd experiments && sha256sum -c SHA256SUMS
+```
+
+That establishes the material is intact, not that it reproduces. For the latter, run
+`scripts/verify_reproduction.jl` against the package version you care about; it re-fits a
+seeded sample and reports what matches. It takes minutes, where re-running a campaign takes
+hours, and REPRODUCE.md section 3 records what it returned here and against which commit.
+Run it again after any release: the recorded answer is specific to one commit.
 
 ## What is not in this directory
 

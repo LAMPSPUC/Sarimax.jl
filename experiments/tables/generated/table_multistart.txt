@@ -1,0 +1,19 @@
+================================================================================================
+multistart_random.csv
+================================================================================================
+
+-   400 series, 400 complete across all 2 arms (0.00% dropped as incomplete)
+  arm                sMAPE      MASE     vs base       wins    errors    non-LS    >=120s
+  ------------------------------------------------------------------------------------------
+  base             14.5112    0.8647           -          -         0       n/r         6
+  multi            14.4086    0.8660     -0.1026       4.2%         0       n/r        28
+
+  paired deltas against base (negative = better than base):
+    multi          mean  -0.1026   median  +0.0000   p05   +0.000   p95   +0.000
+
+non-LS = returned candidate not LOCALLY_SOLVED; `n/r` = solver status not recorded
+in this file. NOTE: the status describes the RETURNED candidate only. Candidates
+that failed inside the search are absorbed by `auto` and are not counted anywhere;
+see REPRODUCE.md, finding 5.
+>=120s counts fits at or beyond the 120 s cap where one was set, and is a
+CENSORING RATE for those campaigns. Where no cap was set it is a cost tail only.

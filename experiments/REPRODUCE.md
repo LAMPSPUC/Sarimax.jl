@@ -272,13 +272,13 @@ one.
 
 | campaign | reproduces? | evidence |
 |---|---|---|
-| **A — M4 benchmark** | **Yes** | Two independent checks, below. |
-| **B — objectives, five main cells** | *pending* | |
-| **B — objectives, three `_pen` cells** | **No, and the reason is known** | Behaviour change, not a default change. See section 4, finding 2. |
-| **C — multistart** | *pending* | |
-| **D — isolation** | *see the note below the table* | |
-| **E — axes** | **Yes** | 100 of 100 sampled series identical across all four cells (25 each), sMAPE and selected order exact, delta 0.0 throughout. Archived at `aa68d57`, re-fitted at `3d7f883`. |
-| **F — stable** | *pending* | |
+| **A — M4 benchmark** | **Yes** | 150/150 sampled, and 23,359/23,359 in a full-population cross-check. Two independent checks, below. |
+| **B — objectives, five main cells** | **Yes** | 125 of 125 sampled identical (25 each for `mse`, `mse_zeroed`, `ridge`, `mae`, `huber`), sMAPE and selected order exact. |
+| **B — objectives, three `_pen` cells** | **No, and the reason is known** | 59 of 75 sampled differ (`ridge_pen` 20/25, `huber_pen` 21/25, `mae_pen` 18/25). Behaviour change, not a default change, and confirmed serially. See section 4, finding 2. |
+| **C — multistart** | **Yes for the estimator; no bit-for-bit under load** | 49 of 50 sampled identical. The one differing series reproduces its archived value exactly when re-fitted serially, three times over — so the difference is the wall-clock cap under worker contention, not the code. See section 4, finding 6. |
+| **D — isolation** | **Partly — not checkable for one arm** | The `innovations` arm is campaign A's configuration and inherits its result. The `production_v0_6` arm cannot be verified against anything, because the wrapper it ran under was uncommitted and only the frozen reconstruction survives. See finding 3. |
+| **E — axes** | **Yes** | 100 of 100 sampled identical across all four cells (25 each), sMAPE and selected order exact. Archived at `aa68d57`, re-fitted at `3d7f883`. |
+| **F — stable** | **Yes** | 150 of 150 sampled identical (25 series × 3 arms × 2 frequencies). The restored `stable_090` arm reproduces its archived rows exactly, which independently corroborates the reconstruction described in finding 1. |
 
 ### Campaign A, check 1 — seeded sample
 
@@ -338,10 +338,15 @@ announced in a banner at the top of that file rather than applied silently. Thre
 independent sources attest it: the arm label in the data, the analyser's required arm list,
 and the runner's own header text and log line ("3 arms").
 
-**What remains unverified:** `cvarLevel` was never written to the archived rows. The value
-0.9 for `stable_090` is inferred from the arm label and from the package default at that
-commit. It is **not** established by the artefact. The new runner writes `cvar_level` as a
-column so this cannot recur.
+**The reconstruction is confirmed, and by an independent route.** `cvarLevel` was never
+written to the archived rows, so the value 0.9 for `stable_090` began as an inference from
+the arm label and the package default. The verification in section 3 settles it
+empirically: re-fitting that arm with `cvarLevel = 0.9` reproduces 25 of 25 sampled
+archived rows exactly. A different level would not have produced those numbers, so 0.9 is
+now established rather than assumed.
+
+The new runner writes `cvar_level` as a column so that the next reader does not have to
+rely on a reconstruction at all.
 
 ### Finding 2 — three cells measured a different estimator than their name says
 
@@ -359,6 +364,20 @@ ran, with no change to the script:
 
 So re-running produces different numbers for the same cell names, and the difference is a
 change of estimator, not of default.
+
+**Measured, not inferred.** 59 of 75 sampled `_pen` rows differ under the current code
+(`ridge_pen` 20/25, `huber_pen` 21/25, `mae_pen` 18/25), against 0 of 125 for the five
+cells that do not pair a non-`mse` objective with `:penalized`.
+
+The obvious competing explanation — that the divergence is the 120 s cap biting under
+worker contention, which does happen in this campaign's neighbour (finding 6) — was tested
+and ruled out: re-fitting six of the diverging `ridge_pen` series **serially, one process,
+no contention**, reproduced the archived value in **0 of 6** cases. Contention produces
+values that come back when the contention is removed; this does not.
+
+The roughly one in five `_pen` rows that still match are consistent with the mechanism:
+where the selected order leaves no free pre-sample terms, the penalised block is empty and
+`:free` and `:penalized` coincide.
 
 **Consequence for the manuscript:** any legend describing these cells as `:penalized`
 describes something that did not run. Either the legend says `:free`, or the rows are
@@ -414,6 +433,33 @@ captured. Obtaining it requires instrumenting the search loop and re-running. Th
 `solver_status` column that does exist describes **the returned candidate only**, and the
 `LOCALLY_SOLVED` rates in section 2 must be read with that scope.
 
+### Finding 6 — a wall-clock cap makes a campaign load-dependent, not deterministic
+
+Campaign C's verification differed on one series of fifty. Re-fitting that series
+**serially, in a single process, three times over** returned the archived value exactly on
+every run, while the same configuration inside a six-worker harness returned a different
+order and a sMAPE 0.0081 higher.
+
+The cause is `maxTimeSeconds`. The cap propagates into the search as a per-candidate time
+limit, so a candidate that fits inside the limit on an idle machine can exceed it under
+contention and be dropped. The search then lands somewhere else. Nothing about the
+estimator changed; the number is partly a property of the machine's load.
+
+**Consequence, and it generalises beyond the one series:** every campaign that sets a
+wall-clock cap — B and C here, and the short-series branch of D's production arm — is
+reproducible only up to scheduling. Its results are conditioned on "10 worker processes on
+the machine described in section 1", and that condition is now part of the configuration
+rather than an implementation detail.
+
+The campaigns that set **no** cap — A, E, F, and D's `innovations` arm — reproduced
+exactly, 400 of 400 sampled rows plus 23,359 in the full-population cross-check. The
+contrast is clean and it is the reason the headline campaign was run without a cap: a
+capped run reports a number that is partly about the clock.
+
+This does not invalidate B or C. It means their tables need the worker count and the cap
+stated alongside them, and that small differences on re-running them are expected rather
+than evidence of a defect.
+
 ---
 
 ## 5. Declared unknowns
@@ -427,16 +473,26 @@ Listed rather than estimated.
    log; recorded as `not_recorded` in the data.
 3. **The solver stack for campaigns B and C.** Both predate the earliest preserved
    manifest. Unknown.
-4. **`cvarLevel` for the `stable_090` arm.** Inferred from the arm label; never recorded.
-5. **Whether changes between `aa68d57` and `3d7f883` outside the objective block affect the
+4. **Whether changes between `aa68d57` and `3d7f883` outside the objective block affect the
    `mse` + `:innovations` path.** The objective block is verified byte-identical and the
-   sampled re-fits are exact, which is strong evidence of no effect; a line-by-line audit of
-   the remaining 189 changed lines was not performed.
-6. **The harness repository state for every archived run.** Unrecoverable; see finding 3.
+   re-fits are exact over 23,359 series, which is strong evidence of no effect; a
+   line-by-line audit of the remaining 189 changed lines was not performed.
+5. **The harness repository state for every archived run.** Unrecoverable; see finding 3.
+6. **Anything about campaign D's `production_v0_6` arm that depends on the wrapper.** The
+   frozen copy in `scripts/wrapper_v0_6.jl` reproduces what was on disk, but there is no
+   committed version to check it against, so it cannot be verified — only declared.
 7. **`stable` beyond weekly and yearly.** Extensions to daily and quarterly were attempted
    three times and failed — twice with solver-level crashes in the linear solver, once with
    a worker stack-size failure. No output was produced. The empty files those attempts left
    behind are not shipped.
+
+Two items that appeared here in an earlier draft have since been **resolved by
+measurement** and are recorded so the change is visible rather than silent:
+
+- *`cvarLevel` for the `stable_090` arm* — established as 0.9 by exact re-fit; see
+  finding 1.
+- *The mechanism behind campaign C's one differing series* — established as the wall-clock
+  cap under contention, not a code change; see finding 6.
 
 ---
 
@@ -456,7 +512,21 @@ Listed rather than estimated.
   consolidation time are not covered. Re-running `scripts/verify_reproduction.jl` against
   the release is the check that closes this gap, and it costs minutes.
 
-Determinism within a fixed commit and manifest: every sampled re-fit reproduced exactly, to
-four decimals of sMAPE and to the selected order. Sampling in campaigns B, C and F is
-seeded and the seed is written to every row. No stage is known to be non-deterministic; the
-parallel scheduler affects the order rows are written, not their contents.
+- **Any campaign that sets a wall-clock cap, under a different worker count or machine
+  load** — B, C, and the short-series branch of D's production arm. See finding 6. This is
+  the one case where the same code and the same manifest can return a different number.
+
+Determinism within a fixed commit and manifest, stated precisely:
+
+- **Uncapped campaigns are deterministic.** A, E, F and D's `innovations` arm reproduced
+  exactly — 400 of 400 sampled rows to four decimals of sMAPE and to the selected order,
+  plus 23,359 rows in the full-population cross-check, with a largest observed difference
+  of zero. Repeat fits of the same series in the same process are identical.
+- **Capped campaigns are deterministic only at fixed load.** The estimator is
+  deterministic; the search's per-candidate time limit is not, because whether a candidate
+  fits inside it depends on what else the machine is doing. Observed rate on the sample:
+  1 series in 50.
+
+Sampling in campaigns B, C and F is seeded and the seed is written to every row. No other
+stage is known to be non-deterministic; the parallel scheduler affects the order rows are
+written, not their contents.

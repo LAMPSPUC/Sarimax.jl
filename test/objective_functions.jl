@@ -180,8 +180,8 @@
 
     @testset "ridge shrinks the AR/MA coefficients, not the level" begin
         # Penalized ridge: min sum(e^2) + lambda*||coef||^2 with lambda fixed a priori.
-        # Distinct from "elastic_net" in this package, which is a two-stage constrained
-        # program (minimize the coefficient norm subject to an RSS tolerance).
+        # It differs from "elastic_net" only in that lambda is fixed here and the penalty
+        # is a plain L2 term over the AR/MA blocks.
         #
         # The scale of lambda is the part that silently goes wrong: the usual heuristic
         # lambda = 1/sqrt(n) assumes a MEAN loss, while this objective is a SUM, so the
@@ -250,19 +250,59 @@
         @test all(isfinite, values(tight.forecast))
     end
 
+    @testset "elastic net implements the penalized estimator" begin
+        # min L(e) + lambda*[alpha*L1 + (1-alpha)/2*L2] over the AR/MA and exogenous
+        # blocks. These assertions pin the properties that distinguish a penalized
+        # estimator from the constrained two-stage construction this replaced, in which
+        # `lambda` reached nothing and the shrinkage came from a calibrated tolerance.
+        airpLog = log.(loadDataset(AIR_PASSENGERS))
+        mk() = SARIMA(airpLog, 2, 1, 1; seasonality = 12, P = 0, D = 1, Q = 1,
+                      allowMean = false)
+        coefsOf(m) = vcat([m.ϕ...], [m.θ...])
+        function fitEN(; kwargs...)
+            m = mk()
+            fit!(m; objectiveFunction = "elastic_net", alpha = 0.5,
+                 initialization = :zeroed, kwargs...)
+            m
+        end
+
+        # lambda = 0 removes the penalty, so the fit must coincide with least squares.
+        baseline = mk()
+        fit!(baseline; objectiveFunction = "mse", initialization = :zeroed)
+        @test maximum(abs.(coefsOf(fitEN(lambda = 0.0)) .- coefsOf(baseline))) < 1e-6
+
+        # lambda must actually reach the optimization: shrinkage is monotone in it.
+        norms = [sum(abs.(coefsOf(fitEN(lambda = λ)))) for λ in (0.0, 10.0, 100.0)]
+        @test issorted(norms; rev = true)
+        @test norms[end] < norms[1]
+
+        # alpha = 1 is the lasso case and must drive coefficients to exactly zero.
+        lasso = mk()
+        fit!(lasso; objectiveFunction = "elastic_net", alpha = 1.0, lambda = 500.0,
+             initialization = :zeroed)
+        @test any(c -> abs(c) <= 1e-5, coefsOf(lasso))
+
+        # With no AR/MA/exogenous block there is nothing to penalize, and the objective
+        # must fall back to plain least squares rather than build an empty penalty.
+        empty = SARIMA(airpLog, 0, 1, 0; allowMean = false)
+        fit!(empty; objectiveFunction = "elastic_net", alpha = 0.5,
+             initialization = :zeroed)
+        plain = SARIMA(airpLog, 0, 1, 0; allowMean = false)
+        fit!(plain; objectiveFunction = "mse", initialization = :zeroed)
+        @test sum(abs2, values(residuals(empty))) ≈ sum(abs2, values(residuals(plain))) atol = 1e-8
+    end
+
     @testset "elastic net survives a saturated model" begin
-        # Regression: with few residual degrees of freedom after conditioning
-        # (ν = n - lb - K + 1 ≤ 0) the tolerance refinement used to evaluate
-        # sqrt of a negative number and throw, discarding a valid first-stage fit.
-        # A short seasonal series reproduces it — seasonal conditioning consumes the
-        # sample faster than a longer non-seasonal one of similar length.
+        # A short seasonal series leaves few residual degrees of freedom after
+        # conditioning, since seasonal conditioning consumes the sample faster than a
+        # longer non-seasonal one of similar length. The penalized objective must still
+        # produce a usable fit there.
         Random.seed!(5001)
         n = 17
         shortDates = Date(2000, 1, 1):Quarter(1):(Date(2000, 1, 1)+Quarter(n - 1))
         shortSeries = TimeArray(collect(shortDates), 100.0 .+ cumsum(randn(n)))
         model = SARIMA(shortSeries, 1, 1, 1; seasonality = 4, P = 1, D = 0, Q = 1)
 
-        # A warning is expected here; an exception is not.
         @test (fit!(model; objectiveFunction = "elastic_net", alpha = 0.5); true)
         @test Sarimax.isFitted(model)
         @test all(isfinite, model.ϕ)

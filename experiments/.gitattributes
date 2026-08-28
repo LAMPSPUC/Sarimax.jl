@@ -1,0 +1,4 @@
+# No end-of-line conversion anywhere in this directory. SHA256SUMS is computed over the
+# bytes as committed; letting git rewrite LF to CRLF on checkout would make every text file
+# fail its own checksum on a platform with a different convention.
+* -text

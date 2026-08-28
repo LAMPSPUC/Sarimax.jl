@@ -229,22 +229,27 @@
         # It is opt-in: R's auto.arima has no equivalent rule, so the default must not
         # change behaviour.
         Random.seed!(7302)
+        # 22/08: a serie antiga (deriva quadratica) selecionava 6 termos SEM guarda, entao
+        # `tight.p+q+P+Q >= 1` era satisfeita de graca e o testset ficava verde com a guarda
+        # removida do pacote. I(2) pura: duas diferencas viram ruido branco e o AICc prefere
+        # o canto sem termos, que e' onde a guarda tem o que fazer.
+        Random.seed!(20260822)
         n = 90
         dates = Date(2000, 1, 1):Month(1):(Date(2000, 1, 1)+Month(n - 1))
-        # quadratic drift => the differencing tests ask for d = 2
-        ta = TimeArray(collect(dates),
-                       [1000.0 + 0.6 * t^2 + 8randn() for t = 1:n])
+        ta = TimeArray(collect(dates), 1000.0 .+ cumsum(cumsum(randn(n))))
 
         loose = auto(ta; seasonality = 12, integrationTest = "kpssShort",
-                     searchMethod = "stepwise", showLogs = false)
+                     searchMethod = "stepwise", showLogs = false,
+                     requireTermsWhenOverDifferenced = false)
         tight = auto(ta; seasonality = 12, integrationTest = "kpssShort",
                      searchMethod = "stepwise", showLogs = false,
                      requireTermsWhenOverDifferenced = true)
 
-        if loose.d + loose.D >= 2
-            # The guard binds only where the series is actually over-differenced.
-            @test tight.p + tight.q + tight.P + tight.Q >= 1
-        end
+        # PREMISSAS, nao `if`: se deixarem de valer, este testset vira vacuo — entao falham.
+        @test loose.d + loose.D >= 2
+        @test loose.p + loose.q + loose.P + loose.Q == 0
+        # The guard binds only where the series is actually over-differenced.
+        @test tight.p + tight.q + tight.P + tight.Q >= 1
         @test Sarimax.isFitted(tight)
         predict!(tight; stepsAhead = 12)
         @test all(isfinite, values(tight.forecast))

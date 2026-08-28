@@ -152,7 +152,9 @@ end
         )
 
         mPlain = SARIMA(yW, 1, 1, 1; seasonality = 12, P = 1, D = 0, Q = 1)
-        fit!(mPlain)
+        # Os dois lados diferem SO em `warmStartFromBox`; sem nomear os outros dois
+        # flags o teste nao isolava a variavel que diz isolar.
+        fit!(mPlain; stationary = true, invertible = true, warmStartFromBox = false)
         @test mPlain.metadata["fitCount"] == 1
         @test mPlain.metadata["buildTimeSecTotal"] ≈ mPlain.metadata["buildTimeSec"]
         @test mPlain.metadata["solveTimeSecTotal"] ≈ mPlain.metadata["solveTimeSec"]
@@ -166,7 +168,7 @@ end
 
         # refit sobre o mesmo objeto continua acumulando
         before = mPlain.metadata["fitCount"]
-        fit!(mPlain)
+        fit!(mPlain; stationary = true, invertible = true, warmStartFromBox = false)
         @test mPlain.metadata["fitCount"] == before + 1
     end
 

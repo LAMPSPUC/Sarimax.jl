@@ -30,10 +30,17 @@ experiment** on four M4 frequencies, between 2026-08-22 and 2026-08-26. Concrete
 produced every cell of the two tables in `tables/`:
 
 * **Table 1** (`tables/table1_horizon_total.txt`) — MASE, sMAPE and OWA at the total
-  horizon, for `mse`/`huber`/`mae`/`ridge` under `initialization = :zeroed` and under
-  `initialization = :innovations`, for monthly, quarterly, yearly and weekly.
+  horizon, for monthly, quarterly, yearly and weekly. `mse`, `huber` and `mae` appear under
+  both `initialization = :zeroed` and `initialization = :innovations`; **`ridge` appears
+  under `:innovations` only**.
 * **Table 2** (`tables/table2_owa_by_block.txt`) — the same cells, OWA broken out by the
   short / medium / long / total horizon blocks.
+
+There is no `ridge` / `:zeroed` cell. No such campaign was run on this host, and
+`scripts/make_tables.py` iterates `ridge` over both initializations, finds no
+`cel_ridge_zeroed_<freq>` file, and renders that position as `n/a` in both tables. The
+`n/a` is therefore an absent campaign, not a suppressed or failed one. The `ridge` column of
+both tables consists of the four `obj_ridge_innov_<freq>` campaigns and nothing else.
 
 The manuscript is not present on this host, so these tables are named by their generated
 titles, not by a manuscript table number. **NOT KNOWN:** which numbered table of the

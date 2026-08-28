@@ -54,7 +54,16 @@ addprocs(NW; exeflags = ["--project=" * ENV["SARIMAX_PROJECT"]])
 const COMMIT = try
     sha = strip(read(`git -C $(PKG) rev-parse --short HEAD`, String))
     dirty = !isempty(strip(read(`git -C $(PKG) status --porcelain`, String)))
-    sha * (dirty ? "-dirty" : "")
+    # When HEAD sits exactly on a tag, record the tag next to the SHA. A run from a release
+    # should say which release; the SHA alone makes the reader look it up, and a tag can be
+    # moved, so neither identifier is sufficient alone.
+    tag = try
+        strip(read(`git -C $(PKG) describe --tags --exact-match`, String))
+    catch
+        ""
+    end
+    stamp = isempty(tag) ? sha : "$(tag) ($(sha))"
+    stamp * (dirty ? "-dirty" : "")
 catch
     "unknown"
 end

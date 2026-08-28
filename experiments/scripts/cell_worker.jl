@@ -68,6 +68,14 @@ function runSeries(args)
     cfg = FREQS[granularity]
     s, H, BLOCKS = cfg.s, cfg.H, cfg.blocks
     t0 = time()
+    # `capSeconds` is the CLI encoding, not the value `auto` takes: negative selects the
+    # production rule (a 120 s cap on short series only), zero means no cap at all, and a
+    # positive value is used as given. The distinction matters at the boundary: passing 0.0
+    # straight through makes Ipopt reject `max_wall_time = 0.0` and every series fails.
+    searchLb = 5 + 2 * s
+    isShort = length(y) <= 5 * searchLb
+    cap = capSeconds < 0 ? (isShort ? 120.0 : nothing) :
+          (capSeconds == 0 ? nothing : Float64(capSeconds))
     try
         # EVERY argument of `auto` that affects estimation is passed explicitly, including
         # those whose value equals the current default. The defaults of this package have
@@ -117,7 +125,7 @@ function runSeries(args)
             rootMargin = 1e-2,
             optimizer = Sx.Ipopt.Optimizer,
             warmStartFromBox = true,
-            maxTimeSeconds = capSeconds,
+            maxTimeSeconds = cap,
             cvarLevel = 0.9,
             requireTermsWhenOverDifferenced = requireTerms,
             requireMAWhenDoublyDifferenced = false,

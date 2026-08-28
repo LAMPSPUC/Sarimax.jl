@@ -37,22 +37,15 @@ end
 
 @testset "Sarima fit" begin
     @testset "fit p=0 P=1 without white noise" begin
-        # `:zeroed` EXPLICITO, e a razao esta medida.
+        # `:zeroed` is passed EXPLICITLY here. This testset recovers coefficients from a
+        # NOISE-FREE series, which is a CONDITIONAL LEAST SQUARES expectation: it holds for
+        # the mode that fixes the pre-sample block at zero, and not for modes that price the
+        # initial state. A noise-free series is degenerate for a likelihood objective, with
+        # sigma^2 -> 0: `ml_exact` with `:zeroed`, which has no pre-sample block at all,
+        # also misses the coefficient on this series.
         #
-        # Este testset recupera coeficientes de uma serie SEM RUIDO. Essa e' uma expectativa
-        # de MINIMOS QUADRADOS CONDICIONAIS: ela vale para o modo que fixa o bloco
-        # pre-amostral em zero, e NAO vale para modos que cobram pelo estado inicial.
-        #
-        # Prova interna: `ml_exact` + `:zeroed` — que nao tem bloco pre-amostral NENHUM —
-        # tambem erra o coeficiente nesta serie (phi1 = -0,96 contra um verdadeiro -0,30).
-        # Serie sem ruido e' degenerada para objetivo de verossimilhanca, com sigma^2 -> 0.
-        #
-        # Sob RUIDO o `:innovations` e o MELHOR dos quatro modos: menor vies e menor RMSE
-        # nos tres coeficientes em 60 replicas, e melhor MAE. Ver
-        # RESULTADO_MONTECARLO_VIES_23-08. Ha cobertura de recuperacao COM ruido rodando no
-        # default no testset "coefficient recovery under noise (default mode)".
-        #
-        # Ou seja: o escopo esta certo aqui, e nao ha alegacao escondida.
+        # Recovery under the default mode is covered separately, with noise, in the testset
+        # "coefficient recovery under noise (default mode)".
         ARcoeff = [0]
         seasCoeff = 0.5
         trend = 0
@@ -70,22 +63,15 @@ end
     end
 
     @testset "fit (p=1 P=0) and (p=2 P=0) without white noise" begin
-        # `:zeroed` EXPLICITO, e a razao esta medida.
+        # `:zeroed` is passed EXPLICITLY here. This testset recovers coefficients from a
+        # NOISE-FREE series, which is a CONDITIONAL LEAST SQUARES expectation: it holds for
+        # the mode that fixes the pre-sample block at zero, and not for modes that price the
+        # initial state. A noise-free series is degenerate for a likelihood objective, with
+        # sigma^2 -> 0: `ml_exact` with `:zeroed`, which has no pre-sample block at all,
+        # also misses the coefficient on this series.
         #
-        # Este testset recupera coeficientes de uma serie SEM RUIDO. Essa e' uma expectativa
-        # de MINIMOS QUADRADOS CONDICIONAIS: ela vale para o modo que fixa o bloco
-        # pre-amostral em zero, e NAO vale para modos que cobram pelo estado inicial.
-        #
-        # Prova interna: `ml_exact` + `:zeroed` — que nao tem bloco pre-amostral NENHUM —
-        # tambem erra o coeficiente nesta serie (phi1 = -0,96 contra um verdadeiro -0,30).
-        # Serie sem ruido e' degenerada para objetivo de verossimilhanca, com sigma^2 -> 0.
-        #
-        # Sob RUIDO o `:innovations` e o MELHOR dos quatro modos: menor vies e menor RMSE
-        # nos tres coeficientes em 60 replicas, e melhor MAE. Ver
-        # RESULTADO_MONTECARLO_VIES_23-08. Ha cobertura de recuperacao COM ruido rodando no
-        # default no testset "coefficient recovery under noise (default mode)".
-        #
-        # Ou seja: o escopo esta certo aqui, e nao ha alegacao escondida.
+        # Recovery under the default mode is covered separately, with noise, in the testset
+        # "coefficient recovery under noise (default mode)".
 
         ar1 = generateARseries(1, 1, [0.3], 0, 0, 1234, false)
         modelAR1MSE = SARIMA(ar1, 1, 0, 0; seasonality = 12, P = 0, D = 0, Q = 0)
@@ -116,22 +102,15 @@ end
     end
 
     @testset "fit p=2 P=1 without white Noise" begin
-        # `:zeroed` EXPLICITO, e a razao esta medida.
+        # `:zeroed` is passed EXPLICITLY here. This testset recovers coefficients from a
+        # NOISE-FREE series, which is a CONDITIONAL LEAST SQUARES expectation: it holds for
+        # the mode that fixes the pre-sample block at zero, and not for modes that price the
+        # initial state. A noise-free series is degenerate for a likelihood objective, with
+        # sigma^2 -> 0: `ml_exact` with `:zeroed`, which has no pre-sample block at all,
+        # also misses the coefficient on this series.
         #
-        # Este testset recupera coeficientes de uma serie SEM RUIDO. Essa e' uma expectativa
-        # de MINIMOS QUADRADOS CONDICIONAIS: ela vale para o modo que fixa o bloco
-        # pre-amostral em zero, e NAO vale para modos que cobram pelo estado inicial.
-        #
-        # Prova interna: `ml_exact` + `:zeroed` — que nao tem bloco pre-amostral NENHUM —
-        # tambem erra o coeficiente nesta serie (phi1 = -0,96 contra um verdadeiro -0,30).
-        # Serie sem ruido e' degenerada para objetivo de verossimilhanca, com sigma^2 -> 0.
-        #
-        # Sob RUIDO o `:innovations` e o MELHOR dos quatro modos: menor vies e menor RMSE
-        # nos tres coeficientes em 60 replicas, e melhor MAE. Ver
-        # RESULTADO_MONTECARLO_VIES_23-08. Ha cobertura de recuperacao COM ruido rodando no
-        # default no testset "coefficient recovery under noise (default mode)".
-        #
-        # Ou seja: o escopo esta certo aqui, e nao ha alegacao escondida.
+        # Recovery under the default mode is covered separately, with noise, in the testset
+        # "coefficient recovery under noise (default mode)".
         ARcoeff = [-0.3, -0.2]
         seasCoeff = -0.4
         trend = 0.1
@@ -251,24 +230,12 @@ end
         @test modelBILEVEL.ϕ != modelNoBILEVEL.ϕ
         @test modelBILEVEL.Φ != modelNoBILEVEL.Φ
 
-        # DESATIVADO POR CUSTO — nao por estar errado. Ver issue de depreciacao do `bilevel`.
-        #
-        # Este `auto` com `bilevel` + exogena era 95,5% do custo de TODO o arquivo, e o
-        # unico item que segurava a virada do default. Medido, maquina livre, um processo:
-        #
-        #   chamada                          base      com :innovations
-        #   fit! objectiveFunction=bilevel   13,17s    23,59s
-        #   fit! objetivo default             0,16s     0,29s
-        #   auto bilevel + exogena           79,81s   ~1.130s      <-- este
-        #   ---------------------------------------------------------
-        #   testset inteiro                  96,73s    1.157,09s   (12,0x)
-        #
-        # As duas primeiras chamadas ficam: custam 24s juntas e cobrem o objetivo. O que sai
-        # e SO o ramo `auto` + exogena. A cobertura perdida esta registrada abaixo como
-        # `@test_skip`, entao ela aparece no sumario da suite em vez de sumir em silencio.
-        #
-        # Isto NAO e conserto: e contencao ate o `bilevel` ser depreciado ou o custo
-        # explicado. Reativar e apagar o `if false`.
+        # Disabled on cost, not because it is wrong. `auto` with `bilevel` and an exogenous
+        # regressor accounted for 95.5% of the runtime of this whole file, at about 1,130s
+        # against 24s for the two direct `fit!` calls that cover the same objective. Those
+        # two remain. The objective is deprecated as of v1.0 and scheduled for removal in
+        # v2.0, so this branch stays disabled; the lost coverage is recorded below as
+        # `@test_skip` so that it appears in the suite summary instead of vanishing.
         if false
             lengthAirPassengers = length(airPassengersLog)
             exogenous =
@@ -299,15 +266,6 @@ end
     end
 
 
-    # @testset "fit M4 series" begin
-    #     test_series_json = JSON.parsefile("datasets/series_38351.json")
-    #     train_dict = Dict{String,Vector{Float64}}("train" => test_series_json["train"])
-    #     test_series_df = DataFrame(train_dict)
-    #     series = load_dataset(test_series_df)
-    #     autoModel = auto(series; seasonality = 12, seasonalIntegrationTest="ocsb", assertStationarity=true, assertInvertibility=true)
-    #     @test autoModel.d == 1
-    #     @test autoModel.D == 1
-    # end
 
     @testset "drift and trend terms" begin
         n = 80
@@ -366,22 +324,15 @@ end
     end
 
     @testset "multiplicative_recovery" begin
-        # `:zeroed` EXPLICITO, e a razao esta medida.
+        # `:zeroed` is passed EXPLICITLY here. This testset recovers coefficients from a
+        # NOISE-FREE series, which is a CONDITIONAL LEAST SQUARES expectation: it holds for
+        # the mode that fixes the pre-sample block at zero, and not for modes that price the
+        # initial state. A noise-free series is degenerate for a likelihood objective, with
+        # sigma^2 -> 0: `ml_exact` with `:zeroed`, which has no pre-sample block at all,
+        # also misses the coefficient on this series.
         #
-        # Este testset recupera coeficientes de uma serie SEM RUIDO. Essa e' uma expectativa
-        # de MINIMOS QUADRADOS CONDICIONAIS: ela vale para o modo que fixa o bloco
-        # pre-amostral em zero, e NAO vale para modos que cobram pelo estado inicial.
-        #
-        # Prova interna: `ml_exact` + `:zeroed` — que nao tem bloco pre-amostral NENHUM —
-        # tambem erra o coeficiente nesta serie (phi1 = -0,96 contra um verdadeiro -0,30).
-        # Serie sem ruido e' degenerada para objetivo de verossimilhanca, com sigma^2 -> 0.
-        #
-        # Sob RUIDO o `:innovations` e o MELHOR dos quatro modos: menor vies e menor RMSE
-        # nos tres coeficientes em 60 replicas, e melhor MAE. Ver
-        # RESULTADO_MONTECARLO_VIES_23-08. Ha cobertura de recuperacao COM ruido rodando no
-        # default no testset "coefficient recovery under noise (default mode)".
-        #
-        # Ou seja: o escopo esta certo aqui, e nao ha alegacao escondida.
+        # Recovery under the default mode is covered separately, with noise, in the testset
+        # "coefficient recovery under noise (default mode)".
         # Noise-free multiplicative DGP: y_t = φy_{t-1} + Φy_{t-12} − φΦy_{t-13}
         Random.seed!(7)
         n = 200
@@ -408,18 +359,14 @@ end
     end
 
     @testset "coefficient recovery under noise (default mode)" begin
-        # CONTRAPARTE dos testsets sem ruido acima, e a razao de existir e' explicita:
-        # aqueles rodam com `:zeroed` explicito porque recuperacao EXATA e' expectativa de
-        # minimos quadrados condicionais. Sem este testset, a virada do default embarcaria
-        # sem NENHUMA cobertura de recuperacao de coeficiente no modo que virou padrao.
+        # Counterpart to the noise-free testsets above, which pass `:zeroed` explicitly
+        # because exact recovery is a conditional-least-squares expectation. This one passes
+        # no `initialization` at all and therefore runs under the DEFAULT mode, so that the
+        # default has coefficient-recovery coverage of its own.
         #
-        # Aqui nao se passa `initialization`: roda no DEFAULT, de proposito.
-        #
-        # Tolerancia frouxa de proposito: com ruido e T finito ha vies de amostra pequena em
-        # QUALQUER modo. O que este teste protege e' "o default recupera a ordem de grandeza
-        # certa e o sinal certo", nao um valor pinado. Medido em 60 replicas
-        # (RESULTADO_MONTECARLO_VIES_23-08), o `:innovations` tem o MENOR vies e o MENOR RMSE
-        # dos quatro modos testados — entao a folga aqui e' conservadora, nao complacente.
+        # The tolerance is deliberately loose: with noise and finite T there is small-sample
+        # bias in ANY mode. What this protects is that the default recovers the right order
+        # of magnitude and the right sign, not a pinned value.
         Random.seed!(20240823)
         n = 400
         phiTrue = 0.6

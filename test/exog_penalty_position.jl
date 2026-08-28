@@ -1,8 +1,6 @@
-# A penalidade do elastic_net multiplica o peso adaptativo pela posicao do parametro no
-# bloco. Para phi/theta/Phi/Theta a posicao E a ordem da defasagem e o escalonamento e
-# deliberado. Para :beta a posicao e so a ordem em que o usuario passou as colunas, que
-# nao carrega informacao -- e a consequencia observavel e que PERMUTAR AS COLUNAS DE X
-# MUDA O MODELO. E essa a propriedade que o teste afirma, e nao a formula interna.
+# The elastic-net penalty must not depend on the order in which exogenous columns are
+# passed: that order carries no information, so PERMUTING THE COLUMNS OF X MUST NOT CHANGE
+# THE MODEL. That observable property is what this asserts, not the internal formula.
 @testset "penalidade exogena e invariante a permutacao das colunas" begin
     Random.seed!(20250820)
     T, S, K = 120, 12, 6

@@ -1,9 +1,8 @@
-# O termo de log-determinante do criterio concentrado, verificado contra a covariancia teorica
-# construida diretamente. Sao dois fatos independentes, ambos exatos, e ambos ja erraram no
-# pacote — por isso viram teste e nao comentario.
+# The log-determinant term of the concentrated criterion, verified against the directly
+# constructed theoretical covariance. Two independent and exact facts:
 #
-#   1. o EXPOENTE divide pelo numero de OBSERVACOES, nao pelo numero de termos quadrados;
-#   2. o bloco MA tem determinante proprio, com a MESMA forma do bloco AR.
+#   1. the EXPONENT divides by the number of OBSERVATIONS, not by the number of squared terms;
+#   2. the MA block has its own determinant, of the SAME form as the AR block.
 @testset "Determinant term of the concentrated criterion" begin
     "log|Omega| de um MA(q) puro, da ACF teorica"
     function maLogDet(θ::Vector{Float64}, n::Int)
@@ -22,9 +21,9 @@
     end
 
     @testset "ARMA: the determinant does NOT factor into the two blocks" begin
-        # registrado como limite conhecido: para ARMA misto a soma dos dois blocos NAO e o
-        # determinante conjunto, e nao ha forma fechada polinomial nos coeficientes. Este teste
-        # existe para que a suposicao contraria nao volte por engano.
+        # Recorded as a known limit: for a mixed ARMA the sum of the two blocks is NOT the
+        # joint determinant, and there is no closed polynomial form in the coefficients. This
+        # test exists so that the opposite assumption cannot return unnoticed.
         ϕ, θ = [0.6], [0.4]
         ψ = Sarimax.psiWeightsFromZero(ϕ, θ, 8000)
         n = 300
@@ -38,18 +37,18 @@
 end
 
 @testset "MA determinant does not require the invertible parameterisation" begin
-    # A recursao inversa de Levinson-Durbin produz os `kappa` a partir dos proprios `theta`,
-    # entao o termo vale com `theta` LIVRE. E ele proprio e a barreira: diverge em |kappa| -> 1.
+    # The inverse Levinson-Durbin recursion produces the `kappa` from `theta` itself, so the
+    # term holds with `theta` FREE. It is its own barrier: it diverges as |kappa| -> 1.
     for θ in ([0.5], [0.4, 0.2], [0.6, -0.3])
         κ = Sarimax.maToReflection(θ)
         expr = Sarimax.maToReflectionExpr(θ, length(θ))
         @test isapprox(Float64.(expr), κ; atol = 1e-12)
     end
 end
-# O EXPOENTE em si, que o titulo do PR afirma e nenhum @test cobria. O caso nao-sazonal nao
-# discrimina — com p<=2 e T=200 a razao T/nEf e 0,995 e os dois expoentes dao o mesmo argmin,
-# que e por que a validacao original de 3e-5 passou com o expoente errado. Discrimina no
-# SAZONAL, onde o bloco perfilado vale s*P e a razao cai a 0,88.
+# The EXPONENT itself. The non-seasonal case does not discriminate: at p <= 2 and T = 200 the
+# ratio T/nEf is 0.995 and both exponents give the same argmin, which is why a validation at
+# 3e-5 passes with either. It discriminates in the SEASONAL case, where the profiled block is
+# s*P long and the ratio falls to 0.88.
 @testset "The determinant exponent divides by T, not by the term count" begin
     function omegaSAR(Φ::Vector{Float64}, s::Int, n::Int)
         ar = Sarimax.expandMultiplicativePolynomial(Float64[], Φ, s; negate = true)
@@ -85,7 +84,7 @@ end
 
     # o expoente 1/T reproduz o argmin da verossimilhanca exata
     @test comT == exato
-    # o expoente pelo numero de termos NAO reproduz, e erra para a borda do dominio
+    # the exponent by term count does NOT reproduce it, and errs towards the domain edge
     @test comNEf != exato
     @test comNEf >= 0.9
 end

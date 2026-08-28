@@ -208,10 +208,9 @@
 
         # CSS loglik of the (3,0,1)(1,1,1)12 fit under the multiplicative form.
         #
-        # Repinado em 2026-08 com a virada do default para `:innovations`: 247,886 -> 277,602.
-        # A causa e a mesma do repin do `aicc` em sarima_auto.jl — o somatorio do erro passa
-        # a comecar em t = 1, entao a amostra efetiva vai de `T - lb + 1` para `T` e a
-        # loglik e avaliada sobre mais pontos. Nao e melhora nem piora: e' outra escala.
+        # The value reflects the `:innovations` default: the error sum starts at t = 1, so
+        # the effective sample is `T` rather than `T - lb + 1` and the loglik is evaluated
+        # over more points. That is a different scale, neither better nor worse.
         @test loglikelihood(testModel) ≈ 277.6017213855341 atol = 1e-1
         @test loglike(testModel) ≈ 277.6017213855341 atol = 1e-1
     end
@@ -246,20 +245,20 @@
     end
 
     @testset "identifyOutliers dispersao degenerada" begin
-        # Contrato: IQR nulo — ou desprezivel na escala dos dados — implica nenhum outlier.
-        # Sem dispersao as cercas do IQR colapsam sobre os quartis e a regra passa a
-        # sinalizar tudo que nao for bit-identico a eles. Dispersao zero e evidencia zero de
-        # atipicidade. Testado como UNIDADE, sobre vetores construidos: uma fixture que roda
-        # o solver herdaria a tolerancia do solver, que e exatamente como o flake nasceu.
+        # Contract: a zero interquartile range — or one negligible on the scale of the data
+        # — implies no outliers. Without dispersion the IQR fences collapse onto the
+        # quartiles and the rule flags everything not bit-identical to them. Zero dispersion
+        # is zero evidence of atypicality. Tested as a UNIT, over constructed vectors: a
+        # fixture that runs the solver would inherit the solver's tolerance.
 
         # Maioria identica mais um pico: sem dispersao central nao ha do que o pico destoar.
         degenerateWithSpike = vcat(fill(5.0, 30), 100.0)
         @test Sarimax.identifyOutliers(degenerateWithSpike) == falses(31)
 
-        # O flake medido, reconstruido a mao. Estes sao os residuos do ajuste SARIMA(0,0,0)
-        # da antiga fixture constante de `detectOutliers`, com tres valores deslocados de
-        # 1-2 ULP — a diferenca entre um runner e outro. Sem a guarda, as posicoes 7, 24 e 30
-        # aparecem como outliers junto da 5; com ela, nenhuma aparece, em qualquer runner.
+        # Residuals of a SARIMA(0,0,0) fit on a constant series, with three values shifted
+        # by 1-2 ULP, which is the difference between one machine and another. Without the
+        # guard, positions 7, 24 and 30 appear as outliers alongside 5; with it, none does,
+        # on any machine.
         base = -3.1935483870967762
         solverNoise = fill(base, 31)
         solverNoise[5] = 95.80645161290323
@@ -273,8 +272,8 @@
         allZeros[3] = 1e-9
         @test Sarimax.identifyOutliers(allZeros) == falses(20)
 
-        # Controle de vinculacao — a guarda tem de ficar MUDA quando ha dispersao de verdade.
-        # Mesma forma dos casos acima, mas com IQR real: o pico continua sendo sinalizado.
+        # Binding control: the guard must stay SILENT when there is real dispersion. Same
+        # shape as the cases above but with a real IQR, and the spike is still flagged.
         nonDegenerate = vcat(repeat([10.0, 11.0, 12.0, 13.0, 14.0], 6), 100.0)
         @test findall(Sarimax.identifyOutliers(nonDegenerate)) == [31]
 

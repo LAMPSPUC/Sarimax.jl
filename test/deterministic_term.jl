@@ -1,18 +1,18 @@
-# O termo deterministico na verossimilhanca exata, contra o `stats::arima(method="ML")`.
+# The deterministic term of the exact likelihood, against `stats::arima(method="ML")`.
 #
-# Este arquivo cobre o buraco que o `dbg_valida_exata.jl` deixava por construcao: aquele teste
-# CENTRA a serie e chama o R com `include.mean = FALSE`, entao exercita exatamente o caminho em
-# que nao ha termo deterministico. Os dois defeitos abaixo viviam justamente ali.
+# This covers the path a centred series with `include.mean = FALSE` cannot exercise, namely
+# the one where a deterministic term is present.
 #
-# Sem R disponivel os casos contra o R sao pulados; os invariantes algebricos rodam sempre.
+# Without R available the comparisons against R are skipped; the algebraic invariants always
+# run.
 @testset "termo deterministico da verossimilhanca exata" begin
     rng = MersenneTwister(0x0DE7)
     dates(n) = collect(Date(2000, 1, 1):Month(1):Date(2000, 1, 1)+Month(n - 1))
 
     @testset "c e a CONSTANTE, o nivel removido e mu = c/(1-sum(ar))" begin
-        # Serie AR(1) com media conhecida: y_t - mu = phi (y_{t-1} - mu) + e_t.
-        # A constante da regressao e c = mu*(1-phi); remover `c` em vez de `mu` desloca a
-        # serie pelo fator errado e a verossimilhanca sai deslocada junto.
+        # AR(1) series with a known mean: y_t - mu = phi (y_{t-1} - mu) + e_t. The
+        # regression constant is c = mu*(1-phi); removing `c` instead of `mu` shifts the
+        # series by the wrong factor and shifts the likelihood with it.
         n, φ, μ = 400, 0.6, 50.0
         e = randn(rng, n + 200)
         z = zeros(n + 200)
@@ -26,11 +26,11 @@
         c = Float64(m.c)
         φ̂ = Float64(m.ϕ[1])
         level = c / (1 - φ̂)
-        # o nivel implicito tem que ser a media da serie, nao a constante
+        # the implied level must be the mean of the series, not the constant
         @test isapprox(level, mean(y); rtol = 0.05)
         @test !isapprox(c, mean(y); rtol = 0.05)      # premissa: as duas diferem de fato
 
-        # a verossimilhanca exata do modelo tem que ser a avaliada no NIVEL
+        # the model's exact likelihood must be the one evaluated at the LEVEL
         z_level = Float64.(values(m.y)) .- level
         z_const = Float64.(values(m.y)) .- c
         llModel = Sarimax.exactLoglike(m)

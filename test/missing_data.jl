@@ -22,11 +22,11 @@
 
         # coefficient stays close to the complete-data fit
         @test abs(mMiss.ϕ[1] - mFull.ϕ[1]) < 0.05
-        # Amostra efetiva: exclui os buracos, E depende do CONDICIONAMENTO do modo.
-        # Sob o default (`:innovations`) o somatorio do erro comeca em t = 1 e NENHUMA
-        # observacao e condicionada fora; sob `:zeroed` a primeira sai (p = 1). Os dois
-        # regimes ficam pinados aqui de proposito, em vez de um numero magico: e' o eixo
-        # que muda, e o teste tem de mostrar qual.
+        # Effective sample: it excludes the gaps AND depends on the mode's CONDITIONING.
+        # Under the `:innovations` default the error sum starts at t = 1 and no observation
+        # is conditioned out; under `:zeroed` the first one is (p = 1). Both regimes are
+        # pinned deliberately, rather than a single magic number, because the conditioning
+        # is the axis that moves.
         @test nobs(mMiss) == n - length(holes)
         mMissZeroed = SARIMA(TimeArray(collect(dts), ym), 1, 0, 0; allowMean = false)
         fit!(mMissZeroed; initialization = :zeroed)

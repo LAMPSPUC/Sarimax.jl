@@ -1,12 +1,12 @@
-# Contrato do multistart {zero, CSS}.
+# Contract of the {zero, CSS} multistart.
 #
-# A propriedade que o desenho garante e MONOTONIA: a partida do zero continua sendo um dos
-# candidatos, e o desempate e por `aicc`, entao ligar `multistart` nunca pode PIORAR o
-# criterio. Esse e o unico invariante forte que da para afirmar sem medir a M4 — o ganho de
-# previsao e questao empirica e vive nos experimentos, nao aqui.
+# The property the design guarantees is MONOTONICITY: the zero start remains one of the
+# candidates and the tie-break is by `aicc`, so enabling `multistart` can never WORSEN the
+# criterion. That is the strong invariant assertable without an M4-scale measurement; any
+# forecasting gain is an empirical question and lives in the experiments.
 #
-# `isFitted` e `aicc` nao estao todos no export de src/Sarimax.jl; qualificar com `Sarimax.`
-# (ja quebrou o suite duas vezes por isso).
+# `isFitted` and `aicc` are not all exported from src/Sarimax.jl: qualify them with
+# `Sarimax.`
 @testset "multistart {zero, CSS}" begin
     Random.seed!(20260818)
     # ARMA(1,1) com sinal claro nos dois blocos, para que a partida tenha o que mover
@@ -40,13 +40,13 @@
     # sem ela o teste vira um detector de ultimo bit do Ipopt.
     @test Sarimax.aicc(multi) <= Sarimax.aicc(base) + 1e-6
 
-    # o multistart devolve um modelo COERENTE, nao um Frankenstein: os residuos tem que ser
-    # os do vencedor, nao os de um ajuste e os coeficientes de outro.
+    # The multistart returns a COHERENT model: the residuals must be the winner's, not
+    # those of one fit alongside the coefficients of another.
     @test length(multi.ϵ) == length(base.ϵ)
     @test isapprox(multi.σ², sum(abs2, multi.ϵ) / length(multi.ϵ); rtol = 0.5)
 
-    # sob `:zeroed` a semente CSS E a partida de producao: o resultado tem de coincidir com o
-    # caminho simples, e nao apenas "nao piorar".
+    # Under `:zeroed` the CSS seed IS the production start, so the result must coincide with
+    # the simple path, not merely fail to worsen.
     zsimples = Sarimax.SARIMA(ta, 1, 1, 1; seasonality = 1, allowMean = false, allowDrift = true)
     Sarimax.fit!(zsimples; objectiveFunction = "mse", silent = true, stationary = true,
                  invertible = false, initialization = :zeroed, multistart = false)

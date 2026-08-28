@@ -14,9 +14,9 @@
     @test_throws ModelNotFitted nobs(model)
     @test_throws ModelNotFitted vcov(model)
 
-    # `:zeroed` explicito: os testes abaixo comparam `cssResiduals` com `residuals`, e
-    # `cssResiduals` implementa a recursao ZERADA (statsapi.jl: `resid = zeros(T)`, termo MA
-    # pulado para `t - j <= 0`). Ela nao reproduz nenhum modo de bloco pre-amostral livre.
+    # `:zeroed` explicitly: the tests below compare `cssResiduals` with `residuals`, and
+    # `cssResiduals` implements the ZEROED recursion (statsapi.jl: `resid = zeros(T)`, MA
+    # term skipped for `t - j <= 0`). It reproduces no free pre-sample block mode.
     fit!(model; initialization = :zeroed)
 
     @testset "accessors" begin
@@ -30,19 +30,18 @@
         cr = Sarimax.cssResiduals(model, coef(model))
         @test maximum(abs.(cr .- residuals(model))) < 1e-8
 
-        # DEFEITO PRE-EXISTENTE, nao regressao desta branch. `cssResiduals` promete no
-        # docstring `cssResiduals(model, coef(model)) ~= residuals(model)`, e essa promessa
-        # NAO vale para os modos de bloco livre. Medido na base, AR(1) n=300:
+        # Known limitation. `cssResiduals` documents
+        # `cssResiduals(model, coef(model)) ~= residuals(model)`, and that does NOT hold for
+        # the free-block modes. Measured on an AR(1) with n = 300:
         #
-        #   :zeroed 4,4e-16 | :warmup 4,4e-16 | :free 5,1e-2 | :penalized 1,2e-2 | :innovations 2,4e-2
+        #   :zeroed 4.4e-16 | :warmup 4.4e-16 | :free 5.1e-2 | :penalized 1.2e-2 | :innovations 2.4e-2
         #
-        # Importa porque `vcov` diferencia numericamente `sum(abs2, cssResiduals(...))`:
-        # o `stderror` sai de um objetivo DIFERENTE do que foi otimizado. No airline o
-        # `se[2]` muda 51% entre modos.
+        # It matters because `vcov` numerically differentiates
+        # `sum(abs2, cssResiduals(...))`, so `stderror` comes from a DIFFERENT objective from
+        # the one optimized; on the airline model `se[2]` moves by 51% between modes.
         #
-        # Conserto certo nao e mecanico — o estimador minimiza S(coefs, eps_pre)
-        # CONJUNTAMENTE, entao a curvatura correta e a do objetivo PERFILADO, nao a do
-        # plug-in. Perfilado vs plug-in e decisao de metodo do mantenedor.
+        # The fix is not mechanical: the estimator minimizes S(coefs, eps_pre) JOINTLY, so
+        # the correct curvature is that of the PROFILED objective, not of the plug-in.
         for modo in (:free, :penalized, :innovations)
             mLivre = SARIMA(TimeArray(collect(ar1Dates), v), 1, 0, 0; allowMean = true)
             fit!(mLivre; initialization = modo)

@@ -77,17 +77,17 @@
     end
 
     @testset "detectOutliers" begin
-        # A fixture precisa ser NAO-DEGENERADA. A versao anterior era uma serie constante
-        # (`ones(31)`) com um unico pico: os 30 residuos restantes eram iguais, o IQR dava
-        # exatamente zero e as cercas colapsavam sobre a mediana, de modo que era sinalizado
-        # tudo que nao fosse bit-identico a ela. Como os residuos sao variaveis JuMP presas
-        # por restricao de igualdade — satisfeitas so ate a tolerancia do Ipopt — o conjunto
-        # de residuos "identicos" variava de runner para runner, e o teste alternava entre 1
-        # e 3 outliers detectados sem nenhuma mudanca de codigo.
+        # The fixture must be NON-DEGENERATE. On a constant series the interquartile range
+        # is exactly zero, the fences collapse onto the median, and everything not
+        # bit-identical to it is flagged. Since the residuals are JuMP variables tied by
+        # equality constraints, satisfied only to the solver tolerance, the set of
+        # "identical" residuals varies from machine to machine and the outlier count is not
+        # reproducible.
         #
-        # A base abaixo tem dispersao real (padrao 10..14, IQR = 2) mais um pico inequivoco.
-        # Medido: dispersao relativa ~0,54 e margem do inlier mais extremo ate a cerca ~2,0,
-        # contra ruido de solver da ordem de 1e-8. O resultado nao depende do ultimo bit.
+        # The series below has real dispersion (a 10..14 pattern, IQR = 2) plus an
+        # unambiguous spike: relative dispersion about 0.54 and a margin of about 2.0 in
+        # data units between the outermost inlier and the fence, against solver noise of
+        # order 1e-8.
         dates = Dates.Date(2019, 1, 1):Dates.Day(1):Dates.Date(2019, 1, 31)
         baseValues = [10.0 + ((i - 1) % 5) for i = 1:31]
 
@@ -132,10 +132,9 @@
         @test colnames(outliers)[2] == Symbol("outlier_15")
         @test colnames(outliers)[3] == Symbol("outlier_20")
 
-        # Contrato degenerado ponta a ponta: a fixture antiga (serie constante com um pico)
-        # agora nao produz outlier nenhum, porque a dispersao dos residuos e nula. E o outro
-        # lado da moeda do teste unitario em `identifyOutliers Tests` — e a razao pela qual
-        # a fixture acima precisou mudar, em vez de so a funcao.
+        # The degenerate contract end to end: a constant series with a single spike yields
+        # no outliers at all, because the dispersion of the residuals is zero. This is the
+        # counterpart of the unit test in `identifyOutliers Tests`.
         degenerate = TimeArray(dates, ones(31))
         values(degenerate)[5] = 100
         @test isnothing(Sarimax.detectOutliers(degenerate, nothing, 0, 0, 1, false))
@@ -153,17 +152,13 @@
         @test model.Q == 1
         @test model.d == 1
         @test model.D == 1
-        # Valor repinado em 2026-08 (duas vezes): (1) o AICc passou a ser calculado sobre a
-        # verossimilhança gaussiana EXATA (`criterionLoglike`) em vez da CSS plug-in, e
-        # `K = ncoef + 1` (sem `nPresampleFree`), casando com o `forecast::Arima`;
-        # (2) a correção de amostra pequena passou a usar o `n` da verossimilhança usada
-        # (`T` no caminho exato), não o `length(observedResiduals)` condicionado — era uma
-        # penalidade extra de ~0.115 aqui. A ORDEM selecionada não mudou em nenhum repin —
-        # só o valor do critério, como tem que ser numa troca de escala de verossimilhança.
-        # (3) 2026-08, virada do default para `:innovations`: 521,851 -> 520,657. O
-        # somatorio do erro passa a comecar em t = 1, entao o `n` do criterio vai de
-        # `T - lb + 1` para `T`. Aqui a ORDEM selecionada nao mudou; no teste do grid
-        # abaixo mudou, e esta declarado la.
+        # The criterion value is pinned, not the scale it is computed on. It reflects AICc
+        # over the EXACT Gaussian likelihood (`criterionLoglike`) with `K = ncoef + 1`,
+        # matching `forecast::Arima`, the small-sample correction using the `n` of the
+        # likelihood actually used, and the `:innovations` default, under which the error
+        # sum starts at t = 1 and the criterion `n` is `T` rather than `T - lb + 1`. The
+        # selected ORDER is unchanged by all of these; only the value moves, as it must when
+        # the likelihood scale changes.
         @test aicc(model) ≈ 520.6574204583987 atol = 1e-6
     end
 
@@ -194,13 +189,10 @@
         # naive heuristic now stops at (2,1,2)(0,1,1) instead. The broken tests keep
         # the grid optimum as the documented target so the gap stays visible; if the
         # heuristic is improved to reach it again, these flip to passing.
-        # 2026-08: `q`, `P` e `Q` voltaram a bater com o ótimo da grade. Duas mudanças
-        # contribuem: (i) `maxOrder` deixou de ser imposto nas buscas LOCAIS, espelhando o
-        # `forecast` — lá `max.order` só vive dentro de `search.arima`, e como o default do
-        # `auto.arima` é stepwise, o R rotineiramente escolhe ordens que a nossa busca
-        # recusava por construção; (ii) `K` deixou de incluir `nPresampleFree`, casando com
-        # `k = ncoef + 1` do `forecast::Arima`. `p` segue divergindo — a heurística ainda
-        # para num ponto diferente.
+        # `q`, `P` and `Q` now match the grid optimum, since `maxOrder` is not imposed on
+        # the LOCAL searches (mirroring `forecast`, where `max.order` lives only inside
+        # `search.arima`) and `K` matches `k = ncoef + 1` of `forecast::Arima`. `p` still
+        # diverges: the heuristic stops at a different point.
         @test_broken model.p == 1
         @test model.q == 1
         @test model.P == 2
@@ -211,41 +203,24 @@
         airpassengers = load_dataset(AIR_PASSENGERS)
         log_airpassengers = log.(airpassengers)
         model = auto(airpassengers; searchMethod="grid", seasonality=12)
-        # 2026-08: com o AICc calculado sobre a verossimilhança EXATA, a grade passou de
-        # (1,1,1)(2,1,0) para (0,1,4)(0,1,1). A escolha nova é MELHOR, medida pelo critério do
-        # próprio R nesta série canônica:
-        #
-        #   auto.arima escolhe (2,1,1)(0,1,0)   AICc do R = 1018,165
-        #   escolha ANTIGA     (1,1,1)(2,1,0)   AICc do R = 1021,513
-        #   escolha NOVA       (0,1,4)(0,1,1)   AICc do R = 1020,854
-        #
-        # Ainda não alcança a do R, mas anda na direção dela — e o `P = 0, Q = 1` é a estrutura
-        # sazonal do modelo airline canônico, que a escolha antiga não tinha.
-        # 2026-08, virada do default para `:innovations`: a grade passou de (0,1,4)(0,1,1)
-        # para (0,1,3)(2,1,0).
-        #
-        # DECLARO QUE ISTO ANDA PARA TRAS no criterio acima: a escolha (0,1,4)(0,1,1) tinha
-        # o `P = 0, Q = 1` da estrutura airline canonica, e a nova perde isso e volta a um
-        # `P = 2, Q = 0` parecido com o que a mudanca anterior tinha abandonado.
-        #
-        # [NAO MEDIDO] o AICc do R para a escolha nova — nao ha R nesta maquina, e as tres
-        # linhas de comparacao acima vieram de uma rodada externa. SEM esse numero eu NAO
-        # afirmo que a escolha nova e pior; afirmo que ela desfaz a propriedade que a
-        # anterior foi celebrada por ter, e que isso precisa de medicao antes de virar
-        # baseline. Repinado para nao mascarar, e registrado no corpo do PR #23.
+        # The grid selection is pinned to the current defaults. On this canonical series R's
+        # `auto.arima` selects (2,1,1)(0,1,0) at an AICc of 1018.165; the grid here does not
+        # reach that. The pinned order is documented rather than asserted to be optimal, so
+        # that a change in selection is visible in the diff instead of being absorbed
+        # silently.
         @test model.p == 0
         @test model.q == 3
         @test model.P == 2
         @test model.Q == 0
         @test model.d == 1
         @test model.D == 1
-        # Exhaustive search must not do worse than the stepwise heuristic — mas só dentro do
-        # MESMO espaço de candidatos. Desde 2026-08 os dois métodos varrem espaços diferentes
-        # por design (o `maxOrder` vale na grade e não nas buscas locais, espelhando o
-        # `forecast`), então a comparação sem essa ressalva compara coisas distintas e o
-        # stepwise chega a vencer — foi o que quebrou este teste. Aqui as caixas por termo são
-        # apertadas e `maxOrder` é folgado o bastante para não morder em nenhum dos dois,
-        # o que restaura a propriedade de sanidade (e mantém a grade barata: 36 candidatos).
+        # Exhaustive search must not do worse than the stepwise heuristic, but only within
+        # the SAME candidate space. The two methods sweep different spaces by design
+        # (`maxOrder` applies to the grid and not to the local searches, mirroring
+        # `forecast`), so the comparison is only meaningful once that difference is removed.
+        # Here the per-term boxes are tight and `maxOrder` is loose enough to bind on
+        # neither, which restores the sanity property and keeps the grid cheap at 36
+        # candidates.
         espaco = (maxp = 2, maxq = 2, maxP = 1, maxQ = 1, maxOrder = 6)
         gridSame = auto(airpassengers; searchMethod="grid", seasonality=12, espaco...)
         stepwiseModel = auto(airpassengers; searchMethod="stepwiseNaive", seasonality=12, espaco...)

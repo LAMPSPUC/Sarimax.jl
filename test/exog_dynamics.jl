@@ -1,12 +1,13 @@
-# Semantica do bloco exogeno: :armax vs :regression_errors.
+# Semantics of the exogenous block: :armax against :regression_errors.
 #
-# As duas equacoes (Hyndman, "The ARIMAX model muddle", 2010):
+# The two equations (Hyndman, "The ARIMAX model muddle", 2010):
 #   :armax              phi(B) Phi(B^s) y_t = X_t'b + theta(B) Theta(B^s) e_t
 #   :regression_errors  y_t = X_t'b + eta_t ,  phi(B) Phi(B^s) eta_t = theta(B) Theta(B^s) e_t
 #
-# Os testes afirmam PROPRIEDADES DE SAIDA, nao internos: (i) o default nao mudou nada,
-# (ii) a identidade algebrica vale exatamente onde a algebra diz que vale e so ali, e
-# (iii) sob a forma de erros ARIMA o coeficiente recupera o efeito marginal do DGP.
+# These tests assert OUTPUT PROPERTIES rather than internals: (i) naming the default changes
+# nothing, (ii) the algebraic identity holds exactly where the algebra says it does and
+# nowhere else, and (iii) under the ARIMA-errors form the coefficient recovers the marginal
+# effect of the data generating process.
 
 @testset "exogDynamics" begin
     mkTA(v) = TimeArray(
@@ -14,9 +15,8 @@
     mkTX(X) = TimeArray(
         collect(Date(2000, 1, 1):Month(1):Date(2000, 1, 1)+Month(size(X, 1)-1)), X)
 
-    # `y` tem T pontos; `X` tem T + HMAX, porque o `predict!` exige o regressor futuro
-    # para o horizonte pedido -- e foi exatamente esse descasamento que fez a primeira
-    # versao deste arquivo lancar em vez de testar.
+    # `y` has T points; `X` has T + HMAX, because `predict!` requires the future regressor
+    # over the requested horizon.
     HMAX = 12
 
     "y = X*b + eta, com eta ~ ARMA(1,1)x(P,0,Q)[12]. P = 0 => polinomio AR unitario."
@@ -66,9 +66,9 @@
         @test values(a.forecast) == values(b.forecast)
     end
 
-    # A IDENTIDADE. As duas formas coincidem sse o polinomio AR (regular e sazonal) e
-    # unitario e nao ha diferenciacao -- filtrar X por 1 nao faz nada. Fixar isto impede
-    # que uma refatoracao futura quebre a equivalencia em silencio.
+    # THE IDENTITY. The two forms coincide iff the AR polynomial (regular and seasonal) is
+    # unitary and there is no differencing, since filtering X by 1 does nothing. Pinning it
+    # stops a future refactor from breaking the equivalence silently.
     @testset "p = P = 0: as duas semanticas sao a MESMA equacao" begin
         y, X = geraErrosArima(3, 0)
         a = ajusta(y, X, 0, 0, 1, 1)
@@ -81,12 +81,9 @@
         @test values(a.forecast) ≈ values(b.forecast) atol = 1e-6
     end
 
-    # ... e so ali. Com p > 0 as duas TEM que divergir: se nao divergirem, o flag nao
-    # esta vinculando, que e a classe de defeito que ja custou caro neste pacote.
-    # Os DOIS lados nomeados de proposito. Antes este teste usava o default de um lado, e
-    # quando o default virou ele passou a comparar `:regression_errors` consigo mesmo — a
-    # diferenca deu 0,0 e o teste falhou por motivo que nao era o defeito que ele vigia.
-    # Teste de divergencia entre dois modos tem de nomear os dois.
+    # ...and nowhere else. With p > 0 the two MUST diverge: if they do not, the flag is not
+    # binding. BOTH sides are named deliberately — a divergence test that leaves one side on
+    # the default silently compares a mode with itself whenever the default moves.
     @testset "p > 0: as duas semanticas divergem (o flag vincula)" begin
         y, X = geraErrosArima(4, 1)
         a = ajusta(y, X, 1, 1, 1, 0; exogDynamics = :armax)
@@ -96,9 +93,9 @@
         @test maximum(abs.(values(a.forecast) .- values(b.forecast))) > 1e-3
     end
 
-    # Sob a forma de erros ARIMA, b e o efeito marginal do DGP e tem de ser recuperado.
-    # Sob :armax, b e multiplicador de impacto e NAO tem essa interpretacao -- por isso
-    # o teste afirma so o lado que a teoria garante, e nao uma comparacao de erro.
+    # Under the ARIMA-errors form, b is the marginal effect of the data generating process
+    # and must be recovered. Under :armax, b is an impact multiplier and has no such
+    # interpretation, so this asserts only the side the theory guarantees.
     @testset ":regression_errors recupera o efeito marginal" begin
         β = [2.0, -1.5]
         erros = Float64[]

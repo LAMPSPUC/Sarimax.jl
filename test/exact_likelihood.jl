@@ -1,14 +1,14 @@
-# Testes da verossimilhanca gaussiana exata (src/exact_likelihood.jl).
+# Tests of the exact Gaussian likelihood (src/exact_likelihood.jl).
 #
-# A referencia independente e a MVN completa: para z ~ N(0, sigma^2 * Gamma) com
-# Gamma_{ij} = gamma(|i-j|) e sigma^2 concentrado,
+# The independent reference is the full MVN: for z ~ N(0, sigma^2 * Gamma) with
+# Gamma_{ij} = gamma(|i-j|) and sigma^2 concentrated out,
 #
 #     l = -(n/2) (log(2 pi sigma2) + 1) - (1/2) logdet(Gamma),
 #     sigma2 = z' Gamma^{-1} z / n.
 #
-# E exatamente a quantidade que Durbin-Levinson calcula em O(n^2), obtida aqui por
-# algebra linear densa — nenhuma linha de codigo compartilhada com a implementacao.
-# (LinearAlgebra vem qualificado via Sarimax para nao exigir declaracao no test target.)
+# That is exactly the quantity Durbin-Levinson computes in O(n^2), obtained here by dense
+# linear algebra, sharing no line of code with the implementation. (LinearAlgebra is
+# qualified through Sarimax so that it need not be declared in the test target.)
 referenceExactLoglike(z::Vector{Float64}, γ::Vector{Float64}) = begin
     LA = Sarimax.LinearAlgebra
     n = length(z)
@@ -91,8 +91,8 @@ end
     end
 
     @testset "recusa principiada perto da fronteira" begin
-        # AR(1) com raiz quase unitaria: a cauda dos psi nao decai dentro da truncagem
-        # e a resposta certa e `nothing`, nunca um numero silenciosamente errado.
+        # AR(1) with a near-unit root: the psi tail does not decay within the truncation,
+        # and the right answer is `nothing`, never a silently wrong number.
         @test isnothing(Sarimax.theoreticalACF([0.99999], Float64[], 50))
         @test isnothing(Sarimax.exactGaussianLogLikelihood(randn(rng, 50), [0.99999], Float64[]))
         # ponto explosivo
@@ -116,15 +116,15 @@ end
     end
 
     @testset "n do AICc casa com a amostra da verossimilhanca" begin
-        # A verossimilhanca exata que entra no criterio e avaliada sobre os T pontos da
-        # serie diferenciada; a correcao de amostra pequena deve usar esse mesmo n, nao o
-        # `length(observedResiduals) = T - lb + 1` do conditioning da CSS.
+        # The exact likelihood entering the criterion is evaluated over the T points of the
+        # differenced series; the small-sample correction must use that same n, not the
+        # `length(observedResiduals) = T - lb + 1` of the CSS conditioning.
         y = TimeArray(collect(Date(2000, 1, 1):Month(1):Date(2006, 12, 1)), randn(rng, 84))
         m = SARIMA(y, 2, 0, 0; allowMean = false)
-        # `:zeroed` EXPLICITO: a premissa deste testset e' que a truncagem do
-        # conditioning EXISTE (`nRes < T`). Sob o default novo (`:innovations`) o
-        # somatorio comeca em t = 1, `lb = 1` e `nRes == T` — a premissa some e o
-        # teste deixaria de medir o que foi escrito para medir.
+        # `:zeroed` EXPLICITLY: this testset assumes the conditioning truncation EXISTS
+        # (`nRes < T`). Under the `:innovations` default the sum starts at t = 1, `lb = 1`
+        # and `nRes == T`, so the premise disappears and the test would stop measuring what
+        # it was written to measure.
         fit!(m; initialization = :zeroed)  # residualLags = p = 2 => lb = 3
         if !isnothing(Sarimax.exactLoglike(m))   # criterio esta no caminho exato
             T = length(values(m.y))
@@ -171,11 +171,10 @@ end
     end
 
     @testset "contagem de hiperparametros sobrevive a nomes-string desligados" begin
-        # `fit!` desabilita os nomes-string das variaveis JuMP (custo de construcao). Com
-        # eles desligados `variable_by_name` devolve `nothing` SEM erro, entao qualquer
-        # consumidor que dependa dele passa a contar errado em silencio — foi o caso de
-        # `get_hyperparameters_number(::JuMP.Model)`, migrado para o dicionario de objetos.
-        # Este teste trava a diferenca para a migracao nao ser revertida por engano.
+        # `fit!` disables the string names of the JuMP variables (a build cost). With them
+        # off, `variable_by_name` returns `nothing` WITHOUT error, so any consumer relying on
+        # it counts wrongly and silently. `get_hyperparameters_number(::JuMP.Model)` reads
+        # the object dictionary instead; this test pins that difference.
         jm = Sarimax.JuMP.Model()
         Sarimax.JuMP.set_string_names_on_creation(jm, false)
         Sarimax.JuMP.@variable(jm, c)
@@ -196,8 +195,8 @@ end
     end
 
     @testset "criterionSampleSize: aritmetica == differentiate" begin
-        # `criterionSampleSize` usa `n - d - D*s` em vez de alocar a serie diferenciada.
-        # A equivalencia tem que valer para toda combinacao de ordens de diferenciacao.
+        # `criterionSampleSize` uses `n - d - D*s` instead of allocating the differenced
+        # series. The equivalence must hold for every combination of differencing orders.
         yLong = TimeArray(collect(Date(2000, 1, 1):Month(1):Date(2010, 12, 1)), randn(rng, 132))
         for (d, D, s) in ((0, 0, 1), (1, 0, 1), (2, 0, 1), (0, 1, 12), (1, 1, 12), (2, 1, 12), (1, 2, 4))
             m = SARIMA(yLong, 1, d, 0; seasonality = s, D = D)
@@ -207,8 +206,8 @@ end
     end
 
     @testset "selecao: recuo CSS nunca vence candidato com exata" begin
-        # O criterio de BUSCA (getInformationCriteriaFunction) penaliza candidatos cujo
-        # criterio veio do recuo; os acessores publicos nao mudam.
+        # The SEARCH criterion (getInformationCriteriaFunction) penalizes candidates whose
+        # criterion came from the fallback; the public accessors are unchanged.
         y = TimeArray(collect(Date(2000, 1, 1):Month(1):Date(2006, 12, 1)), randn(rng, 84))
         m = SARIMA(y, 1, 0, 0; allowMean = false)
         fit!(m)

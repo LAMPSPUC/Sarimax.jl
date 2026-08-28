@@ -14,9 +14,7 @@ using Aqua
     # verified to remain correct in practice (Sarimax's signatures don't overlap
     # with StateSpaceModels', so fit! etc. still call the right method) — this is
     # accepted as a known, harmless-in-practice quirk via `treat_as_own` rather
-    # than renaming the long-standing public `SARIMA` API. See WORKLOG.md for the
-    # investigation and the follow-up considered (renaming to avoid the
-    # collision outright).
+    # than renaming the long-standing public `SARIMA` API.
     #
     # persistent_tasks is skipped on Windows only: this check works by doing an
     # isolated `Pkg.develop` of the package into a fresh temp sandbox and

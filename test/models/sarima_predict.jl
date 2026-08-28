@@ -82,11 +82,10 @@ function MAE(actual, forecast)
 end
 @testset "Sarima predict" begin
     @testset "predict sarima without white noise" begin
-        # `:zeroed` explicito nas previsoes SEM RUIDO deste testset. Recuperacao/previsao
-        # exata e' expectativa de MINIMOS QUADRADOS CONDICIONAIS e nao vale para modos que
-        # cobram pelo estado inicial — o `ml_exact`, que nao tem bloco pre-amostral nenhum,
-        # tambem falha nesta serie. Ver RESULTADO_MONTECARLO_VIES_23-08, onde sob RUIDO o
-        # `:innovations` da o menor vies e o melhor MAE dos quatro modos.
+        # `:zeroed` explicitly, because the forecasts in this testset are NOISE-FREE. Exact
+        # recovery and forecasting is a CONDITIONAL LEAST SQUARES expectation and does not
+        # hold for modes that price the initial state; `ml_exact`, which has no pre-sample
+        # block at all, also fails on this series.
         #p=2 P=1 trend =0.1
         ARcoeff = [-0.3, -0.2]
         seasCoeff = 0.4
@@ -114,11 +113,10 @@ end
     end
 
     @testset "auto predict without white noise" begin
-        # `:zeroed` explicito nas previsoes SEM RUIDO deste testset. Recuperacao/previsao
-        # exata e' expectativa de MINIMOS QUADRADOS CONDICIONAIS e nao vale para modos que
-        # cobram pelo estado inicial — o `ml_exact`, que nao tem bloco pre-amostral nenhum,
-        # tambem falha nesta serie. Ver RESULTADO_MONTECARLO_VIES_23-08, onde sob RUIDO o
-        # `:innovations` da o menor vies e o melhor MAE dos quatro modos.
+        # `:zeroed` explicitly, because the forecasts in this testset are NOISE-FREE. Exact
+        # recovery and forecasting is a CONDITIONAL LEAST SQUARES expectation and does not
+        # hold for modes that price the initial state; `ml_exact`, which has no pre-sample
+        # block at all, also fails on this series.
         #p=2 P=1 trend =1
         ARcoeff = [0.3, 0.3]
         seasCoeff = 0.5

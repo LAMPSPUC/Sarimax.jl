@@ -88,37 +88,35 @@ end
 """
     criterionLoglike(model) -> Fl
 
-Log-verossimilhanca usada pelos CRITERIOS DE INFORMACAO: a gaussiana EXATA
-([`exactLoglike`](@ref)) quando ela e computavel, com recuo para a CSS plug-in
-([`loglike`](@ref)) quando nao e.
+Log-likelihood used by the INFORMATION CRITERIA: the EXACT Gaussian one
+([`exactLoglike`](@ref)) when it is computable, falling back to the CSS plug-in
+([`loglike`](@ref)) when it is not.
 
-Por que a exata e nao a CSS. O `forecast::auto.arima` seleciona por AICc calculado sobre a
-verossimilhanca exata; enquanto o nosso criterio usava CSS plug-in, comparar AICc ou
-trajetoria de busca com a dele era comparar objetos diferentes. Alem disso o CSS ignora a
-incerteza pre-amostral, e era essa lacuna que o `nPresampleFree` tentava tapar cobrando os
-valores pre-amostrais como parametros — remendo no criterio que agora sai, porque a exata
-contabiliza essa incerteza por construcao.
+Why the exact likelihood and not CSS. `forecast::auto.arima` selects by AICc computed on the
+exact likelihood, so a CSS plug-in criterion would make AICc values and search trajectories
+incomparable with it. CSS also ignores pre-sample uncertainty, which the exact likelihood
+accounts for by construction.
 
-O recuo existe porque `exactLoglike` devolve `nothing` de proposito em vez de um numero
-errado (ponto nao estacionario, autocovariancia sem positividade definida, truncagem dos psi
-mordendo). Nesses casos o criterio volta a ser o de antes — comportamento degradado, nunca
-silenciosamente incorreto.
+The fallback exists because `exactLoglike` deliberately returns `nothing` rather than a wrong
+number (a non-stationary point, an autocovariance that is not positive definite, or psi
+truncation biting). In those cases the criterion reverts to the CSS plug-in: degraded
+behaviour, never silently incorrect.
 
-Sem `try/catch`: o contrato de `exactLoglike` ja e nothing-em-recusa, entao qualquer excecao
-aqui e bug e deve subir — um `catch` largo mascararia exatamente a classe de erro
-(`MethodError`, `UndefVarError`) que ja mordeu este arquivo, e tornaria a taxa de recuo
-impossivel de interpretar. Tipos de modelo sem `exactLoglike` recuam via `applicable`.
+No `try/catch`: the contract of `exactLoglike` is already nothing-on-refusal, so any exception
+here is a bug and must propagate. A broad `catch` would mask `MethodError`/`UndefVarError` and
+make the fallback rate uninterpretable. Model types without `exactLoglike` fall back through
+`applicable`.
 
-QUASI-AIC, NAO AIC. Esta verossimilhanca e avaliada nos coeficientes que o OBJETIVO DO USUARIO
-produziu (`mae`, `huber`, `CVaR`, ridge, ...), nao no maximo da gaussiana. Como estatistica de
-comparacao entre candidatos e legitima — a mesma funcao pontua todos —, mas nao e a
-verossimilhanca maximizada que a teoria do AIC supoe. Medido em ARMA(1,1) simulado, o deficit
-`2*(l(EMV) - l(ponto ajustado))` tem mediana 0,01 sob `mse` e sobe com o raio da raiz MA:
-mediana 0,98 e p90 7,03 com raiz em 0,98, isto e, ja na escala em que o AICc decide. Sob
-`ridge` a mediana vai a 1,79, porque o encolhimento afasta o ponto do maximo de proposito.
-Refinar por um passo de Newton NAO resolve: no regime que importa o otimo esta na fronteira de
-invertibilidade (theta_EMV empilha em 1), onde a equivalencia assintotica de Le Cam nao vale —
-medido, um passo fecha 6% do deficit e piora o valor em 40% dos casos.
+QUASI-AIC, NOT AIC. This likelihood is evaluated at the coefficients THE USER'S OBJECTIVE
+produced (`mae`, `huber`, CVaR, ridge, ...), not at the Gaussian maximum. As a statistic for
+comparing candidates it is legitimate, since the same function scores all of them, but it is
+not the maximized likelihood that AIC theory assumes. On simulated ARMA(1,1) the deficit
+`2*(l(MLE) - l(fitted point))` has median 0.01 under `mse` and grows with the MA root radius:
+median 0.98 and p90 7.03 at a root of 0.98, already on the scale at which AICc decides. Under
+`ridge` the median reaches 1.79, because the shrinkage moves the point away from the maximum
+by design. Refining by one Newton step does not fix it: in the regime that matters the optimum
+sits on the invertibility boundary, where Le Cam's asymptotic equivalence does not hold — one
+step closes 6% of the deficit and worsens the value in 40% of cases.
 """
 function criterionLoglike(model::SarimaxModel)
     return first(criterionLoglikeAndN(model))
@@ -127,17 +125,17 @@ end
 """
     criterionLoglikeAndN(model) -> (loglike, n, usedExact)
 
-Nucleo de [`criterionLoglike`](@ref): devolve tambem o TAMANHO DA AMOSTRA sobre o qual a
-log-verossimilhanca foi avaliada, e qual caminho foi usado.
+Core of [`criterionLoglike`](@ref): it also returns the SAMPLE SIZE over which the
+log-likelihood was evaluated, and which path was used.
 
-O `n` importa porque as duas verossimilhancas nao vivem na mesma amostra: a exata e avaliada
-sobre a serie diferenciada inteira (`T`), enquanto a CSS vive nos residuos condicionados
-(`length(observedResiduals) = T - lb + 1`, com `lb` ate 30 nos defaults mensais de `auto`).
-Correcoes de amostra finita (AICc) e o fator `log(n)` do BIC devem usar o `n` da
-verossimilhanca efetivamente usada — caso contrario o criterio aplica uma penalidade de
-tamanho extra, crescente em K, que o `forecast::Arima` nao tem.
+The `n` matters because the two likelihoods do not live on the same sample: the exact one is
+evaluated over the whole differenced series (`T`), while the CSS one lives on the conditioned
+residuals (`length(observedResiduals) = T - lb + 1`, with `lb` up to 30 under the monthly
+defaults of `auto`). Finite-sample corrections (AICc) and the `log(n)` factor of BIC must use
+the `n` of the likelihood actually used; otherwise the criterion applies an extra size penalty,
+growing in K, that `forecast::Arima` does not have.
 
-O recuo e registrado em `model.metadata["criterionFallback"]` para ser mensuravel.
+The fallback is recorded in `model.metadata["criterionFallback"]` so that it is measurable.
 """
 function criterionLoglikeAndN(model::SarimaxModel)
     exact = applicable(exactLoglike, model) ? exactLoglike(model) : nothing
@@ -152,35 +150,38 @@ end
 """
     criterionSampleSize(model) -> Int
 
-Numero de observacoes da verossimilhanca EXATA: o comprimento da serie diferenciada, que e o
-`n` que o `stats::arima` usa. Nao confundir com `length(observedResiduals)`, que desconta o
-conditioning da CSS.
+Number of observations of the EXACT likelihood: the length of the differenced series, which is
+the `n` that `stats::arima` uses. Not to be confused with `length(observedResiduals)`, which
+discounts the CSS conditioning.
 
-Calculado por aritmetica (`n - d - D*s`) e nao por `length(values(differentiate(...)))`: a
-versao com `differentiate` alocava a serie diferenciada inteira so para medir o comprimento,
-custando ~7.5us por avaliacao de criterio (medido: 164.6us vs 157.1us por `aicc`, mediana de
-7 baterias de 3000 chamadas). A equivalencia das duas formas esta travada em
+Computed arithmetically (`n - d - D*s`) rather than as `length(values(differentiate(...)))`:
+the latter allocates the whole differenced series only to measure its length, costing about
+7.5us per criterion evaluation. The equivalence of the two forms is pinned in
 `test/exact_likelihood.jl`.
 
-Sem anotacao de tipo porque `fit.jl` e incluido antes de `models/sarima.jl` definir
-`SARIMAModel`; so e chamada no caminho exato, que exige `applicable(exactLoglike, model)`.
+Without a type annotation because `fit.jl` is included before `models/sarima.jl` defines
+`SARIMAModel`; it is only called on the exact path, which requires
+`applicable(exactLoglike, model)`.
 """
 criterionSampleSize(model) =
     length(values(model.y)) - model.d - model.D * model.seasonality
 
 """
-Penalidade somada ao criterio de um candidato de BUSCA cujo criterio veio do recuo CSS.
+Penalty added to the criterion of a SEARCH candidate whose criterion came from the CSS
+fallback.
 
-Sem ela, o recuo premia exatamente os candidatos errados: a CSS e avaliada sobre menos
-observacoes que a exata (`T - lb + 1` vs `T`), logo e menos negativa, logo AICc menor — e o
-que dispara o recuo e raiz perto da fronteira. Um candidato quase nao estacionario ganharia
-dezenas de unidades de AICc de vantagem por nao ter verossimilhanca exata computavel.
+Without it the fallback rewards exactly the wrong candidates: CSS is evaluated over fewer
+observations than the exact likelihood (`T - lb + 1` against `T`), so it is less negative and
+gives a smaller AICc, while what triggers the fallback is a root near the boundary. A
+near-non-stationary candidate would gain tens of AICc units of advantage purely from having no
+computable exact likelihood.
 
-A penalidade impoe uma ordem em dois niveis, analoga a do `myarima` (que devolve `Inf` quando
-a verossimilhanca nao e finita): candidato com verossimilhanca exata sempre vence candidato
-sem; entre candidatos sem, a comparacao CSS continua valida porque todos condicionam na mesma
-amostra (`searchLb`). Aditiva em vez de `Inf` para a busca nunca ficar sem selecao quando a
-exata falha em todos os candidatos (series curtas ou patologicas).
+The penalty imposes a two-level ordering, analogous to `myarima` (which returns `Inf` when the
+likelihood is not finite): a candidate with an exact likelihood always beats one without, and
+among those without, the CSS comparison remains valid because they all condition on the same
+sample (`searchLb`). It is additive rather than `Inf` so that the search is never left without
+a selection when the exact likelihood fails for every candidate (short or pathological
+series).
 
 So se aplica a SELECAO ([`searchCriterionFunction`](@ref)); os acessores publicos `aic`,
 `aicc` e `bic` continuam devolvendo o valor com recuo documentado.
@@ -190,15 +191,15 @@ const FALLBACK_CRITERION_PENALTY = 1e10
 """
     searchCriterionFunction(baseCriterion) -> Function
 
-Envolve `aic`/`aicc`/`bic` com a semantica de SELECAO: soma
-[`FALLBACK_CRITERION_PENALTY`](@ref) quando o criterio do candidato veio do recuo CSS
-(lido de `model.metadata["criterionFallback"]`, gravado por [`criterionLoglikeAndN`](@ref)
-na propria avaliacao do criterio).
+Wraps `aic`/`aicc`/`bic` with SELECTION semantics: it adds
+[`FALLBACK_CRITERION_PENALTY`](@ref) when the candidate's criterion came from the CSS
+fallback (read from `model.metadata["criterionFallback"]`, written by
+[`criterionLoglikeAndN`](@ref) during the criterion evaluation itself).
 """
 function searchCriterionFunction(baseCriterion::Function)
-    # Transparente a argumentos: alem da forma de modelo, `aic`/`aicc`/`bic` tem formas
-    # escalares ((K, ll), (T, K, ll)) que continuam acessiveis pela funcao retornada; a
-    # penalidade so se aplica quando o primeiro argumento e um modelo.
+    # Argument-transparent: besides the model form, `aic`/`aicc`/`bic` have scalar forms
+    # ((K, ll), (T, K, ll)) that remain reachable through the returned function; the
+    # penalty applies only when the first argument is a model.
     return function (args...; kwargs...)
         value = baseCriterion(args...; kwargs...)
         model = first(args)
@@ -260,10 +261,10 @@ function aicc(model::SarimaxModel; offset::Union{AbstractFloat,Nothing} = nothin
         throw(MissingMethodImplementation("get_hyperparameters_number"))
     K = isnothing(K) ? get_hyperparameters_number(model) : K
     offsetValue = isnothing(offset) ? 0.0 : offset
-    # O `n` da correcao e o da amostra da verossimilhanca efetivamente usada: `T` (serie
-    # diferenciada inteira) no caminho exato, `length(observedResiduals)` no recuo CSS.
-    # Misturar — corrigir uma verossimilhanca sobre T com um n condicionado menor — cobra
-    # uma penalidade extra crescente em K que o `forecast::Arima` nao tem.
+    # The `n` of the correction is that of the sample the likelihood actually used: `T`
+    # (the whole differenced series) on the exact path, `length(observedResiduals)` on the
+    # CSS fallback. Mixing them — correcting a likelihood over T with a smaller conditioned
+    # n — charges an extra penalty growing in K that `forecast::Arima` does not have.
     ll, n, _ = criterionLoglikeAndN(model)
     return 2 * K - 2 * ll + offsetValue + ((2 * K * K + 2 * K) / (n - K - 1))
 end

@@ -398,10 +398,10 @@ function identifyOutliers(
         q1 = quantile(series, 0.25)
         q3 = quantile(series, 0.75)
         iqr = q3 - q1
-        # Guarda de dispersão degenerada. A comparação é relativa à escala dos quartis (e
-        # não a uma constante absoluta) para que a guarda signifique a mesma coisa em
-        # séries de qualquer magnitude. O `<=` cobre também `q1 == q3 == 0`, em que a
-        # escala é nula.
+        # Degenerate-dispersion guard. The comparison is relative to the scale of the
+        # quartiles rather than to an absolute constant, so that the guard means the same
+        # thing on series of any magnitude. The `<=` also covers `q1 == q3 == 0`, where the
+        # scale is zero.
         scale = max(abs(q1), abs(q3))
         if iqr <= DEGENERATE_IQR_RTOL * scale
             return falses(length(series))

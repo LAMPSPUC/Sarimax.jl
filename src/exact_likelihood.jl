@@ -1,38 +1,33 @@
 """
-Verossimilhanca gaussiana EXATA de um SARIMA, avaliada em coeficientes DADOS.
+EXACT Gaussian likelihood of a SARIMA model, evaluated at GIVEN coefficients.
 
-Motivacao. O pacote tem tres objetos tipo-verossimilhanca que nao coincidem: a funcao objetivo
-minimizada, a ML exata, e o `loglike()` que alimenta os criterios de informacao (CSS plug-in
-sobre os residuos). Enquanto isso durar, comparar AICc ou trajetoria de busca com o
-`forecast::auto.arima` e comparar objetos diferentes.
+The package distinguishes three likelihood-like objects that do not coincide: the objective
+function being minimized, the exact ML, and the `loglike()` that feeds the information
+criteria. This file provides the exact one: given a series and coefficients, it returns the
+exact Gaussian log-likelihood, the same quantity `stats::arima(method = "ML")` reports.
 
-Este arquivo resolve o terceiro: dada uma serie e coeficientes, devolve a log-verossimilhanca
-gaussiana EXATA — a mesma quantidade que o `stats::arima(method = "ML")` reporta.
+It is what lets the criteria account for pre-sample uncertainty by construction, instead of
+charging free pre-sample values as parameters. It also carries the determinant term whose
+absence biases selection towards high `q`.
 
-Por que isso substitui o `nPresampleFree`. Aquele termo cobrava os valores pre-amostrais
-livres como parametros no criterio, porque o CSS plug-in ignora a incerteza pre-amostral e
-deixava candidatos sazonais de ordem alta absorverem `s*P` graus de liberdade de graca. A
-verossimilhanca exata contabiliza essa incerteza POR CONSTRUCAO, entao ela e a substituicao
-principiada do ajuste caseiro — e traz junto o termo de determinante cuja ausencia enviesava a
-selecao a favor de `q` alto.
-
-METODO: Durbin-Levinson sobre a autocovariancia teorica. Nao e Kalman e nao e Ansley.
+METHOD: Durbin-Levinson on the theoretical autocovariance. Neither Kalman nor Ansley.
 
     1. expande os polinomios multiplicativos:  phi(B)Phi(B^s)  e  theta(B)Theta(B^s)
     2. pesos psi da representacao MA(inf) e dai a autocovariancia gamma(k)
     3. Durbin-Levinson devolve os erros de previsao um-passo v_t e os residuos e_t
-    4. concentrando sigma^2:
+    4. concentrating sigma^2:
 
            -2l = n*log(sigma2) + sum_t log(v_t) + n,     sigma2 = (1/n) sum_t e_t^2 / v_t
 
-E exato para qualquer ARMA estacionario, inclusive sazonal multiplicativo e misto — os casos
-em que a forma fechada por perfilamento dos pre-amostrais NAO fecha (medido: espalhamento ~35
-unidades de -2logLik no ARMA misto, contra 1e-13 no AR e no MA puros).
+Exact for any stationary ARMA, including multiplicative seasonal and mixed cases, which are
+precisely the ones where the closed form obtained by profiling the pre-sample values does not
+close (measured: a spread of about 35 units of -2logLik in the mixed ARMA, against 1e-13 in
+the pure AR and pure MA cases).
 
-CUSTO: O(n^2). A n = 300 sao ~90 mil operacoes por avaliacao — irrelevante perto de um solve
-do Ipopt. E como so precisa AVALIAR (nao otimizar), roda em Julia puro: nao precisa ser
-expressavel em JuMP, nem diferenciavel, nem interagir com o solver. O otimizador segue livre
-para usar qualquer objetivo — que e a propriedade que o pacote vende.
+COST: O(n^2). At n = 300 that is about 90 thousand operations per evaluation, negligible next
+to an Ipopt solve. Since it only needs to EVALUATE and not optimize, it runs in plain Julia:
+it need not be expressible in JuMP, differentiable, or interact with the solver, so the
+optimizer remains free to use any objective.
 """
 
 """
@@ -68,16 +63,14 @@ end
 """
     psiWeightsFromZero(ar, ma, n) -> Vector
 
-Pesos `psi` da representacao MA(infinito) INCLUINDO `psi_0 = 1` na primeira posicao, de modo
-que `psi[k+1] == psi_k`. Delega o calculo a [`psiWeights`](@ref), que ja existe no pacote e
-devolve `psi_1..psi_n` (com `psi_0` implicito).
+`psi` weights of the MA(infinity) representation INCLUDING `psi_0 = 1` in the first position,
+so that `psi[k+1] == psi_k`. The computation is delegated to [`psiWeights`](@ref), which
+already exists in the package and returns `psi_1..psi_n` with `psi_0` implicit.
 
-Existe como funcao separada por uma razao pratica: a primeira versao deste arquivo definia um
-`psiWeights` proprio com indexacao base-zero e MESMA assinatura da funcao do pacote. Como
-`exact_likelihood.jl` e incluido depois de `models/sarima.jl`, a definicao nova SOBRESCREVIA a
-antiga, e `forecastErrors` — que espera base-um — passou a ler `psi_0` no lugar de `psi_1`.
-Efeito: variancia de previsao de um ruido branco saindo `[1, 2, 2, 2]*sigma^2` em vez de
-constante. Nao duplicar funcao que ja existe; quando a convencao difere, adaptar na borda.
+It is a separate function rather than a redefinition on purpose: `exact_likelihood.jl` is
+included after `models/sarima.jl`, so a same-signature `psiWeights` with zero-based indexing
+would override the existing one, and `forecastErrors`, which expects one-based indexing, would
+read `psi_0` where it means `psi_1`. Where a convention differs, adapt at the boundary.
 """
 psiWeightsFromZero(ar::Vector{Fl}, ma::Vector{Fl}, n::Int) where {Fl<:AbstractFloat} =
     vcat(one(Fl), psiWeights(ar, ma, n))
@@ -118,15 +111,16 @@ end
 """
     exactGaussianLogLikelihood(z, ar, ma) -> Union{Float64,Nothing}
 
-Log-verossimilhanca gaussiana exata da serie `z` (ja diferenciada e ja limpa dos termos
-deterministicos) sob o ARMA de coeficientes `ar`/`ma`, com `sigma^2` concentrado.
+Exact Gaussian log-likelihood of the series `z` (already differenced and already cleared of
+the deterministic terms) under the ARMA with coefficients `ar`/`ma`, with `sigma^2`
+concentrated out.
 
-Devolve `nothing` quando o ponto e inadmissivel ou numericamente inviavel (nao estacionario,
-autocovariancia nao positiva definida) — nunca um numero silenciosamente errado.
+Returns `nothing` when the point is inadmissible or numerically infeasible (non-stationary,
+autocovariance not positive definite) — never a silently wrong number.
 
-Durbin-Levinson: `v_t` e a variancia do erro de previsao um-passo em unidades de `sigma^2`, e
-os coeficientes de previsao vem da recursao. `sum log v_t` e o termo de determinante que o CSS
-plug-in nao tem — o mesmo que, ausente, enviesa a selecao a favor de ordem alta.
+Durbin-Levinson: `v_t` is the one-step forecast error variance in units of `sigma^2`, and the
+forecast coefficients come from the recursion. `sum log v_t` is the determinant term the CSS
+plug-in lacks, whose absence biases selection towards high orders.
 """
 function exactGaussianLogLikelihood(
     z::Vector{Fl},
@@ -178,17 +172,17 @@ end
 """
     exactLoglike(model::SARIMAModel) -> Union{Float64,Nothing}
 
-Log-verossimilhanca gaussiana exata do modelo AJUSTADO, avaliada nos coeficientes estimados.
+Exact Gaussian log-likelihood of the FITTED model, evaluated at the estimated coefficients.
 
-Diferenciacao e termos deterministicos sao removidos antes: a verossimilhanca e a da serie
-diferenciada menos a parte deterministica, que e a convencao do `stats::arima`.
+Differencing and deterministic terms are removed first: the likelihood is that of the
+differenced series minus the deterministic part, which is the `stats::arima` convention.
 
-NOTA sobre avaliar fora do EMV: os coeficientes vem do objetivo escolhido pelo usuario (que
-pode ser `mae`, `ridge`, `huber`, ...), nao do maximo desta funcao. Como estatistica de
-COMPARACAO entre candidatos isso e legitimo desde que a mesma funcao pontue todos, mas nao e a
-verossimilhanca maximizada que a teoria do AIC supoe. Para uso mais fiel, refinar os
-finalistas (um passo de Newton nesta funcao a partir do ponto ajustado ja e assintoticamente
-equivalente ao EMV) antes da decisao final — que e o que o `auto.arima` faz com
+NOTE on evaluating away from the MLE: the coefficients come from the objective the user chose
+(which may be `mae`, `ridge`, `huber`, ...), not from the maximum of this function. As a
+statistic for COMPARING candidates that is legitimate as long as the same function scores all
+of them, but it is not the maximized likelihood AIC theory assumes. For a closer match, refine
+the finalists before the final decision — one Newton step on this function from the fitted
+point is already asymptotically equivalent to the MLE — which is what `auto.arima` does with
 `approximation = TRUE`.
 """
 function exactLoglike(model::SARIMAModel)
@@ -205,27 +199,28 @@ function exactLoglike(model::SARIMAModel)
     z = Float64.(values(diffY))
     isempty(z) && return nothing
 
-    # remove a parte deterministica na mesma escala da serie diferenciada.
+    # Remove the deterministic part on the same scale as the differenced series. Two
+    # conversions are required, both validated against `stats::arima(method="ML")`:
     #
-    # DUAS CONVERSOES QUE FALTAVAM, ambas verificadas contra o `stats::arima(method="ML")`:
+    # 1. `model.c` is the regression CONSTANT, not the mean. The level to remove is
+    #    mu = c / (1 - sum(ar)). On M4 series 44895, subtracting `c` gives -2305.891 and
+    #    subtracting `mu` gives -2304.253, which is exactly R's value. A 1.64 error in the
+    #    log-likelihood is 3.3 AICc units, enough to change a selection.
     #
-    # 1. `model.c` e a CONSTANTE da regressao, nao a media. O nivel a remover e
-    #    mu = c / (1 - sum(ar)). Medido na serie M4 44895: subtraindo `c` da -2305.891,
-    #    subtraindo `mu` da -2304.253, e o R da -2304.253 exatamente. Erro de 1.64 de
-    #    log-verossimilhanca = 3.3 unidades de AICc, o suficiente para virar selecao.
+    # 2. `model.trend` MULTIPLIES the differenced time regressor (`trend * driftValues[t]`,
+    #    see `sarima.jl`), and that regressor is not 1 in general: it is 1 at d=1, D=0, but
+    #    `s` at d=0, D=1 (12 for monthly data). Subtracting the scalar is then off by a
+    #    factor of 12.
     #
-    # 2. `model.trend` MULTIPLICA o regressor de tempo diferenciado (`trend * driftValues[t]`,
-    #    ver `sarima.jl`), e esse regressor nao vale 1 em geral: com d=1,D=0 vale 1, mas com
-    #    d=0,D=1 vale `s` (12 no mensal). Subtrair o escalar erra por um fator 12 nessa classe.
-    #
-    # Na M4 monthly as duas juntas atingem 15,7% das 48k series (10,7% + 5,0%).
+    # On M4 monthly the two together reach 15.7% of the 48k series (10.7% + 5.0%).
     if !isnothing(model.c) && model.allowMean
         arSum = isempty(ar) ? zero(eltype(z)) : sum(ar)
         denom = 1 - arSum
-        # `denom = phi(1)*Phi(1)`, ja com o polinomio expandido. Quando ele vai a zero o
-        # processo tem raiz unitaria e a MEDIA NAO EXISTE — nenhum valor aqui esta certo.
-        # Cai-se em `model.c` por ser finito, nao por ser correto; e o candidato deveria ter
-        # sido rejeitado pela admissibilidade antes de chegar aqui.
+        # `denom = phi(1)*Phi(1)`, with the polynomial already expanded. When it goes to
+        # zero the process has a unit root and THE MEAN DOES NOT EXIST, so no value here is
+        # right. Falling back to `model.c` is a finite choice, not a correct one; such a
+        # candidate should have been rejected by the admissibility check before reaching
+        # this point.
         if abs(denom) <= 1e-8
             @warn "exactGaussianLogLikelihood: phi(1)*Phi(1) = $(denom) ~ 0 (raiz unitaria); " *
                   "a media do processo nao existe e o nivel removido e apenas finito, nao correto."
@@ -234,9 +229,9 @@ function exactLoglike(model::SARIMAModel)
         z = z .- level
     end
     if !isnothing(model.trend) && model.allowDrift
-        # O fallback `fill(1.0, ...)` E EXATAMENTE O BUG que este commit corrige: subtrair o
-        # escalar em vez do regressor diferenciado. Se ele disparar em silencio, o defeito
-        # volta numa configuracao que ninguem testou e sem deixar rastro. Avisa.
+        # The `fill(1.0, ...)` fallback subtracts the scalar instead of the differenced
+        # regressor, which is wrong whenever that regressor is not 1. It warns rather than
+        # failing silently, so the case cannot reappear untraced.
         driftReg = try
             r = values(differentiate(
                     TimeArray(timestamp(model.y), collect(1.0:length(values(model.y)))),

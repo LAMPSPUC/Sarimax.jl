@@ -50,13 +50,13 @@
         @test_throws ArgumentError fit!(m; exogDynamics = :naosei)
     end
 
-    # O DEFAULT E `:regression_errors` (era `:armax` ate a virada deliberada). Este teste
-    # afirma que nomear o default explicitamente da o mesmo resultado que omiti-lo — se
-    # divergirem, o kwarg nao esta sendo lido no caminho que o default toma.
-    @testset "o default e :regression_errors, e nomea-lo e bit-identico a omitir" begin
+    # The default is `:armax`, the ARX/impact-multiplier form. This asserts that naming the
+    # default explicitly gives the same result as omitting it: if they diverge, the keyword
+    # is not being read on the path the default takes.
+    @testset "o default e :armax, e nomea-lo e bit-identico a omitir" begin
         y, X = geraErrosArima(2, 1)
         a = ajusta(y, X, 1, 1, 1, 0)
-        b = ajusta(y, X, 1, 1, 1, 0; exogDynamics = :regression_errors)
+        b = ajusta(y, X, 1, 1, 1, 0; exogDynamics = :armax)
         @test a.exogCoefficients == b.exogCoefficients
         @test a.ϕ == b.ϕ
         @test a.Φ == b.Φ

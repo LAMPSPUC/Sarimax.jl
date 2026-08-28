@@ -165,8 +165,11 @@ The `SARIMAModel` struct represents a SARIMA model. It contains the following fi
 - `allowMean`: Whether to include a mean term in the model.
 - `allowDrift`: Whether to include a drift term in the model.
 - `keepProvidedCoefficients`: Whether to keep the provided coefficients.
-- `lambda`: The regularization strength parameter for lasso, ridge, or elastic net regularization.
-- `alpha`: The mixing parameter for elastic net regularization (0 ≤ alpha ≤ 1). Alpha = 1 is lasso, alpha = 0 is ridge.
+- `lambda`: Strength of the elastic-net penalty (`lambda >= 0`). Defaults to the square
+  root of the effective sample size. Only the `"elastic_net"` objective honours it; the
+  `"ridge"` objective fixes its own value and rejects the argument.
+- `alpha`: Mixing parameter of the elastic-net penalty (0 <= alpha <= 1); `alpha = 1` is
+  lasso, `alpha = 0` is ridge.
 """
 mutable struct SARIMAModel{Fl<:AbstractFloat} <: SarimaxModel
     y::TimeArray
@@ -710,7 +713,7 @@ as used by the information criteria.
 
 For regular objectives every declared parameter counts, regardless of the
 magnitude of its estimate — a coefficient estimated near zero was still
-estimated. For elastic-net fits (`lambda`/`alpha` set) the count is instead the
+estimated. For `elastic_net` fits the count is instead the
 number of ACTIVE coefficients (|coef| > 1e-5), the standard effective-degrees-
 of-freedom estimate for L1-type regularization (Zou, Hastie & Tibshirani, 2007).
 
@@ -928,24 +931,19 @@ function fit!(
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
     initialization::Symbol = DEFAULT_INITIALIZATION,
-    # Semantica do bloco exogeno. Ver `arAcc` na construcao do modelo para as duas
-    # equacoes.
+    # Semantics of the exogenous block. See `arAcc` in the model construction for the two
+    # equations.
     #
-    # O default e `:regression_errors` — regressao com erros ARIMA, a forma que o
-    # `forecast::Arima(xreg=)` estima e que o Hyndman recomenda em "The ARIMAX model
-    # muddle" (2010), pela interpretabilidade do coeficiente: sob esta forma `b` e o efeito
-    # marginal, sob `:armax` e multiplicador de impacto condicional aos `y` passados.
+    # The default is `:armax`: the dynamic-regression/ARX form, in which `beta` is an
+    # impact multiplier conditional on past `y`. Under `:regression_errors` -- regression
+    # with ARIMA errors, the form `forecast::Arima(xreg=)` estimates and the one Hyndman
+    # recommends in "The ARIMAX model muddle" (2010) -- `beta` is the marginal effect
+    # instead. The two coincide only when the autoregressive polynomial is unitary and
+    # there is no differencing.
     #
-    # Discriminador de tres DGPs com os sinais preditos antes de rodar (20 replicas, ordem
-    # fixada na verdade): sob DGP de erros ARIMA o R ganhava por Dlog +0,4262 e agora
-    # empatamos (+0,0020, IC95 incluindo zero, `b` batendo em tres casas); sob DGP ARMAX o
-    # modo `:armax` continua disponivel e e o correto.
-    #
-    # MUDANCA BREAKING, e deliberada. Afeta SO quem passa exogenas: com `nExog == 0` o
-    # `arAcc` toma o mesmo ramo nos dois modos, entao nenhum resultado sem regressor muda —
-    # inclusive toda a M4, que nao usa exogenas. Quem depender da forma antiga passa
-    # `exogDynamics = :armax` explicitamente.
-    exogDynamics::Symbol = :regression_errors,
+    # The choice is only observable with regressors present: at `nExog == 0` `arAcc` takes
+    # the same branch under both modes.
+    exogDynamics::Symbol = :armax,
     # Janela extra de inovacoes pre-amostrais sob `initialization = :innovations`.
     # So tem efeito nesse modo. O default cobre um ciclo sazonal alem do que a ordem
     # exige, que e o bastante para a condicao inicial nula decair.
@@ -1201,6 +1199,19 @@ function fit!(
         @assert (!isnothing(alpha) || !isnothing(model.alpha)) "In elastic net objective function, alpha must be specified"
     end
 
+    # Deprecated in v1.0, scheduled for removal in v2.0. The objective optimizes the
+    # moving-average coefficients in an outer loop, which costs orders of magnitude more
+    # solver time than the objectives that keep them as decision variables, and it has no
+    # remaining use that those do not cover.
+    if objectiveFunction == "bilevel"
+        @warn(
+            "objectiveFunction = \"bilevel\" is deprecated and will be removed in " *
+            "Sarimax v2.0. Use \"mse\" (or \"ml\") instead; they estimate the same " *
+            "moving-average coefficients as decision variables at a fraction of the cost.",
+            maxlog = 1
+        )
+    end
+
     model.allowMean && model.allowDrift && throw(
         InvalidParametersCombination(
             "allowMean and allowDrift are mutually exclusive: in the differenced " *
@@ -1211,70 +1222,26 @@ function fit!(
     seasonalForm === :free && throw(ArgumentError("seasonalForm :free is planned for a later release"))
     seasonalForm in (:multiplicative, :additive) ||
         throw(ArgumentError("seasonalForm must be :multiplicative or :additive"))
-    # O tratamento `:penalized` esta implementado apenas no objetivo `mse`. Nos demais o
-    # ajuste cai no branch normal e vira `:free`.
+    # Invalid ARGUMENT COMBINATIONS raise rather than warn. The combination is fixed at
+    # the call site and has no valid interpretation, so the caller can check it in advance;
+    # a warning is invisible in a parallel sweep, and a sweep in which some cells silently
+    # mean something else is a broken sweep. Run-time DEGRADATION is the separate case
+    # (`ml_exact` falling back to CSS depends on the candidate, whose order varies inside
+    # `auto`) and warns instead, since raising there would abort the search.
     #
-    # ERRO e nao aviso. A politica do pacote separa duas coisas que antes estavam juntas:
+    # The list below must mirror EXACTLY the penalized-objective gate (search for
+    # `&& penalizado` in this file). `:innovations` is named next to `:penalized` because
+    # the gate is `penalizado = initialization in (:penalized, :innovations)`; an objective
+    # this guard admits but the gate does not cover would leave the pre-sample values
+    # unpenalized and silently degrade the fit to `:free`.
     #
-    #   COMBINACAO DE ARGUMENTOS invalida (esta, e `ridge` com `lambda`) -> ArgumentError.
-    #   E fixa na chamada, o chamador pode checar antes, e nao ha interpretacao valida do
-    #   que foi pedido.
-    #
-    #   DEGRADACAO EM TEMPO DE EXECUCAO (`ml_exact` recuando para CSS) -> @warn. Depende do
-    #   candidato — o `p` varia dentro da busca — entao erro ali abortaria o `auto`.
-    #
-    # O argumento anterior para avisar era nao quebrar varreduras que combinam inicializacao
-    # com objetivo. A experiencia desmentiu: numa varredura de 10 workers o `@warn` e
-    # invisivel no log, e uma varredura em que parte das celulas significa outra coisa e uma
-    # varredura quebrada — o erro forca o desenho correto em vez de depender de alguem ler
-    # o portao do objetivo.
-    # A lista tem de espelhar EXATAMENTE o portao do objetivo penalizado (busque por
-    # `&& penalizado` neste arquivo). Se ela permitir um objetivo que o portao nao cobre,
-    # o erro deixa passar e o ajuste degrada em silencio — o defeito que ele existe para
-    # impedir.
-    #
-    # `:innovations` entra aqui JUNTO com `:penalized` porque o portao e
-    # `penalizado = initialization in (:penalized, :innovations)`. Sem os dois nomes nesta
-    # guarda, `:innovations` com um objetivo nao coberto passaria e degradaria em silencio
-    # — que e precisamente o defeito que ela existe para impedir.
-    # O bloco pre-amostral penalizado e' implementado para as perdas em que o PROPRIO
-    # termo do bloco pode ser escrito NA MESMA PERDA dos dados — e' o que impede a
-    # mistura de escalas (penalidade L2 do bloco contra perda L1 dos dados).
-    #
-    # `mse`  -> bloco entra como soma de quadrados, e o fator do determinante se aplica
-    #           (a concentracao de sigma^2 e' algebra gaussiana).
-    # `mae`  -> bloco entra como soma de |eps|, MESMA perda dos dados.
-    # `huber`-> bloco entra como soma de Huber(eps), MESMA perda dos dados.
-    #
-    # Para `mae` e `huber` o FATOR DO DETERMINANTE NAO SE APLICA: ele vem de concentrar
-    # sigma^2 em `T*log(S) + log|Omega|`, passagem que so vale sob perda quadratica. Sem
-    # ele, esses dois modos movem-se apenas no eixo pre-amostral, sem cruzar o eixo do
-    # objetivo — o que e' mais limpo do que o `mse`, nao menos.
-    #
-    # Os NOVE objetivos abaixo estao cobertos. Tres deles entram por caminhos distintos e
-    # vale dizer qual:
-    #
-    # `ml`, `ml_exact`, `ridge`, `stable`, `bilevel` -> o termo do bloco entra na mesma soma
-    #           de quadrados que a perda dos dados, pelo `presampleSquares`.
-    # `elastic_net` -> entra pela RESTRICAO DE TOLERANCIA da segunda etapa, nao pelo
-    #           objetivo; o bloco fica coberto do mesmo jeito.
-    #
-    # O que segue barrado e o que NAO esta na lista — hoje, `cvar`. Para ele o bloco ficaria
-    # sem penalidade e o ajuste degradaria em silencio para `:free`.
-    #
-    # ESTA GUARDA E' HOJE INALCANCAVEL, e o registro fica aqui de proposito.
-    #
-    # Depois que o PR #22 estendeu o bloco aos nove objetivos, a lista desta guarda passou a
-    # coincidir EXATAMENTE com a da asserção de objetivos suportados (linha ~1156). Verificado
-    # comparando os dois conjuntos: a diferenca e vazia nos dois sentidos. Qualquer valor que
-    # falharia aqui ja falhou la — o `cvar`, por exemplo, morre na assercao com outra
-    # mensagem.
-    #
-    # Fica como defesa em profundidade: se alguem acrescentar um objetivo novo a assercao e
-    # esquecer de cobrir o bloco pre-amostral, esta guarda volta a ser o que impede a
-    # degradacao silenciosa para `:free`. Por isso a mensagem enumera a lista REAL — ela
-    # nomeava so tres enquanto a guarda liberava nove, o que descreveria errado o que e'
-    # aceito no dia em que ela voltar a disparar.
+    # The penalized pre-sample block is implemented for the losses whose block term can be
+    # written in the SAME loss as the data, which is what prevents mixing scales (an L2
+    # block penalty against an L1 data loss). Under `mse` the block enters as a sum of
+    # squares and the determinant factor applies. Under `mae` and `huber` it enters as the
+    # data loss itself and the determinant factor does NOT apply: that factor comes from
+    # concentrating sigma^2, a step that holds only under a quadratic loss. The remaining
+    # objectives add the block through `presampleSquares`.
     if initialization in (:penalized, :innovations) &&
        !(objectiveFunction in
          ("mse", "mae", "huber", "ml", "ml_exact", "ridge", "stable", "bilevel", "elastic_net"))
@@ -1303,11 +1270,10 @@ function fit!(
     # modelo, e nao da presenca dos campos `lambda`/`alpha` — ver `get_hyperparameters_number`.
     model.metadata["objectiveFunction"] = objectiveFunction
 
-    # O objetivo `ridge` fixa `lambda = sqrt(nEff)` internamente (ver a definicao do objetivo)
-    # e IGNORA o argumento. Aceitar em silencio e o pior dos mundos: o usuario pensa estar
-    # controlando o encolhimento, o ajuste nao muda, e — antes da correcao do gatilho de
-    # `usesSparseCount` — o `lambda` ainda mexia no criterio. Honrar o argumento ou recusa-lo
-    # com erro sao decisoes de comportamento; avisar nao e.
+    # The `ridge` objective fixes `lambda = sqrt(nEff)` internally and ignores the
+    # argument. Accepting it silently would let the caller believe they control the
+    # shrinkage while the fit does not change; `elastic_net` is the objective that honours
+    # a caller-supplied lambda.
     if objectiveFunction == "ridge" && !isnothing(lambda)
         throw(
             ArgumentError(
@@ -1876,10 +1842,10 @@ if inovacoes
 
     # Ver `fitStartTime`: tudo ate aqui e construcao do problema JuMP; o que vem a seguir
     # e solve. `solveTimeSec` mede o wall-clock do lado Julia (inclui o pos-processamento
-    # de `optimizeModel!`, como o refino do elastic-net e o laco externo do bilevel);
+    # de `optimizeModel!`, como o laco externo do bilevel);
     # `solverTimeSec` e o tempo que o proprio solver reporta.
     buildElapsed = time() - fitStartTime
-    solveElapsed = @elapsed optimizeModel!(mod, model, objectiveFunction, lb, penalizado)
+    solveElapsed = @elapsed optimizeModel!(mod, model, objectiveFunction)
     model.metadata["buildTimeSec"] = buildElapsed
     model.metadata["solveTimeSec"] = solveElapsed
     # ...Total ACUMULA por objeto de modelo, enquanto os campos acima guardam so o ultimo
@@ -2359,8 +2325,8 @@ nao em `t = lb`**.
 
 Isto NAO toca a parte que regulariza. O `lambda` do `ridge` penaliza COEFICIENTES; a
 estrutura de cauda do `stable` e' sobre a distribuicao dos residuos; o `elastic_net`
-encolhe coeficientes sob tolerancia de ajuste. Nenhuma delas muda: o que muda e' de onde
-o erro de ajuste comeca a ser contado.
+encolhe COEFICIENTES pela penalidade da Eq. (15). Nenhuma delas muda: o que muda e' de
+onde o erro de ajuste comeca a ser contado.
 
 Devolve `0.0` quando nao ha bloco (modos de bloco fixo, ou sem indices pre-amostrais),
 o que torna a chamada segura em todo objetivo.
@@ -2625,9 +2591,9 @@ function objectiveFunctionDefinition!(
         end
         @objective(jumpModel, Min, hubObj)
     elseif objectiveFunction == "ridge"
-        # Penalized ridge, distinct from the two-stage "elastic_net" in this file: there
-        # the coefficient norm is minimized subject to an RSS tolerance; here it is a
-        # plain L2 term added to the objective, with lambda fixed a priori.
+        # Ridge differs from "elastic_net" only in that lambda is fixed a priori here and
+        # the penalty is a plain L2 term over the AR/MA blocks; `elastic_net` honours a
+        # caller-supplied lambda and mixes L1 and L2 through alpha.
         #
         # SCALE OF LAMBDA. The heuristic is lambda = 1/sqrt(n) when the loss is the MEAN
         # squared error. This objective is written as a SUM, so the equivalent value is
@@ -2724,7 +2690,50 @@ function objectiveFunctionDefinition!(
             δ + cvarSum / ((1 - cvarLevel) * nObs)
         )
     elseif objectiveFunction == "elastic_net"
-        @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
+        # Penalized elastic net: the selected residual loss plus
+        # lambda * [alpha * L1 + (1 - alpha)/2 * L2] over the shrunk coefficient blocks.
+        # The L1 term is linearized with the usual auxiliary variables.
+        #
+        # The intercept and the drift are left out: penalizing the level has no shrinkage
+        # interpretation here. Exogenous coefficients ARE shrunk, since selecting among
+        # regressors is the main use of this objective; they carry the units of their own
+        # regressor, which the package does not standardize, so scale-comparable
+        # regressors are the caller's responsibility.
+        shrunk = Symbol[]
+        model.p > 0 && push!(shrunk, :ϕ)
+        model.q > 0 && push!(shrunk, :θ)
+        model.P > 0 && push!(shrunk, :Φ)
+        model.Q > 0 && push!(shrunk, :Θ)
+        isnothing(model.exog) || push!(shrunk, :β)
+
+        fitLoss = sum(jumpModel[:ϵ] .^ 2) + presampleSquares(jumpModel, penalizado)
+
+        if isempty(shrunk)
+            @objective(jumpModel, Min, fitLoss)
+        else
+            shrunkCoefs =
+                reduce(vcat, [Vector{VariableRef}([jumpModel[el]...]) for el in shrunk])
+            # Same lambda scale as the "ridge" objective: the 1/sqrt(n) heuristic is
+            # stated for a MEAN squared loss, and this objective is a SUM, so the
+            # equivalent default is sqrt(n) over the effective sample.
+            nEff = T - lb + 1
+            λ = isnothing(model.lambda) ? sqrt(max(nEff, 1)) : model.lambda
+            α = isnothing(model.alpha) ? 0.5 : model.alpha
+            @variable(jumpModel, absShrunk[i = 1:length(shrunkCoefs)] >= 0)
+            @constraints(
+                jumpModel,
+                begin
+                    [i = 1:length(shrunkCoefs)], absShrunk[i] >= shrunkCoefs[i]
+                    [i = 1:length(shrunkCoefs)], absShrunk[i] >= -shrunkCoefs[i]
+                end
+            )
+            @objective(
+                jumpModel,
+                Min,
+                fitLoss +
+                λ * (α * sum(absShrunk) + (1 - α) / 2 * sum(shrunkCoefs .^ 2))
+            )
+        end
     elseif objectiveFunction == "ml"
         # Concentrated conditional (CSS) Gaussian likelihood: profiling sigma out
         # analytically (sigma2 = RSS/n) makes maximizing the likelihood equivalent
@@ -2762,45 +2771,11 @@ Optimizes the SARIMA model using the specified objective function.
 - `objectiveFunction::String`: The objective function used for optimization.
 
 """
-function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction::String, lb::Int,
-                        penalizado::Bool = false)
+function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction::String)
     JuMP.optimize!(jumpModel)
     checkSolverStatus(jumpModel)
 
-    if objectiveFunction == "elastic_net" && isnothing(model.lambda) && get_hyperparameters_number(model) > 1
-        K = get_hyperparameters_number(jumpModel)
-        # println(get_hyperparameters_number(model)," - ", K)
-        model_variance = computeSARIMAModelVariance(
-            jumpModel,
-            objectiveFunction,
-            K,
-            lb,
-        )
-
-        # Residual degrees of freedom left after conditioning and estimation. The
-        # refinement widens the objective by the standard deviation of the residual
-        # sum of squares, Var(RSS) ≈ 2·ν·σ⁴, so it needs ν > 0 to exist at all. A
-        # saturated model (short series, or a seasonal one whose conditioning eats
-        # the sample) leaves ν ≤ 0: on M4 quarterly with T = 16 and T = 17 this hit
-        # sqrt(-6) and sqrt(-4) and threw a DomainError, losing an otherwise valid
-        # first-stage fit. Skip the refinement instead — the same graceful path
-        # already taken when there is at most one hyper-parameter to regularize.
-        nu = length(jumpModel[:ϵ]) - lb - K + 1
-        if nu <= 0
-            @warn(
-                "Not enough residual degrees of freedom to calibrate the elastic-net " *
-                "tolerance (ν = $nu); keeping the unrefined fit. Shorten the model " *
-                "order, use a longer series, or set `lambda` explicitly."
-            )
-        else
-            objective_std = sqrt(2 * nu) * model_variance
-            tolerance = objective_value(jumpModel) + objective_std
-            regularizationObjective(jumpModel, model, tolerance, penalizado)
-            JuMP.optimize!(jumpModel)
-            checkSolverStatus(jumpModel)
-        end
-
-    elseif objectiveFunction == "bilevel"
+    if objectiveFunction == "bilevel"
 
         function optimizeMA(coefficients)
             maCoefficients = coefficients[1:model.q]
@@ -5967,78 +5942,6 @@ function gridSearch(
     end
     isnothing(bestModel) && (bestModel = candidates[1])
     return bestModel
-end
-
-function regularizationObjective(jumpModel::Model, model::SARIMAModel, tolerance::Float64,
-                                 penalizado::Bool = false)
-    parametersVector::Vector{Symbol} = getParametersVector(model)
-    parametersVectorExtended::Vector{VariableRef} =
-        length(parametersVector) == 0 ? [] :
-        reduce(vcat, [Vector{VariableRef}([jumpModel[el]...]) for el in parametersVector])
-
-    weights = []
-    for param in parametersVector
-        seasonalOffset = param in [:Φ, :Θ] ? model.seasonality : 1
-        aux_vector = [jumpModel[param]...]
-        aux_weights = []
-        aux_lags = []
-        # O peso adaptativo e multiplicado pela POSICAO do parametro no bloco. Para phi,
-        # theta, Phi e Theta a posicao E a ordem da defasagem, e escalonar a penalidade
-        # com ela e deliberado: defasagem alta e menos parcimoniosa. Para :beta a posicao
-        # e a ordem em que o usuario passou as colunas exogenas, que nao tem ordenacao
-        # nenhuma -- com 120 regressores a ultima coluna pagaria 120x a penalidade da
-        # primeira, e trocar duas colunas de lugar mudaria o modelo selecionado.
-        posicaoImportaNaOrdem = param !== :β
-        for (lag,el) in enumerate(aux_vector)
-            push!(aux_weights, min(1/(abs(value(el)) + 1e-6), 1e6))
-            push!(aux_lags, posicaoImportaNaOrdem ? lag * seasonalOffset : 1)
-        end
-
-        # get the median of the aux_weights
-        median_weight = median(aux_weights)
-        aux_weights = [el/median_weight for el in aux_weights]
-        aux_weights = (aux_weights .* aux_lags)
-
-        push!(weights, aux_weights...)
-    end
-
-    if length(parametersVectorExtended) == 0
-        @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
-    else
-        # L1 norm components (for lasso part)
-        @variable(jumpModel, auxVariables[i = 1:length(parametersVectorExtended)])
-        @constraints(
-            jumpModel,
-            begin
-                [i = 1:length(parametersVectorExtended)],
-                auxVariables[i] >= parametersVectorExtended[i]
-                [i = 1:length(parametersVectorExtended)],
-                auxVariables[i] >= -parametersVectorExtended[i]
-            end
-        )
-
-        # Set up lambda and alpha parameters
-        @variable(jumpModel, α in Parameter(0.5))
-
-        # Use model's lambda and alpha if provided, otherwise use defaults
-        alpha_value = isnothing(model.alpha) ? 0.5 : model.alpha
-
-        set_parameter_value(jumpModel[:α], alpha_value)
-
-        # Set constraints for the regularization
-        # A tolerancia limita o ERRO DE AJUSTE, e sob os modos de bloco livre penalizado
-        # o ajuste inclui os residuos pre-amostrais. O encolhimento dos COEFICIENTES,
-        # que e' o objetivo desta funcao, nao muda.
-        @constraint(jumpModel,
-            sum(jumpModel[:ϵ] .^ 2) + presampleSquares(jumpModel, penalizado) <= tolerance)
-
-        # Elastic net objective: [α * L1 + (1-α) * L2]
-        @objective(
-            jumpModel,
-            Min,
-            (jumpModel[:α] * sum(weights .* auxVariables) + (1 - jumpModel[:α])/2 * sum(weights .* (parametersVectorExtended .^ 2)))
-        )
-    end
 end
 
 """

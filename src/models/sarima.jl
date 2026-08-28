@@ -826,6 +826,17 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
   not to truncate near-unit-root estimates. Do NOT set it to the rejection margin
   [`DEFAULT_ROOT_MARGIN`] — that imposes a selection rule as an estimation constraint.
 - `seasonalForm::Symbol`: `:multiplicative` (Box-Jenkins, default) or `:additive`.
+- `exogDynamics::Symbol`: Semantics of the exogenous block. `:armax` (default) is the
+  dynamic-regression/ARX form, in which the AR terms act on the observed series and the
+  coefficient is an impact multiplier conditional on past `y`. `:regression_errors` is
+  regression with ARIMA errors, the form `forecast::Arima(xreg=)` estimates, in which the
+  coefficient is the usual marginal effect. The two coincide only when the autoregressive
+  polynomial is unitary and there is no differencing, so the choice is observable only
+  when regressors are present.
+- `penaltyTarget::Symbol`: Which coefficient blocks the `"elastic_net"` penalty applies
+  to: `:all` (default), `:dynamics` for the autoregressive and moving-average blocks only,
+  or `:exogenous` for the regressors only. The intercept and the drift are never
+  penalized. Ignored by every other objective.
 - `stationary::Bool`: When `true`, the (seasonal) AR coefficients are generated from
   bounded reflection coefficients (partial autocorrelations) via [`reflectionToAR`](@ref),
   guaranteeing a stationary AR polynomial by construction (exact under `:multiplicative`;

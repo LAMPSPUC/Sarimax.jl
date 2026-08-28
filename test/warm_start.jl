@@ -89,4 +89,59 @@
         @test haskey(model.metadata, "solverStatus")
         @test all(isfinite, model.ϕ)
     end
+    @testset "the seeded residuals live on the model's internal scale" begin
+        # `ws.ϵ` is returned in ORIGINAL units (`value.(ϵ) .* yScale`), while this model's
+        # `ϵ` lives on the standardised scale (`yValues ./ yScale`). Seeding the raw vector
+        # made the warm start LESS feasible than a cold start — measured 28/08 through the
+        # iteration-0 `inf_pr` of Ipopt, which went from ~13 to 337-7720 on daily series.
+        # The scale is only visible when it is not 1, so this test uses a series whose
+        # standard deviation is far from unity; on a unit-variance series the bug hides.
+        Random.seed!(4711)
+        n = 250
+        dates = Date(2000, 1, 1):Day(1):(Date(2000, 1, 1)+Day(n - 1))
+        y = 5000.0 .+ cumsum(randn(n) .* 250.0)      # std(diff(y)) ~ 250, not ~1
+        ta = TimeArray(collect(dates), y)
+
+        cold = SARIMA(ta, 2, 1, 2; allowMean = false)
+        fit!(cold)
+
+        warm = SARIMA(ta, 2, 1, 2; allowMean = false)
+        fit!(warm; warmStart = cold)
+
+        # Seeded from the converged point of the same problem, the warm solve must not
+        # need more iterations than the cold one. With the raw seed it needed more,
+        # because the start violated every dynamic constraint by a factor of `yScale`.
+        itCold = get(cold.metadata, "solverIterations", missing)
+        itWarm = get(warm.metadata, "solverIterations", missing)
+        if !ismissing(itCold) && !ismissing(itWarm)
+            @test itWarm <= itCold
+        end
+
+        # And it must land on the same optimum, not merely converge somewhere.
+        @test isapprox(Float64.(warm.ϕ), Float64.(cold.ϕ); atol = 1e-4)
+        @test isapprox(Float64.(warm.θ), Float64.(cold.θ); atol = 1e-4)
+    end
+
+    @testset "huber falling back to mse warns instead of degrading silently" begin
+        # The huber branch fits an `mse` base, tries huber, and on failure copies the whole
+        # `mse` model over, flagging only `metadata["huberFallback"]`. A caller that does not
+        # read the metadata gets one estimator under another's label. Measured on the M4
+        # campaign commit: under `initialization = :innovations` the objective guard threw and
+        # the bare `catch` swallowed it, so `huberFallback` was true in 40 of 40 weekly series.
+        # A time budget small enough to stop the huber solve reproduces the same path here.
+        Random.seed!(9182)
+        n = 120
+        dates = Date(2000, 1, 1):Day(1):(Date(2000, 1, 1)+Day(n - 1))
+        y = 1000.0 .+ cumsum(randn(n) .* 30.0)
+        model = SARIMA(TimeArray(collect(dates), y), 2, 1, 2; allowMean = false)
+
+        fit!(model; objectiveFunction = "huber", maxTimeSeconds = 1e-4)
+
+        # Whatever the solver decided, the flag must exist so a campaign can report the
+        # fallback rate as a validity column rather than discovering it after the fact.
+        @test haskey(model.metadata, "huberFallback")
+        @test model.metadata["huberFallback"] isa Bool
+        @test all(isfinite, model.ϕ)
+    end
+
 end

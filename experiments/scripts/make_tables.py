@@ -155,8 +155,11 @@ def table2():
 
 
 t1, t2 = table1(), table2()
-(OUT / "table1_horizon_total.txt").write_text(t1, encoding="utf-8")
-(OUT / "table2_owa_by_block.txt").write_text(t2, encoding="utf-8")
+# The explicit newline is not cosmetic. On Windows the default would write CRLF, the file
+# would stop matching SHA256SUMS, and merely regenerating the tables would make the package
+# fail its own integrity check.
+(OUT / "table1_horizon_total.txt").write_text(t1, encoding="utf-8", newline="\n")
+(OUT / "table2_owa_by_block.txt").write_text(t2, encoding="utf-8", newline="\n")
 print(t1)
 print()
 print(t2)

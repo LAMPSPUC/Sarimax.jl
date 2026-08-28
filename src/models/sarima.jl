@@ -1787,6 +1787,7 @@ if inovacoes
         warmStart,
         lb,
         T;
+        epsScale = yScale,
         stationary = stationary,
         invertible = invertible,
         stationarityMargin = stationarityMargin,
@@ -2102,6 +2103,7 @@ function applyWarmStart!(
     ws::SARIMAModel,
     lb::Int,
     T::Int;
+    epsScale::Real = 1,
     stationary::Bool,
     invertible::Bool,
     stationarityMargin::AbstractFloat,
@@ -2111,10 +2113,16 @@ function applyWarmStart!(
     clampκ(v, margin) = clamp(v, -(1 - margin - 1e-4), (1 - margin - 1e-4))
 
     if !isnothing(ws.ϵ) && haskey(od, :ϵ)
+        # `ws.ϵ` vem em unidades ORIGINAIS — o construtor devolve `value.(ϵ) .* yScale` —
+        # enquanto o `ϵ` deste modelo vive na escala padronizada (`yValues ./ yScale`).
+        # Semear o vetor cru punha a partida MAIS infactivel que a partida fria: medido em
+        # 28/08 pelo `inf_pr` da iteracao 0 do Ipopt, de ~13 para 337-7.720 em series daily.
+        # Sem esta divisao o `warmStart` e um chute grande, nao uma semente informada.
+        escala = (isfinite(epsScale) && epsScale > 0) ? epsScale : one(epsScale)
         ϵv = mod[:ϵ]
         n = min(length(ws.ϵ), T - lb + 1)
         for k = 1:n
-            set_start_value(ϵv[lb-1+k], ws.ϵ[k])
+            set_start_value(ϵv[lb-1+k], ws.ϵ[k] / escala)
         end
     end
 

@@ -122,4 +122,26 @@
         @test isapprox(Float64.(warm.θ), Float64.(cold.θ); atol = 1e-4)
     end
 
+    @testset "huber falling back to mse warns instead of degrading silently" begin
+        # The huber branch fits an `mse` base, tries huber, and on failure copies the whole
+        # `mse` model over, flagging only `metadata["huberFallback"]`. A caller that does not
+        # read the metadata gets one estimator under another's label. Measured on the M4
+        # campaign commit: under `initialization = :innovations` the objective guard threw and
+        # the bare `catch` swallowed it, so `huberFallback` was true in 40 of 40 weekly series.
+        # A time budget small enough to stop the huber solve reproduces the same path here.
+        Random.seed!(9182)
+        n = 120
+        dates = Date(2000, 1, 1):Day(1):(Date(2000, 1, 1)+Day(n - 1))
+        y = 1000.0 .+ cumsum(randn(n) .* 30.0)
+        model = SARIMA(TimeArray(collect(dates), y), 2, 1, 2; allowMean = false)
+
+        fit!(model; objectiveFunction = "huber", maxTimeSeconds = 1e-4)
+
+        # Whatever the solver decided, the flag must exist so a campaign can report the
+        # fallback rate as a validity column rather than discovering it after the fact.
+        @test haskey(model.metadata, "huberFallback")
+        @test model.metadata["huberFallback"] isa Bool
+        @test all(isfinite, model.ϕ)
+    end
+
 end

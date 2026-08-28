@@ -309,8 +309,11 @@
                  initialization = :zeroed, penaltyTarget = target)
             m
         end
-        dynNorm(m) = sum(abs.([m.ϕ...])) + sum(abs.([m.θ...]))
-        exogNorm(m) = sum(abs.([m.exogCoefficients...]))
+        # `auto` may select an order with no MA term, so an empty block must contribute
+        # zero rather than fail on `sum` over an empty untyped collection.
+        blockNorm(b) = isnothing(b) ? 0.0 : sum(abs.(Float64[b...]); init = 0.0)
+        dynNorm(m) = blockNorm(m.ϕ) + blockNorm(m.θ)
+        exogNorm(m) = blockNorm(m.exogCoefficients)
 
         allT, dynT, exogT = fitTarget(:all), fitTarget(:dynamics), fitTarget(:exogenous)
 
@@ -330,6 +333,24 @@
             SARIMA(y, X, 1, 1, 1);
             objectiveFunction = "elastic_net", alpha = 0.5, penaltyTarget = :nope,
         )
+
+        # The keyword must reach the fits `auto` performs, not merely its signature. A
+        # keyword that is declared and threaded but never forwarded to `fit!` leaves the
+        # search silently using the default target.
+        v = zeros(n)
+        noise = randn(n)
+        for t = 2:n
+            v[t] = 0.8 * v[t-1] + noise[t]
+        end
+        yStat = TimeArray(dts, 50 .+ v .+ 2 .* values(X)[:, 1])
+        searchTarget(target) = auto(
+            yStat; exog = X, objectiveFunction = "elastic_net", alpha = 1.0,
+            lambda = 300.0, d = 0, D = 0, maxp = 2, maxq = 0, maxP = 0, maxQ = 0,
+            penaltyTarget = target,
+        )
+        dyn, exg = searchTarget(:dynamics), searchTarget(:exogenous)
+        @test dynNorm(dyn) < 1e-5 && exogNorm(dyn) > 1e-3
+        @test exogNorm(exg) < 1e-5 && dynNorm(exg) > 1e-3
     end
 
     @testset "elastic net survives a saturated model" begin

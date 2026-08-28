@@ -229,10 +229,10 @@
         # It is opt-in: R's auto.arima has no equivalent rule, so the default must not
         # change behaviour.
         Random.seed!(7302)
-        # 22/08: a serie antiga (deriva quadratica) selecionava 6 termos SEM guarda, entao
-        # `tight.p+q+P+Q >= 1` era satisfeita de graca e o testset ficava verde com a guarda
-        # removida do pacote. I(2) pura: duas diferencas viram ruido branco e o AICc prefere
-        # o canto sem termos, que e' onde a guarda tem o que fazer.
+        # A quadratic-drift series selects six terms even WITHOUT the guard, so
+        # `tight.p+q+P+Q >= 1` held for free and this testset stayed green with the guard
+        # removed from the package. Pure I(2): two differences leave white noise and AICc
+        # prefers the term-free corner, which is where the guard has something to do.
         Random.seed!(20260822)
         n = 90
         dates = Date(2000, 1, 1):Month(1):(Date(2000, 1, 1)+Month(n - 1))
@@ -245,7 +245,8 @@
                      searchMethod = "stepwise", showLogs = false,
                      requireTermsWhenOverDifferenced = true)
 
-        # PREMISSAS, nao `if`: se deixarem de valer, este testset vira vacuo — entao falham.
+        # PREMISES, not an `if`: if they stop holding this testset becomes vacuous, so they
+        # fail loudly instead of going quietly green.
         @test loose.d + loose.D >= 2
         @test loose.p + loose.q + loose.P + loose.Q == 0
         # The guard binds only where the series is actually over-differenced.

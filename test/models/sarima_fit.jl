@@ -314,7 +314,7 @@ end
         mDisp = SARIMA(TimeArray(collect(dispDates), cumsum(randn(60))), 1, 1, 0; allowMean = false)
         show(io, mDisp)
         @test occursin("not fitted", String(take!(io)))
-        fit!(mDisp; seasonalForm = :multiplicative)  # modo NOMEADO: nao depender do valor do default (ver 22/08)
+        fit!(mDisp; seasonalForm = :multiplicative)  # NAMED: do not depend on the default
         show(io, MIME("text/plain"), mDisp)
         str = String(take!(io))
         @test occursin("coefficient", str)
@@ -344,7 +344,7 @@ end
         yMult = TimeArray(collect(multDates), vals)
 
         mMult = SARIMA(yMult, 1, 0, 0; seasonality = 12, P = 1, allowMean = false)
-        # `seasonalForm` NOMEADO: nao depender do valor do default.
+        # `seasonalForm` NAMED: do not depend on the value of the default.
         fit!(mMult; initialization = :zeroed, seasonalForm = :multiplicative)
         @test mMult.ϕ[1] ≈ 0.4 atol = 1e-3
         @test mMult.Φ[1] ≈ 0.5 atol = 1e-3
@@ -395,7 +395,7 @@ end
 
         # q = 1: the reflection parameterization coincides with the box bounds
         boxMA1 = SARIMA(airPassengers, 1, 0, 1)
-        # `invertible` NOMEADO: nao depender do valor do default.
+        # `invertible` NAMED: do not depend on the value of the default.
         fit!(boxMA1; objectiveFunction = "mse", initialization = :zeroed, invertible = false)
         refMA1 = SARIMA(airPassengers, 1, 0, 1)
         fit!(refMA1; objectiveFunction = "mse", invertible = true, initialization = :zeroed)

@@ -169,9 +169,9 @@
         n = 90
         parDates = Date(2000, 1, 1):Month(1):(Date(2000, 1, 1)+Month(n - 1))
         yPar = TimeArray(collect(parDates), cumsum(randn(n)) .+ 0.3 .* collect(1.0:n))
-        # `parallel` NOMEADO nos dois lados. Nota: com JULIA_NUM_THREADS=1 (default do
-        # CI) os dois ramos sao o mesmo codigo — este testset so exercita paralelismo
-        # de verdade com nthreads >= 2.
+        # `parallel` NAMED on both sides. Note that with JULIA_NUM_THREADS=1, the CI
+        # default, both branches are the same code: this testset only exercises real
+        # parallelism at nthreads >= 2.
         mSerial = auto(yPar; searchMethod = "grid", maxp = 1, maxq = 1, maxP = 0, maxQ = 0, parallel = false)
         mParallel = auto(yPar; searchMethod = "grid", maxp = 1, maxq = 1, maxP = 0, maxQ = 0, parallel = true)
         @test (mSerial.p, mSerial.q, mSerial.d) == (mParallel.p, mParallel.q, mParallel.d)

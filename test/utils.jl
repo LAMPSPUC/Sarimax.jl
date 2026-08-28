@@ -282,7 +282,7 @@
         solverNoise[30] = nextfloat(base, 2)
         @test Sarimax.identifyOutliers(solverNoise) == falses(31)
 
-        # Escala nula: os dois quartis em zero. A guarda usa `<=`, entao cobre este caso.
+        # Zero scale: both quartiles at zero. The guard uses `<=`, so this case is covered.
         allZeros = zeros(20)
         allZeros[3] = 1e-9
         @test Sarimax.identifyOutliers(allZeros) == falses(20)

@@ -1096,15 +1096,18 @@ function fit!(
             ok = false
         end
         if !ok
-            # AVISAR, nunca degradar em silencio. O caller pediu `huber` e recebe um ajuste
-            # `mse`: sem aviso, uma celula inteira de experimento mede um estimador com o
-            # rotulo de outro. Medido em 28/08 no commit `aa68d57`: sob
-            # `initialization = :innovations` a guarda de objetivo lancava e este `catch`
-            # a engolia, com `huberFallback` em 40/40 series weekly — 100%, silenciosas, e
-            # o resultado devolvido era o `mse` bit a bit. Mesma politica dos PRs #11 e #12.
-            @warn "objectiveFunction=\"huber\" nao convergiu; devolvendo o ajuste \"mse\" " *
-                  "(metadata[\"huberFallback\"] = true). Toda medicao de huber deve reportar " *
-                  "a taxa de fallback como coluna de validade." maxlog = 1
+            # Warn, never degrade silently. The caller asked for `huber` and receives an
+            # `mse` fit: without a warning an entire experimental cell measures one
+            # estimator under another's label. Under an earlier objective guard this
+            # `catch` swallowed the guard's own error, and the fallback fired on every
+            # series of a campaign without a trace in the log.
+            #
+            # `maxlog = 1` keeps an interactive session readable, so the warning is not a
+            # per-series signal: `metadata["huberFallback"]` is, and a campaign must report
+            # its rate as a validity column.
+            @warn "objectiveFunction=\"huber\" did not converge; returning the \"mse\" fit " *
+                  "(metadata[\"huberFallback\"] = true). Report the fallback rate as a " *
+                  "validity column in any huber measurement." maxlog = 1
             model.c = base.c
             model.trend = base.trend
             model.ϕ = base.ϕ
@@ -2122,11 +2125,12 @@ function applyWarmStart!(
     clampκ(v, margin) = clamp(v, -(1 - margin - 1e-4), (1 - margin - 1e-4))
 
     if !isnothing(ws.ϵ) && haskey(od, :ϵ)
-        # `ws.ϵ` vem em unidades ORIGINAIS — o construtor devolve `value.(ϵ) .* yScale` —
-        # enquanto o `ϵ` deste modelo vive na escala padronizada (`yValues ./ yScale`).
-        # Semear o vetor cru punha a partida MAIS infactivel que a partida fria: medido em
-        # 28/08 pelo `inf_pr` da iteracao 0 do Ipopt, de ~13 para 337-7.720 em series daily.
-        # Sem esta divisao o `warmStart` e um chute grande, nao uma semente informada.
+        # `ws.ϵ` arrives in ORIGINAL units — the fit returns `value.(ϵ) .* yScale` — while
+        # this model's `ϵ` lives on the standardised scale (`yValues ./ yScale`). Seeding
+        # the raw vector made the start MORE infeasible than a cold start: measured through
+        # the iteration-0 `inf_pr` of Ipopt, which rose from about 13 to between 337 and
+        # 7720 on daily series. Without this division the warm start is a large guess
+        # rather than an informed seed.
         escala = (isfinite(epsScale) && epsScale > 0) ? epsScale : one(epsScale)
         ϵv = mod[:ϵ]
         n = min(length(ws.ϵ), T - lb + 1)

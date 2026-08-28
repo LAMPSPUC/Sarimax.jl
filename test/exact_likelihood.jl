@@ -152,8 +152,8 @@ end
         )
 
         mPlain = SARIMA(yW, 1, 1, 1; seasonality = 12, P = 1, D = 0, Q = 1)
-        # Os dois lados diferem SO em `warmStartFromBox`; sem nomear os outros dois
-        # flags o teste nao isolava a variavel que diz isolar.
+        # The two sides differ ONLY in `warmStartFromBox`; without naming the other two
+        # flags the test did not isolate the variable it claims to isolate.
         fit!(mPlain; stationary = true, invertible = true, warmStartFromBox = false)
         @test mPlain.metadata["fitCount"] == 1
         @test mPlain.metadata["buildTimeSecTotal"] ≈ mPlain.metadata["buildTimeSec"]

@@ -47,6 +47,20 @@ the API and the estimation defaults that the reported results were produced unde
   would shift every slot after it.
 
 ### Fixed
+- **The warm start seeded its residuals on the wrong scale.** `applyWarmStart!` received
+  `ws.ϵ` in original units, since a fit returns `value.(ϵ) .* yScale`, and seeded it into a
+  model whose `ϵ` lives on the standardised scale. The seed was therefore off by `yScale`
+  and made the starting point *less* feasible than a cold start: measured through Ipopt's
+  iteration-0 `inf_pr`, which fell from about 13 to between 0.04 and 0.34 once the scale is
+  divided out, with iteration counts going from 10 to 5, 17 to 7 and 12 to 6. The `huber`
+  objective warm-starts from its own `mse` fit, so it took the same path. Contributed by
+  Davi Valladão (#26).
+- **`huber` falling back to `mse` now warns instead of degrading silently.** The branch
+  fits an `mse` base, tries `huber`, and on failure copies the whole `mse` model over,
+  flagging only `metadata["huberFallback"]`. A caller that does not read the metadata
+  received one estimator under another's label. The warning uses `maxlog = 1`, so it keeps
+  an interactive session readable and is not a per-series signal: campaigns must report the
+  fallback rate from the metadata as a validity column. Contributed by Davi Valladão (#26).
 - **`differentiate` accepts more than one column**, and with it `auto` accepts more than
   one exogenous regressor. `auto` differences the exogenous block whenever `d > 0`, and
   the function declared its working buffer as a `Vector`, so any multi-regressor SARIMAX
@@ -69,6 +83,12 @@ the API and the estimation defaults that the reported results were produced unde
   fallback ([#15]), the determinant exponent ([#14]) and the scope of `cssResiduals`.
 
 ### Internal
+- **Tests that passed without testing.** `test/order_guards.jl` passed with `orderAllowed`
+  stubbed out — its fixture selected six terms unguarded, so the guard's promise held for
+  free. The fixture is now pure I(2), where AICc prefers the term-free corner the guard
+  exists to remove, and the premise is asserted rather than assumed. Six comparisons that
+  left one side on a package default now name it on both sides. Contributed by Davi
+  Valladão (#27).
 - GitHub Actions bumped to current major versions (checkout v4, cache v4,
   setup-julia v2, codecov-action v5).
 

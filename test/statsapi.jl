@@ -65,8 +65,8 @@
     @testset "multiplicative seasonal model consistency" begin
         airPassengersLog = log.(load_dataset(AIR_PASSENGERS))
         airline = SARIMA(airPassengersLog, 0, 1, 1; seasonality = 12, P = 0, D = 1, Q = 1)
-        # `initialization` e `seasonalForm` NOMEADOS: o teste nao pode depender do valor
-        # dos defaults. Ver nota sobre `cssResiduals` acima.
+        # `initialization` and `seasonalForm` NAMED: the test must not depend on the value
+        # of the defaults. See the note on `cssResiduals` above.
         fit!(airline; initialization = :zeroed, seasonalForm = :multiplicative)
         cr = Sarimax.cssResiduals(airline, coef(airline))
         @test maximum(abs.(cr .- residuals(airline))) < 1e-8

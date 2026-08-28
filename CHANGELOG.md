@@ -4,7 +4,57 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0] - Unreleased
+## [1.0.0] - 2026-08-27
+
+First stable release. It accompanies the paper describing the package and freezes
+the API and the estimation defaults that the reported results were produced under.
+
+### Changed (breaking)
+- **`elastic_net` is now the conventional penalized estimator.** The objective is
+  the selected residual loss plus `lambda * [alpha * L1 + (1 - alpha)/2 * L2]`
+  over the autoregressive, moving-average and exogenous coefficient blocks, solved
+  in a single stage. The intercept and the drift are excluded. `alpha = 0` gives a
+  ridge-type penalty and `alpha = 1` a lasso-type one; `lambda` defaults to the
+  square root of the effective sample size, matching the scale of the sum-form
+  objective.
+
+  This replaces a two-stage construction that solved conditional least squares and
+  then minimized an adaptively weighted coefficient norm subject to a tolerance on
+  the residual sum of squares. That construction had no penalty multiplier, so a
+  caller-supplied `lambda` skipped the second stage entirely and silently returned
+  an unregularized fit. `regularizationObjective` is removed.
+- **`exogDynamics` defaults to `:armax` again**, the dynamic-regression/ARX form in
+  which the exogenous coefficient is an impact multiplier conditional on past `y`.
+  `:regression_errors` remains available on `fit!` and is the form
+  `forecast::Arima(xreg=)` estimates, in which the coefficient is the usual
+  marginal effect; on a discriminator over three data generating processes it
+  closes a log-RMSE gap of 0.4262 against R to +0.0020 under an ARIMA-errors
+  process, with the coefficient agreeing to three decimals. The default is only
+  observable when regressors are present: at `nExog == 0` both modes take the same
+  branch.
+
+### Deprecated
+- **`objectiveFunction = "bilevel"`** warns once per session and is scheduled for
+  removal in v2.0. It optimizes the moving-average coefficients in an outer loop
+  rather than as decision variables, at orders of magnitude more solver time, and
+  covers no case the other objectives do not.
+
+### Documentation
+- Source comments and docstrings are in technical English throughout, with
+  development narrative removed. The README quickstart output is regenerated under
+  the shipped defaults, the exogenous section states which form is the default and
+  where the alternative is reachable, and the documentation now carries the
+  elastic-net equation and a "Known limitations" section covering the exact-likelihood
+  fallback ([#15]), the determinant exponent ([#14]) and the scope of `cssResiduals`.
+
+### Internal
+- GitHub Actions bumped to current major versions (checkout v4, cache v4,
+  setup-julia v2, codecov-action v5).
+
+[#14]: https://github.com/LAMPSPUC/Sarimax.jl/issues/14
+[#15]: https://github.com/LAMPSPUC/Sarimax.jl/issues/15
+
+## [0.3.0] - 2026-07-15
 
 ### Fixed
 - **`identifyOutliers` no longer flags every value that is not bit-identical to the
@@ -225,10 +275,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `has_fit_methods`, `has_hyperparameters_methods`, `get_hyperparameters_number`,
   `automatic_differentiation`, `identify_granularity`, `build_datetimes`,
   `copy_time_array`, `deepcopy_time_array`, `to_ma`, `differentiated_coefficients`.
-  The camelCase names keep working with a deprecation warning until v1.0.
-  Keyword-argument names are unchanged in this release.
+  The camelCase names keep working with a deprecation warning; they are scheduled
+  for removal in v2.0. Keyword-argument names are unchanged in this release.
 
-## [0.2.0] - Unreleased
+## [0.2.0] - 2026-07-11
 
 ### Fixed
 - **Exogenous forecasting**: `predict` used the exogenous row of the *last* forecast

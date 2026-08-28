@@ -1,6 +1,6 @@
 # Deprecated camelCase API (renamed to snake_case in v0.3).
-# These shims keep old code working with a deprecation warning; they will be
-# removed in v1.0. Keyword-argument names are unchanged for now.
+# These shims keep old code working with a deprecation warning; they are scheduled
+# for removal in v2.0. Keyword-argument names are unchanged.
 
 Base.@deprecate loadDataset(dataset::Datasets) load_dataset(dataset)
 Base.@deprecate loadDataset(df::DataFrame, showLogs::Bool = false) load_dataset(df, showLogs)

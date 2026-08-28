@@ -37,7 +37,19 @@ function _git(repo, args...)
     end
 end
 
-_dirty(repo) = !isempty(_git(repo, "status", "--porcelain"))
+# MODIFIED TRACKED FILES ONLY. Untracked files are deliberately not counted as dirty: a
+# research harness always has scratch output beside the runners, and a check that trips on
+# those would be switched off within a day — which is how the defect this module exists to
+# prevent got in. What changes a result is an edit to a file that is part of the run, and
+# that is what `--untracked-files=no` reports.
+#
+# The untracked count is still recorded, because it is occasionally the explanation for a
+# result that cannot be reproduced from a clean checkout.
+_dirty(repo) = !isempty(_git(repo, "status", "--porcelain", "--untracked-files=no"))
+
+_untrackedCount(repo) =
+    (s = _git(repo, "ls-files", "--others", "--exclude-standard");
+     s == "unknown" ? -1 : (isempty(s) ? 0 : count(==('\n'), s) + 1))
 
 """
     solverVersions() -> Dict{String,String}
@@ -57,7 +69,11 @@ function solverVersions()
     out
 end
 
-platform() = string(Sys.KERNEL, "-", Sys.ARCH)
+# `Sys.KERNEL` reports `:NT` on Windows, which is accurate but reads oddly next to the
+# archived rows. Normalised to the familiar name so the two agree.
+platform() = string(Sys.iswindows() ? "Windows" :
+                    Sys.isapple() ? "macOS" :
+                    Sys.islinux() ? "Linux" : Sys.KERNEL, "-", Sys.ARCH)
 
 """
     provenanceFields() -> Vector{Pair{String,String}}
@@ -70,8 +86,10 @@ function provenanceFields()
     [
         "sarimax_commit" => _git(PKG_REPO, "rev-parse", "--short", "HEAD"),
         "sarimax_tree" => _dirty(PKG_REPO) ? "DIRTY" : "clean",
+        "sarimax_untracked" => string(_untrackedCount(PKG_REPO)),
         "harness_commit" => _git(HARNESS_REPO, "rev-parse", "--short", "HEAD"),
         "harness_tree" => _dirty(HARNESS_REPO) ? "DIRTY" : "clean",
+        "harness_untracked" => string(_untrackedCount(HARNESS_REPO)),
         "julia" => string(VERSION),
         "moi" => get(sv, "MathOptInterface", "unknown"),
         "ipopt" => get(sv, "Ipopt", "unknown"),
@@ -92,20 +110,27 @@ stamp(io::IO) = println(io, provenanceLine())
 """
     requireCleanTrees(; allowDirty = false)
 
-Abort if either working tree carries uncommitted modifications. The cost of discovering
-afterwards that a grid ran against an uncommitted patch, and having to re-run it, is far
-higher than the cost of stopping here.
+Abort if either working tree carries modifications to tracked files. The cost of
+discovering afterwards that a grid ran against an uncommitted patch, and having to re-run
+it, is far higher than the cost of stopping here.
+
+Set `REPLICATION_ALLOW_DIRTY=1` for an exploratory run. That does not silence the problem:
+the tree state is still recorded as `DIRTY` in the stamp and in every result row, so the
+output stays self-describing and can never be mistaken for a citable measurement.
 """
-function requireCleanTrees(; allowDirty::Bool = false)
-    sujo = String[]
-    _dirty(PKG_REPO) && push!(sujo, string("Sarimax.jl (", PKG_REPO, ")"))
-    _dirty(HARNESS_REPO) && push!(sujo, string("harness (", HARNESS_REPO, ")"))
-    if !isempty(sujo) && !allowDirty
-        error("working tree DIRTY in: ", join(sujo, ", "),
-              "\nThe measurement would not be identifiable.\n",
-              _git(PKG_REPO, "status", "--short"), "\n",
-              _git(HARNESS_REPO, "status", "--short"),
-              "\nCommit, stash, or pass allowDirty = true for an exploratory run.")
+function requireCleanTrees(; allowDirty::Bool = get(ENV, "REPLICATION_ALLOW_DIRTY", "") == "1")
+    dirty = String[]
+    _dirty(PKG_REPO) && push!(dirty, string("Sarimax.jl (", PKG_REPO, ")"))
+    _dirty(HARNESS_REPO) && push!(dirty, string("harness (", HARNESS_REPO, ")"))
+    if !isempty(dirty)
+        msg = string("tracked files MODIFIED in: ", join(dirty, ", "), "\n",
+                     _git(PKG_REPO, "status", "--short", "--untracked-files=no"), "\n",
+                     _git(HARNESS_REPO, "status", "--short", "--untracked-files=no"))
+        allowDirty ||
+            error(msg, "\nThe measurement would not be identifiable.\n",
+                  "Commit, stash, or set REPLICATION_ALLOW_DIRTY=1 for an exploratory run.")
+        @warn string("RUNNING AGAINST A MODIFIED TREE — output is marked DIRTY and is not ",
+                     "citable.\n", msg)
     end
     println(provenanceLine())
     flush(stdout)

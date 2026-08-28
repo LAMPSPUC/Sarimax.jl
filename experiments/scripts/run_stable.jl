@@ -13,9 +13,10 @@
 # therefore could not regenerate its own results, and the companion analyser still required
 # the third arm. The arm below is RESTORED from three independent attestations: the arm
 # label present in the data, the analyser's required arm list, and the runner's own header
-# and log line ("3 arms"). The cvarLevel value 0.9 is inferred from the label `stable_090`
-# and from DEFAULT_CVAR_LEVEL at the campaign commit; it was NOT recorded per row in the
-# original output, and this is flagged in REPRODUCE.md as an unverified reconstruction.
+# and log line ("3 arms"). The cvarLevel value 0.9 began as an inference from the label
+# `stable_090` and from DEFAULT_CVAR_LEVEL at the campaign commit — it was NOT recorded per
+# row in the original output — but it is now CONFIRMED: re-fitting this arm at 0.9
+# reproduces the archived rows exactly, and no other level would.
 #
 # The reconstruction is stated here rather than silently applied, because a runner that
 # quietly regrows a deleted arm is exactly as unauditable as one that quietly loses it.
@@ -38,6 +39,11 @@ const SAMPLE  = length(ARGS) >= 4 ? parse(Int, ARGS[4]) : 0
 # reproducible, and a sample taken in id order is not random.
 const SEED    = 20260826
 
+# `include` resolves relative to THIS file, not the working directory, so the harness
+# source has to be named absolutely: these runners live in a subdirectory of the package
+# repository, not at the harness root.
+const HARNESS_SRC = joinpath(get(ENV, "REPLICATION_HARNESS_REPO", pwd()), "src", "ForecastTester.jl")
+isfile(HARNESS_SRC) || error("harness source not found at $HARNESS_SRC; set REPLICATION_HARNESS_REPO")
 import Pkg; Pkg.activate(".")
 include("provenance.jl"); using .Provenance
 requireCleanTrees()
@@ -48,7 +54,7 @@ addprocs(NW; exeflags = ["--project=."])
     import Pkg; Pkg.activate(".")
     using LinearAlgebra; BLAS.set_num_threads(1)
     using ForecastTester
-    include("src/ForecastTester.jl")
+    include($HARNESS_SRC)
     using DataFrames, TimeSeries, Statistics
     const Sxw = Main.ForecastTester.Sarimax
     const FTw = Main.ForecastTester

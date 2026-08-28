@@ -28,6 +28,11 @@ const FREQ = length(ARGS) >= 1 ? ARGS[1] : "weekly"
 const NW   = length(ARGS) >= 2 ? parse(Int, ARGS[2]) : 10
 const OUT  = length(ARGS) >= 3 ? ARGS[3] : "axes_$(FREQ).csv"
 
+# `include` resolves relative to THIS file, not the working directory, so the harness
+# source has to be named absolutely: these runners live in a subdirectory of the package
+# repository, not at the harness root.
+const HARNESS_SRC = joinpath(get(ENV, "REPLICATION_HARNESS_REPO", pwd()), "src", "ForecastTester.jl")
+isfile(HARNESS_SRC) || error("harness source not found at $HARNESS_SRC; set REPLICATION_HARNESS_REPO")
 import Pkg; Pkg.activate(".")
 include("provenance.jl"); using .Provenance
 requireCleanTrees()
@@ -38,7 +43,7 @@ addprocs(NW; exeflags = ["--project=."])
     import Pkg; Pkg.activate(".")
     using LinearAlgebra; BLAS.set_num_threads(1)
     using ForecastTester
-    include("src/ForecastTester.jl")
+    include($HARNESS_SRC)
     using DataFrames, TimeSeries, Statistics
     const Sxw = Main.ForecastTester.Sarimax
     const FTw = Main.ForecastTester

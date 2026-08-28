@@ -312,6 +312,27 @@ verified here is "the results agree", not "the results came from the same place"
 It also verifies the `mse` control arm the campaign F design depends on: an arm intended to
 reproduce the headline table, which does.
 
+### Campaign A, check 3 — the shipped runner, end to end
+
+The two checks above re-fit through a separate harness. That answers "do the numbers come
+back", not "does the script in this directory come back with them". So `scripts/run_m4.jl`
+was executed as shipped, on the weekly frequency, whole population, under the current tree:
+
+| | |
+|---|---|
+| series compared | 359 |
+| differing | **0** |
+
+The runner reproduced the archived campaign exactly, sMAPE and MASE alike, at six workers
+rather than the original ten — which is expected here, because this campaign sets no time
+cap and so is not load-sensitive (contrast finding 6).
+
+Two defects were found by running it and are fixed in what is shipped: the harness source
+was reached by a path relative to the runner, which broke once the runners moved into a
+subdirectory; and the working-tree check counted untracked files as dirty, which in a
+research harness means always, and a check that always fires is a check that gets switched
+off.
+
 ---
 
 ## 4. Divergences between what a script does and what its results claim

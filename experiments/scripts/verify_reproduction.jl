@@ -23,6 +23,11 @@ const RAW   = length(ARGS) >= 4 ? ARGS[4] : joinpath(@__DIR__, "..", "results", 
 # Fixed so that a re-check draws the same series and the answer is comparable over time.
 const SEED  = 20260828
 
+# `include` resolves relative to THIS file, not the working directory, so the harness
+# source has to be named absolutely: these runners live in a subdirectory of the package
+# repository, not at the harness root.
+const HARNESS_SRC = joinpath(get(ENV, "REPLICATION_HARNESS_REPO", pwd()), "src", "ForecastTester.jl")
+isfile(HARNESS_SRC) || error("harness source not found at $HARNESS_SRC; set REPLICATION_HARNESS_REPO")
 import Pkg; Pkg.activate(".")
 using Distributed, Random
 addprocs(NW; exeflags = ["--project=."])
@@ -31,7 +36,7 @@ addprocs(NW; exeflags = ["--project=."])
     import Pkg; Pkg.activate(".")
     using LinearAlgebra; BLAS.set_num_threads(1)
     using ForecastTester
-    include("src/ForecastTester.jl")
+    include($HARNESS_SRC)
     using DataFrames, TimeSeries, Statistics
     const Sxw = Main.ForecastTester.Sarimax
     const FTw = Main.ForecastTester

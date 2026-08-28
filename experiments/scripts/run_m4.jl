@@ -42,6 +42,11 @@ const CAP   = length(ARGS) >= 5 ? (parse(Float64, ARGS[5]) > 0 ? parse(Float64, 
 # and the comparison against the untruncated run would stop isolating the fit.
 const TAIL  = length(ARGS) >= 6 ? parse(Int, ARGS[6]) : 0
 
+# `include` resolves relative to THIS file, not the working directory, so the harness
+# source has to be named absolutely: these runners live in a subdirectory of the package
+# repository, not at the harness root.
+const HARNESS_SRC = joinpath(get(ENV, "REPLICATION_HARNESS_REPO", pwd()), "src", "ForecastTester.jl")
+isfile(HARNESS_SRC) || error("harness source not found at $HARNESS_SRC; set REPLICATION_HARNESS_REPO")
 import Pkg; Pkg.activate(".")
 include("provenance.jl"); using .Provenance
 requireCleanTrees()
@@ -55,7 +60,7 @@ addprocs(NW; exeflags = ["--project=."])
     # timeouts in this project.
     using LinearAlgebra; BLAS.set_num_threads(1)
     using ForecastTester
-    include("src/ForecastTester.jl")
+    include($HARNESS_SRC)
     using DataFrames, TimeSeries, Statistics
     const Sxw = Main.ForecastTester.Sarimax
     const FTw = Main.ForecastTester

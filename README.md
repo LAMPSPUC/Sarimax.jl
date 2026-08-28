@@ -41,18 +41,18 @@ print(model)
 
 ```
 SARIMA(4,1,1)(0,1,1)[12]
-Seasonal form: multiplicative | Estimation: CSS (zeroed) | Deterministic: none
+Seasonal form: multiplicative | Estimation: CSS (innovations) | Deterministic: none
 ───────────────────────────────────────
 coefficient      estimate    std. error
 ───────────────────────────────────────
-ar_1              -0.4046        0.1751
-ar_2              -0.0415        0.1638
-ar_3               0.0298        0.1142
-ar_4              -0.2752        0.0914
-ma_1              -0.5233        0.1727
-sma_1             -0.4806        0.0696
+ar_1              -0.2466        0.1753
+ar_2               0.0934        0.1658
+ar_3               0.1033        0.1214
+ar_4              -0.2527        0.0917
+ma_1              -0.6844        0.1684
+sma_1             -0.4761        0.0653
 ───────────────────────────────────────
-σ² = 0.982304 | n = 162 | loglik = -225.365 | AIC = 464.730 | AICc = 465.457 | BIC = 486.343
+σ² = 0.832211 | n = 191 | loglik = -250.429 | AIC = 520.045 | AICc = 520.657 | BIC = 542.811
 ```
 
 ```julia
@@ -72,6 +72,9 @@ m = SARIMA(airp_log, 0, 1, 1; seasonality = 12, P = 0, D = 1, Q = 1, allowMean =
 fit!(m)                                            # CSS, multiplicative form (defaults)
 fit!(m; initialization = :warmup)                  # R-compatible: matches arima(method="CSS")
 fit!(m; objectiveFunction = "mae")                 # robust L1 loss
+fit!(m; objectiveFunction = "elastic_net",         # penalized: λ[α‖·‖₁ + (1−α)/2‖·‖₂²]
+     alpha = 0.5, lambda = 1.0,
+     penaltyTarget = :exogenous)                   # shrink regressors only
 fit!(m; invertible = true, stationary = true)      # constrained-by-construction estimates
 fit!(m; optimizer = Sarimax.SCIP.Optimizer)        # certified global optimum
 
@@ -103,17 +106,24 @@ should know before comparing outputs:
    R/statsmodels given the same estimation method (item 3). The pre-v0.3
    **additive** form (no cross terms) remains available via
    `seasonalForm = :additive`.
-2. **Exogenous variables (ARX).** Regressors enter a **dynamic-regression/ARX**
-   model — the AR terms act on the *observed* series. R's `Arima(xreg=)` and
-   statsmodels' `SARIMAX(exog=)` fit *regression with ARIMA errors* instead.
-   These are different model families; exogenous coefficients differ by
-   construction.
+2. **Exogenous variables (ARX by default).** Regressors enter a
+   **dynamic-regression/ARX** model — the AR terms act on the *observed* series,
+   so the coefficient is an impact multiplier conditional on past `y`. R's
+   `Arima(xreg=)` and statsmodels' `SARIMAX(exog=)` fit *regression with ARIMA
+   errors* instead, where the coefficient is the usual marginal effect. These are
+   different model families and the two coincide only when the autoregressive
+   polynomial is unitary and there is no differencing. Both are available on
+   `fit!` and on `auto`: `exogDynamics = :armax` (default) and
+   `exogDynamics = :regression_errors`, the latter matching the reference
+   implementations.
 3. **Estimation (CSS, no Kalman filter).** Estimation is conditional least
    squares / concentrated conditional Gaussian ML as a JuMP problem. Log-likelihood
    and AIC/AICc/BIC follow the CSS convention with full Gaussian constants —
    comparable to R's `arima(..., method = "CSS")`, not to exact-ML defaults.
-   Two conditioning conventions are available: `initialization = :zeroed`
-   (default) and `:warmup` (R-compatible).
+   The default conditioning convention is `initialization = :innovations`, which
+   leaves the pre-sample block free and penalizes it in the objective so that the
+   error is summed from `t = 1`. `:zeroed` (fix the block at zero) and `:warmup`
+   (R-compatible) are also available.
 
 **Verified against R** (`arima(log(y), order, seasonal, method = "CSS")`, this
 repository's AirPassengers data, `initialization = :warmup` — pinned in CI):
@@ -127,9 +137,13 @@ repository's AirPassengers data, `initialization = :warmup` — pinned in CI):
 
 ## What the optimization formulation buys you
 
-- **Swappable objectives**: `"mse"`, `"mae"` (L1), `"ml"` (concentrated Gaussian
-  CSS), `"stable"` (CVaR of squared errors), `"elastic_net"` (adaptive
-  ridge/lasso on the coefficients).
+- **Swappable objectives**: `"mse"`, `"mae"` (L1), `"huber"`, `"ml"`
+  (concentrated Gaussian CSS), `"ml_exact"` (exact treatment of the initial
+  observations), `"ridge"`, `"elastic_net"` (penalized,
+  `L(ε) + λ[α‖·‖₁ + (1−α)/2‖·‖₂²]`, with `α = 0` giving ridge and `α = 1` lasso),
+  and `"stable"` (a tail-oriented criterion: the conditional value at risk of the
+  squared errors, in the spirit of Bertsimas & Paskov's sample-robust regression).
+  `"bilevel"` is deprecated as of v1.0 and will be removed in v2.0.
 - **Constraints by construction**: `invertible = true` and `stationary = true`
   reparameterize the MA/AR coefficients through bounded reflection coefficients
   (Durbin-Levinson), guaranteeing invertibility/stationarity instead of
@@ -154,7 +168,9 @@ predict!(m; stepsAhead = 8)    # uses the future NROU values
 ```
 
 Remember item 2 above: this is an ARX specification, not regression with ARIMA
-errors — see the documentation for the exact model equation.
+errors. Pass `exogDynamics = :regression_errors` to `fit!` or `auto` to fit the
+regression-with-ARIMA-errors form instead; see the documentation for both model
+equations.
 
 ## Ecosystem
 

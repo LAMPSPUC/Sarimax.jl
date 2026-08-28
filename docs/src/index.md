@@ -17,16 +17,19 @@ Sarimax.jl is a groundbreaking Julia package that revolutionizes SARIMA (Seasona
 ### Key Features
 
 * Multiplicative Box-Jenkins SARIMA (additive form available)
-* Swappable objective functions: MSE, MAE (L1), concentrated Gaussian CSS ("ml"),
-  CVaR ("stable"), adaptive elastic net
+* Swappable objective functions: MSE, MAE (L1), Huber, concentrated Gaussian CSS
+  ("ml"), exact treatment of the initial observations ("ml_exact"), ridge,
+  penalized elastic net, and a tail-oriented CVaR criterion ("stable")
 * Certified globally optimal estimates via SCIP; any JuMP solver via `fit!(optimizer=…)`
 * Automatic order selection (Hyndman-Khandakar stepwise, grid, opt-in parallel)
 * Stationarity/invertibility **by construction** (reflection-coefficient parameterizations)
-* Exogenous variables (ARX form) and outlier dummies inside `auto`
+* Exogenous variables (ARX by default, regression-with-ARIMA-errors available)
+  and outlier dummies inside `auto`
 * StatsAPI: `coef`, `stderror`, `vcov`, `residuals`, … with CSS standard errors
 * Residual diagnostics (Ljung-Box, Jarque-Bera), Box-Cox (Guerrero λ), temporal
   cross-validation, scenario simulation
-* Two CSS conditioning conventions; `initialization = :warmup` matches R's
+* Several CSS conditioning conventions; the default `:innovations` penalizes a
+  free pre-sample block, and `initialization = :warmup` matches R's
   `arima(method = "CSS")` to ~1e-5 (pinned in CI)
 * Tables.jl input, Plots.jl recipe, MLJ wrapper
 
@@ -35,9 +38,52 @@ Sarimax.jl is a groundbreaking Julia package that revolutionizes SARIMA (Seasona
 Before comparing Sarimax.jl outputs with `forecast` (R) or `statsmodels` (Python), be aware of four deliberate design differences:
 
 1. **Seasonal form.** Since v0.3 the default is the **multiplicative** Box-Jenkins SARIMA ``\phi(B)\Phi(B^s)y'_t = \theta(B)\Theta(B^s)\epsilon_t`` — coefficients are directly comparable with R/statsmodels given the same estimation method (item 3). The pre-v0.3 additive form (no cross terms) remains available via `seasonalForm = :additive` in `fit!` and `auto`.
-2. **Exogenous variables (ARX).** Regressors enter a dynamic-regression/ARX model: the AR terms act on the observed series. R's `Arima(xreg=)` and statsmodels' `SARIMAX(exog=)` fit regression-with-ARIMA-errors instead. Different model families — exogenous coefficients differ by construction.
+2. **Exogenous variables (ARX by default).** Regressors enter a dynamic-regression/ARX model: the AR terms act on the observed series, so the coefficient is an impact multiplier conditional on past ``y``. R's `Arima(xreg=)` and statsmodels' `SARIMAX(exog=)` fit regression-with-ARIMA-errors instead, where the coefficient is the usual marginal effect. These are different model families and coincide only when the autoregressive polynomial is unitary and there is no differencing. Both forms ship on `fit!` and on `auto`: `exogDynamics = :armax` (default) and `exogDynamics = :regression_errors`.
 3. **Estimation and information criteria (CSS).** Estimation is conditional least squares / concentrated conditional Gaussian ML formulated as a JuMP optimization problem; there is no Kalman filter. `loglike`, `aic`, `aicc` and `bic` follow the CSS convention with full Gaussian constants — comparable to R's `arima(..., method = "CSS")`, not to exact-ML defaults.
-4. **What the optimization formulation buys.** Swappable objectives (MSE, MAE, CVaR, elastic net), custom constraints, an invertible-MA parameterization (`fit!(model; invertible = true)`), and certified global optima via SCIP.
+4. **What the optimization formulation buys.** Swappable objectives (MSE, MAE, Huber, CVaR, ridge, elastic net), custom constraints, an invertible-MA parameterization (`fit!(model; invertible = true)`), and certified global optima via SCIP.
+
+## Regularization
+
+The `"elastic_net"` objective is the conventional penalized estimator
+
+```math
+\min_{\vartheta,\varepsilon}\; L(\varepsilon) \;+\; \lambda\left[\alpha\lVert\Theta\rVert_1 + \frac{1-\alpha}{2}\lVert\Theta\rVert_2^2\right],
+\qquad 0 \le \alpha \le 1,
+```
+
+where ``L(\varepsilon)`` is the residual loss and ``\Theta`` collects the penalized
+coefficient blocks. The intercept and the drift are always excluded, since penalizing
+the level has no shrinkage interpretation here. ``\alpha = 0`` recovers a ridge-type
+penalty and ``\alpha = 1`` a lasso-type one. `lambda` defaults to the square root of the
+effective sample size, matching the scale of the sum-form objective.
+
+Which blocks make up ``\Theta`` is selected with `penaltyTarget`, on `fit!` and on `auto`:
+
+| `penaltyTarget` | Penalized blocks |
+|---|---|
+| `:all` (default) | autoregressive, moving-average and exogenous coefficients |
+| `:dynamics` | autoregressive and moving-average coefficients only |
+| `:exogenous` | exogenous coefficients only |
+
+Targeting the regressors alone is the usual choice when the point of the fit is
+selecting among them while leaving the dynamics unshrunk.
+
+Exogenous coefficients carry the units of their own regressor, which the package does
+not standardize, so scale-comparable regressors are the caller's responsibility.
+
+## Known limitations
+
+- `exactLoglike` refuses a share of seasonal-AR candidates when the ``\psi`` tail does
+  not decay within the truncation window, and the criterion falls back to the CSS
+  plug-in for those. The fallback is recorded in
+  `model.metadata["criterionFallback"]` and penalized during search, so the behaviour
+  is degraded rather than silently wrong
+  ([#15](https://github.com/LAMPSPUC/Sarimax.jl/issues/15)).
+- In the `mse` + `:penalized` objective the determinant exponent divides by the
+  effective sample rather than by the number of observations
+  ([#14](https://github.com/LAMPSPUC/Sarimax.jl/issues/14)).
+- `cssResiduals`, and therefore `vcov`/`stderror`, implement the zeroed recursion and
+  do not reproduce the free pre-sample block modes.
 
 ## Installation
 

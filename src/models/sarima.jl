@@ -1,4 +1,138 @@
 """
+Iteration ceiling applied to a fit whose caller asked for a bounded solve (see the
+`maxTimeSeconds` handling in [`fit!`](@ref)). A wall-clock limit is not enough on long
+series: Ipopt checks it only between iterations, and one iteration of the
+`initialization = :free` problem (≈2T variables) can outlast the whole budget. A
+well-scaled fit converges in far fewer iterations than this, so hitting the ceiling is
+itself the signal that the candidate is not worth more time.
+"""
+const MAX_ITER_CAPPED_FIT = 200
+
+"""
+Default confidence level of the `"stable"` objective, which minimises the Conditional
+Value-at-Risk of the squared residuals. At `α` the fit optimises the mean of the worst
+`(1-α)` fraction of squared residuals, so higher `α` concentrates on a thinner tail and
+`α → 1` degenerates to min-max. Note this is a *conservative* (worst-case) objective,
+not a robust one: it fits the tail rather than discounting it — `"mae"` is the robust
+choice in this package.
+"""
+const DEFAULT_CVAR_LEVEL = 0.9
+
+"""
+    DEFAULT_HUBER_DELTA
+
+Threshold where the `"huber"` objective switches from quadratic to linear, in units of the
+residual standard deviation. 1.345 is the classical choice: it buys 95% of the efficiency
+of least squares under Gaussian errors while bounding the influence of an outlier.
+
+It is a bare constant rather than a keyword because the endogenous data is standardized
+internally before the fit (`yValues ./ yScale`), so residuals already live on a unit scale
+and the threshold needs no calibration per series. A package that did not standardize would
+have to estimate sigma first and scale delta by it.
+"""
+const DEFAULT_HUBER_DELTA = 1.345
+
+"""
+Margem de REJEICAO de candidatos: quao longe do circulo unitario a menor raiz tem que estar
+para o candidato ser considerado admissivel na SELECAO de ordem.
+
+Vale `1e-2` para casar com o `forecast::auto.arima`: o `myarima` dele poe `ic = Inf` em
+qualquer candidato cuja raiz minima caia a menos de 1% do circulo unitario.
+
+NAO usar este valor nas parametrizacoes por construcao — ver [`DEFAULT_DOMAIN_MARGIN`].
+`rootMargin` limita o modulo das raizes a `> 1 + rho`, enquanto `stationarityMargin` e
+`invertibilityMargin` limitam os coeficientes de reflexao a `|kappa| <= 1 - rho`. A
+correspondencia e exata na ordem 1: para um AR(1), `kappa = phi` e a raiz e `1/phi`, entao
+`|raiz| > 1.01` equivale a `|phi| < 0.9901`. Mas as duas margens respondem a perguntas
+diferentes — uma e regra de selecao, a outra e o dominio do estimador.
+"""
+const DEFAULT_ROOT_MARGIN = 1e-2
+
+"""
+Margin that keeps the DOMAIN of the by-construction parameterization open, used by
+`stationarityMargin` and `invertibilityMargin`.
+
+The stationary likelihood exists on `|kappa| < 1` and diverges at the boundary; the only role
+of this margin is to stop the solver from evaluating exactly `|kappa| = 1`, for which `1e-6`
+suffices. It is NOT an admissibility rule: inadmissible candidates are rejected by
+`rootMargin`/`assertStationarity` at the selection stage.
+
+The two margins must stay distinct. Setting this one to the selection margin (`1e-2`) imposes
+a SELECTION rule as an ESTIMATION constraint: measured over 88 AR(p) fits on M4 monthly
+levels, where 57 of the 88 series have a smallest root below 1.02, 45.5% of the fits then
+terminate against the bound and the median distance to R's exact-ML `phi` rises from 0.00005
+to 0.00234, truncating legitimate near-unit-root estimates. R has no such bound: with
+`transform.pars = TRUE` it parameterizes the AR coefficients through `tanh`, whose range is
+the open interval `(-1, 1)`.
+"""
+const DEFAULT_DOMAIN_MARGIN = 1e-6
+"""
+Teto de modelos que uma busca stepwise pode visitar, equivalente ao `nmodels = 94` do
+`forecast::auto.arima`.
+
+This is the counterpart to the scope of `maxOrder`: R does not bound `p+q+P+Q` in the local
+search, but it does bound how many models that search fits. `stepwiseSearch`, the default
+method, already implemented this as `maxModels = 94`.
+
+Note when measuring cost: since the default path was already bounded, changing this ceiling
+does NOT explain time differences observed with `searchMethod = "stepwise"`.
+"""
+const DEFAULT_NMODELS = 94
+
+"""
+Default CSS conditioning convention used when fitting.
+
+`:innovations` leaves the pre-sample block FREE (the innovations before `t = 1` are decision
+variables rather than imposed zeros) and PENALIZES that block in the objective, so the fit
+error is summed from `t = 1` instead of starting after the conditioning.
+
+These are two independent axes, not rungs of a ladder: `:free` opens the block without
+penalizing it, `:penalized` opens and penalizes it, `:zeroed` holds it fixed at zero.
+
+The default is not `:zeroed` because, under a 2x2 test of solver starting point against mode,
+`:zeroed` was the only mode whose optimum depends on where the solver starts; `:free`,
+`:penalized` and `:innovations` reached the same optimum from different starts. Invariance is
+not globality — there is a case with Ipopt certifiably 1.911% above the global optimum within
+an invariant mode — but the start dependence of `:zeroed` means the same data and the same
+call could return different estimates depending on the initial point.
+
+BREAKING: callers relying on the previous behaviour must pass `initialization = :zeroed`
+explicitly.
+"""
+const DEFAULT_INITIALIZATION = :innovations
+
+"""
+    admissibleCoefficientBound(order::Int, i::Int) -> Float64
+
+Bound `|coef_i| <= C(order, i)` for the FREE parameterization (no stationarity or
+invertibility by construction). It is chosen for one property: **it excludes no admissible
+model**.
+
+A stationary AR(p) polynomial factors as `phi(z) = prod_i (1 - alpha_i z)` with
+`|alpha_i| < 1`, so each coefficient is, up to sign, an elementary symmetric function of the
+`alpha`, and `|phi_i| <= e_i(1,...,1) = C(p, i)`. The same holds for the MA part. Any point
+outside this box is therefore necessarily inadmissible, and the box is equivalent to having
+no bound at all as far as selectable models are concerned.
+
+    p = 1 -> (1)        p = 2 -> (2, 1)        p = 3 -> (3, 3, 1)
+
+At order 1 this coincides with `[-1, 1]`; from order 2 on it does not. A flat `[-1, 1]` on
+every index would simultaneously admit inadmissible points (an MA(2) at `(0.5, -0.9)` is in
+the box and not invertible) and exclude admissible ones (R's ML at `(1.51, 0.79)` is
+invertible and outside it).
+
+Keeping a finite bound, rather than leaving the coefficient free as `stats::arima` does, is
+deliberate: R evaluates the likelihood with a Kalman filter, which does not propagate the
+recursion `eps_t = y_t - sum_j theta_j eps_(t-j)`. This package does propagate it, and
+outside the invertible region it blows up numerically within about 100 steps. Since the bound
+excludes nothing selectable, it gives R's freedom without the overflow.
+
+Admissibility itself is still enforced where it always was: at REJECTION, via
+[`DEFAULT_ROOT_MARGIN`] / `assertStationarity` / `ensureAdmissible!`.
+"""
+admissibleCoefficientBound(order::Int, i::Int) = Float64(binomial(order, i))
+
+"""
 The `SARIMAModel` struct represents a SARIMA model. It contains the following fields:
 
 - `y`: The time series data.
@@ -26,8 +160,11 @@ The `SARIMAModel` struct represents a SARIMA model. It contains the following fi
 - `allowMean`: Whether to include a mean term in the model.
 - `allowDrift`: Whether to include a drift term in the model.
 - `keepProvidedCoefficients`: Whether to keep the provided coefficients.
-- `lambda`: The regularization strength parameter for lasso, ridge, or elastic net regularization.
-- `alpha`: The mixing parameter for elastic net regularization (0 ≤ alpha ≤ 1). Alpha = 1 is lasso, alpha = 0 is ridge.
+- `lambda`: Strength of the elastic-net penalty (`lambda >= 0`). Defaults to the square
+  root of the effective sample size. Only the `"elastic_net"` objective honours it; the
+  `"ridge"` objective fixes its own value and rejects the argument.
+- `alpha`: Mixing parameter of the elastic-net penalty (0 <= alpha <= 1); `alpha = 1` is
+  lasso, `alpha = 0` is ridge.
 """
 mutable struct SARIMAModel{Fl<:AbstractFloat} <: SarimaxModel
     y::TimeArray
@@ -571,7 +708,7 @@ as used by the information criteria.
 
 For regular objectives every declared parameter counts, regardless of the
 magnitude of its estimate — a coefficient estimated near zero was still
-estimated. For elastic-net fits (`lambda`/`alpha` set) the count is instead the
+estimated. For `elastic_net` fits the count is instead the
 number of ACTIVE coefficients (|coef| > 1e-5), the standard effective-degrees-
 of-freedom estimate for L1-type regularization (Zou, Hastie & Tibshirani, 2007).
 
@@ -583,7 +720,15 @@ of-freedom estimate for L1-type regularization (Zou, Hastie & Tibshirani, 2007).
 
 """
 function get_hyperparameters_number(model::SARIMAModel)
-    usesSparseCount = !isnothing(model.lambda) || !isnothing(model.alpha)
+    # Keyed on the OBJECTIVE that fitted the model, not on `lambda`/`alpha` being set:
+    # those fields do not by themselves change the estimate, so letting them switch the
+    # count would move the criterion without moving the fit.
+    #
+    # The non-zero count applies to `elastic_net` at any `alpha`. Restricting it to the
+    # lasso case (`alpha = 1`), the only one with theoretical backing (Zou, Hastie &
+    # Tibshirani 2007 — under ridge the count degenerates to the nominal one, since ridge
+    # shrinks without zeroing), would be a policy change rather than a fix.
+    usesSparseCount = get(model.metadata, "objectiveFunction", "") == "elastic_net"
     if isFitted(model) && usesSparseCount
         hyperparametersNumber = 1
         fields = [:c, :trend, :ϕ, :θ, :Φ, :Θ, :exogCoefficients]
@@ -598,14 +743,25 @@ function get_hyperparameters_number(model::SARIMAModel)
     k = (model.allowMean) ? 1 : 0
     k = (model.allowDrift) ? k + 1 : k
     β = isnothing(model.exog) ? 0 : length(colnames(model.exog))
+    # `K = ncoef + 1` (the +1 is sigma^2), the `forecast::Arima` convention. The `n` of the
+    # criteria comes from `criterionLoglikeAndN`: `T = length(diffY)` (R's
+    # `n* = n - d - D*m`) when the exact likelihood is used, and
+    # `length(observedResiduals) = T - lb + 1` on the CSS fallback, where the conditioned
+    # residuals discount `lb` and are therefore NOT R's `n*`.
+    #
+    # Free pre-sample values are not counted as parameters. Charging them would make the
+    # criterion incomparable with R's; under `:penalized` the objective already prices the
+    # pre-sample block, and under `:free` the rejection rule is the defense, as in R.
     return model.p + model.q + model.P + model.Q + k + β + 1
 end
 
 function get_hyperparameters_number(model::JuMP.Model)
-    # is_solved_and_feasible(model) ||
-    #     throw(ArgumentError("The model must be solved and feasible"))
-    c = variable_by_name(model, "c")
-    trend = variable_by_name(model, "trend")
+    # Read through the object dictionary (`model[:c]`) rather than `variable_by_name`: the
+    # build disables the variables' string names, so `variable_by_name` would return
+    # `nothing` for `c` and `trend` and silently drop them from the count. The object
+    # dictionary is populated by `@variable` regardless of string names.
+    c = haskey(model, :c) ? model[:c] : nothing
+    trend = haskey(model, :trend) ? model[:trend] : nothing
     hyperparametersNumber = (c !== nothing && abs(value(c)) > 1e-5) ? 1 : 0
     hyperparametersNumber += (trend !== nothing && abs(value(trend)) > 1e-5) ? 1 : 0
 
@@ -631,7 +787,7 @@ end
         objectiveFunction::String="mse"
         automaticExogDifferentiation::Bool=false
         invertible::Bool=false
-        invertibilityMargin::AbstractFloat=0.0
+        invertibilityMargin::AbstractFloat=DEFAULT_DOMAIN_MARGIN
     )
 
 Estimate the SARIMA model parameters via conditional least squares (CSS) formulated
@@ -657,31 +813,96 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
 - `automaticExogDifferentiation::Bool`: Whether to automatically differentiate the exogenous variables. Default is `false`.
 - `invertible::Bool`: When `true`, the (seasonal) moving-average coefficients are generated from
   bounded reflection coefficients `κ` via [`reflectionToMA`](@ref), guaranteeing an invertible MA
-  polynomial by construction instead of imposing only box bounds on `θ`/`Θ`. For `q = Q = 1` this is
-  equivalent to the default box bounds; for higher orders it restricts the estimate to the
-  (non-box) invertibility region. Not compatible with the `"bilevel"` objective. Default is `false`.
+  polynomial by construction instead of imposing only box bounds on `θ`/`Θ`. Not compatible with
+  the `"bilevel"` objective. Default is `false`, mirroring `stats::arima`, which does NOT constrain
+  the MA during optimization and only converts to an invertible representation afterwards.
+
+  Note the two regions do not nest: the free path's box (see [`admissibleCoefficientBound`])
+  admits non-invertible points, while the invertibility region contains points outside any
+  per-coefficient box. They coincide only for `q = Q = 1`.
 - `invertibilityMargin::AbstractFloat`: Margin `ρ ∈ [0, 1)` that bounds the reflection coefficients to
   `[-(1-ρ), 1-ρ]`, keeping the solution `ρ` away from the unit circle. Only used when `invertible=true`.
-  Default is `0.0`.
+  Default is `DEFAULT_DOMAIN_MARGIN` (`1e-6`): enough to keep the domain open, small enough
+  not to truncate near-unit-root estimates. Do NOT set it to the rejection margin
+  [`DEFAULT_ROOT_MARGIN`] — that imposes a selection rule as an estimation constraint.
 - `seasonalForm::Symbol`: `:multiplicative` (Box-Jenkins, default) or `:additive`.
+- `exogDynamics::Symbol`: Semantics of the exogenous block. `:armax` (default) is the
+  dynamic-regression/ARX form, in which the AR terms act on the observed series and the
+  coefficient is an impact multiplier conditional on past `y`. `:regression_errors` is
+  regression with ARIMA errors, the form `forecast::Arima(xreg=)` estimates, in which the
+  coefficient is the usual marginal effect. The two coincide only when the autoregressive
+  polynomial is unitary and there is no differencing, so the choice is observable only
+  when regressors are present.
+- `penaltyTarget::Symbol`: Which coefficient blocks the `"elastic_net"` penalty applies
+  to: `:all` (default), `:dynamics` for the autoregressive and moving-average blocks only,
+  or `:exogenous` for the regressors only. The intercept and the drift are never
+  penalized. Ignored by every other objective.
 - `stationary::Bool`: When `true`, the (seasonal) AR coefficients are generated from
   bounded reflection coefficients (partial autocorrelations) via [`reflectionToAR`](@ref),
   guaranteeing a stationary AR polynomial by construction (exact under `:multiplicative`;
-  per-block only under `:additive`). Default is `false`.
+  per-block only under `:additive`). Default is `true`, mirroring `stats::arima` with
+  `transform.pars = TRUE`, which parameterizes the AR through `tanh`. When `false`, the
+  coefficients are box-bounded by [`admissibleCoefficientBound`], which excludes no
+  admissible model.
 - `stationarityMargin::AbstractFloat`: Margin in `[0, 1)` bounding the AR reflection
   coefficients to `[-(1-margin), 1-margin]`. Only used when `stationary = true`.
+  Default is `DEFAULT_DOMAIN_MARGIN` (`1e-6`), the AR analogue of `invertibilityMargin`.
 - Missing observations: `NaN` entries in the endogenous series are supported for
   stationary models (`d = D = 0`, `mse`/`ml` objectives, no exogenous regressors). Each
   gap becomes a free decision variable whose residual is retained in the objective,
   yielding the two-sided conditional smoother; σ², the log-likelihood, the effective
   sample size and the residual diagnostics all exclude the imputed indices. The imputed
   values are written back into `model.y` and recorded in `model.metadata["nMissing"]`.
-- `initialization::Symbol`: CSS conditioning convention. `:zeroed` (default) fixes the
-  pre-sample residuals at zero and drops the first `max(p+sP, q+sQ)` differenced
-  observations; `:warmup` conditions only on the AR-side lags and warm-starts the MA
-  recursion from the beginning of the differenced sample, matching R's
-  `arima(..., method = "CSS")`. Exact-likelihood (Kalman) initialization is out of
-  scope by design.
+- `initialization::Symbol`: CSS conditioning convention. The five modes are points in a
+  SPACE of independent choices, not rungs on a ladder. Three are known: whether the
+  pre-sample block is free or held at zero; whether that block is penalised in the
+  objective; and how the block is parameterised. Read the axes below, not the names —
+  two modes sharing the first two axes still estimate different models.
+  `:innovations` (**default**) is free-and-penalised: the pre-sample innovations are
+  decision variables, the objective carries the determinant factor
+  `∏ⱼ(1-κⱼ²)^(-j/T)`, and the fit-error sum starts at `t = 1` for EVERY objective
+  function rather than after the conditioning lag.
+  `:penalized` is free-and-penalised too, but parameterises the pre-sample block
+  differently: it leaves the pre-sample differenced values AND the pre-sample residuals
+  free at the same time, whereas `:innovations` generates the pre-sample past from the
+  innovations alone. The two are NOT interchangeable — measured on 6 M4 monthly series
+  at fixed order (2,1,2), they disagree in all 6, with `φ₁` flipping from `0.886` to
+  `-0.618` on one of them. Which of the two admits the other's optimum is an open
+  question, not a documented property.
+  `:free` estimates the pre-sample residuals and the pre-sample differenced endogenous
+  values as free variables (Box-Jenkins backcasting / unconditional least squares) and
+  keeps every differenced observation in the objective, but does NOT penalise the block.
+  `:zeroed` fixes the pre-sample residuals at zero and drops the first
+  `max(p+sP, q+sQ)` differenced observations — it is the only mode whose optimum was
+  measured to depend on the solver's starting point.
+  `:warmup` conditions only on the AR-side lags and warm-starts the MA recursion from the
+  beginning of the differenced sample, matching R's `arima(..., method = "CSS")`.
+  The free-and-penalised concentrated likelihood tracks the exact (Kalman) likelihood up
+  to a near-constant log-determinant term, making information criteria comparable across
+  candidate orders. Exact-likelihood (Kalman) initialization is out of scope by design.
+  See [`DEFAULT_INITIALIZATION`].
+- `warmStart::Union{Nothing,SARIMAModel}`: A previously fitted model of the same
+  specification whose solution seeds this solve (residual vector, coefficients and —
+  under the reflection parameterisations — their reflection-space preimages via
+  [`arToReflection`](@ref)/[`maToReflection`](@ref)). A starting point only: the
+  problem being solved is unchanged. Default is `nothing`.
+- `warmStartFromBox::Bool`: When `true` and a constrained fit is requested
+  (`stationary` and/or `invertible`), first solves the cheap unconstrained (box)
+  problem and warm-starts the constrained one from it, falling back through three
+  tiers if it does not converge within the budget: full constraints → invertibility
+  only → the unconstrained seed. The tier reached is stored in
+  `model.metadata["warmStartTier"]` (1, 2 or 3). Default is `false`.
+- `maxTimeSeconds::Union{Nothing,Real}`: Budget for each solve. Sets both the solver
+  wall-clock limit and (for Ipopt) an iteration ceiling — a wall-clock limit alone is
+  only checked between iterations and cannot bound a single expensive iteration. On a
+  budget cut the fit returns with the corresponding solver status
+  (`TIME_LIMIT`/`ITERATION_LIMIT`) instead of running unbounded. Default is `nothing`
+  (no limit).
+
+Internally the differenced series is scaled by its standard deviation before the
+model is built and the scale-dependent estimates are mapped back afterwards, keeping
+the objective well conditioned for large-magnitude data; AR/MA coefficients are
+invariant to this and results where the solver already converged are unchanged.
 
 # Example
 ```jldoctest
@@ -695,29 +916,316 @@ julia> fit!(model)
 function fit!(
     model::SARIMAModel;
     silent::Bool = true,
-    optimizer::DataType = Ipopt.Optimizer,
+    optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     mipSolver::DataType = SCIP.Optimizer,
     objectiveFunction::String = "mse",
     automaticExogDifferentiation::Bool = false,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
     lambda::Union{Nothing,<:AbstractFloat} = nothing,
     invertible::Bool = false,
-    invertibilityMargin::AbstractFloat = 0.0,
+    invertibilityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
-    initialization::Symbol = :zeroed,
-    stationary::Bool = false,
-    stationarityMargin::AbstractFloat = 0.0,
+    initialization::Symbol = DEFAULT_INITIALIZATION,
+    # Semantics of the exogenous block. See `arAcc` in the model construction for the two
+    # equations.
+    #
+    # The default is `:armax`: the dynamic-regression/ARX form, in which `beta` is an
+    # impact multiplier conditional on past `y`. Under `:regression_errors` -- regression
+    # with ARIMA errors, the form `forecast::Arima(xreg=)` estimates and the one Hyndman
+    # recommends in "The ARIMAX model muddle" (2010) -- `beta` is the marginal effect
+    # instead. The two coincide only when the autoregressive polynomial is unitary and
+    # there is no differencing.
+    #
+    # The choice is only observable with regressors present: at `nExog == 0` `arAcc` takes
+    # the same branch under both modes.
+    exogDynamics::Symbol = :armax,
+    # Which coefficient blocks the `elastic_net` penalty applies to: `:all` (default),
+    # `:dynamics` for the AR/MA blocks only, or `:exogenous` for the regressors only.
+    # The intercept and the drift are never penalized. Ignored by every other objective.
+    penaltyTarget::Symbol = :all,
+    # Extra window of pre-sample innovations under `initialization = :innovations`; it has
+    # no effect in any other mode. The default covers one seasonal cycle beyond what the
+    # order requires, enough for the null initial condition to decay.
+    presampleBurnIn::Int = 12,
+    # R's default: `stats::arima` with `transform.pars = TRUE` parameterizes the AR part
+    # through `tanh`, i.e. stationary BY CONSTRUCTION on an open domain. The MA part stays
+    # free (see `invertible`), which is the other half of R's behaviour.
+    stationary::Bool = true,
+    stationarityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
+    warmStart::Union{Nothing,SARIMAModel} = nothing,
+    maxTimeSeconds::Union{Nothing,Real} = nothing,
+    warmStartFromBox::Bool = false,
+    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
+    multistart::Bool = false,
 )
+    @assert 0.0 < cvarLevel < 1.0 "cvarLevel must lie strictly between 0 and 1."
+    penaltyTarget in (:all, :dynamics, :exogenous) || throw(
+        ArgumentError(
+            "penaltyTarget must be :all, :dynamics or :exogenous, got $(penaltyTarget)",
+        ),
+    )
+    exogDynamics in (:armax, :regression_errors) || throw(
+        ArgumentError(
+            "exogDynamics must be :armax or :regression_errors, got $(exogDynamics)",
+        ),
+    )
+    # Two-phase warm-start orchestration: when a stationarity/invertibility-by-
+    # construction fit is requested with `warmStartFromBox`, first solve the cheap
+    # unconstrained (box) problem, then solve the constrained one warm-started from it
+    # under the `maxTimeSeconds` cap; if the constrained solve does not converge in
+    # time, fall back to the (valid) unconstrained fit. This keeps the guarantee when
+    # affordable and a usable model otherwise, addressing the O(T) reflection blow-up on
+    # long series. Purely an optimization technique (a starting point).
+    #
+    # The Huber objective is linear in the tail, so far from the optimum a large residual
+    # costs little and the surface is nearly flat — Ipopt wanders and, on the M4 monthly,
+    # returned LOCALLY_INFEASIBLE with forecasts of +-1e5 on orders that "mse" solved
+    # cleanly. Six series ended above MASE 100 (one at 5e5) where no other objective, not
+    # even Naive2, exceeded 38.55: the ceiling elsewhere is a property of those series,
+    # the excess was numerical.
+    #
+    # The classical remedy for an M-estimator is to start from least squares (IRLS begins
+    # at OLS). Solve `mse` first, warm start Huber from it, and keep the `mse` fit when the
+    # Huber solve does not reach an acceptable status — so Huber is never worse than the
+    # starting point it refines.
+    #
+    # Bounding `u` to [-delta, delta] was tried instead and made things worse: it is exact
+    # at the optimum but adds 2(T-lb+1) active box constraints, and LOCALLY_INFEASIBLE went
+    # from 2 to 3 of the six diagnosed series.
+
+    # MULTISTART {zero, CSS}: the starts are the zero vector and the CSS fit, which is the
+    # path `stats::arima` itself takes (CSS then ML) — deterministic, with no new constant
+    # to calibrate.
+    #
+    # The tie-break is by CRITERION, not by SSE. At fixed order `K` and `n` coincide across
+    # starts, so comparing AICc compares the criterion's likelihood; by SSE the lower
+    # in-sample error would win, which is not the better forecast.
+    #
+    # At fixed order the effect is small and never negative — the zero start remains a
+    # candidate. The step pays off inside the SEARCH, where a marginally better criterion
+    # can change the selected order, so measure it through `auto` rather than through a
+    # fixed-order fit.
+    if multistart && isnothing(warmStart)
+        passaM = (;
+            silent, optimizer, mipSolver, automaticExogDifferentiation, alpha, lambda,
+            invertible, invertibilityMargin, minConditioningObs, seasonalForm,
+            stationary, stationarityMargin, maxTimeSeconds, warmStartFromBox, cvarLevel,
+        )
+        criterio(m) = try
+            v = aicc(m)
+            isfinite(v) ? v : Inf
+        catch
+            Inf
+        end
+        okStatus(m) = get(m.metadata, "solverStatus", "") in
+                      ("LOCALLY_SOLVED", "OPTIMAL", "ALMOST_LOCALLY_SOLVED", "TIME_LIMIT")
+
+        # semente CSS: o mesmo objetivo, condicionado (`:zeroed`)
+        semente = nothing
+        try
+            cand = deepcopy(model)
+            fit!(cand; passaM..., objectiveFunction = objectiveFunction,
+                 initialization = :zeroed, multistart = false)
+            okStatus(cand) && (semente = cand)
+        catch
+        end
+
+        # partida do zero. Sob `:zeroed` ela e IDENTICA a semente (mesma inicializacao,
+        # mesmos argumentos): reaproveita em vez de pagar o mesmo ajuste duas vezes.
+        aZero = nothing
+        if initialization === :zeroed
+            aZero = semente
+        else
+            try
+                cand = deepcopy(model)
+                fit!(cand; passaM..., objectiveFunction = objectiveFunction,
+                     initialization = initialization, multistart = false)
+                okStatus(cand) && (aZero = cand)
+            catch
+            end
+        end
+        # partida da semente CSS
+        aCSS = nothing
+        if !isnothing(semente)
+            try
+                cand = deepcopy(model)
+                fit!(cand; passaM..., objectiveFunction = objectiveFunction,
+                     initialization = initialization, warmStart = semente, multistart = false)
+                okStatus(cand) && (aCSS = cand)
+            catch
+            end
+        end
+
+        cands = filter(!isnothing, [aZero, aCSS])
+        if isempty(cands)
+            # nenhuma partida convergiu: cai no caminho normal e deixa o erro aparecer la
+            return fit!(model; passaM..., objectiveFunction = objectiveFunction,
+                        initialization = initialization, multistart = false)
+        end
+        vencedor = cands[argmin([criterio(c) for c in cands])]
+        # `:y` is on the list because the fit imputes missing values INSIDE the model
+        # itself (`model.y = ...`); without copying it, the winner's `y` and its residuals
+        # would come from different samples on series with gaps.
+        for f in (:ϕ, :θ, :Φ, :Θ, :c, :trend, :ϵ, :σ², :fitInSample, :exogCoefficients,
+                  :icOffset, :y)
+            hasproperty(model, f) && setfield!(model, f, getfield(vencedor, f))
+        end
+        merge!(model.metadata, vencedor.metadata)
+        model.metadata["multistartPartidas"] = length(cands)
+        model.metadata["multistartVenceuCSS"] = (vencedor === aCSS)
+        return model
+    end
+
+    if objectiveFunction == "huber" && isnothing(warmStart)
+        passa = (;
+            silent, optimizer, mipSolver, automaticExogDifferentiation, alpha, lambda,
+            invertible, invertibilityMargin, minConditioningObs, seasonalForm,
+            initialization, stationary, stationarityMargin, maxTimeSeconds,
+            warmStartFromBox, cvarLevel,
+        )
+        base = deepcopy(model)
+        fit!(base; passa..., objectiveFunction = "mse")
+        aceitavel(m) = get(m.metadata, "solverStatus", "") in
+                       ("LOCALLY_SOLVED", "OPTIMAL", "ALMOST_LOCALLY_SOLVED")
+        ok = false
+        try
+            fit!(model; passa..., objectiveFunction = "huber", warmStart = base)
+            ok = aceitavel(model)
+        catch
+            ok = false
+        end
+        if !ok
+            # Warn, never degrade silently. The caller asked for `huber` and receives an
+            # `mse` fit: without a warning an entire experimental cell measures one
+            # estimator under another's label. Under an earlier objective guard this
+            # `catch` swallowed the guard's own error, and the fallback fired on every
+            # series of a campaign without a trace in the log.
+            #
+            # `maxlog = 1` keeps an interactive session readable, so the warning is not a
+            # per-series signal: `metadata["huberFallback"]` is, and a campaign must report
+            # its rate as a validity column.
+            @warn "objectiveFunction=\"huber\" did not converge; returning the \"mse\" fit " *
+                  "(metadata[\"huberFallback\"] = true). Report the fallback rate as a " *
+                  "validity column in any huber measurement." maxlog = 1
+            model.c = base.c
+            model.trend = base.trend
+            model.ϕ = base.ϕ
+            model.θ = base.θ
+            model.Φ = base.Φ
+            model.Θ = base.Θ
+            model.ϵ = base.ϵ
+            model.σ² = base.σ²
+            model.fitInSample = base.fitInSample
+            model.exogCoefficients = base.exogCoefficients
+            merge!(model.metadata, base.metadata)
+            model.metadata["huberFallback"] = true
+        else
+            model.metadata["huberFallback"] = false
+        end
+        return model
+    end
+
+    if warmStartFromBox && (stationary || invertible) && isnothing(warmStart)
+        common = (;
+            silent, optimizer, mipSolver, objectiveFunction, automaticExogDifferentiation,
+            alpha, lambda, minConditioningObs, seasonalForm, initialization, cvarLevel,
+        )
+        seed = deepcopy(model)
+        fit!(seed; common..., stationary = false, invertible = false,
+             stationarityMargin = 0.0, invertibilityMargin = 0.0,
+             maxTimeSeconds = maxTimeSeconds)
+        # Accumulates the cost of the attempts made ON `model` (tiers 1 and 2). Kept out of
+        # the metadata because the tier-3 `merge!` would overwrite it; reconciled before
+        # returning.
+        modelTimings = Dict{String,Float64}("build" => 0.0, "solve" => 0.0, "count" => 0.0)
+        accumulate!() = begin
+            modelTimings["build"] += get(model.metadata, "buildTimeSec", 0.0)
+            modelTimings["solve"] += get(model.metadata, "solveTimeSec", 0.0)
+            modelTimings["count"] += 1.0
+        end
+        solved() = get(model.metadata, "solverStatus", "") in
+                   ("LOCALLY_SOLVED", "OPTIMAL", "ALMOST_LOCALLY_SOLVED")
+        tryFit(st, inv, sMargin, iMargin) = begin
+            ok = false
+            try
+                fit!(model; common..., stationary = st, invertible = inv,
+                     stationarityMargin = sMargin, invertibilityMargin = iMargin,
+                     warmStart = seed, maxTimeSeconds = maxTimeSeconds)
+                ok = solved()
+            catch
+                ok = false
+            end
+            accumulate!()
+            ok
+        end
+        # tier 1: full stationarity + invertibility by construction
+        converged = tryFit(stationary, invertible, stationarityMargin, invertibilityMargin)
+        tier = 1
+        # tier 2: relax stationarity, keep invertibility — only when tier 1 failed for a
+        # *numerical/feasibility* reason (fast). If tier 1 was cut off by a budget limit
+        # (time or iterations), tier 2 is just as constrained and would burn the same
+        # budget again, so skip straight to the box result.
+        hitLimit = get(model.metadata, "solverStatus", "") in
+                   ("TIME_LIMIT", "ITERATION_LIMIT", "OTHER_LIMIT", "MEMORY_LIMIT")
+        if !converged && stationary && invertible && !hitLimit
+            converged = tryFit(false, true, 0.0, invertibilityMargin)
+            tier = 2
+        end
+        # tier 3: fall back to the unconstrained fit — which is exactly `seed`, already
+        # solved above. Re-solving it here doubled the cost of every failing candidate
+        # (the dominant term in the stepwise search on hard series), so copy it instead.
+        if !converged
+            model.c = seed.c
+            model.trend = seed.trend
+            model.ϕ = seed.ϕ
+            model.θ = seed.θ
+            model.Φ = seed.Φ
+            model.Θ = seed.Θ
+            model.ϵ = seed.ϵ
+            model.σ² = seed.σ²
+            model.fitInSample = seed.fitInSample
+            model.exogCoefficients = seed.exogCoefficients
+            merge!(model.metadata, seed.metadata)
+            tier = 3
+        end
+        model.metadata["warmStartTier"] = tier
+        # The box solve happens in `seed`, a separate object, so its cost does not reach the
+        # accumulators of `model` on its own, and at tier 3 the `merge!` above overwrites
+        # `model`'s with `seed`'s. Without this reconciliation the telemetry of a
+        # warm-started candidate reports a subset of what it cost. Rebuild the sum
+        # explicitly.
+        model.metadata["buildTimeSecTotal"] =
+            get(modelTimings, "build", 0.0) + get(seed.metadata, "buildTimeSecTotal", 0.0)
+        model.metadata["solveTimeSecTotal"] =
+            get(modelTimings, "solve", 0.0) + get(seed.metadata, "solveTimeSecTotal", 0.0)
+        model.metadata["fitCount"] =
+            Int(get(modelTimings, "count", 0.0)) + get(seed.metadata, "fitCount", 0)
+        return model
+    end
+
     Fl = typeofModelElements(model)
     isFitted(model) &&
         @info("The model has already been fitted. Overwriting the previous results")
-    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable"] "The objective function $objectiveFunction is not supported. Please use 'mae', 'mse', 'ml', 'bilevel', 'elastic_net' or 'stable'"
+    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge", "huber", "ml_exact"] "The objective function $objectiveFunction is not supported. Please use 'mae', 'mse', 'ml', 'bilevel', 'elastic_net', 'stable', 'ridge', 'huber' or 'ml_exact'"
     @assert !(invertible && MACoefficientsAreModelParameters(objectiveFunction)) "The invertible MA parameterization is not compatible with the '$objectiveFunction' objective (MA coefficients are treated as outer parameters there)."
     @assert 0.0 <= invertibilityMargin < 1.0 "invertibilityMargin (ρ) must lie in [0, 1)."
     @assert 0.0 <= stationarityMargin < 1.0 "stationarityMargin must lie in [0, 1)."
     if objectiveFunction == "elastic_net"
         @assert (!isnothing(alpha) || !isnothing(model.alpha)) "In elastic net objective function, alpha must be specified"
+    end
+
+    # Deprecated in v1.0, scheduled for removal in v2.0. The objective optimizes the
+    # moving-average coefficients in an outer loop, which costs orders of magnitude more
+    # solver time than the objectives that keep them as decision variables, and it has no
+    # remaining use that those do not cover.
+    if objectiveFunction == "bilevel"
+        @warn(
+            "objectiveFunction = \"bilevel\" is deprecated and will be removed in " *
+            "Sarimax v2.0. Use \"mse\" (or \"ml\") instead; they estimate the same " *
+            "moving-average coefficients as decision variables at a fraction of the cost.",
+            maxlog = 1
+        )
     end
 
     model.allowMean && model.allowDrift && throw(
@@ -730,13 +1238,75 @@ function fit!(
     seasonalForm === :free && throw(ArgumentError("seasonalForm :free is planned for a later release"))
     seasonalForm in (:multiplicative, :additive) ||
         throw(ArgumentError("seasonalForm must be :multiplicative or :additive"))
-    initialization in (:zeroed, :warmup) ||
-        throw(ArgumentError("initialization must be :zeroed or :warmup (exact-likelihood initialization requires a Kalman filter, which is out of scope by design)"))
+    # Invalid ARGUMENT COMBINATIONS raise rather than warn. The combination is fixed at
+    # the call site and has no valid interpretation, so the caller can check it in advance;
+    # a warning is invisible in a parallel sweep, and a sweep in which some cells silently
+    # mean something else is a broken sweep. Run-time DEGRADATION is the separate case
+    # (`ml_exact` falling back to CSS depends on the candidate, whose order varies inside
+    # `auto`) and warns instead, since raising there would abort the search.
+    #
+    # The list below must mirror EXACTLY the penalized-objective gate (search for
+    # `&& penalizado` in this file). `:innovations` is named next to `:penalized` because
+    # the gate is `penalizado = initialization in (:penalized, :innovations)`; an objective
+    # this guard admits but the gate does not cover would leave the pre-sample values
+    # unpenalized and silently degrade the fit to `:free`.
+    #
+    # The penalized pre-sample block is implemented for the losses whose block term can be
+    # written in the SAME loss as the data, which is what prevents mixing scales (an L2
+    # block penalty against an L1 data loss). Under `mse` the block enters as a sum of
+    # squares and the determinant factor applies. Under `mae` and `huber` it enters as the
+    # data loss itself and the determinant factor does NOT apply: that factor comes from
+    # concentrating sigma^2, a step that holds only under a quadratic loss. The remaining
+    # objectives add the block through `presampleSquares`.
+    if initialization in (:penalized, :innovations) &&
+       !(objectiveFunction in
+         ("mse", "mae", "huber", "ml", "ml_exact", "ridge", "stable", "bilevel", "elastic_net"))
+        throw(
+            ArgumentError(
+                "initialization = :$(initialization) is implemented for objectiveFunction " *
+                "in (\"mse\", \"mae\", \"huber\", \"ml\", \"ml_exact\", \"ridge\", " *
+                "\"stable\", \"bilevel\", \"elastic_net\"); got \"$(objectiveFunction)\". " *
+                "The pre-sample values would stay unpenalized, i.e. the fit would " *
+                "silently degrade to :free.",
+            ),
+        )
+    end
+    initialization in (:zeroed, :warmup, :free, :penalized, :innovations) || throw(
+        ArgumentError(
+            "initialization must be :zeroed, :warmup, :free, :penalized or :innovations",
+        ),
+    )
 
     isnothing(lambda) || (model.lambda = lambda)
     isnothing(alpha) || (model.alpha = alpha)
     model.metadata["seasonalForm"] = String(seasonalForm)
+    model.metadata["exogDynamics"] = String(exogDynamics)
     model.metadata["initialization"] = String(initialization)
+    # Recorded because the PARAMETER COUNT depends on the objective that actually fitted
+    # the model, not on `lambda`/`alpha` being set — see `get_hyperparameters_number`.
+    model.metadata["objectiveFunction"] = objectiveFunction
+
+    # The `ridge` objective fixes `lambda = sqrt(nEff)` internally and ignores the
+    # argument. Accepting it silently would let the caller believe they control the
+    # shrinkage while the fit does not change; `elastic_net` is the objective that honours
+    # a caller-supplied lambda.
+    if objectiveFunction == "ridge" && !isnothing(lambda)
+        throw(
+            ArgumentError(
+                "objectiveFunction = \"ridge\" ignores `lambda`: the shrinkage is fixed at " *
+                "sqrt(effective sample size) by construction. Passing it would have no " *
+                "effect on the fit; drop the argument or use \"elastic_net\".",
+            ),
+        )
+    end
+
+    # Cost telemetry (performance attribution). A search costs (number of fits) x (cost per
+    # fit), and the cost per fit splits into BUILDING the JuMP problem (grows with T and
+    # with the order — about 2T variables under `:free`) and SOLVING it (grows with
+    # numerical difficulty). Without separating the two, "more candidates", "larger models"
+    # and "harder solves" are indistinguishable, and they call for different remedies.
+    # Purely observational: nothing here changes the estimate.
+    fitStartTime = time()
 
     diffY = differentiate(model.y, model.d, model.D, model.seasonality)
 
@@ -770,6 +1340,21 @@ function fit!(
     nExog = isnothing(model.exog) ? 0 : size(values(diffY), 2) - 1
     exogValues = isnothing(model.exog) ? [] : values(diffY)[:, 2:end]
 
+    # Numerical conditioning: the CSS objective is quadratic in the data, so a series
+    # living around 1e4 produces an objective near 1e8. Ipopt then drops into its
+    # restoration phase and a *single* iteration can run for minutes — no time or
+    # iteration cap helps, because both are only checked between iterations. Measured
+    # on M4 daily series 3441: 208s without converging on the raw data versus 1.1s
+    # (converged) on the same series scaled. So solve in units of the differenced
+    # series' standard deviation and map the scale-dependent estimates back below.
+    # AR/MA coefficients are invariant under this rescaling; only c, trend, the
+    # exogenous coefficients, the residuals and their variance carry the factor.
+    yScale = let finiteY = filter(isfinite, yValues)
+        s = isempty(finiteY) ? one(Fl) : Fl(Statistics.std(finiteY))
+        (isfinite(s) && s > zero(Fl)) ? s : one(Fl)
+    end
+    yValues = yValues ./ yScale
+
     # Missing-data support: NaN entries in the (differenced) endogenous series
     # are treated as free decision variables (Section: missing observations).
     missingMask::Vector{Bool} = isnan.(yValues)
@@ -794,6 +1379,7 @@ function fit!(
     end
 
     residualLags =
+        initialization in (:free, :penalized, :innovations) ? 0 :
         initialization === :warmup ?
         (
             seasonalForm === :multiplicative ?
@@ -804,6 +1390,12 @@ function fit!(
     lb = max(residualLags, minConditioningObs) + 1
 
     mod = Model(optimizer)
+    # The variables' string names serve only printing and `variable_by_name`, and each is
+    # one allocated String per variable — with about 2T variables under `:free` that is pure
+    # build work. Build is about 22% of the cost of a search, stable across the regimes
+    # tested. The only consumer was `get_hyperparameters_number(::JuMP.Model)`, which now
+    # reads the object dictionary.
+    set_string_names_on_creation(mod, false)
 
     if (model.allowMean)
         @variable(mod, c)
@@ -848,12 +1440,83 @@ function fit!(
             end
         end
     else
-        @variable(mod, -1 <= ϕ[1:model.p] <= 1)
-        @variable(mod, -1 <= Φ[1:model.P] <= 1)
+        # A bound that EXCLUDES no admissible model — see `admissibleCoefficientBound`. The
+        # plain `-1 <= phi_i <= 1` excludes legitimate estimates from order 2 on: in a
+        # stationary AR(2), |phi_1| reaches 2. Measured against `stats::arima` over 125
+        # fits, 11.2% of R's ML estimates fall outside that box and 16.5% of our fits
+        # terminated against it.
+        @variable(
+            mod,
+            -admissibleCoefficientBound(model.p, i) <=
+            ϕ[i = 1:model.p] <=
+            admissibleCoefficientBound(model.p, i)
+        )
+        @variable(
+            mod,
+            -admissibleCoefficientBound(model.P, k) <=
+            Φ[k = 1:model.P] <=
+            admissibleCoefficientBound(model.P, k)
+        )
     end
     @variable(mod, ϵ[1:T])
 
     fix.(ϵ[1:lb-1], 0.0)
+
+    # initialization = :free — pre-sample values as free decision variables (Box-Jenkins
+    # backcasting / unconditional least squares): the pre-sample residuals and the
+    # pre-sample (differenced) endogenous values needed by the AR terms are estimated
+    # instead of conditioned at zero, and every differenced observation enters the
+    # objective. Pre-sample variables enter only through the recursion, not the objective,
+    # and are not counted as hyperparameters.
+    #
+    # initialization = :innovations — the pre-sample block parameterized BY INNOVATIONS
+    # ONLY.
+    #
+    # `:free` and `:penalized` leave `yback` and `ϵpre` free at the same time, which
+    # overparameterizes the initial block: there are more degrees of freedom than the exact
+    # quadratic form admits, so the minimum falls below it. On a (1,0,1)(1,0,1)[12] with
+    # T = 200 the ratio S / y'Omega^-1 y is 0.925 under `:free` against 1.014 under
+    # `:innovations`, with the reference at 1.
+    #
+    # The correct profiling is by MINIMUM NORM OVER INNOVATIONS: choose e_{-M..0}
+    # minimizing ||e||^2 subject to reproducing y, which gives y'(Psi Psi')^-1 y and
+    # converges to y'Omega^-1 y — exact to 1e-16 in the reference harness, and within 0.6%
+    # already at the `q + s*Q` window the package uses.
+    #
+    # This matters because the determinant term of the exact likelihood was derived FOR
+    # y'Omega^-1 y. Adding it to a different quadratic form breaks the balance between the
+    # two, and the imbalance is largest where the two forms diverge most. `:free` is a
+    # legitimate CSS objective on its own; it fails only when paired with the exact
+    # determinant.
+    #
+    # Here `yback` stops being a free variable and is GENERATED by the recursion from the
+    # pre-sample innovations, with everything before the window set to zero.
+    inovacoes = initialization === :innovations
+    freeInit = initialization in (:free, :penalized, :innovations)
+    penalizado = initialization in (:penalized, :innovations)
+    yLo = freeInit ? 1 - (model.p + model.seasonality * model.P) : 1
+    epsLo = freeInit ? 1 - (model.q + model.seasonality * model.Q) : 1
+    if inovacoes
+        # The innovations window covers the AR block too, since `yback` is generated from
+        # it. With no AR block (p = P = 0) there is no pre-sample `z` to generate, and
+        # creating variables and constraints for it would be pure cost: `:innovations`
+        # coincides with `:penalized` by construction in that case.
+        if model.p == 0 && model.P == 0
+            yLo = 1
+        else
+            epsLo = min(epsLo, yLo) - presampleBurnIn
+            yLo = min(yLo, epsLo + 1)
+        end
+    end
+    if freeInit && epsLo <= 0
+        @variable(mod, ϵpre[epsLo:0])
+        for t0 = epsLo:0
+            set_start_value(ϵpre[t0], 0.0)
+        end
+        epsAcc = OffsetArrays.OffsetVector(Any[[ϵpre[t0] for t0 = epsLo:0]; ϵ], epsLo - 1)
+    else
+        epsAcc = OffsetArrays.OffsetVector(Any[ϵ...], 0)
+    end
 
     # Represent missing endogenous values as free variables so the model
     # relates each gap to its neighbours; keeping their residuals in the
@@ -873,6 +1536,80 @@ function fit!(
     else
         yData = yValues
     end
+
+    # The real scope of missing data (d = D = 0, `mse`/`ml` objectives, no exogenous
+    # regressors) is enforced above and is independent of the initialization mode: with
+    # `d >= 1` it rejects `:zeroed` exactly as it rejects the others.
+    if freeInit && yLo <= 0
+        if inovacoes
+            yAcc = nothing   # adiado: depende de theta/Theta, criados adiante
+        else
+            @variable(mod, yback[yLo:0])
+            for t0 = yLo:0
+                set_start_value(yback[t0], 0.0)
+            end
+            yAcc = OffsetArrays.OffsetVector(Any[[yback[t0] for t0 = yLo:0]; yData], yLo - 1)
+        end
+    else
+        yAcc = OffsetArrays.OffsetVector(Any[yData...], 0)
+    end
+
+    # SEMANTICS OF THE EXOGENOUS BLOCK. Two distinct equations, both standard, and the
+    # choice between them is not an implementation detail (Hyndman, "The ARIMAX model
+    # muddle", 2010):
+    #
+    #   :armax               phi(B) Phi(B^s) y_t = X_t'b + theta(B) Theta(B^s) e_t
+    #   :regression_errors   y_t = X_t'b + eta_t ,
+    #                        phi(B) Phi(B^s) eta_t = theta(B) Theta(B^s) e_t
+    #
+    # They coincide iff the autoregressive polynomial (regular and seasonal) is unitary and
+    # there is no differencing. Outside that class `b` means different things: an impact
+    # multiplier conditional on past `y` under :armax, the usual marginal regression effect
+    # under :regression_errors. `forecast::Arima(xreg=)` implements the second, so a
+    # comparison between the two packages outside that class compares different models —
+    # measured at about +-0.40 in delta log(RMSE) on a DGP with T = 180.
+    #
+    # The implementation is a single substitution: the AR terms operate on
+    # eta_t = y_t - X_t'b instead of y_t. The free pre-sample values already represent eta
+    # directly (there is no X before the sample starts), so indices <= 0 pass through
+    # unchanged. The product b*phi makes the expression bilinear; the CSS objective is
+    # already non-convex through the MA terms, so this does not change the problem class.
+    arAcc = if inovacoes
+        nothing   # adiado junto com yAcc
+    elseif nExog == 0 || exogDynamics === :armax
+        yAcc
+    else
+        OffsetArrays.OffsetVector(
+            Any[
+                t <= 0 ? yAcc[t] :
+                yAcc[t] - sum(β[j] * exogValues[t, j] for j = 1:nExog) for t = yLo:T
+            ],
+            yLo - 1,
+        )
+    end
+    # Free pre-sample values are penalized as parameters in the information criteria: the
+    # ULS approximation leaves them unpenalized, which lets high-seasonal-order candidates
+    # absorb s*P backcast degrees of freedom for free.
+    #
+    # Under `:penalized` that charge no longer applies to whoever pays the prior in the
+    # OBJECTIVE. The pre-sample innovations are a priori iid N(0, sigma^2), so adding them
+    # to the sum of squares IS their prior: shrunk rather than free, and not counted. On
+    # the AR side the Levinson form covers the first `p` positions of `yback`; the
+    # remaining `s*P` stay free and are still charged. Under `:innovations` there is no
+    # free `yback` at all — the past is generated — so there is no pre-sample AR block to
+    # penalize and no hyper-parameter to count on that side.
+    nYback, nEpsPre = inovacoes ? (0, max(0, 1 - epsLo)) :
+                                  (max(0, 1 - yLo), max(0, 1 - epsLo))
+    # The credit depends on the AR term having been BUILT, not merely on `:penalized` being
+    # requested. The Levinson form needs the reflection coefficients, which exist only under
+    # `stationary = true`; with the free parameterization there is no `κAR` and the `p`
+    # positions of `yback` remain without a prior. Crediting regardless understates AICc by
+    # about 2*min(p, nYback) points and biases selection towards high p.
+    penalARAtivo = penalizado && stationary && model.p > 0 && nYback > 0
+    nYbackPago = penalARAtivo ? min(model.p, nYback) : 0
+    model.metadata["nPresampleFree"] =
+        !freeInit ? 0 :
+        penalizado ? (nYback - nYbackPago) : (nYback + nEpsPre)
 
     if MACoefficientsAreModelParameters(objectiveFunction)
         @variable(mod, θ[i = 1:model.q] in Parameter(i))
@@ -904,8 +1641,23 @@ function fit!(
             end
         end
     else
-        @variable(mod, -1 <= θ[1:model.q] <= 1)
-        @variable(mod, -1 <= Θ[1:model.Q] <= 1)
+        # MA free during optimization, as in R, which converts to the invertible
+        # representation only afterwards. The bound is the non-excluding one (see
+        # `admissibleCoefficientBound`), not `[-1, 1]`, which from q = 2 on leaves out
+        # legitimate estimates: on series 36291 R's ML gives theta = (1.511, 0.794) for an
+        # invertible MA(2), unreachable under that box.
+        @variable(
+            mod,
+            -admissibleCoefficientBound(model.q, j) <=
+            θ[j = 1:model.q] <=
+            admissibleCoefficientBound(model.q, j)
+        )
+        @variable(
+            mod,
+            -admissibleCoefficientBound(model.Q, w) <=
+            Θ[w = 1:model.Q] <=
+            admissibleCoefficientBound(model.Q, w)
+        )
         for i = 1:model.q
             set_start_value(mod[:θ][i], 0.0)
         end
@@ -915,7 +1667,74 @@ function fit!(
         end
     end
 
-    model.keepProvidedCoefficients && setProvidedCoefficients!(mod, model)
+if inovacoes
+        # Pre-sample y GENERATED by the recursion from the free innovations. Indices before
+        # the window are zero; the window is long enough for the null initial condition to
+        # decay (the effect decays as the largest inverse-root modulus raised to the number
+        # of periods).
+        #
+        # The past is a DECISION VARIABLE tied by an equality constraint, not a nested
+        # expression. Chaining `@expression` instead makes JuMP inline the recursion, so
+        # z_0 expands into a degree-|W| polynomial in the coefficients: measured at 0.183s
+        # against 57.0s on the same M4 series (312x) without adding a single variable. The
+        # blow-up is in the EXPRESSION, not the dimension. Variable plus equality keeps the
+        # Jacobian sparse and costs +|W| variables and +|W| constraints.
+        #
+        # The cross terms `phi*Phi*zpre` and `theta*Theta*epsilon` are degree 3, not
+        # bilinear. That is acceptable because the in-sample yhat already carries
+        # `theta*Theta*epsilon` in every multiplicative fit.
+        @variable(mod, zpre[yLo:0])
+        for t0 = yLo:0
+            set_start_value(zpre[t0], 0.0)
+        end
+        # The pre-sample generator must satisfy THE SAME equation as the in-sample block,
+        # which includes `c` and `trend`. Omitting them leaves `zpre` hovering near zero
+        # while `yData` carries the level, so the first AR contributions come out
+        # systematically wrong. This is invisible on zero-mean synthetic data, where `c` is
+        # fixed at 0.
+        # `driftValues` only exists for t = 1..T; for the past it is extrapolated by the
+        # same rule: constant when there is differencing, linear when there is not.
+        driftPre(t0) =
+            length(driftValues) >= 2 ?
+            driftValues[1] + (t0 - 1) * (driftValues[2] - driftValues[1]) :
+            (isempty(driftValues) ? zero(Fl) : driftValues[1])
+        lerY(t) = t < yLo ? zero(AffExpr) : (t <= 0 ? one(Fl) * zpre[t] : yData[t])
+        lerE(t) = t < epsLo ? zero(AffExpr) : (t <= 0 ? one(Fl) * mod[:ϵpre][t] : one(Fl) * mod[:ϵ][t])
+        for t0 = yLo:0
+            @constraint(
+                mod,
+                zpre[t0] ==
+                mod[:c] +
+                mod[:trend] * driftPre(t0) +
+                lerE(t0) +
+                sum(mod[:ϕ][i] * lerY(t0 - i) for i = 1:model.p; init = zero(AffExpr)) +
+                sum(mod[:θ][j] * lerE(t0 - j) for j = 1:model.q; init = zero(AffExpr)) +
+                sum(mod[:Φ][k] * lerY(t0 - model.seasonality * k) for k = 1:model.P; init = zero(AffExpr)) +
+                sum(mod[:Θ][w] * lerE(t0 - model.seasonality * w) for w = 1:model.Q; init = zero(AffExpr)) -
+                (model.seasonality > 1 && seasonalForm === :multiplicative ?
+                    sum(mod[:ϕ][i] * mod[:Φ][k] * lerY(t0 - i - model.seasonality * k)
+                        for i = 1:model.p, k = 1:model.P; init = zero(AffExpr)) : zero(AffExpr)) +
+                (model.seasonality > 1 && seasonalForm === :multiplicative ?
+                    sum(mod[:θ][j] * mod[:Θ][w] * lerE(t0 - j - model.seasonality * w)
+                        for j = 1:model.q, w = 1:model.Q; init = zero(AffExpr)) : zero(AffExpr))
+            )
+        end
+        yAcc = OffsetArrays.OffsetVector(
+            Any[[zpre[t0] for t0 = yLo:0]; yData], yLo - 1)
+        arAcc = if nExog == 0 || exogDynamics === :armax
+            yAcc
+        else
+            OffsetArrays.OffsetVector(
+                Any[
+                    t <= 0 ? yAcc[t] :
+                    yAcc[t] - sum(β[j] * exogValues[t, j] for j = 1:nExog) for t = yLo:T
+                ],
+                yLo - 1,
+            )
+        end
+    end
+
+    model.keepProvidedCoefficients && setProvidedCoefficients!(mod, model, yScale)
     includeSolverParameters!(mod, silent; mipSolver = mipSolver, objectiveFunction = objectiveFunction)
 
     if model.seasonality > 1 && seasonalForm === :multiplicative
@@ -927,20 +1746,20 @@ function fit!(
             c +
             trend * driftValues[t] +
             sum(β[i] * exogValues[t, i] for i = 1:nExog) +
-            sum(ϕ[i] * yData[t-i] for i = 1:model.p if (t - i > 0)) +
-            sum(θ[j] * ϵ[t-j] for j = 1:model.q if (t - j > 0)) +
+            sum(ϕ[i] * arAcc[t-i] for i = 1:model.p if (t - i >= yLo)) +
+            sum(θ[j] * epsAcc[t-j] for j = 1:model.q if (t - j >= epsLo)) +
             sum(
-                Φ[k] * yData[t-(model.seasonality*k)] for
-                k = 1:model.P if (t - (model.seasonality * k) > 0)
+                Φ[k] * arAcc[t-(model.seasonality*k)] for
+                k = 1:model.P if (t - (model.seasonality * k) >= yLo)
             ) +
-            sum(Θ[w] * ϵ[t-(model.seasonality*w)] for w = 1:model.Q if (t - (model.seasonality * w) > 0)) -
+            sum(Θ[w] * epsAcc[t-(model.seasonality*w)] for w = 1:model.Q if (t - (model.seasonality * w) >= epsLo)) -
             sum(
-                ϕ[i] * Φ[k] * yData[t-i-(model.seasonality*k)] for
-                i = 1:model.p, k = 1:model.P if (t - i - (model.seasonality * k) > 0)
+                ϕ[i] * Φ[k] * arAcc[t-i-(model.seasonality*k)] for
+                i = 1:model.p, k = 1:model.P if (t - i - (model.seasonality * k) >= yLo)
             ) +
             sum(
-                θ[j] * Θ[w] * ϵ[t-j-(model.seasonality*w)] for
-                j = 1:model.q, w = 1:model.Q if (t - j - (model.seasonality * w) > 0)
+                θ[j] * Θ[w] * epsAcc[t-j-(model.seasonality*w)] for
+                j = 1:model.q, w = 1:model.Q if (t - j - (model.seasonality * w) >= epsLo)
             )
         )
     elseif model.seasonality > 1
@@ -950,13 +1769,13 @@ function fit!(
             c +
             trend * driftValues[t] +
             sum(β[i] * exogValues[t, i] for i = 1:nExog) +
-            sum(ϕ[i] * yData[t-i] for i = 1:model.p if (t - i > 0)) +
-            sum(θ[j] * ϵ[t-j] for j = 1:model.q if (t - j > 0)) +
+            sum(ϕ[i] * arAcc[t-i] for i = 1:model.p if (t - i >= yLo)) +
+            sum(θ[j] * epsAcc[t-j] for j = 1:model.q if (t - j >= epsLo)) +
             sum(
-                Φ[k] * yData[t-(model.seasonality*k)] for
-                k = 1:model.P if (t - (model.seasonality * k) > 0)
+                Φ[k] * arAcc[t-(model.seasonality*k)] for
+                k = 1:model.P if (t - (model.seasonality * k) >= yLo)
             ) +
-            sum(Θ[w] * ϵ[t-(model.seasonality*w)] for w = 1:model.Q if (t - (model.seasonality * w) > 0))
+            sum(Θ[w] * epsAcc[t-(model.seasonality*w)] for w = 1:model.Q if (t - (model.seasonality * w) >= epsLo))
         )
     else
         @expression(
@@ -965,22 +1784,96 @@ function fit!(
             c +
             trend * driftValues[t] +
             sum(β[i] * exogValues[t, i] for i = 1:nExog) +
-            sum(ϕ[i] * yData[t-i] for i = 1:model.p if (t - i > 0)) +
-            sum(θ[j] * ϵ[t-j] for j = 1:model.q if (t - j > 0))
+            sum(ϕ[i] * arAcc[t-i] for i = 1:model.p if (t - i >= yLo)) +
+            sum(θ[j] * epsAcc[t-j] for j = 1:model.q if (t - j >= epsLo))
         )
     end
 
     includeModelConstraints!(mod, yData, T, objectiveFunction, lb)
 
-    objectiveFunctionDefinition!(mod, model, objectiveFunction, T, lb)
+    objectiveFunctionDefinition!(mod, model, objectiveFunction, T, lb, cvarLevel, yValues,
+                                 penalizado, yLo, epsLo; penaltyTarget = penaltyTarget)
 
-    optimizeModel!(mod, model, objectiveFunction, lb)
+    isnothing(warmStart) || applyWarmStart!(
+        mod,
+        warmStart,
+        lb,
+        T;
+        epsScale = yScale,
+        stationary = stationary,
+        invertible = invertible,
+        stationarityMargin = stationarityMargin,
+        invertibilityMargin = invertibilityMargin,
+    )
+
+    # Safeguard: cap the solve so a pathological (e.g. numerically hard) instance fails
+    # fast instead of blowing the per-series budget. The caller decides the fallback
+    # (e.g. use the box warm-start result).
+    #
+    # The wall-clock limit alone does NOT bound the work: Ipopt only checks it between
+    # iterations, and on long series with `initialization = :free` (≈2T variables) a
+    # single iteration can already take longer than the cap — measured overshoots of
+    # 2x-6x on M4 daily. Bounding the iteration count is the hard limit that actually
+    # holds, so cap both.
+    if !isnothing(maxTimeSeconds)
+        set_time_limit_sec(mod, Float64(maxTimeSeconds))
+        if solver_name(mod) == "Ipopt"
+            set_optimizer_attribute(mod, "max_iter", MAX_ITER_CAPPED_FIT)
+        end
+        # The bilevel objective already set a deliberate 1s cap on the INNER solve, and
+        # the line above would silently undo it. That matters more than it looks: the
+        # outer loop calls the inner solve once per function evaluation, hundreds of
+        # times, so handing each of them the whole budget multiplies the cost instead of
+        # bounding it. Keep whichever cap is tighter.
+        if objectiveFunction == "bilevel"
+            set_time_limit_sec(mod, min(1.0, Float64(maxTimeSeconds)))
+        end
+    end
+
+    # See `fitStartTime`: everything up to here builds the JuMP problem, what follows is the
+    # solve. `solveTimeSec` measures the wall clock on the Julia side (including the
+    # post-processing in `optimizeModel!`, such as the bilevel outer loop); `solverTimeSec`
+    # is the time the solver itself reports.
+    buildElapsed = time() - fitStartTime
+    solveElapsed = @elapsed optimizeModel!(mod, model, objectiveFunction)
+    model.metadata["buildTimeSec"] = buildElapsed
+    model.metadata["solveTimeSec"] = solveElapsed
+    # ...Total ACCUMULATES per model object, while the fields above hold only the last fit.
+    # The distinction matters because the same model is fitted more than once on two paths:
+    # `warmStartFromBox` (box solve plus up to two constrained tiers) and `ensureAdmissible!`
+    # (refit on top of the candidate). Overwriting would lose the real cost, and at warm-start
+    # tier 3 would report precisely the cheapest of the three solves.
+    model.metadata["buildTimeSecTotal"] =
+        get(model.metadata, "buildTimeSecTotal", 0.0) + buildElapsed
+    model.metadata["solveTimeSecTotal"] =
+        get(model.metadata, "solveTimeSecTotal", 0.0) + solveElapsed
+    model.metadata["fitCount"] = get(model.metadata, "fitCount", 0) + 1
     model.metadata["solverStatus"] = string(termination_status(mod))
+    # The objective value is recorded so that a check comparing TWO formulations at the
+    # same coefficients has something to compare. Diagnostic only, not a test hook.
+    model.metadata["objectiveValue"] = try
+        objective_value(mod)
+    catch
+        nothing
+    end
+    model.metadata["solverTimeSec"] = try
+        MOI.get(mod, MOI.SolveTimeSec())
+    catch
+        missing
+    end
+    model.metadata["solverIterations"] = try
+        MOI.get(mod, MOI.BarrierIterations())
+    catch
+        missing
+    end
     silent || @info(
         "The model has been fitted with the objective function $objectiveFunction: $(objective_value(mod))"
     )
 
     fittedValues::Vector{Fl} = Vector(OffsetArrays.no_offset_view(value.(ŷ)))
+    # Back to the original units (see `yScale`); must precede the re-integration
+    # below, which combines these with the untouched observed series.
+    fittedValues .*= yScale
     fittedOriginalLengthDifference = length(values(model.y)) - length(fittedValues)
     initialValuesLength = model.d + model.D * model.seasonality
     initialValuesOffset =
@@ -1010,19 +1903,25 @@ function fit!(
         missingMask = residualMissingMask,
     )
 
-    c = is_valid(mod, c) ? value(c) : 0.0
-    trend = is_valid(mod, trend) ? value(trend) : 0.0
-    exogCoefficients = isnothing(model.exog) ? nothing : value.(β)
+    # Scale-dependent estimates return to the original units; ϕ/θ/Φ/Θ do not, being
+    # invariant under a rescaling of the data.
+    residualsVariance = residualsVariance * yScale^2
+    c = (is_valid(mod, c) ? value(c) : 0.0) * yScale
+    trend = (is_valid(mod, trend) ? value(trend) : 0.0) * yScale
+    exogCoefficients = isnothing(model.exog) ? nothing : value.(β) .* yScale
     # The complete residual vector (including the smoothed values at missing
     # indices) is stored so the forecast recursion can seed its MA terms; the
     # mask records which of them are not real innovations.
-    residuals::Vector{Fl} = value.(ϵ)[lb:end]
+    residuals::Vector{Fl} = value.(ϵ)[lb:end] .* yScale
 
     if hasMissing
+        # `yValues` and the imputed variables both live on the internal scale here,
+        # so undo the scaling once, after filling the gaps.
         imputed = copy(yValues)
         for m in missIdx
             imputed[m] = value(ymiss[m])
         end
+        imputed .*= yScale
         model.y = TimeArray(timestamp(model.y), imputed, colnames(model.y))
         model.metadata["missingResidualMask"] = residualMissingMask
         model.metadata["nMissing"] = length(missIdx)
@@ -1089,6 +1988,33 @@ function reflectionToMA(κ)
     return prev
 end
 
+"""
+    reflectionToARStages(κ)
+
+Every stage of the Levinson-Durbin recursion, not just the last: `stages[m]` holds the
+AR(m) coefficients implied by `κ[1:m]`. The exact treatment of the initial observations
+needs them, because the one-step prediction of `y_t` for `t <= p` is the AR(t-1) fit —
+the full AR(p) is not available yet at that point in the sample.
+"""
+function reflectionToARStages(κ)
+    p = length(κ)
+    p == 0 && return Vector{Vector{Any}}()
+    est = Vector{Vector{Any}}(undef, p)
+    prev = Any[κ[1]]
+    est[1] = copy(prev)
+    for m = 2:p
+        cur = Vector{Any}(undef, m)
+        cur[m] = κ[m]
+        for i = 1:(m-1)
+            cur[i] = prev[i] - κ[m] * prev[m-i]
+        end
+        prev = cur
+        est[m] = copy(cur)
+    end
+    return est
+end
+
+
 
 """
     reflectionToAR(κ)
@@ -1116,6 +2042,121 @@ function reflectionToAR(κ)
         prev = cur
     end
     return prev
+end
+
+"""
+    arToReflection(ϕ)
+
+Inverse of [`reflectionToAR`](@ref): maps AR coefficients back to reflection
+coefficients (partial autocorrelations) via the step-down Levinson-Durbin
+recursion. Used to warm-start the stationarity-by-construction fit from an
+unconstrained (box) solution. Numeric only.
+"""
+function arToReflection(ϕ::AbstractVector)
+    p = length(ϕ)
+    p == 0 && return Float64[]
+    a = collect(float.(ϕ))
+    κ = zeros(Float64, p)
+    for m = p:-1:1
+        κ[m] = a[m]
+        if m > 1
+            d = 1 - κ[m]^2
+            abs(d) < 1e-8 && (d = d >= 0 ? 1e-8 : -1e-8)
+            aprev = Vector{Float64}(undef, m - 1)
+            for i = 1:(m-1)
+                aprev[i] = (a[i] + κ[m] * a[m-i]) / d   # AR: opposite sign of MA
+            end
+            @inbounds a[1:m-1] .= aprev
+        end
+    end
+    return κ
+end
+
+"""
+    maToReflection(θ)
+
+Inverse of [`reflectionToMA`](@ref): maps MA coefficients back to reflection
+coefficients via the step-down recursion (MA sign convention). Numeric only.
+"""
+function maToReflection(θ::AbstractVector)
+    q = length(θ)
+    q == 0 && return Float64[]
+    a = collect(float.(θ))
+    κ = zeros(Float64, q)
+    for m = q:-1:1
+        κ[m] = a[m]
+        if m > 1
+            d = 1 - κ[m]^2
+            abs(d) < 1e-8 && (d = d >= 0 ? 1e-8 : -1e-8)
+            aprev = Vector{Float64}(undef, m - 1)
+            for i = 1:(m-1)
+                aprev[i] = (a[i] - κ[m] * a[m-i]) / d   # MA sign
+            end
+            @inbounds a[1:m-1] .= aprev
+        end
+    end
+    return κ
+end
+
+"""
+    applyWarmStart!(mod, ws, lb, T; stationary, invertible, stationarityMargin, invertibilityMargin)
+
+Seeds the JuMP variables of a SARIMA fit with the solution of a previous
+(cheaper) fit `ws`, so Ipopt starts near-feasible. The dominant win is seeding
+the O(T) residual vector `ϵ` (making the T identity constraints y = ŷ + ϵ almost
+satisfied at iteration 0); coefficients and — under the reflection
+parameterization — their reflection preimages (via [`arToReflection`](@ref) /
+[`maToReflection`](@ref), clamped to the bound box) are seeded too. Scalar
+mean/trend are left at their defaults. No-op for variables absent in this
+formulation.
+"""
+function applyWarmStart!(
+    mod::Model,
+    ws::SARIMAModel,
+    lb::Int,
+    T::Int;
+    epsScale::Real = 1,
+    stationary::Bool,
+    invertible::Bool,
+    stationarityMargin::AbstractFloat,
+    invertibilityMargin::AbstractFloat,
+)
+    od = JuMP.object_dictionary(mod)
+    clampκ(v, margin) = clamp(v, -(1 - margin - 1e-4), (1 - margin - 1e-4))
+
+    if !isnothing(ws.ϵ) && haskey(od, :ϵ)
+        # `ws.ϵ` arrives in ORIGINAL units — the fit returns `value.(ϵ) .* yScale` — while
+        # this model's `ϵ` lives on the standardised scale (`yValues ./ yScale`). Seeding
+        # the raw vector made the start MORE infeasible than a cold start: measured through
+        # the iteration-0 `inf_pr` of Ipopt, which rose from about 13 to between 337 and
+        # 7720 on daily series. Without this division the warm start is a large guess
+        # rather than an informed seed.
+        escala = (isfinite(epsScale) && epsScale > 0) ? epsScale : one(epsScale)
+        ϵv = mod[:ϵ]
+        n = min(length(ws.ϵ), T - lb + 1)
+        for k = 1:n
+            set_start_value(ϵv[lb-1+k], ws.ϵ[k] / escala)
+        end
+    end
+
+    seedBlock!(sym, coefs, useRefl, refl, margin, ksym) = begin
+        (isnothing(coefs) || isempty(coefs) || !haskey(od, sym)) && return
+        for i in eachindex(coefs)
+            set_start_value(mod[sym][i], coefs[i])
+        end
+        if useRefl && haskey(od, ksym)
+            κ = refl(coefs)
+            for i in eachindex(κ)
+                set_start_value(mod[ksym][i], clampκ(κ[i], margin))
+            end
+        end
+    end
+
+    seedBlock!(:ϕ, ws.ϕ, stationary, arToReflection, stationarityMargin, :κAR)
+    seedBlock!(:Φ, ws.Φ, stationary, arToReflection, stationarityMargin, :κSAR)
+    seedBlock!(:θ, ws.θ, invertible, maToReflection, invertibilityMargin, :κ)
+    seedBlock!(:Θ, ws.Θ, invertible, maToReflection, invertibilityMargin, :κseasonal)
+    return nothing
 end
 
 function getParametersVector(model::SARIMAModel)
@@ -1151,16 +2192,26 @@ This function assigns the provided coefficients from the `model` to the correspo
 - If `model.Θ` is not `nothing`, it sets `jumpModel[:Θ]` to `model.Θ`.
 - If `model.exogCoefficients` is not `nothing`, it sets `jumpModel[:β]` to `model.exogCoefficients`.
 
+`yScale` is the factor the endogenous series was divided by before the model was
+built (see [`fit!`](@ref)). The provided values are expressed in the user's units, so
+the scale-dependent ones (`c`, `trend`, `β`) are converted to the internal units here;
+otherwise fixing them would state a different model than the caller asked for, and the
+un-scaling applied to the results afterwards would not return the values given.
+`ϕ`, `θ`, `Φ` and `Θ` are dimensionless and pass through untouched.
 """
-function setProvidedCoefficients!(jumpModel::Model, model::SARIMAModel)
-    !isnothing(model.c) && fix(jumpModel[:c], model.c)
-    !isnothing(model.trend) && fix(jumpModel[:trend], model.trend)
+function setProvidedCoefficients!(
+    jumpModel::Model,
+    model::SARIMAModel,
+    yScale::Real = 1.0,
+)
+    !isnothing(model.c) && fix(jumpModel[:c], model.c / yScale)
+    !isnothing(model.trend) && fix(jumpModel[:trend], model.trend / yScale)
     !isnothing(model.ϕ) && fix.(jumpModel[:ϕ], model.ϕ; force = true)
     !isnothing(model.θ) && fix.(jumpModel[:θ], model.θ; force = true)
     !isnothing(model.Φ) && fix.(jumpModel[:Φ], model.Φ; force = true)
     !isnothing(model.Θ) && fix.(jumpModel[:Θ], model.Θ; force = true)
     !isnothing(model.exogCoefficients) &&
-        fix.(jumpModel[:β], model.exogCoefficients; force = true)
+        fix.(jumpModel[:β], model.exogCoefficients ./ yScale; force = true)
 end
 
 """
@@ -1228,19 +2279,60 @@ function includeModelConstraints!(
     objectiveFunction::String,
     offset::Int,
 )
+    # Every objective shares the same defining relation, eps = y - yhat. The MAE branch
+    # only adds the split into non-negative parts that linearizes the absolute value.
+    #
+    # It used to omit that relation and pin eps through
+    #     eps == eps_plus - eps_minus ;  yhat - y <= eps_plus ;  y - yhat <= eps_minus
+    # which at the optimum yields eps = yhat - y, the OPPOSITE sign from every other
+    # objective. The objective value stayed correct (eps_plus + eps_minus = |yhat - y|), so
+    # the fit converged and nothing looked wrong -- but eps feeds the moving-average
+    # recursion: theta was estimated against inverted innovations while `predict!` builds
+    # forecasts with the standard convention, so the MA term entered the forecast with the
+    # wrong sign. Only q > 0 or Q > 0 models were affected, and residual or sigma^2
+    # diagnostics could not surface it because they square eps. Measured directly:
+    # corr(eps, y - yhat) was exactly -1 under "mae" and +1 under "mse" and "ridge".
+    @constraint(
+        jumpModel,
+        [t = offset:T],
+        yValues[t] == jumpModel[:ŷ][t] + jumpModel[:ϵ][t]
+    )
     if objectiveFunction == "mae"
         @variable(jumpModel, ϵ_plus[offset:T] >= 0)
         @variable(jumpModel, ϵ_minus[offset:T] >= 0)
         @constraint(jumpModel, [t = offset:T], jumpModel[:ϵ][t] == ϵ_plus[t] - ϵ_minus[t])
-        @constraint(jumpModel, [t = offset:T], jumpModel[:ŷ][t] - yValues[t] <= ϵ_plus[t])
-        @constraint(jumpModel, [t = offset:T], yValues[t] - jumpModel[:ŷ][t] <= ϵ_minus[t])
-    else
-        @constraint(
-            jumpModel,
-            [t = offset:T],
-            yValues[t] == jumpModel[:ŷ][t] + jumpModel[:ϵ][t]
-        )
+        # Pre-sample block in the SAME loss: |eps_pre| through the same non-negative pair.
+        if haskey(object_dictionary(jumpModel), :ϵpre)
+            pre = jumpModel[:ϵpre]
+            lo = first(axes(pre, 1))
+            @variable(jumpModel, ϵpre_plus[lo:0] >= 0)
+            @variable(jumpModel, ϵpre_minus[lo:0] >= 0)
+            @constraint(jumpModel, [t = lo:0], pre[t] == ϵpre_plus[t] - ϵpre_minus[t])
+        end
     end
+end
+
+"""
+    presampleSquares(jumpModel, penalizado) -> sum of pre-sample squares, or 0
+
+The FIT TERM of every objective in this file measures error over the residuals. Under
+`:penalized`/`:innovations` the pre-sample block is made of residuals like any other, only at
+index `t <= 0`, so **the fit sum starts at `t = epsLo`, not at `t = lb`**.
+
+This does not touch the regularizing part. The `lambda` of `ridge` penalizes COEFFICIENTS,
+the tail structure of `stable` concerns the distribution of the residuals, and `elastic_net`
+shrinks COEFFICIENTS through its penalty. None of them changes: what changes is where the fit
+error starts being counted.
+
+Returns `0.0` when there is no block (fixed-block modes, or no pre-sample indices), which
+makes the call safe in every objective.
+"""
+function presampleSquares(jumpModel::Model, penalizado::Bool)
+    (penalizado && haskey(object_dictionary(jumpModel), :ϵpre)) || return 0.0
+    pre = jumpModel[:ϵpre]
+    lo = first(axes(pre, 1))
+    lo > 0 && return 0.0
+    return sum(pre[t]^2 for t = lo:0)
 end
 
 """
@@ -1258,6 +2350,7 @@ Defines the objective function for optimization in the SARIMA model.
 - `model::SARIMAModel`: The SARIMA model to be optimized.
 - `objectiveFunction::String`: The objective function to be defined.
 - `T::Int`: The total number of observations.
+- `cvarLevel::AbstractFloat`: Confidence level of the `"stable"` (CVaR) objective.
 
 """
 function objectiveFunctionDefinition!(
@@ -1266,34 +2359,397 @@ function objectiveFunctionDefinition!(
     objectiveFunction::String,
     T::Int,
     lb::Int,
+    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
+    yValues::Union{Nothing,AbstractVector} = nothing,
+    penalizado::Bool = false,
+    yLo::Int = 1,
+    epsLo::Int = 1;
+    # KEYWORD: this argument list is positional, so a new positional would shift the
+    # slots after it.
+    penaltyTarget::Symbol = :all,
 )
     parametersVector::Vector{Symbol} = getParametersVector(model)
     parametersVectorExtended::Vector{VariableRef} =
         length(parametersVector) == 0 ? [] :
         reduce(vcat, [Vector{VariableRef}([jumpModel[el]...]) for el in parametersVector])
-    if objectiveFunction == "mse"
+    if objectiveFunction == "mse" && penalizado
+        # `:penalized` — the pre-sample values enter the objective paying THEIR prior,
+        # instead of being free variables at no cost as under `:free`.
+        #
+        #   pre-sample innovations: a priori iid N(0, sigma^2), so the negative log-prior
+        #   is eps^2/2sigma^2 — adding them to the sum of squares suffices. Exact, and it
+        #   holds for MA and seasonal terms with no new machinery.
+        #
+        #   yback (AR side): the prior is the quadratic form y'Gamma^-1 y, which in the
+        #   reflection-coefficient parameterization has a closed form validated against R's
+        #   `arima(method="ML")` (median 3e-5 in phi): sum of e_k^2 * w_k with
+        #   w_k = prod_{j=k..p}(1 - kappa_j^2), plus the log-determinant.
+        #
+        # The log-determinant is not decorative: without it the optimizer would drive
+        # kappa -> +-1 to annul w_k and zero the penalty for free. It diverges at the
+        # boundary and prevents that — the same barrier as in `ml_exact`.
+        #
+        # SCOPE: the `yback` block has p + s*P positions and the Levinson form covers the
+        # first p. With P > 0 the remaining s*P stay free and are still charged in
+        # `nPresampleFree`. Exact for P = 0.
+        nEpsPre = max(0, 1 - epsLo)
+        nYback = max(0, 1 - yLo)
+        temEps = nEpsPre > 0 && haskey(object_dictionary(jumpModel), :ϵpre)
+        temK = model.p > 0 && nYback > 0 && haskey(object_dictionary(jumpModel), :κAR) &&
+               haskey(object_dictionary(jumpModel), :yback)
+        S = sum(jumpModel[:ϵ] .^ 2)
+        temEps && (S = S + sum(jumpModel[:ϵpre][t0]^2 for t0 = epsLo:0))
+        nEf = T + (temEps ? nEpsPre : 0)
+        if temK
+            κ = jumpModel[:κAR]
+            yb = jumpModel[:yback]
+            estagios = reflectionToARStages([κ[i] for i = 1:model.p])
+            nb = min(model.p, nYback)
+            for k = 1:nb
+                idx = yLo + k - 1
+                pred = k == 1 ? 0.0 : sum(estagios[k-1][j] * yb[idx-j] for j = 1:(k-1))
+                S = S + (yb[idx] - pred)^2 * prod([(1 - κ[j]^2) for j = k:model.p])
+            end
+            nEf += nb
+            # SIMPLIFIED form: the log cancels against the Gaussian exponential.
+            #
+            #   -2logL = nEf*log(sigma^2) + log|Omega| + S/sigma^2
+            # concentrating sigma^2 = S/nEf turns S/sigma^2 into the constant nEf, leaving
+            #   -2logL = nEf*log(S) + log|Omega| + const
+            # with log|Omega| = -sum_j j*log(1 - kappa_j^2). Since
+            #   nEf*log(S) + log|Omega| = nEf*log( S * prod_j (1-kappa_j^2)^(-j/nEf) )
+            # and nEf*log(.) is monotone increasing, the argmin is that of
+            #   S * prod_j (1 - kappa_j^2)^(-j/nEf)
+            # i.e. the sum of squares (with the initial terms weighted) times a scalar.
+            #
+            # This drops no term: the weights w_k and the determinant factor come from the
+            # covariance |Omega|, not from the exponential, and both remain. Only the `log`
+            # goes, and with it the auxiliary variable that existed solely to avoid log(0)
+            # at the starting point, where all variables start at zero.
+            #
+            # The exponent divides by the dimension of the DENSITY (`T` observations), not
+            # by the number of squared terms `S` decomposes into: profiling pre-sample
+            # positions does not increase the dimension of the data. Verified against the
+            # constructed theoretical covariance — with `1/T` the argmin reproduces that of
+            # the exact likelihood, with `1/nEf` it does not.
+            fator = prod([(1 - κ[j]^2)^(-j / T) for j = 1:model.p])
+        else
+            # With no AR block there is no determinant on that side, but `fator` must still
+            # exist: the MA block below multiplies it, and `@objective` is emitted ONCE at
+            # the end. Emitting the objective inside this branch would leave the MA term out
+            # of it.
+            fator = 1.0
+        end
+        # ---- MA block: the same determinant term the AR block already carries ----
+        #
+        # Adding the pre-sample innovations to the sum of squares is not enough on its own:
+        # PROFILING (minimizing) over the pre-sample values is not the same as INTEGRATING
+        # them out, and the difference is exactly the log-determinant. Without it the fit
+        # is not the maximum-likelihood point — measured against R's `arima(method="ML")`,
+        # a pure MA(2) is off by ~2e-3 in the coefficients, against ~2e-5 for a pure AR(2),
+        # which does carry the term.
+        #
+        # The form matches the AR side, with the MA reflection coefficients:
+        #     log|Omega| = -sum_j j*log(1 - kappa_j^2)
+        # Verified against the determinant of a directly constructed MA(q) theoretical
+        # covariance: error ~1e-14 at theta = [0.5], [0.7], [0.4,0.2], [0.6,-0.3],
+        # [0.5,0.3,0.2]. The seasonal MA block gains the multiplicity `s`, by the same
+        # factorization into phase chains.
+        #
+        # The MA reflection coefficients do NOT require the invertible parameterization:
+        # the inverse Levinson-Durbin recursion produces them from `theta` itself, so the
+        # determinant term holds with `theta` FREE. It also makes the hard constraint
+        # redundant — `-sum_j j*log(1 - kappa_j^2)` diverges as |kappa| -> 1, so the
+        # determinant is itself the invertibility barrier, repelling the boundary without
+        # excluding any point by decree.
+        if model.q > 0
+            κMA = maToReflectionExpr(jumpModel[:θ], model.q)
+            isnothing(κMA) ||
+                (fator = fator * prod([(1 - κMA[j]^2)^(-j / T) for j = 1:model.q]))
+        end
+        if model.Q > 0
+            κSMA = maToReflectionExpr(jumpModel[:Θ], model.Q)
+            isnothing(κSMA) || (fator =
+                fator *
+                prod([(1 - κSMA[j]^2)^(-model.seasonality * j / T) for j = 1:model.Q]))
+        end
+        @objective(jumpModel, Min, S * fator)
+
+    elseif objectiveFunction == "mse"
         @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
+    elseif objectiveFunction == "ml_exact"
+        # Likelihood that is exact in its TREATMENT OF THE INITIAL OBSERVATIONS, written in
+        # closed form rather than obtained from a Kalman filter.
+        #
+        # CSS discards the first `lb-1` observations; the exact likelihood uses them,
+        # weighted by the inverse conditional variance. For a stationary AR(p) those
+        # quantities are a closed function of the partial autocorrelations, which this
+        # package already carries as decision variables when `stationary = true`. With
+        #     v_t = Var(y_t | y_1..y_{t-1}) / sigma^2 = 1 / prod_{j=t..p} (1 - kappa_j^2)
+        # the weight is the INVERSE,
+        #     w_t = prod_{j=t..p} (1 - kappa_j^2),
+        # a POLYNOMIAL in the kappa: no matrix is assembled, nothing is inverted, and
+        # `y_t - yhat_t` uses the AR(t-1) fit from the Levinson stages.
+        #
+        # Concentrating sigma^2 analytically, the objective is `n*log(S) + log|Gamma*|`
+        # with log|Gamma*| = -sum_j j*log(1 - kappa_j^2). That term diverges to +infinity
+        # as kappa -> +-1, acting as a BARRIER that repels the non-stationarity boundary,
+        # which suits an interior-point solver.
+        #
+        # SCOPE: exact for P = q = Q = 0. With MA or seasonal terms the joint initial block
+        # does not factor this way, and what applies is a partial correction (the
+        # non-seasonal autoregressive part only); the remaining residuals stay in CSS.
+        temK = haskey(object_dictionary(jumpModel), :κAR) && model.p > 0
+        # Without `κAR` (that is, `stationary = false`) or without an AR part (`p = 0`) the
+        # initial-value correction cannot be written and the objective degenerates to pure
+        # CSS: the caller asked for the exact likelihood and gets the conditioned `mse`.
+        # Verified: an AR(2) with `stationary = false` produces coefficients identical to
+        # `mse`. Warn only on TOTAL degradation; the partial coverage under ARMA/seasonal
+        # terms is declared scope in the documentation above, not a surprise.
+        #
+        # This is also why `stationary = false` cannot become a search default without
+        # `ml_exact` silently becoming CSS.
+        if !temK || isnothing(yValues)
+            @warn "objectiveFunction = \"ml_exact\" degrades to plain CSS here: it needs " *
+                  "the reflection parameterization (`stationary = true`) and a non-seasonal " *
+                  "AR part (`p > 0`). Got " *
+                  "stationary=$(haskey(object_dictionary(jumpModel), :κAR)), p=$(model.p)." maxlog = 1
+        end
+        if !temK || isnothing(yValues)
+            @objective(jumpModel, Min,
+                sum(jumpModel[:ϵ][t]^2 for t = lb:T) + presampleSquares(jumpModel, penalizado))
+        else
+            κ = jumpModel[:κAR]
+            pAR = model.p
+            estagios = reflectionToARStages([κ[i] for i = 1:pAR])
+            nIni = min(pAR, lb - 1, length(yValues))
+            termos = Any[]
+            for t = 1:nIni
+                # forecast of y_t from the AR(t-1) fit; at t = 1 there is no regressor
+                pred = t == 1 ? 0.0 :
+                       sum(estagios[t-1][j] * yValues[t-j] for j = 1:(t-1))
+                e_t = yValues[t] - pred
+                w_t = prod([(1 - κ[j]^2) for j = t:pAR])
+                push!(termos, e_t^2 * w_t)
+            end
+            S = sum(jumpModel[:ϵ][t]^2 for t = lb:T) + presampleSquares(jumpModel, penalizado)
+            isempty(termos) || (S = S + sum(termos))
+            nEf = (T - lb + 1) + nIni
+            logDet = -sum(j * log(1 - κ[j]^2) for j = 1:pAR)
+            @objective(jumpModel, Min, nEf * log(S) + logDet)
+        end
+    elseif objectiveFunction == "huber"
+        # Huber: quadratic near zero, linear in the tail.
+        #     L(e) = e^2/2                 if |e| <= delta
+        #          = delta*(|e| - delta/2) otherwise
+        # The classical M-estimator: it keeps the efficiency of "mse" under Gaussian errors
+        # and bounds the INFLUENCE of an outlier. Note the contrast with "stable" (CVaR),
+        # which minimizes the mean of the tail and therefore CHASES the outlier instead of
+        # discounting it — opposite objectives, despite both looking at the tail.
+        #
+        # Infimal-convolution formulation, which keeps it in the same quadratic regime as
+        # "mse" (cheaper than "stable", which adds T variables AND T constraints):
+        #     Huber(e) = min { u^2/2 + delta*|v| : u + v = e }
+        # with |v| split into non-negative parts. The relation eps = y - yhat is already
+        # imposed in includeModelConstraints! and is NOT restated here.
+        δh = DEFAULT_HUBER_DELTA
+        # Leaving `u` free is deliberate. At the optimum of
+        # min{u^2/2 + delta*|v| : u + v = e} one always has |u| <= delta, so bounding it
+        # looks exact and free — and measured on the M4 monthly it made things WORSE:
+        # LOCALLY_INFEASIBLE went from 2 to 3 of the six diagnosed series and one that had
+        # solved cleanly started returning forecasts of -6.5e5. Adding 2*(T-lb+1) active
+        # box constraints costs Ipopt more than the degenerate direction it removes.
+        @variable(jumpModel, uH[lb:T])
+        @variable(jumpModel, vH_plus[lb:T] >= 0)
+        @variable(jumpModel, vH_minus[lb:T] >= 0)
+        @constraint(
+            jumpModel,
+            [t = lb:T],
+            jumpModel[:ϵ][t] == uH[t] + vH_plus[t] - vH_minus[t]
+        )
+        # Under `:penalized`/`:innovations` the pre-sample block enters THE SAME LOSS: each
+        # `eps_pre` gets its own Huber decomposition. Same rationale as `mae` — a single
+        # loss applied to every residual — and likewise WITHOUT the determinant factor,
+        # which is Gaussian algebra.
+        hubObj = sum(0.5 * uH[t]^2 + δh * (vH_plus[t] + vH_minus[t]) for t = lb:T)
+        if penalizado && haskey(object_dictionary(jumpModel), :ϵpre)
+            preH = jumpModel[:ϵpre]
+            loH = first(axes(preH, 1))
+            @variable(jumpModel, uHpre[loH:0])
+            @variable(jumpModel, vHpre_plus[loH:0] >= 0)
+            @variable(jumpModel, vHpre_minus[loH:0] >= 0)
+            @constraint(
+                jumpModel,
+                [t = loH:0],
+                preH[t] == uHpre[t] + vHpre_plus[t] - vHpre_minus[t]
+            )
+            hubObj = hubObj +
+                     sum(0.5 * uHpre[t]^2 + δh * (vHpre_plus[t] + vHpre_minus[t])
+                         for t = loH:0)
+        end
+        @objective(jumpModel, Min, hubObj)
+    elseif objectiveFunction == "ridge"
+        # Ridge differs from "elastic_net" only in that lambda is fixed a priori here and
+        # the penalty is a plain L2 term over the AR/MA blocks; `elastic_net` honours a
+        # caller-supplied lambda and mixes L1 and L2 through alpha.
+        #
+        # SCALE OF LAMBDA. The heuristic is lambda = 1/sqrt(n) when the loss is the MEAN
+        # squared error. This objective is written as a SUM, so the equivalent value is
+        # lambda = sqrt(n) — multiplying (1/n)*RSS + l*||b||^2 by n gives RSS + n*l*||b||^2
+        # and n/sqrt(n) = sqrt(n). Using 1/sqrt(n) on a sum-form objective would make the
+        # penalty about n times too weak, i.e. no regularization at all.
+        #
+        # n IS THE EFFECTIVE SAMPLE, not the series length: observations before `lb` are
+        # conditioned out and contribute nothing. Under `auto` with :zeroed, `lb` carries
+        # the common conditioning length (29 by default at s = 12), so on a short series
+        # the effective sample is far smaller than T.
+        #
+        # WHAT IS PENALIZED. Only the AR/MA coefficients: they are dimensionless and the
+        # endogenous data is standardized internally, so the L2 term is scale-free without
+        # further rescaling. The intercept and drift are deliberately left out (penalizing
+        # the level has no shrinkage interpretation here). Exogenous coefficients are also
+        # left out: they carry the units of their own regressor, which this package does
+        # NOT standardize, so an L2 term over them would not be scale-invariant.
+        nEff = T - lb + 1
+        λ = sqrt(max(nEff, 1))
+        shrunk = Symbol[]
+        model.p > 0 && push!(shrunk, :ϕ)
+        model.q > 0 && push!(shrunk, :θ)
+        model.P > 0 && push!(shrunk, :Φ)
+        model.Q > 0 && push!(shrunk, :Θ)
+        if isempty(shrunk)
+            @objective(jumpModel, Min,
+                sum(jumpModel[:ϵ] .^ 2) + presampleSquares(jumpModel, penalizado))
+        else
+            coefs = reduce(vcat, [Vector{VariableRef}([jumpModel[el]...]) for el in shrunk])
+            @objective(
+                jumpModel,
+                Min,
+                sum(jumpModel[:ϵ] .^ 2) + presampleSquares(jumpModel, penalizado) +
+                λ * sum(coefs .^ 2)
+            )
+        end
     elseif objectiveFunction == "mae"
-        @objective(jumpModel, Min, sum(jumpModel[:ϵ_plus] + jumpModel[:ϵ_minus]))
+        # Under `:penalized`/`:innovations` the pre-sample block enters THE SAME LOSS as the
+        # data. That is what makes the extension unambiguous: there are no two losses to
+        # mix scales between, only one applied to every residual from the pre-sample block
+        # onwards.
+        #
+        # Deliberately WITHOUT the determinant factor. The `mse` factor comes from
+        # concentrating sigma^2 in `T*log(S) + log|Omega|`, a step that requires a
+        # quadratic loss. Here the mode moves only along the pre-sample axis.
+        maeObj = sum(jumpModel[:ϵ_plus] + jumpModel[:ϵ_minus])
+        if penalizado && haskey(object_dictionary(jumpModel), :ϵpre_plus)
+            maeObj = maeObj +
+                     sum(jumpModel[:ϵpre_plus] + jumpModel[:ϵpre_minus])
+        end
+        @objective(jumpModel, Min, maeObj)
     elseif objectiveFunction == "bilevel"
-        @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
+        # `bilevel` is not a different loss but a SOLUTION STRATEGY, with the MA
+        # coefficients taken out of JuMP and optimized in an outer loop. The inner problem
+        # is a sum of squares, so the extension holds by inheritance.
+        @objective(
+            jumpModel,
+            Min,
+            sum(jumpModel[:ϵ] .^ 2) + presampleSquares(jumpModel, penalizado)
+        )
         set_time_limit_sec(jumpModel, 1.0)
     elseif objectiveFunction == "stable"
+        # Conditional Value-at-Risk of the squared residuals, in the Rockafellar-Uryasev
+        # form: CVaR_α = min_δ  δ + 1/((1-α)·n) · Σ max(ℓ_t - δ, 0), with δ standing for
+        # the Value-at-Risk and u_t for the excess above it. The 1/((1-α)·n) factor is
+        # what pins the level: without it the objective `0.7·δ + Σu` normalises to
+        # `δ + Σu/0.7`, i.e. (1-α)·n = 0.7, so the effective level is α = 1 - 0.7/n —
+        # about 99.7% for a 200-point series, and *different for every sample size*.
+        # That is a min-max fit in disguise, which is why it chases outliers instead of
+        # tolerating them (measured: with one 10σ outlier it is the only objective that
+        # shrinks that residual, at the cost of a 5x worse median residual).
+        #
+        # The pre-sample block joins the SAME set of losses: those are residuals like the
+        # others, only at index t <= 0. This does not change the tail structure of the
+        # CVaR — it changes where the fit error starts being counted, and `nObs` follows.
+        temPre = penalizado && haskey(object_dictionary(jumpModel), :ϵpre)
+        preLo = temPre ? first(axes(jumpModel[:ϵpre], 1)) : 1
+        temPre = temPre && preLo <= 0
+        nPre = temPre ? (1 - preLo) : 0
+        nObs = (T - lb + 1) + nPre
         @variable(jumpModel, δ >= 0)
         @variable(jumpModel, u[lb:T] >= 0)
         @constraint(jumpModel, [t = lb:T], δ + u[t] >= jumpModel[:ϵ][t]^2)
-
-        # 70% CVaR
-        @objective(jumpModel, Min, 0.7*δ + sum(u[t] for t = lb:T))
+        cvarSum = sum(u[t] for t = lb:T)
+        if temPre
+            pre = jumpModel[:ϵpre]
+            @variable(jumpModel, upre[preLo:0] >= 0)
+            @constraint(jumpModel, [t = preLo:0], δ + upre[t] >= pre[t]^2)
+            cvarSum = cvarSum + sum(upre[t] for t = preLo:0)
+        end
+        @objective(
+            jumpModel,
+            Min,
+            δ + cvarSum / ((1 - cvarLevel) * nObs)
+        )
     elseif objectiveFunction == "elastic_net"
-        @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
+        # Penalized elastic net: the selected residual loss plus
+        # lambda * [alpha * L1 + (1 - alpha)/2 * L2] over the shrunk coefficient blocks.
+        # The L1 term is linearized with the usual auxiliary variables.
+        #
+        # The intercept and the drift are always left out: penalizing the level has no
+        # shrinkage interpretation here. `penaltyTarget` selects which of the remaining
+        # blocks are shrunk -- `:all` (default), `:dynamics` for the AR/MA blocks only, or
+        # `:exogenous` for the regressors only, which is the usual choice when the point of
+        # the fit is selecting among regressors. Exogenous coefficients carry the units of
+        # their own regressor, which the package does not standardize, so scale-comparable
+        # regressors are the caller's responsibility.
+        shrunk = Symbol[]
+        if penaltyTarget in (:all, :dynamics)
+            model.p > 0 && push!(shrunk, :ϕ)
+            model.q > 0 && push!(shrunk, :θ)
+            model.P > 0 && push!(shrunk, :Φ)
+            model.Q > 0 && push!(shrunk, :Θ)
+        end
+        if penaltyTarget in (:all, :exogenous)
+            isnothing(model.exog) || push!(shrunk, :β)
+        end
+
+        fitLoss = sum(jumpModel[:ϵ] .^ 2) + presampleSquares(jumpModel, penalizado)
+
+        if isempty(shrunk)
+            @objective(jumpModel, Min, fitLoss)
+        else
+            shrunkCoefs =
+                reduce(vcat, [Vector{VariableRef}([jumpModel[el]...]) for el in shrunk])
+            # Same lambda scale as the "ridge" objective: the 1/sqrt(n) heuristic is
+            # stated for a MEAN squared loss, and this objective is a SUM, so the
+            # equivalent default is sqrt(n) over the effective sample.
+            nEff = T - lb + 1
+            λ = isnothing(model.lambda) ? sqrt(max(nEff, 1)) : model.lambda
+            α = isnothing(model.alpha) ? 0.5 : model.alpha
+            @variable(jumpModel, absShrunk[i = 1:length(shrunkCoefs)] >= 0)
+            @constraints(
+                jumpModel,
+                begin
+                    [i = 1:length(shrunkCoefs)], absShrunk[i] >= shrunkCoefs[i]
+                    [i = 1:length(shrunkCoefs)], absShrunk[i] >= -shrunkCoefs[i]
+                end
+            )
+            @objective(
+                jumpModel,
+                Min,
+                fitLoss +
+                λ * (α * sum(absShrunk) + (1 - α) / 2 * sum(shrunkCoefs .^ 2))
+            )
+        end
     elseif objectiveFunction == "ml"
         # Concentrated conditional (CSS) Gaussian likelihood: profiling sigma out
         # analytically (sigma2 = RSS/n) makes maximizing the likelihood equivalent
         # to minimizing the sum of squared residuals over the effective sample.
         # Keeping sigma as a decision variable is degenerate when RSS -> 0
         # (noise-free data drives sigma -> 0 and the objective to +Inf).
-        @objective(jumpModel, Min, sum(jumpModel[:ϵ][t]^2 for t = lb:T))
+        @objective(
+            jumpModel,
+            Min,
+            sum(jumpModel[:ϵ][t]^2 for t = lb:T) + presampleSquares(jumpModel, penalizado)
+        )
     end
 end
 
@@ -1320,29 +2776,11 @@ Optimizes the SARIMA model using the specified objective function.
 - `objectiveFunction::String`: The objective function used for optimization.
 
 """
-function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction::String, lb::Int)
+function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction::String)
     JuMP.optimize!(jumpModel)
     checkSolverStatus(jumpModel)
 
-    if objectiveFunction == "elastic_net" && isnothing(model.lambda) && get_hyperparameters_number(model) > 1
-        K = get_hyperparameters_number(jumpModel)
-        # println(get_hyperparameters_number(model)," - ", K)
-        model_variance = computeSARIMAModelVariance(
-            jumpModel,
-            objectiveFunction,
-            K,
-            lb,
-        )
-
-        nu = length(jumpModel[:ϵ]) - lb - K + 1
-        objective_std = sqrt(2*nu)*model_variance
-
-        tolerance = objective_value(jumpModel) + objective_std
-        regularizationObjective(jumpModel, model, tolerance)
-        JuMP.optimize!(jumpModel)
-        checkSolverStatus(jumpModel)
-
-    elseif objectiveFunction == "bilevel"
+    if objectiveFunction == "bilevel"
 
         function optimizeMA(coefficients)
             maCoefficients = coefficients[1:model.q]
@@ -1375,6 +2813,20 @@ function optimizeModel!(jumpModel::Model, model::SARIMAModel, objectiveFunction:
                 results =
                     Optim.optimize(optimizeMA, initialCoefficients, Optim.NelderMead())
                 Optim.converged(results) || @warn("The optimization did not converge")
+            end
+
+            # Put the outer minimizer back into the model and re-solve. Without this the
+            # JuMP model is left holding whatever `optimizeMA` probed LAST, which is not
+            # the minimizer: a line search ends wherever it stopped, and Nelder-Mead's
+            # final evaluation can be a reflection point that was rejected. Everything
+            # downstream reads the coefficients off this model, so the fit returned was
+            # not the solution of the problem the outer loop had just solved.
+            if !isnothing(results)
+                best = Optim.minimizer(results)
+                model.q > 0 && set_parameter_value.(jumpModel[:θ], best[1:model.q])
+                model.Q > 0 && set_parameter_value.(jumpModel[:Θ], best[model.q+1:end])
+                JuMP.optimize!(jumpModel)
+                checkSolverStatus(jumpModel)
             end
         end
     end
@@ -1726,6 +3178,24 @@ function predict(
 
     yValues::Vector{ModelFl} = deepcopy(values(diffY))
 
+    # Mirrors the estimation semantics (see `arAcc` in `fit!`). Under :regression_errors the
+    # state the AR terms recurse on is eta_t = y_t - X_t'b rather than y_t, and the
+    # exogenous block re-enters only at the level, at the end of each step. Under :armax
+    # `arValues` IS `yValues` (the same object), so the `push!` feeds both.
+    #
+    # The fallback is `"armax"` because a model reaching here without the metadata key was
+    # fitted by an earlier version, whose coefficients were estimated under ARMAX
+    # semantics; forecasting them under the other form would give a wrong forecast from
+    # correct coefficients. The fallback preserves the semantics that produced them.
+    regErr::Bool =
+        !isnothing(model.exog) &&
+        get(model.metadata, "exogDynamics", "armax") == "regression_errors"
+    arValues::Vector{ModelFl} = if regErr
+        yValues .- valuesExog[1:length(yValues), :] * model.exogCoefficients
+    else
+        yValues
+    end
+
     driftFuture::Vector{ModelFl} = model.allowDrift ?
         differentiate(
             collect(ModelFl, 1:(length(values(model.y)) + stepsAhead)),
@@ -1737,10 +3207,10 @@ function predict(
         forecastedValue::ModelFl =
             model.c + (model.allowDrift ? model.trend * driftFuture[T+step] : model.trend)
         errorsLength = length(errors)
-        yLength = length(yValues)
+        yLength = length(arValues)
         if model.p > 0
             # ∑ϕᵢyₜ -i
-            forecastedValue += sum(model.ϕ[i] * yValues[end-i+1] for i = 1:model.p)
+            forecastedValue += sum(model.ϕ[i] * arValues[end-i+1] for i = 1:model.p)
         end
         if model.q > 0
             # ∑θᵢϵₜ-i
@@ -1752,7 +3222,7 @@ function predict(
         if model.P > 0
             # ∑Φₖyₜ-(s*k)
             forecastedValue += sum(
-                model.Φ[k] * yValues[end-(model.seasonality*k)+1] for
+                model.Φ[k] * arValues[end-(model.seasonality*k)+1] for
                 k = 1:model.P if (yLength - model.seasonality * k + 1 > 0)
             )
         end
@@ -1767,7 +3237,7 @@ function predict(
             if model.p > 0 && model.P > 0
                 for i = 1:model.p, k = 1:model.P
                     idx = yLength - i - model.seasonality * k + 1
-                    idx > 0 && (forecastedValue -= model.ϕ[i] * model.Φ[k] * yValues[idx])
+                    idx > 0 && (forecastedValue -= model.ϕ[i] * model.Φ[k] * arValues[idx])
                 end
             end
             if model.q > 0 && model.Q > 0
@@ -1777,15 +3247,21 @@ function predict(
                 end
             end
         end
-        if !isnothing(model.exog)
-            forecastedValue += valuesExog[T+step, :]'model.exogCoefficients
-        end
+        exogTerm::ModelFl =
+            isnothing(model.exog) ? zero(ModelFl) :
+            valuesExog[T+step, :]'model.exogCoefficients
+        regErr || (forecastedValue += exogTerm)
 
         ϵₜ = isSimulation ? rand(Normal(0, sqrt(model.σ²))) : 0
         forecastedValue += ϵₜ
 
         push!(errors, ϵₜ)
-        push!(yValues, forecastedValue)
+        if regErr
+            push!(arValues, forecastedValue)          # eta previsto alimenta a recursao AR
+            push!(yValues, forecastedValue + exogTerm)  # o nivel soma o bloco exogeno
+        else
+            push!(yValues, forecastedValue)           # arValues === yValues, alimentado junto
+        end
     end
     initialValuesLength = model.d + model.D * model.seasonality
     initialValuesOffset = length(values(model.y)) - initialValuesLength + 1
@@ -1890,11 +3366,51 @@ Automatically fits the best SARIMA model according to the specified parameters.
 - `maxP::Int`: The maximum autoregressive order for the seasonal part. Default is 2.
 - `maxD::Int`: The maximum integration order for the seasonal part. Default is 1.
 - `maxQ::Int`: The maximum moving average order for the seasonal part. Default is 2.
-- `maxOrder::Int`: The maximum order for the non-seasonal part. Default is 5.
+- `maxOrder::Int`: Cap on `p + q + P + Q`. Default is 5. **Applies to
+  `searchMethod = "grid"` only.** The stepwise searches deliberately run with the cap
+  disabled, to match `forecast`: there `max.order` lives inside `search.arima` (the
+  non-stepwise path), and since `auto.arima` defaults to stepwise, R routinely selects
+  orders whose sum exceeds 5. The consequence is that at the monthly defaults
+  (`maxp = maxq = 5`, `maxP = maxQ = 2`) the grid reaches 96 of the 324 order combinations
+  in the box while the stepwise search reaches all 324 — i.e. the exhaustive method
+  searches a *smaller* space than the heuristic one, and can lose to it. Raise `maxOrder`
+  (up to `maxp + maxq + maxP + maxQ`) to make `"grid"` genuinely exhaustive.
 - `informationCriteria::String`: The information criteria to be used for model selection. Options are "aic", "aicc", or "bic". Default is "aicc".
 - `allowMean::Union{Bool,Nothing}`: Whether to include a mean term in the model. Default is nothing.
 - `allowDrift::Union{Bool,Nothing}`: Whether to include a drift term in the model. Default is nothing.
-- `integrationTest::String`: The integration test to be used for determining the non-seasonal integration order. Default is "kpss".
+- `integrationTest::String`: The integration test to be used for determining the non-seasonal
+  integration order. `"kpssShort"` (default) uses urca-style `lags = "short"`, matching the
+  differencing decisions of R's `forecast::ndiffs`/`auto.arima`; `"kpss"` uses the Hobijn
+  et al. automatic lag selection (statsmodels-compatible).
+- `invertible::Bool`: Fit every candidate with the invertibility-by-construction MA
+  parameterization (reflection coefficients). Default `false`: candidates are first fitted
+  with free (box-bounded) MA — which finds better optima on most series — and only when a
+  fit fails the 1.001 root-admissibility check is it refitted with the constrained
+  parameterization and re-checked (`ensureAdmissible!`, margin 2e-3). Every accepted model
+  is therefore stationary and invertible either way; `invertible = true` merely forces the
+  constrained parameterization on every fit (not compatible with the `"bilevel"` objective).
+- `invertibilityMargin::AbstractFloat`: Margin keeping MA reflection coefficients in
+  `[-(1-m), 1-m]` when `invertible = true`. Default `DEFAULT_DOMAIN_MARGIN` (`1e-6`) — it
+  opens the domain, it does not enforce admissibility (that is `rootMargin`'s job).
+- `stationary::Bool`: Fit candidates with the stationarity-by-construction AR
+  parameterization. Defaults to `assertStationarity` (empirically as accurate as the free
+  AR fit and cheaper than relying on rejection).
+- `stationarityMargin::AbstractFloat`: AR analogue of `invertibilityMargin`. Default
+  `DEFAULT_DOMAIN_MARGIN` (`1e-6`).
+- `optimizer::Union{DataType,MOI.OptimizerWithAttributes}`: JuMP optimizer used to fit
+  every candidate. Default `Ipopt.Optimizer` (fast local solutions). Pass
+  `SCIP.Optimizer` — or `optimizer_with_attributes(SCIP.Optimizer, "limits/gap" => …)`
+  to control its tolerances — to solve each CSS problem to certified global optimality
+  (global certificate). Certification is only practical on short series (roughly
+  T ≲ 100); much slower, intended for experiments and final refits rather than
+  large-scale runs.
+- `warmStartFromBox::Bool`: Forwarded to [`fit!`](@ref) for every candidate: seeds each
+  constrained fit from a cheap unconstrained solve with a tiered fallback. Default
+  `false`.
+- `maxTimeSeconds::Union{Nothing,Real}`: Per-fit budget forwarded to [`fit!`](@ref).
+  Within the search, candidate fits are capped at `min(maxTimeSeconds, 10)` seconds —
+  a candidate that cannot be solved quickly is not going to win — while the final
+  refit of the selected model keeps the full budget. Default `nothing`.
 - `seasonalIntegrationTest::String`: The integration test to be used for determining the seasonal integration order. Default is "seas".
 - `objectiveFunction::String`: The objective function to be used for model selection.
 - `parallel::Bool`: Fit candidate models across Julia threads (experimental; applies to
@@ -1907,6 +3423,17 @@ Automatically fits the best SARIMA model according to the specified parameters.
 - `searchMethod::String`: The search strategy: "stepwise" (Hyndman-Khandakar style, default),
   "stepwiseNaive", "grid" (exhaustive), or "sarimax" (no search: fits a single dense
   specification at the maximum orders, intended for regularized estimation).
+- `requireTermsWhenOverDifferenced::Bool`: When `d + D >= 2`, drop the term-free order
+  `(0,d,0)(0,D,0)` from the search. Default is false: `auto.arima` has no such rule, so
+  enabling it is a deliberate divergence from the reference implementation.
+- `requireMAWhenDoublyDifferenced::Bool`: When `d >= 2`, require `q >= 1` (and symmetrically
+  `Q >= 1` when `D >= 2`). Second-differencing induces a unit MA root at the lag that was
+  differenced; a candidate without an MA term there cannot represent it and compensates with
+  AR persistence, which explodes once re-integrated twice. Measured on 144 M4 monthly series
+  with `d = 2, D = 0`: OWA 1.047 (worse than Naive2) to 0.993, per-series median 0.901 to
+  0.839. The guard is dimensional, not aggregate — a seasonal MA at lag `s` cannot damp a
+  unit root at lag 1. `d = D = 1` is untouched: with one difference in each dimension theory
+  does not say which one carries the term. Default is false.
 
 # References
 - Hyndman, RJ and Khandakar. "Automatic time series forecasting: The forecast package for R." Journal of Statistical Software, 26(3), 2008.
@@ -1927,8 +3454,8 @@ function auto(
     informationCriteria::String = "aicc",
     allowMean::Union{Bool,Nothing} = nothing,
     allowDrift::Union{Bool,Nothing} = nothing,
-    integrationTest::String = "kpss",
-    seasonalIntegrationTest::String = "ocsb",
+    integrationTest::String = "kpssShort",
+    seasonalIntegrationTest::String = "seas",
     objectiveFunction::String = "mse",
     assertStationarity::Bool = true,
     assertInvertibility::Bool = true,
@@ -1937,11 +3464,27 @@ function auto(
     searchMethod::String = "stepwise",
     parallel::Bool = false,
     seasonalForm::Symbol = :multiplicative,
-    initialization::Symbol = :zeroed,
-    stationary::Bool = false,
-    stationarityMargin::AbstractFloat = 0.0,
+    exogDynamics::Symbol = :armax,
+    penaltyTarget::Symbol = :all,
+    initialization::Symbol = DEFAULT_INITIALIZATION,
+    multistart::Bool = false,
+    # INDEPENDENT of `assertStationarity`. Tying the two would conflate distinct decisions:
+    # imposing stationarity BY CONSTRUCTION (changing the parameterization) and REJECTING
+    # inadmissible candidates (a selection rule). R only does the second.
+    stationary::Bool = true,
+    stationarityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
+    invertible::Bool = false,
+    invertibilityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
+    constrainedRefit::Bool = false,
+    rootMargin::AbstractFloat = DEFAULT_ROOT_MARGIN,
+    optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
+    warmStartFromBox::Bool = false,
+    maxTimeSeconds::Union{Nothing,Real} = nothing,
+    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
     lambda::Union{Float64,Nothing} = nothing,
     alpha::Union{Float64,Nothing} = nothing,
+    requireTermsWhenOverDifferenced::Bool = false,
+    requireMAWhenDoublyDifferenced::Bool = false,
 )
     # Parameter validation
     any(isnan, values(y)) && throw(
@@ -1964,14 +3507,15 @@ function auto(
     @assert isnothing(lambda) || (lambda > 0)
     @assert isnothing(alpha) || (alpha >= 0 && alpha <= 1)
     @assert informationCriteria ∈ ["aic", "aicc", "bic"]
-    @assert integrationTest ∈ ["kpss"]
+    @assert integrationTest ∈ ["kpss", "kpssShort"]
     @assert seasonalIntegrationTest ∈ ["seas", "ch", "ocsb"]
-    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable"]
+    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge", "huber", "ml_exact"]
     @assert objectiveFunction == "elastic_net" || isnothing(lambda)
     @assert objectiveFunction == "elastic_net" || isnothing(alpha)
     @assert searchMethod ∈ ["stepwise", "stepwiseNaive", "grid", "sarimax"]
+    @assert !(invertible && objectiveFunction == "bilevel") "invertible = true is not compatible with the bilevel objective"
     @assert seasonalForm in (:multiplicative, :additive) "seasonalForm must be :multiplicative or :additive (:free is planned)"
-    @assert initialization in (:zeroed, :warmup) "initialization must be :zeroed or :warmup"
+    @assert initialization in (:zeroed, :warmup, :free, :penalized, :innovations) "initialization must be :zeroed, :warmup, :free, :penalized or :innovations"
 
     ModelFl = eltype(values(y))
     informationCriteriaFunction = getInformationCriteriaFunction(informationCriteria)
@@ -2066,6 +3610,13 @@ function auto(
         )
     end
 
+    # The search only needs information criteria that are comparable across candidates,
+    # so cap its fits tighter than the final refit: a candidate that cannot be solved
+    # quickly is not going to win, and paying the full budget on each of the dozens of
+    # candidates is what pushed hard series past the per-series timeout.
+    searchMaxTime =
+        isnothing(maxTimeSeconds) ? nothing : min(Float64(maxTimeSeconds), 10.0)
+
     # Set maximum orders
     maxp = min(maxp, floor(Int, length(values(y)) / 3))
     maxp = (seasonality == 1) ? maxp : min(maxp, seasonality-1) # Avoid overlap with seasonal orders
@@ -2076,10 +3627,18 @@ function auto(
     maxQ =
         (seasonality == 1) ? 0 : min(maxQ, floor(Int, length(values(y)) / 3 * seasonality))
 
-    # All search candidates are conditioned on the same pre-sample length so
-    # that their CSS likelihoods (and hence information criteria) are computed
-    # on the same effective sample.
-    searchLb = conditioningLags(maxp, maxq, maxP, maxQ, seasonality, seasonalForm)
+    # All search candidates are conditioned on the same pre-sample length so that their CSS
+    # objectives — and the CSS likelihoods of the criterion FALLBACK path — live on the same
+    # effective sample. Since the criteria moved to the exact likelihood (evaluated on the
+    # full differenced sample regardless of conditioning), this common `lb` no longer shapes
+    # the primary criterion path; it still governs the estimation objective and keeps the
+    # fallback comparisons consistent. Whether it should be removed altogether is an open
+    # question that needs M4-scale measurement (it changes the estimation, not just scoring).
+    # With :free initialization every candidate already scores on the full differenced
+    # sample (pre-sample values are estimated), so no common conditioning is needed.
+    searchLb =
+        initialization in (:free, :penalized, :innovations) ? 0 :
+        conditioningLags(maxp, maxq, maxP, maxQ, seasonality, seasonalForm)
 
     if outlierDetection
         exog = detectOutliers(y, exog, d, D, seasonality, showLogs)
@@ -2097,20 +3656,39 @@ function auto(
             maxq = maxq,
             maxP = maxP,
             maxQ = maxQ,
-            maxOrder = maxOrder,
+            # `maxOrder` does NOT apply in the stepwise search, matching R: in `forecast`,
+            # `max.order` is imposed only inside `search.arima`, the non-stepwise path.
+            # Since `auto.arima` defaults to stepwise, R routinely selects orders with
+            # p+q+P+Q > 5 that this search would otherwise refuse by construction. Measured
+            # in the tail, R's order fell outside our space on 4.5% of the bad series,
+            # carrying 4.8% of the damage. The per-term boxes (maxp/maxq/maxP/maxQ) still
+            # apply.
+            maxOrder = maxp + maxq + maxP + maxQ,
+            warmStartFromBox = warmStartFromBox,
+            maxTimeSeconds = searchMaxTime,
+            cvarLevel = cvarLevel, multistart = multistart,
             objectiveFunction = objectiveFunction,
             assertStationarity = assertStationarity,
             assertInvertibility = assertInvertibility,
             showLogs = showLogs,
             minConditioningObs = searchLb,
             seasonalForm = seasonalForm,
+            exogDynamics = exogDynamics,
+            penaltyTarget = penaltyTarget,
             initialization = initialization,
             stationary = stationary,
             stationarityMargin = stationarityMargin,
+            invertible = invertible,
+            invertibilityMargin = invertibilityMargin,
+            constrainedRefit = constrainedRefit,
+            requireTermsWhenOverDifferenced = requireTermsWhenOverDifferenced,
+            requireMAWhenDoublyDifferenced = requireMAWhenDoublyDifferenced,
+            optimizer = optimizer,
             allowMean = allowMean,
             allowDrift = allowDrift,
             alpha = alpha,
             lambda = lambda,
+            rootMargin = rootMargin
         )
     elseif searchMethod == "stepwiseNaive"
         bestModel = stepWiseSearchNaive(
@@ -2124,16 +3702,28 @@ function auto(
             maxq = maxq,
             maxP = maxP,
             maxQ = maxQ,
-            maxOrder = maxOrder,
+            # as in `stepwise`: a local search, and R does not impose `max.order` outside
+            # `search.arima`
+            maxOrder = maxp + maxq + maxP + maxQ,
+            warmStartFromBox = warmStartFromBox,
+            maxTimeSeconds = searchMaxTime,
+            cvarLevel = cvarLevel, multistart = multistart,
             objectiveFunction = objectiveFunction,
             assertStationarity = assertStationarity,
             assertInvertibility = assertInvertibility,
             showLogs = showLogs,
             minConditioningObs = searchLb,
             seasonalForm = seasonalForm,
+            exogDynamics = exogDynamics,
+            penaltyTarget = penaltyTarget,
             initialization = initialization,
             stationary = stationary,
             stationarityMargin = stationarityMargin,
+            invertible = invertible,
+            invertibilityMargin = invertibilityMargin,
+            constrainedRefit = constrainedRefit,
+            rootMargin = rootMargin,
+            optimizer = optimizer,
             parallel = parallel,
             allowMean = allowMean,
             allowDrift = allowDrift,
@@ -2154,20 +3744,30 @@ function auto(
             maxP = maxP,
             maxQ = maxQ,
             maxOrder = maxOrder,
+            warmStartFromBox = warmStartFromBox,
+            maxTimeSeconds = searchMaxTime,
+            cvarLevel = cvarLevel, multistart = multistart,
             objectiveFunction = objectiveFunction,
             assertStationarity = assertStationarity,
             assertInvertibility = assertInvertibility,
             showLogs = showLogs,
             minConditioningObs = searchLb,
             seasonalForm = seasonalForm,
+            exogDynamics = exogDynamics,
+            penaltyTarget = penaltyTarget,
             initialization = initialization,
             stationary = stationary,
             stationarityMargin = stationarityMargin,
+            invertible = invertible,
+            invertibilityMargin = invertibilityMargin,
+            constrainedRefit = constrainedRefit,
+            optimizer = optimizer,
             parallel = parallel,
             allowMean = allowMean,
             allowDrift = allowDrift,
             alpha = alpha,
             lambda = lambda,
+            rootMargin = rootMargin
         )
     elseif searchMethod == "sarimax"
         if isnothing(exog)
@@ -2201,7 +3801,7 @@ function auto(
             )
         end
 
-        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs, minConditioningObs = searchLb, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
+        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs, minConditioningObs = searchLb, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
     end
 
     bestModel.exog = exog
@@ -2214,24 +3814,28 @@ end
 """
     getInformationCriteriaFunction(informationCriteria)
 
-Returns the information criteria function corresponding to the given `informationCriteria`.
+Returns the SELECTION criterion function for the search: `aic`/`aicc`/`bic` wrapped by
+[`searchCriterionFunction`](@ref), so that candidates whose criterion came from the CSS
+fallback (no computable exact likelihood — typically roots at the boundary) are penalized
+and can never outrank a candidate scored by the exact likelihood. The public `aic`/`aicc`/
+`bic` accessors are NOT affected.
 
 # Arguments
 - `informationCriteria::String`: The name of the information criteria ("aic", "aicc", or "bic").
 
 # Returns
-- `Function`: The information criteria function corresponding to the input.
+- `Function`: The selection criterion function corresponding to the input.
 
 # Throws
 - `ArgumentError`: If the provided `informationCriteria` is not one of "aic", "aicc", or "bic".
 """
 function getInformationCriteriaFunction(informationCriteria::String)
     if informationCriteria == "aic"
-        return aic
+        return searchCriterionFunction(aic)
     elseif informationCriteria == "aicc"
-        return aicc
+        return searchCriterionFunction(aicc)
     elseif informationCriteria == "bic"
-        return bic
+        return searchCriterionFunction(bic)
     end
     throw(ArgumentError("The information criteria '$informationCriteria' is not supported"))
 end
@@ -2768,9 +4372,36 @@ function isVisited(model::SARIMAModel, visitedModels::Dict{String,Dict{String,An
 end
 
 """
-    checkModelStationarityInvertibility(model::SARIMAModel, assertStationarity::Bool, assertInvertibility::Bool, showLogs::Bool)
+    maxInverseRootModulus(a::Vector{Fl}) where Fl
+
+Largest modulus among the inverse roots of the polynomial `1 + a[1] z + a[2] z^2 + ...`,
+computed as the eigenvalues of the companion matrix of `z^n + a[1] z^(n-1) + ... + a[n]`.
+A polynomial has all roots outside the unit circle iff this value is < 1. Returns 0 for
+an empty (or all-zero) coefficient vector.
+"""
+function maxInverseRootModulus(a::Vector{Fl}) where {Fl}
+    n = findlast(!iszero, a)
+    isnothing(n) && return zero(real(Fl))
+    coeffs = a[1:n]
+    companion = zeros(Fl, n, n)
+    companion[1, :] .= .-coeffs
+    for i = 2:n
+        companion[i, i-1] = one(Fl)
+    end
+    return maximum(abs.(eigvals(companion)))
+end
+
+"""
+    checkModelStationarityInvertibility(model::SARIMAModel, assertStationarity::Bool, assertInvertibility::Bool, showLogs::Bool; rootMargin=1e-3)
 
 Checks if a SARIMA model is stationary and invertible.
+
+Following R's `auto.arima` (`myarima`), fits whose expanded AR/MA polynomial roots lie
+within `rootMargin` of the unit circle (modulus < 1 + rootMargin, default 1.001) are
+also rejected: such near-boundary fits behave like (near-)unit-root processes and can
+produce erratic long-horizon forecasts even though they are technically admissible.
+This complements the `stationary = true` fitting constraint, which guarantees strict
+stationarity during optimization but lets solutions approach the boundary.
 
 # Arguments
 
@@ -2778,6 +4409,11 @@ Checks if a SARIMA model is stationary and invertible.
 - `showLogs::Bool`: Whether to suppress output.
 - `assertStationarity::Bool`: Whether to assert stationarity of the fitted models. Default is false.
 - `assertInvertibility::Bool`: Whether to assert invertibility of the fitted models. Default is false.
+- `rootMargin::AbstractFloat`: Rejection margin around the unit circle. Default
+  [`DEFAULT_ROOT_MARGIN`] (`1e-2`), matching `forecast::auto.arima`: its `myarima` sets
+  `ic = Inf` for any candidate whose smallest root falls within 1% of the unit circle. This
+  is a SELECTION rule, not an estimation constraint — it does not touch the reflection
+  coefficient parameterization, whose domain is set by [`DEFAULT_DOMAIN_MARGIN`].
 
 # Returns
 - `Bool`: `true` if the model is stationary and invertible, `false` otherwise.
@@ -2787,7 +4423,8 @@ function checkModelStationarityInvertibility(
     model::SARIMAModel,
     assertStationarity::Bool,
     assertInvertibility::Bool,
-    showLogs::Bool,
+    showLogs::Bool;
+    rootMargin::AbstractFloat = DEFAULT_ROOT_MARGIN,
 )
     # Candidates whose solver did not succeed are never selected: their
     # "estimates" are whatever point the solver stopped at. (TIME_LIMIT is
@@ -2802,15 +4439,103 @@ function checkModelStationarityInvertibility(
 
     arCoefficients, maCoefficients = completeCoefficientsVector(model)
 
-    invertible =
-        !assertInvertibility || StateSpaceModels.assert_invertibility(maCoefficients)
-    showLogs && (invertible || @info("The model $(getId(model)) is not invertible"))
+    # Admissibility threshold: all polynomial roots must have modulus > 1 + rootMargin,
+    # i.e. all inverse roots must have modulus < 1 / (1 + rootMargin).
+    threshold = 1 / (1 + rootMargin)
 
-    stationary = !assertStationarity || StateSpaceModels.assert_stationarity(arCoefficients)
-    showLogs && (stationary || @info("The model $(getId(model)) is not stationary"))
+    # MA polynomial: 1 + θ₁ z + θ₂ z² + ...
+    invertible = !assertInvertibility || maxInverseRootModulus(maCoefficients) < threshold
+    showLogs && (invertible || @info("The model $(getId(model)) is not invertible (roots within $(rootMargin) of the unit circle)"))
+
+    # AR polynomial: 1 - φ₁ z - φ₂ z² - ...
+    stationary = !assertStationarity || maxInverseRootModulus(-arCoefficients) < threshold
+    showLogs && (stationary || @info("The model $(getId(model)) is not stationary (roots within $(rootMargin) of the unit circle)"))
 
     showLogs && (!invertible || !stationary) && @info("The model will not be considered")
     return stationary && invertible
+end
+
+"""
+    ensureAdmissible!(model, assertStationarity, assertInvertibility, showLogs; kwargs...)
+
+On-demand constrained refitting: checks admissibility (stationarity/invertibility with
+the 1.001 root margin) and, when the unconstrained fit fails the check, refits the model
+with the stationarity/invertibility-by-construction parameterizations (margins
+`refitMargin`) and re-checks. Returns `true` iff the (possibly refitted) model is
+admissible.
+
+Rationale: unconstrained (box-bounded) CSS estimation finds better optima on most series,
+but on some it piles the MA root up at the unit circle and pure rejection then wipes out
+the MA model space; always-constrained fitting rescues those series but degrades the rest.
+Fitting free first and constraining only when the admissibility check bites keeps the best
+of both — every accepted model is stationary and invertible, at unconstrained quality
+wherever the free optimum is already admissible.
+"""
+function ensureAdmissible!(
+    model::SARIMAModel,
+    assertStationarity::Bool,
+    assertInvertibility::Bool,
+    showLogs::Bool;
+    objectiveFunction::String = "mse",
+    minConditioningObs::Int = 0,
+    seasonalForm::Symbol = :multiplicative,
+    exogDynamics::Symbol = :armax,
+    penaltyTarget::Symbol = :all,
+    initialization::Symbol = DEFAULT_INITIALIZATION,
+    multistart::Bool = false,
+    refitMargin::AbstractFloat = 2e-3,
+    refit::Bool = true,
+    stationary::Bool = assertStationarity,
+    invertible::Bool = assertInvertibility,
+    # Admissibility margin for the roots. The default 1e-3 is this package's; R's `myarima`
+    # uses 1e-2, i.e. it sets `ic = Inf` for any candidate whose smallest root lies within
+    # 1% of the unit circle. This is a SELECTION rule, not an estimation constraint: it does
+    # not touch the reflection-coefficient parameterization.
+    rootMargin::AbstractFloat = DEFAULT_ROOT_MARGIN,
+    optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
+)
+    checkModelStationarityInvertibility(
+        model,
+        assertStationarity,
+        assertInvertibility,
+        showLogs;
+        rootMargin = rootMargin,
+    ) && return true
+    refit || return false
+    (assertStationarity || assertInvertibility) || return false
+    isFitted(model) || return false
+    # The invertibility-by-construction parameterization does not support the bilevel
+    # objective; in that case keep the plain rejection semantics.
+    showLogs && @info("Refitting $(getId(model)) with constrained parameterization (on demand)")
+    try
+        fit!(
+            model;
+            objectiveFunction = objectiveFunction,
+            minConditioningObs = minConditioningObs,
+            seasonalForm = seasonalForm,
+            exogDynamics = exogDynamics,
+            penaltyTarget = penaltyTarget,
+            initialization = initialization,
+            # The on-demand refit takes the parameterization from the caller, which holds
+            # the assertion and the constraint decisions separately, rather than deriving
+            # one from the other.
+            stationary = stationary,
+            stationarityMargin = refitMargin,
+            invertible = invertible && objectiveFunction != "bilevel",
+            invertibilityMargin = refitMargin,
+            optimizer = optimizer,
+        )
+    catch e
+        showLogs && @info("Constrained refit of $(getId(model)) failed: $(typeof(e))")
+        return false
+    end
+    return checkModelStationarityInvertibility(
+        model,
+        assertStationarity,
+        assertInvertibility,
+        showLogs;
+        rootMargin = rootMargin,
+    )
 end
 
 """
@@ -2862,10 +4587,28 @@ function localSearch!(
     icOffset::Fl = 0.0,
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
-    initialization::Symbol = :zeroed,
-    stationary::Bool = false,
-    stationarityMargin::AbstractFloat = 0.0,
+    initialization::Symbol = DEFAULT_INITIALIZATION,
+    # R's default: `stats::arima` with `transform.pars = TRUE` parameterizes the AR part
+    # through `tanh`, i.e. stationary BY CONSTRUCTION on an open domain. The MA part stays
+    # free (see `invertible`), which is the other half of R's behaviour.
+    stationary::Bool = true,
+    stationarityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
     parallel::Bool = false,
+    invertible::Bool = false,
+    invertibilityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
+    constrainedRefit::Bool = false,
+    rootMargin::AbstractFloat = DEFAULT_ROOT_MARGIN,
+    optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
+    warmStartFromBox::Bool = false,
+    maxTimeSeconds::Union{Nothing,Real} = nothing,
+    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
+    # LAST positional, deliberately: any other position shifts `rootMargin`/`optimizer`
+    # and reproduces the MethodError documented above.
+    multistart::Bool = false;
+    # KEYWORD, deliberately: this argument list is positional, so a new positional here
+    # would shift every slot after it.
+    exogDynamics::Symbol = :armax,
+    penaltyTarget::Symbol = :all,
 ) where {Fl<:AbstractFloat}
     ModelFl = Fl
     localBestCriteria::ModelFl = Inf
@@ -2874,29 +4617,56 @@ function localSearch!(
     if parallel
         Threads.@threads for model in toFit
             try
-                fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
+                fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
             catch e
                 @warn "Parallel candidate fit failed" exception = e
             end
         end
     else
-        foreach(model -> fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin), toFit)
+        foreach(model -> fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart), toFit)
     end
     for model in toFit
         isFitted(model) || continue
+        # ensureAdmissible! may refit the model in place, so the information criterion
+        # must be evaluated afterwards.
+        admissible = ensureAdmissible!(
+            model,
+            assertStationarity,
+            assertInvertibility,
+            showLogs;
+            objectiveFunction = objectiveFunction,
+            minConditioningObs = minConditioningObs,
+            seasonalForm = seasonalForm,
+            exogDynamics = exogDynamics,
+            penaltyTarget = penaltyTarget,
+            initialization = initialization,
+            refit = constrainedRefit,
+            optimizer = optimizer,
+            rootMargin = rootMargin,
+            stationary = stationary,
+            invertible = invertible,
+        )
         criteria = informationCriteriaFunction(model; offset = icOffset)
         showLogs && @info("Fitted $(getId(model)) with $(criteria)")
-        visitedModels[getId(model)] = Dict("criteria" => criteria)
-        if criteria < localBestCriteria
-            if checkModelStationarityInvertibility(
-                model,
-                assertStationarity,
-                assertInvertibility,
-                showLogs,
-            )
-                localBestCriteria = criteria
-                localBestModel = model
-            end
+        # Besides the criterion, record the cost and the shape of the candidate. That is what
+        # allows attributing the total time of a search to "more candidates", "larger
+        # models" or "harder solves", and it also makes the criterion fallback rate
+        # observable.
+        visitedModels[getId(model)] = Dict(
+            "criteria" => criteria,
+            "buildTimeSec" => get(model.metadata, "buildTimeSec", missing),
+            "solveTimeSec" => get(model.metadata, "solveTimeSec", missing),
+            "solverTimeSec" => get(model.metadata, "solverTimeSec", missing),
+            "solverIterations" => get(model.metadata, "solverIterations", missing),
+            "solverStatus" => get(model.metadata, "solverStatus", missing),
+            "criterionFallback" => get(model.metadata, "criterionFallback", missing),
+            "K" => get_hyperparameters_number(model),
+            "order" => (model.p, model.d, model.q, model.P, model.D, model.Q),
+            "admissible" => admissible,
+        )
+        if admissible && criteria < localBestCriteria
+            localBestCriteria = criteria
+            localBestModel = model
         end
     end
     return localBestCriteria, localBestModel
@@ -3277,10 +5047,28 @@ function stepWiseSearchNaive(
     icOffset::AbstractFloat = 0.0,
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
-    initialization::Symbol = :zeroed,
-    stationary::Bool = false,
-    stationarityMargin::AbstractFloat = 0.0,
+    exogDynamics::Symbol = :armax,
+    penaltyTarget::Symbol = :all,
+    initialization::Symbol = DEFAULT_INITIALIZATION,
+    multistart::Bool = false,
+    # R's default: `stats::arima` with `transform.pars = TRUE` parameterizes the AR part
+    # through `tanh`, i.e. stationary BY CONSTRUCTION on an open domain. The MA part stays
+    # free (see `invertible`), which is the other half of R's behaviour.
+    stationary::Bool = true,
+    stationarityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
     parallel::Bool = false,
+    invertible::Bool = false,
+    invertibilityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
+    constrainedRefit::Bool = false,
+    # `rootMargin` must be declared here: the body forwards it to `localSearch!`, which
+    # takes it as the 19th positional argument.
+    rootMargin::AbstractFloat = DEFAULT_ROOT_MARGIN,
+    # Ceiling on models visited, as in `stepwiseSearch`. See [`DEFAULT_NMODELS`].
+    maxModels::Int = DEFAULT_NMODELS,
+    optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
+    warmStartFromBox::Bool = false,
+    maxTimeSeconds::Union{Nothing,Real} = nothing,
+    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
     fixConstant::Bool = false,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,Float64} = nothing,
@@ -3333,6 +5121,20 @@ function stepWiseSearchNaive(
         stationary,
         stationarityMargin,
         parallel,
+        invertible,
+        invertibilityMargin,
+        constrainedRefit,
+        # `rootMargin` is the 19th POSITIONAL argument of localSearch!, between
+        # constrainedRefit and optimizer. It must be passed explicitly: omitting it makes
+        # `optimizer` land in its slot and dispatch fails with a MethodError.
+        rootMargin,
+        optimizer,
+        warmStartFromBox,
+        maxTimeSeconds,
+        cvarLevel,
+        multistart;
+        exogDynamics = exogDynamics,
+        penaltyTarget = penaltyTarget,
     )
 
     if isnothing(bestModel)
@@ -3347,7 +5149,13 @@ function stepWiseSearchNaive(
 
     ITERATION_LIMIT = 100
     iterations = 1
-    while iterations <= ITERATION_LIMIT
+    # Ceiling on MODELS visited, in the manner of `nmodels = 94` in `forecast::auto.arima`.
+    #
+    # The `ITERATION_LIMIT` above bounds hill-climb ITERATIONS, not models: each iteration
+    # fits a whole neighbourhood. `stepwiseSearch`, the default method, already had this
+    # ceiling under the name `maxModels`; this search did not, and the gap became visible
+    # once `maxOrder` moved out of here to match R, which imposes it only in `search.arima`.
+    while iterations <= ITERATION_LIMIT && length(visitedModels) < maxModels
 
         addNonSeasonalModels!(
             bestModel,
@@ -3388,6 +5196,17 @@ function stepWiseSearchNaive(
             stationary,
             stationarityMargin,
             parallel,
+            invertible,
+            invertibilityMargin,
+            constrainedRefit,
+            rootMargin,
+            optimizer,
+            warmStartFromBox,
+            maxTimeSeconds,
+            cvarLevel,
+            multistart;
+            exogDynamics = exogDynamics,
+            penaltyTarget = penaltyTarget,
         )
         showLogs && !isnothing(itBestModel) && @info(
             "Iteration $(iterations): Best model found is $(getId(itBestModel)) with $(itBestCriteria) criteria"
@@ -3400,6 +5219,11 @@ function stepWiseSearchNaive(
         iterations += 1
     end
 
+    # `visitedModels` dies with this function, so per-candidate telemetry only escapes if it
+    # travels with the selected model. It goes into the metadata (internal, no signature
+    # changes) so that cost attribution — number of fits, build/solve split, distribution of
+    # K, solver iterations, criterion fallback rate — is readable from outside.
+    bestModel.metadata["searchTelemetry"] = visitedModels
     return bestModel
 end
 
@@ -3502,14 +5326,68 @@ function stepwiseSearch(
     icOffset::AbstractFloat = 0.0,
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
-    initialization::Symbol = :zeroed,
-    stationary::Bool = false,
-    stationarityMargin::AbstractFloat = 0.0,
-    maxModels::Int = 94,
+    exogDynamics::Symbol = :armax,
+    penaltyTarget::Symbol = :all,
+    initialization::Symbol = DEFAULT_INITIALIZATION,
+    multistart::Bool = false,
+    # R's default: `stats::arima` with `transform.pars = TRUE` parameterizes the AR part
+    # through `tanh`, i.e. stationary BY CONSTRUCTION on an open domain. The MA part stays
+    # free (see `invertible`), which is the other half of R's behaviour.
+    stationary::Bool = true,
+    stationarityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
+    invertible::Bool = false,
+    invertibilityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
+    constrainedRefit::Bool = false,
+    rootMargin::AbstractFloat = DEFAULT_ROOT_MARGIN,
+    optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
+    warmStartFromBox::Bool = false,
+    maxTimeSeconds::Union{Nothing,Real} = nothing,
+    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
+    maxModels::Int = DEFAULT_NMODELS,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
     lambda::Union{Nothing,<:AbstractFloat} = nothing,
+    requireTermsWhenOverDifferenced::Bool = false,
+    requireMAWhenDoublyDifferenced::Bool = false,
 )
     constant = allowDrift || allowMean
+    # With d + D >= 2 and no AR/MA term at all, the forecast is a pure extrapolation of
+    # the locally fitted slope: nothing damps it, so it runs off in a straight line and,
+    # on the strictly positive series of the M4, crosses zero — which pins sMAPE near its
+    # 200 ceiling. Measured on the M4 monthly tail, the residual failures after every
+    # other correction were exactly (0,2,0)(0,0,0) and (0,1,0)(0,1,0). This guard removes
+    # that degenerate corner from the search while leaving every other order reachable.
+    # Off by default: R's auto.arima has no such rule (it avoids the corner by scoring
+    # candidates on the full sample instead), so enabling it is a deliberate divergence
+    # from the reference implementation.
+    overDifferenced = requireTermsWhenOverDifferenced && (d + D) >= 2
+    # Second-differencing induces a unit MA root AT THE LAG THAT WAS DIFFERENCED. A candidate
+    # with no MA term at that lag cannot represent it and compensates with AR persistence,
+    # which explodes once re-integrated twice. Measured on the M4 monthly (144 series with
+    # d = 2, D = 0): every one of the seven worst offenders has q = 0 — including (1,0,0,0),
+    # which the "high AR order" reading does not cover. The seasonal counterpart (Q when
+    # D >= 2) is vacuous on monthly M4 but stated for symmetry.
+    #
+    # The guard is DIMENSIONAL, not aggregate: `q + Q >= 1` under `d + D >= 2` was rejected
+    # ex ante, because a seasonal MA at lag s cannot damp a unit root at lag 1 — (5,0,1,1)
+    # has Q = 1 and blew up anyway. d = D = 1 stays untouched by construction: with one
+    # difference in each dimension, theory does not say which one carries the insurance.
+    #
+    # This constrains representability, not magnitude: a genuinely q = 0 process stays nested
+    # at theta = 0, costing one AICc parameter.
+    requireNonSeasonalMA = requireMAWhenDoublyDifferenced && d >= 2
+    requireSeasonalMA = requireMAWhenDoublyDifferenced && D >= 2
+    orderAllowed(np::Int, nq::Int, nP::Int, nQ::Int) =
+        !(overDifferenced && (np + nq + nP + nQ) == 0) &&
+        !(requireNonSeasonalMA && nq == 0) &&
+        !(requireSeasonalMA && nQ == 0)
+    # The constant term must live in the slot that matches the differencing order:
+    # mean when d + D == 0 (allowMean), drift when d + D == 1 (allowDrift). Using the
+    # wrong slot adds a term that vanishes after differencing (not identifiable) while
+    # the search never explores the identifiable one. curMean/curDrift track the constant
+    # setting of the current best model (kept in sync by the toggle move below).
+    useDrift = allowDrift
+    curMean = allowMean
+    curDrift = allowDrift
     p = min(startp, maxp)
     q = min(startq, maxq)
     P = min(startP, maxP)
@@ -3526,41 +5404,69 @@ function stepwiseSearch(
         D = D,
         Q = Q,
         seasonality = seasonality,
-        allowMean = constant,
-        allowDrift = false,
+        allowMean = allowMean,
+        allowDrift = allowDrift,
         alpha = alpha,
         lambda = lambda
     )
-    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
+    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
     showLogs && @info(
         "Fitted $(getId(bestModel)) with $(informationCriteriaFunction(bestModel; offset=icOffset)) criteria"
     )
 
     results[getId(bestModel)] = bestModel
 
-    considerModel = checkModelStationarityInvertibility(
+    considerModel = ensureAdmissible!(
         bestModel,
         assertStationarity,
         assertInvertibility,
-        showLogs,
+        showLogs;
+        objectiveFunction = objectiveFunction,
+        minConditioningObs = minConditioningObs,
+        seasonalForm = seasonalForm,
+        exogDynamics = exogDynamics,
+        penaltyTarget = penaltyTarget,
+        initialization = initialization,
+        refit = constrainedRefit,
+        optimizer = optimizer,
     )
 
+    # The "null" model is both a candidate and the safety net: the line below adopts it
+    # unconditionally when the first candidate turns out inadmissible. Guarding only the
+    # *adoption* therefore left the degenerate order reachable through that fallback,
+    # which is why the guard measured as completely inert on the M4 tail. Under the guard
+    # the safety net itself must carry a term, so the minimal admissible model takes its
+    # place. If no lag is available at all the guard simply cannot be honoured, and the
+    # plain null model stands.
+    # Under the MA guard the safety net must carry the MA term itself: preferring an AR lag
+    # here reintroduces exactly the (1,0,0,0) corner the guard exists to remove, through the
+    # one path that adopts unconditionally.
+    nullp, nullq = 0, 0
+    if requireNonSeasonalMA && maxq > 0
+        nullq = 1
+    elseif overDifferenced
+        if maxp > 0
+            nullp = 1
+        elseif maxq > 0
+            nullq = 1
+        end
+    end
     fitModel = SARIMA(
         y,
         exog,
-        0,
+        nullp,
         d,
-        0;
+        nullq;
         P = 0,
         D = D,
         Q = 0,
         seasonality = seasonality,
-        allowMean = constant,
-        allowDrift = false,
+        allowMean = allowMean,
+        allowDrift = allowDrift,
         alpha = alpha,
         lambda = lambda
     )
-    fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
+    fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
     showLogs && @info(
         "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
     )
@@ -3568,19 +5474,31 @@ function stepwiseSearch(
 
     results[getId(fitModel)] = fitModel
 
-    considerModel = checkModelStationarityInvertibility(
+    considerModel = ensureAdmissible!(
         fitModel,
         assertStationarity,
         assertInvertibility,
-        showLogs,
+        showLogs;
+        objectiveFunction = objectiveFunction,
+        minConditioningObs = minConditioningObs,
+        seasonalForm = seasonalForm,
+        exogDynamics = exogDynamics,
+        penaltyTarget = penaltyTarget,
+        initialization = initialization,
+        refit = constrainedRefit,
+        optimizer = optimizer,
     )
 
+    # The null model keeps its role as the safety net above (it is the fallback when the
+    # first candidate is inadmissible), but under the guard it must not be *adopted* as
+    # the best: (0,d,0)(0,D,0) with d + D >= 2 is precisely the degenerate corner.
     if considerModel &&
+       orderAllowed(nullp, nullq, 0, 0) &&
        informationCriteriaFunction(bestModel; offset = icOffset) >
        informationCriteriaFunction(fitModel; offset = icOffset)
         bestModel = fitModel
-        p = 0
-        q = 0
+        p = nullp
+        q = nullq
         P = 0
         Q = 0
     end
@@ -3605,18 +5523,30 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
-        considerModel = checkModelStationarityInvertibility(
+        considerModel = ensureAdmissible!(
             fitModel,
             assertStationarity,
             assertInvertibility,
-            showLogs,
+            showLogs;
+            objectiveFunction = objectiveFunction,
+            minConditioningObs = minConditioningObs,
+            seasonalForm = seasonalForm,
+            exogDynamics = exogDynamics,
+            penaltyTarget = penaltyTarget,
+            initialization = initialization,
+            refit = constrainedRefit,
+            optimizer = optimizer,
+            rootMargin = rootMargin,
+            stationary = stationary,
+            invertible = invertible,
         )
         results[getId(fitModel)] = fitModel
         if considerModel &&
+           orderAllowed(auxp, 0, auxP, 0) &&
            informationCriteriaFunction(fitModel; offset = icOffset) <
            informationCriteriaFunction(bestModel; offset = icOffset)
             bestModel = fitModel
@@ -3646,18 +5576,30 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
-        considerModel = checkModelStationarityInvertibility(
+        considerModel = ensureAdmissible!(
             fitModel,
             assertStationarity,
             assertInvertibility,
-            showLogs,
+            showLogs;
+            objectiveFunction = objectiveFunction,
+            minConditioningObs = minConditioningObs,
+            seasonalForm = seasonalForm,
+            exogDynamics = exogDynamics,
+            penaltyTarget = penaltyTarget,
+            initialization = initialization,
+            refit = constrainedRefit,
+            optimizer = optimizer,
+            rootMargin = rootMargin,
+            stationary = stationary,
+            invertible = invertible,
         )
         results[getId(fitModel)] = fitModel
         if considerModel &&
+           orderAllowed(0, auxq, 0, auxQ) &&
            informationCriteriaFunction(fitModel; offset = icOffset) <
            informationCriteriaFunction(bestModel; offset = icOffset)
             bestModel = fitModel
@@ -3685,18 +5627,30 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
-        considerModel = checkModelStationarityInvertibility(
+        considerModel = ensureAdmissible!(
             fitModel,
             assertStationarity,
             assertInvertibility,
-            showLogs,
+            showLogs;
+            objectiveFunction = objectiveFunction,
+            minConditioningObs = minConditioningObs,
+            seasonalForm = seasonalForm,
+            exogDynamics = exogDynamics,
+            penaltyTarget = penaltyTarget,
+            initialization = initialization,
+            refit = constrainedRefit,
+            optimizer = optimizer,
+            rootMargin = rootMargin,
+            stationary = stationary,
+            invertible = invertible,
         )
         results[getId(fitModel)] = fitModel
         if considerModel &&
+           orderAllowed(0, 0, 0, 0) &&
            informationCriteriaFunction(fitModel; offset = icOffset) <
            informationCriteriaFunction(bestModel; offset = icOffset)
             bestModel = fitModel
@@ -3711,6 +5665,7 @@ function stepwiseSearch(
     # Try one neighbour specification; when it improves the information
     # criterion and passes the admissibility checks, adopt it as the new best.
     function tryCandidate!(newp::Int, newq::Int, newP::Int, newQ::Int, cAllowMean::Bool, cAllowDrift::Bool)
+        orderAllowed(newp, newq, newP, newQ) || return false
         newModel(results, newp, d, newq, newP, D, newQ, seasonality, cAllowMean, cAllowDrift) ||
             return false
         k += 1
@@ -3730,15 +5685,26 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda,
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
-        considerModel = checkModelStationarityInvertibility(
+        considerModel = ensureAdmissible!(
             fitModel,
             assertStationarity,
             assertInvertibility,
-            showLogs,
+            showLogs;
+            objectiveFunction = objectiveFunction,
+            minConditioningObs = minConditioningObs,
+            seasonalForm = seasonalForm,
+            exogDynamics = exogDynamics,
+            penaltyTarget = penaltyTarget,
+            initialization = initialization,
+            refit = constrainedRefit,
+            optimizer = optimizer,
+            rootMargin = rootMargin,
+            stationary = stationary,
+            invertible = invertible,
         )
         results[getId(fitModel)] = fitModel
         if considerModel &&
@@ -3780,7 +5746,7 @@ function stepwiseSearch(
             newp, newq, newP, newQ = p + dp, q + dq, P + dP, Q + dQ
             (0 <= newp <= maxp && 0 <= newq <= maxq && 0 <= newP <= maxP && 0 <= newQ <= maxQ) ||
                 continue
-            if tryCandidate!(newp, newq, newP, newQ, allowMean, allowDrift)
+            if tryCandidate!(newp, newq, newP, newQ, curMean, curDrift)
                 p, q, P, Q = newp, newq, newP, newQ
                 improved = true
                 break
@@ -3788,12 +5754,59 @@ function stepwiseSearch(
         end
         improved && continue
 
-        if (allowDrift || allowMean) && tryCandidate!(p, q, P, Q, !constant, false)
-            constant = !constant
+        # Toggle the constant in the slot that matches the differencing order
+        # (drift when d + D == 1, mean when d + D == 0), as in auto.arima.
+        if allowDrift || allowMean
+            newMean = useDrift ? false : !constant
+            newDrift = useDrift ? !constant : false
+            if tryCandidate!(p, q, P, Q, newMean, newDrift)
+                constant = !constant
+                curMean = newMean
+                curDrift = newDrift
+            end
         end
     end
 
+    # `results` holds the fitted models, whose metadata already carries the cost measured
+    # in `fit!`. Summarizing here, rather than attaching the whole of `results`, avoids a
+    # reference cycle — `bestModel` is inside `results` — and keeps the metadata
+    # serializable.
+    bestModel.metadata["searchTelemetry"] = summarizeSearchCost(results)
     return bestModel
+end
+
+"""
+    summarizeSearchCost(results) -> Dict{String,Dict{String,Any}}
+
+Extracts, from a dictionary of fitted candidate models, the per-candidate summary that allows
+ATTRIBUTING the cost of a search: `number of fits x cost per fit`, with the cost split into
+building the JuMP problem and solving it, plus the shape of the candidate (`K`, order) and its
+numerical difficulty (solver iterations, status).
+
+Without it the three possible causes of a time regression — more candidates, larger models, or
+harder solves — cannot be told apart, and they have different remedies. The criterion fallback
+rate (`criterionFallback`) comes out of the same summary.
+"""
+function summarizeSearchCost(results::Dict{String,SARIMAModel})
+    summary = Dict{String,Dict{String,Any}}()
+    for (id, m) in results
+        md = m.metadata
+        summary[id] = Dict{String,Any}(
+            # ...Total is the sum over ALL fits of the candidate (warm start does up to 3,
+            # and `ensureAdmissible!` may refit on top). The unsuffixed fields hold only the
+            # last fit and under-report on those paths.
+            "buildTimeSec" => get(md, "buildTimeSecTotal", get(md, "buildTimeSec", missing)),
+            "solveTimeSec" => get(md, "solveTimeSecTotal", get(md, "solveTimeSec", missing)),
+            "fitCount" => get(md, "fitCount", missing),
+            "solverTimeSec" => get(md, "solverTimeSec", missing),
+            "solverIterations" => get(md, "solverIterations", missing),
+            "solverStatus" => get(md, "solverStatus", missing),
+            "criterionFallback" => get(md, "criterionFallback", missing),
+            "K" => get_hyperparameters_number(m),
+            "order" => (m.p, m.d, m.q, m.P, m.D, m.Q),
+        )
+    end
+    return summary
 end
 
 """
@@ -3865,10 +5878,24 @@ function gridSearch(
     icOffset::AbstractFloat = 0.0,
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
-    initialization::Symbol = :zeroed,
-    stationary::Bool = false,
-    stationarityMargin::AbstractFloat = 0.0,
+    exogDynamics::Symbol = :armax,
+    penaltyTarget::Symbol = :all,
+    initialization::Symbol = DEFAULT_INITIALIZATION,
+    multistart::Bool = false,
+    # R's default: `stats::arima` with `transform.pars = TRUE` parameterizes the AR part
+    # through `tanh`, i.e. stationary BY CONSTRUCTION on an open domain. The MA part stays
+    # free (see `invertible`), which is the other half of R's behaviour.
+    stationary::Bool = true,
+    stationarityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
     parallel::Bool = false,
+    invertible::Bool = false,
+    invertibilityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
+    constrainedRefit::Bool = false,
+    rootMargin::AbstractFloat = DEFAULT_ROOT_MARGIN,
+    optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
+    warmStartFromBox::Bool = false,
+    maxTimeSeconds::Union{Nothing,Real} = nothing,
+    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,Float64} = nothing,
 )
@@ -3890,6 +5917,9 @@ function gridSearch(
             allowDrift = allowDrift,
             alpha = alpha,
             lambda = lambda,
+            # WITHOUT `rootMargin`: it is a REJECTION margin, a property of selection rather
+            # than of the model, and the `SARIMA` constructor has no such keyword. The
+            # consumer is `ensureAdmissible!` further below, which receives it correctly.
         ),
     )
     for p = 0:maxp, q = 0:maxq, P = 0:maxP, Q = 0:maxQ, kc = 0:maxK
@@ -3914,7 +5944,7 @@ function gridSearch(
         )
     end
 
-    fitOne!(m) = fit!(m; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin)
+    fitOne!(m) = fit!(m; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
     if parallel
         Threads.@threads for m in candidates
             try
@@ -3931,14 +5961,25 @@ function gridSearch(
     bestIC = Inf
     for m in candidates
         isFitted(m) || continue
-        ic = informationCriteriaFunction(m; offset = icOffset)
-        showLogs && @info("Fitted $(getId(m)) with $(ic) criteria")
-        considerModel = checkModelStationarityInvertibility(
+        considerModel = ensureAdmissible!(
             m,
             assertStationarity,
             assertInvertibility,
-            showLogs,
+            showLogs;
+            objectiveFunction = objectiveFunction,
+            minConditioningObs = minConditioningObs,
+            seasonalForm = seasonalForm,
+            exogDynamics = exogDynamics,
+            penaltyTarget = penaltyTarget,
+            initialization = initialization,
+            refit = constrainedRefit,
+            optimizer = optimizer,
+            rootMargin = rootMargin,
+            stationary = stationary,
+            invertible = invertible,
         )
+        ic = informationCriteriaFunction(m; offset = icOffset)
+        showLogs && @info("Fitted $(getId(m)) with $(ic) criteria")
         if considerModel && ic < bestIC
             bestModel = m
             bestIC = ic
@@ -3948,62 +5989,37 @@ function gridSearch(
     return bestModel
 end
 
-function regularizationObjective(jumpModel::Model, model::SARIMAModel, tolerance::Float64)
-    parametersVector::Vector{Symbol} = getParametersVector(model)
-    parametersVectorExtended::Vector{VariableRef} =
-        length(parametersVector) == 0 ? [] :
-        reduce(vcat, [Vector{VariableRef}([jumpModel[el]...]) for el in parametersVector])
+"""
+    maToReflectionExpr(θ, q)
 
-    weights = []
-    for param in parametersVector
-        seasonalOffset = param in [:Φ, :Θ] ? model.seasonality : 1
-        aux_vector = [jumpModel[param]...]
-        aux_weights = []
-        aux_lags = []
-        for (lag,el) in enumerate(aux_vector)
-            push!(aux_weights, min(1/(abs(value(el)) + 1e-6), 1e6))
-            push!(aux_lags, lag * seasonalOffset)
-        end
+Reflection coefficients of the MA block as JuMP EXPRESSIONS, through the inverse
+Levinson-Durbin recursion — the same one as [`maToReflection`](@ref), written for decision
+variables rather than numbers. It exists so that the MA log-determinant term can be assembled
+without requiring `invertible = true`: the invertible parameterization creates the `kappa` as
+bounded variables, but the determinant needs only their VALUE, which is a rational function of
+the `theta`.
 
-        # get the median of the aux_weights
-        median_weight = median(aux_weights)
-        aux_weights = [el/median_weight for el in aux_weights]
-        aux_weights = (aux_weights .* aux_lags)
-
-        push!(weights, aux_weights...)
-    end
-
-    if length(parametersVectorExtended) == 0
-        @objective(jumpModel, Min, sum(jumpModel[:ϵ] .^ 2))
-    else
-        # L1 norm components (for lasso part)
-        @variable(jumpModel, auxVariables[i = 1:length(parametersVectorExtended)])
-        @constraints(
-            jumpModel,
-            begin
-                [i = 1:length(parametersVectorExtended)],
-                auxVariables[i] >= parametersVectorExtended[i]
-                [i = 1:length(parametersVectorExtended)],
-                auxVariables[i] >= -parametersVectorExtended[i]
+Returns `nothing` when the order is zero. The divisions by `1 - kappa^2` are the same
+denominators as in the numerical version; there is no zero guard here because the determinant
+term itself diverges there, which is the intended behaviour — it repels the boundary instead
+of needing a constraint that excludes it.
+"""
+function maToReflectionExpr(θ, q::Int)
+    q == 0 && return nothing
+    a = Any[θ[i] for i = 1:q]
+    κ = Vector{Any}(undef, q)
+    for m = q:-1:1
+        κ[m] = a[m]
+        if m > 1
+            d = 1 - κ[m]^2
+            aprev = Vector{Any}(undef, m - 1)
+            for i = 1:(m-1)
+                aprev[i] = (a[i] - κ[m] * a[m-i]) / d
             end
-        )
-
-        # Set up lambda and alpha parameters
-        @variable(jumpModel, α in Parameter(0.5))
-
-        # Use model's lambda and alpha if provided, otherwise use defaults
-        alpha_value = isnothing(model.alpha) ? 0.5 : model.alpha
-
-        set_parameter_value(jumpModel[:α], alpha_value)
-
-        # Set constraints for the regularization
-        @constraint(jumpModel,  sum(jumpModel[:ϵ] .^ 2) <= tolerance)
-
-        # Elastic net objective: [α * L1 + (1-α) * L2]
-        @objective(
-            jumpModel,
-            Min,
-            (jumpModel[:α] * sum(weights .* auxVariables) + (1 - jumpModel[:α])/2 * sum(weights .* (parametersVectorExtended .^ 2)))
-        )
+            for i = 1:(m-1)
+                a[i] = aprev[i]
+            end
+        end
     end
+    κ
 end

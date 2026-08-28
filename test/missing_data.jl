@@ -22,8 +22,15 @@
 
         # coefficient stays close to the complete-data fit
         @test abs(mMiss.ϕ[1] - mFull.ϕ[1]) < 0.05
-        # effective sample excludes the gaps
-        @test nobs(mMiss) == (n - 1) - length(holes)
+        # Effective sample: it excludes the gaps AND depends on the mode's CONDITIONING.
+        # Under the `:innovations` default the error sum starts at t = 1 and no observation
+        # is conditioned out; under `:zeroed` the first one is (p = 1). Both regimes are
+        # pinned deliberately, rather than a single magic number, because the conditioning
+        # is the axis that moves.
+        @test nobs(mMiss) == n - length(holes)
+        mMissZeroed = SARIMA(TimeArray(collect(dts), ym), 1, 0, 0; allowMean = false)
+        fit!(mMissZeroed; initialization = :zeroed)
+        @test nobs(mMissZeroed) == (n - 1) - length(holes)
         @test mMiss.metadata["nMissing"] == length(holes)
         @test length(residuals(mMiss)) == nobs(mMiss)
 
@@ -54,7 +61,11 @@
         m = SARIMA(TimeArray(collect(dts), ym), 0, 0, 1; allowMean = false)
         fit!(m)
         @test abs(m.θ[1] - θtrue) < 0.2
-        @test nobs(m) == (n - 1) - 6
+        # ver nota sobre condicionamento no testset AR(1) acima
+        @test nobs(m) == n - 6
+        mZeroed = SARIMA(TimeArray(collect(dts), ym), 0, 0, 1; allowMean = false)
+        fit!(mZeroed; initialization = :zeroed)
+        @test nobs(mZeroed) == (n - 1) - 6
     end
 
     @testset "unsupported combinations throw" begin

@@ -134,3 +134,7 @@ $RECYCLE.BIN/
 /models/opt_sarima.jl
 
 # End of https://www.toptal.com/developers/gitignore/api/julia,macos,linux,windows,visualstudiocode
+# Internal/manuscript reproducibility material — not part of the package
+# distribution; kept out of the default branch by request.
+/experiments/
+/WORKLOG.md

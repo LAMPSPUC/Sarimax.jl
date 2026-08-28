@@ -26,9 +26,26 @@ julia> stationaryAirPassengers = differentiate(airPassengers, d=1, D=1, s=12)
 """
 function differentiate(series::TimeArray, d::Int = 0, D::Int = 0, s::Int = 1)
     Fl = eltype(values(series))
-    copiedValues::Vector{Fl} = values(series)
     coeffs = differentiated_coefficients(d, D, s, Fl)
     lenCoeffs = length(coeffs)
+    seriesValues = values(series)
+
+    # Multi-column input (several exogenous regressors) is differenced column by column
+    # with the same coefficients. The single-column path below is kept separate so that
+    # its result stays a `Vector` rather than a one-column `Matrix`.
+    if ndims(seriesValues) == 2
+        nRows, nCols = size(seriesValues)
+        diffMatrix = Matrix{Fl}(undef, nRows - lenCoeffs + 1, nCols)
+        for col = 1:nCols
+            column = @view seriesValues[:, col]
+            for (row, i) in enumerate(lenCoeffs:nRows)
+                diffMatrix[row, col] = coeffs'column[i:-1:i-lenCoeffs+1]
+            end
+        end
+        return TimeArray(timestamp(series)[lenCoeffs:end], diffMatrix, colnames(series))
+    end
+
+    copiedValues::Vector{Fl} = seriesValues
     diffValues::Vector{Fl} = Vector{Fl}()
     for i = lenCoeffs:length(copiedValues)
         y_diff = coeffs'copiedValues[i:-1:i-lenCoeffs+1]
@@ -186,14 +203,21 @@ function selectSeasonalIntegrationOrder(
     seasonality::Int,
     test::String,
 ) where {Fl<:AbstractFloat}
-    if test == "seas"
-        return StateSpaceModels.seasonal_strength_test(y, seasonality)
-    elseif test == "ch"
-        return StateSpaceModels.canova_hansen_test(y, seasonality)
-    elseif test == "ocsb"
-        return ocsb_test(y;m=seasonality)["seasonal_difference"]
+    test in ("seas", "ch", "ocsb") || throw(ArgumentError("The test $test is not supported"))
+    # Mirror R's forecast::nsdiffs: if the chosen seasonal test errors out, warn and
+    # fall back to D = 0 instead of aborting the model search.
+    try
+        if test == "seas"
+            return seasonalStrengthTest(y, seasonality)["seasonal_difference"]
+        elseif test == "ch"
+            return StateSpaceModels.canova_hansen_test(y, seasonality)
+        else
+            return ocsb_test(y; m=seasonality)["seasonal_difference"]
+        end
+    catch e
+        @warn "Seasonal unit root test '$test' failed; assuming D = 0" exception = e
+        return 0
     end
-    throw(ArgumentError("The test $test is not supported"))
 end
 
 """
@@ -224,10 +248,17 @@ function selectIntegrationOrder(
 ) where {Fl<:AbstractFloat}
     if test == "kpssStateSpace"
         return StateSpaceModels.repeated_kpss_test(y, maxd, D, seasonality)
-    elseif test == "kpss"
+    elseif test in ("kpss", "kpssShort")
+        # "kpss": Hobijn et al. automatic lag selection (statsmodels-compatible).
+        # "kpssShort": the intent of this mode is to match R's forecast::ndiffs (and
+        # therefore auto.arima's differencing decisions). ndiffs does NOT use urca's
+        # lags = "short": it fixes use.lag = trunc(3*sqrt(n)/13) (verified against
+        # forecast 8.23.0), which the :ndiffs bandwidth reproduces. The mode keeps its
+        # historical name; only the bandwidth was corrected.
+        lagMethod = (test == "kpssShort") ? :ndiffs : :auto
         for i in 0:maxd
             diffSeries = differentiate(y, i, D, seasonality)
-            result = kpss_test(diffSeries)
+            result = kpss_test(diffSeries; nlags=lagMethod)
             if result["p_value"] > 0.05
                 return i
             end
@@ -337,6 +368,18 @@ end
 
 
 """
+Tolerância *relativa* abaixo da qual a amplitude interquartil é considerada degenerada,
+isto é, indistinguível de zero na escala dos próprios dados. Ver `identifyOutliers`.
+
+O valor acompanha a tolerância default do Ipopt (1e-8): os resíduos que alimentam
+`identifyOutliers` não são subtrações, são variáveis de um modelo JuMP amarradas por
+restrição de igualdade e satisfeitas apenas até a tolerância do solver. Fica ~8 ordens de
+grandeza acima do piso de ruído de ponto flutuante (ULP) e ~8 abaixo de qualquer dispersão
+com significado estatístico.
+"""
+const DEGENERATE_IQR_RTOL = 1e-8
+
+"""
     identifyOutliers(series::Vector{Fl}, method::String="iqr", threshold::Float64=1.5) where Fl<:AbstractFloat
 
 Identify outliers in a time series using the specified method.
@@ -348,6 +391,16 @@ Identify outliers in a time series using the specified method.
 
 # Returns
 A boolean vector indicating the outliers in the time series.
+
+# Dispersão degenerada
+
+Quando a amplitude interquartil é nula — ou pequena demais na escala dos dados, abaixo de
+`DEGENERATE_IQR_RTOL` vezes `max(|q1|, |q3|)` — a regra do IQR perde sentido: as cercas
+colapsam sobre os próprios quartis e *tudo* que não for bit-idêntico a eles é sinalizado.
+Nesse regime a resposta é nenhum outlier. Dispersão zero é evidência zero de atipicidade,
+e a diferença entre "igual" e "quase igual" ao quartil é ruído de tolerância numérica, não
+sinal. Sem essa guarda a saída da função depende do último bit dos resíduos e, portanto,
+do runner em que o solver rodou.
 """
 function identifyOutliers(
     series::Vector{Fl},
@@ -361,8 +414,17 @@ function identifyOutliers(
     if method == "iqr"
         q1 = quantile(series, 0.25)
         q3 = quantile(series, 0.75)
-        lower = q1 - threshold * (q3 - q1)
-        upper = q3 + threshold * (q3 - q1)
+        iqr = q3 - q1
+        # Degenerate-dispersion guard. The comparison is relative to the scale of the
+        # quartiles rather than to an absolute constant, so that the guard means the same
+        # thing on series of any magnitude. The `<=` also covers `q1 == q3 == 0`, where the
+        # scale is zero.
+        scale = max(abs(q1), abs(q3))
+        if iqr <= DEGENERATE_IQR_RTOL * scale
+            return falses(length(series))
+        end
+        lower = q1 - threshold * iqr
+        upper = q3 + threshold * iqr
         # make a list where 1 indicates an outlier and 0 indicates no outlier
         return (series .< lower) .| (series .> upper)
     end

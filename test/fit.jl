@@ -54,16 +54,23 @@
         airPassengersLog = log.(airPassengers)
         testModel = SARIMA(airPassengersLog, 3, 0, 1; seasonality = 12, P = 1, D = 1, Q = 1)
         fit!(testModel)
-        # CSS log-likelihood with full Gaussian constants, multiplicative
-        # seasonal form (v0.3 default): aic = 2K - 2ℓ, K counts all declared
-        # parameters (+σ²)
-        @test aic(testModel) ≈ -479.7726772190683 atol = 1e-3
-        @test aicc(testModel) ≈ -478.9155343619255 atol = 1e-3
-        @test bic(testModel) ≈ -454.3634793584777 atol = 1e-3
+        # Criteria are scored with `criterionLoglike`: the EXACT Gaussian log-likelihood
+        # when computable (the case here), CSS fallback otherwise. `K = ncoef + 1` counts
+        # all declared parameters (+σ²), and the small-sample correction / BIC factor use
+        # the sample size of the likelihood actually used (`T` on the exact path — NOT
+        # `length(observedResiduals)`, which discounts the CSS conditioning).
         K = get_hyperparameters_number(testModel)
         @test K == 8
-        @test aic(testModel) ≈ 2 * K - 2 * loglike(testModel) atol = 1e-10
-        @test bic(testModel) ≈ K * log(length(testModel.ϵ)) - 2 * loglike(testModel) atol = 1e-10
+        ll, n, usedExact = Sarimax.criterionLoglikeAndN(testModel)
+        @test usedExact
+        @test n == length(values(differentiate(airPassengersLog, 0, 1, 12)))
+        @test aic(testModel) ≈ 2 * K - 2 * ll atol = 1e-10
+        @test aicc(testModel) ≈ aic(testModel) + (2 * K * K + 2 * K) / (n - K - 1) atol = 1e-10
+        @test bic(testModel) ≈ K * log(n) - 2 * ll atol = 1e-10
+        # the exact likelihood is never below the CSS one evaluated at the same point on
+        # fewer observations by more than the determinant term; what matters here is that
+        # the public accessors and the criterion core agree with each other
+        @test loglike(testModel) ≉ ll  # CSS accessor and exact criterion are distinct quantities
     end
 
 

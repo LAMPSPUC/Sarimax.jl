@@ -36,6 +36,7 @@ using Printf
 using Optim
 using Random
 using SCIP
+using SeasonalTrendLoess
 using StateSpaceModels
 using Statistics
 using TimeSeries
@@ -55,6 +56,9 @@ include("exceptions.jl")
 include("fit.jl")
 include("models/sarima.jl")
 include("utils.jl")
+# depois de `utils.jl`: usa `differentiate` e `isFitted`
+include("exact_likelihood.jl")
+include("stl_r.jl")
 include("statistical_tests.jl")
 include("diagnostics.jl")
 include("transformations.jl")

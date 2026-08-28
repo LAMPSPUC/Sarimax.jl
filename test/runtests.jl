@@ -7,6 +7,7 @@ using Test
 using Random
 using TimeSeries
 using JSON
+using LinearAlgebra
 
 # Testes dos modelos
 
@@ -44,7 +45,33 @@ using JSON
 
     include("statistical_properties.jl")
 
+    include("numerical_conditioning.jl")
+
+    include("objective_functions.jl")
+
+    include("warm_start.jl")
+
+    include("solver_interface.jl")
+
+    include("stl_parity.jl")
+
     include("missing_data.jl")
+
+    include("exact_likelihood.jl")
+
+    include("objective_guardrails.jl")
+
+    include("deterministic_term.jl")
+
+    include("order_guards.jl")
+
+    include("exact_ml_determinant.jl")
+
+    include("exog_dynamics.jl")
+
+    include("exog_penalty_position.jl")
+
+    include("multistart.jl")
 
     include("aqua.jl")
 end

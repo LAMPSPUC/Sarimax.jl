@@ -1,5 +1,20 @@
 @testset "utils" begin
 
+    @testset "differentiate handles more than one column" begin
+        # A multi-column TimeArray is differenced column by column with the same
+        # coefficients, and the single-column path must keep returning a Vector.
+        n = 60
+        dts = collect(Date(2000, 1, 1):Month(1):Date(2000, 1, 1)+Month(n - 1))
+        cols = hcat(collect(1.0:n), cumsum(fill(2.0, n)))
+        multi = TimeArray(dts, cols, [:a, :b])
+        got = values(differentiate(multi, 1, 1, 12))
+        for c = 1:2
+            single = TimeArray(dts, cols[:, c], [Symbol("c", c)])
+            @test got[:, c] == values(differentiate(single, 1, 1, 12))
+        end
+        @test values(differentiate(TimeArray(dts, cols[:, 1], [:a]), 1, 0, 1)) isa Vector
+    end
+
     @testset "Differentiate" begin
         airPassengers = load_dataset(AIR_PASSENGERS)
         diff_0_0 = differentiate(values(airPassengers), 0, 0, 12)
@@ -206,9 +221,13 @@
 
         fit!(testModel)
 
-        # CSS loglik of the (3,0,1)(1,1,1)12 fit under the multiplicative form
-        @test loglikelihood(testModel) ≈ 247.8863386095342 atol = 1e-1
-        @test loglike(testModel) ≈ 247.8863386095342 atol = 1e-1
+        # CSS loglik of the (3,0,1)(1,1,1)12 fit under the multiplicative form.
+        #
+        # The value reflects the `:innovations` default: the error sum starts at t = 1, so
+        # the effective sample is `T` rather than `T - lb + 1` and the loglik is evaluated
+        # over more points. That is a different scale, neither better nor worse.
+        @test loglikelihood(testModel) ≈ 277.6017213855341 atol = 1e-1
+        @test loglike(testModel) ≈ 277.6017213855341 atol = 1e-1
     end
 
     @testset "identifyOutliers Tests" begin
@@ -238,6 +257,47 @@
 
         # Test invalid method
         @test_throws ArgumentError Sarimax.identifyOutliers([1.0, 2.0, 3.0], "unknown")
+    end
+
+    @testset "identifyOutliers dispersao degenerada" begin
+        # Contract: a zero interquartile range — or one negligible on the scale of the data
+        # — implies no outliers. Without dispersion the IQR fences collapse onto the
+        # quartiles and the rule flags everything not bit-identical to them. Zero dispersion
+        # is zero evidence of atypicality. Tested as a UNIT, over constructed vectors: a
+        # fixture that runs the solver would inherit the solver's tolerance.
+
+        # Maioria identica mais um pico: sem dispersao central nao ha do que o pico destoar.
+        degenerateWithSpike = vcat(fill(5.0, 30), 100.0)
+        @test Sarimax.identifyOutliers(degenerateWithSpike) == falses(31)
+
+        # Residuals of a SARIMA(0,0,0) fit on a constant series, with three values shifted
+        # by 1-2 ULP, which is the difference between one machine and another. Without the
+        # guard, positions 7, 24 and 30 appear as outliers alongside 5; with it, none does,
+        # on any machine.
+        base = -3.1935483870967762
+        solverNoise = fill(base, 31)
+        solverNoise[5] = 95.80645161290323
+        solverNoise[7] = prevfloat(base)
+        solverNoise[24] = nextfloat(base)
+        solverNoise[30] = nextfloat(base, 2)
+        @test Sarimax.identifyOutliers(solverNoise) == falses(31)
+
+        # Zero scale: both quartiles at zero. The guard uses `<=`, so this case is covered.
+        allZeros = zeros(20)
+        allZeros[3] = 1e-9
+        @test Sarimax.identifyOutliers(allZeros) == falses(20)
+
+        # Binding control: the guard must stay SILENT when there is real dispersion. Same
+        # shape as the cases above but with a real IQR, and the spike is still flagged.
+        nonDegenerate = vcat(repeat([10.0, 11.0, 12.0, 13.0, 14.0], 6), 100.0)
+        @test findall(Sarimax.identifyOutliers(nonDegenerate)) == [31]
+
+        # E a dispersao minima que ainda NAO e degenerada segue tratada como dispersao:
+        # IQR relativo de 1e-6, cem vezes acima de `DEGENERATE_IQR_RTOL`, preserva a regra.
+        justAboveTolerance = fill(1.0, 30)
+        justAboveTolerance[1:15] .= 1.0 + 1e-6
+        push!(justAboveTolerance, 100.0)
+        @test findall(Sarimax.identifyOutliers(justAboveTolerance)) == [31]
     end
 
     @testset "createOutliersDummies Tests" begin

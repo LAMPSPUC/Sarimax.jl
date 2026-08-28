@@ -1096,6 +1096,15 @@ function fit!(
             ok = false
         end
         if !ok
+            # AVISAR, nunca degradar em silencio. O caller pediu `huber` e recebe um ajuste
+            # `mse`: sem aviso, uma celula inteira de experimento mede um estimador com o
+            # rotulo de outro. Medido em 28/08 no commit `aa68d57`: sob
+            # `initialization = :innovations` a guarda de objetivo lancava e este `catch`
+            # a engolia, com `huberFallback` em 40/40 series weekly — 100%, silenciosas, e
+            # o resultado devolvido era o `mse` bit a bit. Mesma politica dos PRs #11 e #12.
+            @warn "objectiveFunction=\"huber\" nao convergiu; devolvendo o ajuste \"mse\" " *
+                  "(metadata[\"huberFallback\"] = true). Toda medicao de huber deve reportar " *
+                  "a taxa de fallback como coluna de validade." maxlog = 1
             model.c = base.c
             model.trend = base.trend
             model.ϕ = base.ϕ

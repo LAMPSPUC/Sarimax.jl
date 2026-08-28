@@ -929,6 +929,10 @@ function fit!(
     # The choice is only observable with regressors present: at `nExog == 0` `arAcc` takes
     # the same branch under both modes.
     exogDynamics::Symbol = :armax,
+    # Which coefficient blocks the `elastic_net` penalty applies to: `:all` (default),
+    # `:dynamics` for the AR/MA blocks only, or `:exogenous` for the regressors only.
+    # The intercept and the drift are never penalized. Ignored by every other objective.
+    penaltyTarget::Symbol = :all,
     # Extra window of pre-sample innovations under `initialization = :innovations`; it has
     # no effect in any other mode. The default covers one seasonal cycle beyond what the
     # order requires, enough for the null initial condition to decay.
@@ -945,6 +949,11 @@ function fit!(
     multistart::Bool = false,
 )
     @assert 0.0 < cvarLevel < 1.0 "cvarLevel must lie strictly between 0 and 1."
+    penaltyTarget in (:all, :dynamics, :exogenous) || throw(
+        ArgumentError(
+            "penaltyTarget must be :all, :dynamics or :exogenous, got $(penaltyTarget)",
+        ),
+    )
     exogDynamics in (:armax, :regression_errors) || throw(
         ArgumentError(
             "exogDynamics must be :armax or :regression_errors, got $(exogDynamics)",
@@ -1760,7 +1769,7 @@ if inovacoes
     includeModelConstraints!(mod, yData, T, objectiveFunction, lb)
 
     objectiveFunctionDefinition!(mod, model, objectiveFunction, T, lb, cvarLevel, yValues,
-                                 penalizado, yLo, epsLo)
+                                 penalizado, yLo, epsLo; penaltyTarget = penaltyTarget)
 
     isnothing(warmStart) || applyWarmStart!(
         mod,
@@ -2322,7 +2331,10 @@ function objectiveFunctionDefinition!(
     yValues::Union{Nothing,AbstractVector} = nothing,
     penalizado::Bool = false,
     yLo::Int = 1,
-    epsLo::Int = 1,
+    epsLo::Int = 1;
+    # KEYWORD: this argument list is positional, so a new positional would shift the
+    # slots after it.
+    penaltyTarget::Symbol = :all,
 )
     parametersVector::Vector{Symbol} = getParametersVector(model)
     parametersVectorExtended::Vector{VariableRef} =
@@ -2649,17 +2661,23 @@ function objectiveFunctionDefinition!(
         # lambda * [alpha * L1 + (1 - alpha)/2 * L2] over the shrunk coefficient blocks.
         # The L1 term is linearized with the usual auxiliary variables.
         #
-        # The intercept and the drift are left out: penalizing the level has no shrinkage
-        # interpretation here. Exogenous coefficients ARE shrunk, since selecting among
-        # regressors is the main use of this objective; they carry the units of their own
-        # regressor, which the package does not standardize, so scale-comparable
+        # The intercept and the drift are always left out: penalizing the level has no
+        # shrinkage interpretation here. `penaltyTarget` selects which of the remaining
+        # blocks are shrunk -- `:all` (default), `:dynamics` for the AR/MA blocks only, or
+        # `:exogenous` for the regressors only, which is the usual choice when the point of
+        # the fit is selecting among regressors. Exogenous coefficients carry the units of
+        # their own regressor, which the package does not standardize, so scale-comparable
         # regressors are the caller's responsibility.
         shrunk = Symbol[]
-        model.p > 0 && push!(shrunk, :ϕ)
-        model.q > 0 && push!(shrunk, :θ)
-        model.P > 0 && push!(shrunk, :Φ)
-        model.Q > 0 && push!(shrunk, :Θ)
-        isnothing(model.exog) || push!(shrunk, :β)
+        if penaltyTarget in (:all, :dynamics)
+            model.p > 0 && push!(shrunk, :ϕ)
+            model.q > 0 && push!(shrunk, :θ)
+            model.P > 0 && push!(shrunk, :Φ)
+            model.Q > 0 && push!(shrunk, :Θ)
+        end
+        if penaltyTarget in (:all, :exogenous)
+            isnothing(model.exog) || push!(shrunk, :β)
+        end
 
         fitLoss = sum(jumpModel[:ϵ] .^ 2) + presampleSquares(jumpModel, penalizado)
 
@@ -3414,6 +3432,8 @@ function auto(
     searchMethod::String = "stepwise",
     parallel::Bool = false,
     seasonalForm::Symbol = :multiplicative,
+    exogDynamics::Symbol = :armax,
+    penaltyTarget::Symbol = :all,
     initialization::Symbol = DEFAULT_INITIALIZATION,
     multistart::Bool = false,
     # INDEPENDENT of `assertStationarity`. Tying the two would conflate distinct decisions:
@@ -3621,6 +3641,8 @@ function auto(
             showLogs = showLogs,
             minConditioningObs = searchLb,
             seasonalForm = seasonalForm,
+            exogDynamics = exogDynamics,
+            penaltyTarget = penaltyTarget,
             initialization = initialization,
             stationary = stationary,
             stationarityMargin = stationarityMargin,
@@ -3660,6 +3682,8 @@ function auto(
             showLogs = showLogs,
             minConditioningObs = searchLb,
             seasonalForm = seasonalForm,
+            exogDynamics = exogDynamics,
+            penaltyTarget = penaltyTarget,
             initialization = initialization,
             stationary = stationary,
             stationarityMargin = stationarityMargin,
@@ -3697,6 +3721,8 @@ function auto(
             showLogs = showLogs,
             minConditioningObs = searchLb,
             seasonalForm = seasonalForm,
+            exogDynamics = exogDynamics,
+            penaltyTarget = penaltyTarget,
             initialization = initialization,
             stationary = stationary,
             stationarityMargin = stationarityMargin,
@@ -3743,7 +3769,7 @@ function auto(
             )
         end
 
-        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs, minConditioningObs = searchLb, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs, minConditioningObs = searchLb, seasonalForm = seasonalForm, exogDynamics = exogDynamics, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
     end
 
     bestModel.exog = exog
@@ -4421,6 +4447,8 @@ function ensureAdmissible!(
     objectiveFunction::String = "mse",
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
+    exogDynamics::Symbol = :armax,
+    penaltyTarget::Symbol = :all,
     initialization::Symbol = DEFAULT_INITIALIZATION,
     multistart::Bool = false,
     refitMargin::AbstractFloat = 2e-3,
@@ -4453,6 +4481,8 @@ function ensureAdmissible!(
             objectiveFunction = objectiveFunction,
             minConditioningObs = minConditioningObs,
             seasonalForm = seasonalForm,
+            exogDynamics = exogDynamics,
+            penaltyTarget = penaltyTarget,
             initialization = initialization,
             # The on-demand refit takes the parameterization from the caller, which holds
             # the assertion and the constraint decisions separately, rather than deriving
@@ -4540,9 +4570,13 @@ function localSearch!(
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
     cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
-    # ULTIMO posicional, de proposito: qualquer outra posicao desloca `rootMargin`/
-    # `optimizer` e reproduz o MethodError documentado acima.
-    multistart::Bool = false,
+    # LAST positional, deliberately: any other position shifts `rootMargin`/`optimizer`
+    # and reproduces the MethodError documented above.
+    multistart::Bool = false;
+    # KEYWORD, deliberately: this argument list is positional, so a new positional here
+    # would shift every slot after it.
+    exogDynamics::Symbol = :armax,
+    penaltyTarget::Symbol = :all,
 ) where {Fl<:AbstractFloat}
     ModelFl = Fl
     localBestCriteria::ModelFl = Inf
@@ -4551,13 +4585,13 @@ function localSearch!(
     if parallel
         Threads.@threads for model in toFit
             try
-                fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+                fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
             catch e
                 @warn "Parallel candidate fit failed" exception = e
             end
         end
     else
-        foreach(model -> fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart), toFit)
+        foreach(model -> fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart), toFit)
     end
     for model in toFit
         isFitted(model) || continue
@@ -4571,6 +4605,8 @@ function localSearch!(
             objectiveFunction = objectiveFunction,
             minConditioningObs = minConditioningObs,
             seasonalForm = seasonalForm,
+            exogDynamics = exogDynamics,
+            penaltyTarget = penaltyTarget,
             initialization = initialization,
             refit = constrainedRefit,
             optimizer = optimizer,
@@ -4979,6 +5015,8 @@ function stepWiseSearchNaive(
     icOffset::AbstractFloat = 0.0,
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
+    exogDynamics::Symbol = :armax,
+    penaltyTarget::Symbol = :all,
     initialization::Symbol = DEFAULT_INITIALIZATION,
     multistart::Bool = false,
     # R's default: `stats::arima` with `transform.pars = TRUE` parameterizes the AR part
@@ -4993,7 +5031,7 @@ function stepWiseSearchNaive(
     # `rootMargin` must be declared here: the body forwards it to `localSearch!`, which
     # takes it as the 19th positional argument.
     rootMargin::AbstractFloat = DEFAULT_ROOT_MARGIN,
-    # Teto de modelos visitados, como no `stepwiseSearch`. Ver [`DEFAULT_NMODELS`].
+    # Ceiling on models visited, as in `stepwiseSearch`. See [`DEFAULT_NMODELS`].
     maxModels::Int = DEFAULT_NMODELS,
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     warmStartFromBox::Bool = false,
@@ -5062,7 +5100,9 @@ function stepWiseSearchNaive(
         warmStartFromBox,
         maxTimeSeconds,
         cvarLevel,
-        multistart,
+        multistart;
+        exogDynamics = exogDynamics,
+        penaltyTarget = penaltyTarget,
     )
 
     if isnothing(bestModel)
@@ -5132,7 +5172,9 @@ function stepWiseSearchNaive(
             warmStartFromBox,
             maxTimeSeconds,
             cvarLevel,
-            multistart,
+            multistart;
+            exogDynamics = exogDynamics,
+            penaltyTarget = penaltyTarget,
         )
         showLogs && !isnothing(itBestModel) && @info(
             "Iteration $(iterations): Best model found is $(getId(itBestModel)) with $(itBestCriteria) criteria"
@@ -5252,6 +5294,8 @@ function stepwiseSearch(
     icOffset::AbstractFloat = 0.0,
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
+    exogDynamics::Symbol = :armax,
+    penaltyTarget::Symbol = :all,
     initialization::Symbol = DEFAULT_INITIALIZATION,
     multistart::Bool = false,
     # R's default: `stats::arima` with `transform.pars = TRUE` parameterizes the AR part
@@ -5333,7 +5377,7 @@ function stepwiseSearch(
         alpha = alpha,
         lambda = lambda
     )
-    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
     showLogs && @info(
         "Fitted $(getId(bestModel)) with $(informationCriteriaFunction(bestModel; offset=icOffset)) criteria"
     )
@@ -5348,6 +5392,8 @@ function stepwiseSearch(
         objectiveFunction = objectiveFunction,
         minConditioningObs = minConditioningObs,
         seasonalForm = seasonalForm,
+        exogDynamics = exogDynamics,
+        penaltyTarget = penaltyTarget,
         initialization = initialization,
         refit = constrainedRefit,
         optimizer = optimizer,
@@ -5388,7 +5434,7 @@ function stepwiseSearch(
         alpha = alpha,
         lambda = lambda
     )
-    fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+    fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
     showLogs && @info(
         "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
     )
@@ -5404,6 +5450,8 @@ function stepwiseSearch(
         objectiveFunction = objectiveFunction,
         minConditioningObs = minConditioningObs,
         seasonalForm = seasonalForm,
+        exogDynamics = exogDynamics,
+        penaltyTarget = penaltyTarget,
         initialization = initialization,
         refit = constrainedRefit,
         optimizer = optimizer,
@@ -5443,7 +5491,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -5455,6 +5503,8 @@ function stepwiseSearch(
             objectiveFunction = objectiveFunction,
             minConditioningObs = minConditioningObs,
             seasonalForm = seasonalForm,
+            exogDynamics = exogDynamics,
+            penaltyTarget = penaltyTarget,
             initialization = initialization,
             refit = constrainedRefit,
             optimizer = optimizer,
@@ -5494,7 +5544,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -5506,6 +5556,8 @@ function stepwiseSearch(
             objectiveFunction = objectiveFunction,
             minConditioningObs = minConditioningObs,
             seasonalForm = seasonalForm,
+            exogDynamics = exogDynamics,
+            penaltyTarget = penaltyTarget,
             initialization = initialization,
             refit = constrainedRefit,
             optimizer = optimizer,
@@ -5543,7 +5595,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -5555,6 +5607,8 @@ function stepwiseSearch(
             objectiveFunction = objectiveFunction,
             minConditioningObs = minConditioningObs,
             seasonalForm = seasonalForm,
+            exogDynamics = exogDynamics,
+            penaltyTarget = penaltyTarget,
             initialization = initialization,
             refit = constrainedRefit,
             optimizer = optimizer,
@@ -5599,7 +5653,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda,
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -5611,6 +5665,8 @@ function stepwiseSearch(
             objectiveFunction = objectiveFunction,
             minConditioningObs = minConditioningObs,
             seasonalForm = seasonalForm,
+            exogDynamics = exogDynamics,
+            penaltyTarget = penaltyTarget,
             initialization = initialization,
             refit = constrainedRefit,
             optimizer = optimizer,
@@ -5790,6 +5846,8 @@ function gridSearch(
     icOffset::AbstractFloat = 0.0,
     minConditioningObs::Int = 0,
     seasonalForm::Symbol = :multiplicative,
+    exogDynamics::Symbol = :armax,
+    penaltyTarget::Symbol = :all,
     initialization::Symbol = DEFAULT_INITIALIZATION,
     multistart::Bool = false,
     # R's default: `stats::arima` with `transform.pars = TRUE` parameterizes the AR part
@@ -5854,7 +5912,7 @@ function gridSearch(
         )
     end
 
-    fitOne!(m) = fit!(m; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+    fitOne!(m) = fit!(m; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
     if parallel
         Threads.@threads for m in candidates
             try
@@ -5879,6 +5937,8 @@ function gridSearch(
             objectiveFunction = objectiveFunction,
             minConditioningObs = minConditioningObs,
             seasonalForm = seasonalForm,
+            exogDynamics = exogDynamics,
+            penaltyTarget = penaltyTarget,
             initialization = initialization,
             refit = constrainedRefit,
             optimizer = optimizer,

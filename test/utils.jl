@@ -1,5 +1,20 @@
 @testset "utils" begin
 
+    @testset "differentiate handles more than one column" begin
+        # A multi-column TimeArray is differenced column by column with the same
+        # coefficients, and the single-column path must keep returning a Vector.
+        n = 60
+        dts = collect(Date(2000, 1, 1):Month(1):Date(2000, 1, 1)+Month(n - 1))
+        cols = hcat(collect(1.0:n), cumsum(fill(2.0, n)))
+        multi = TimeArray(dts, cols, [:a, :b])
+        got = values(differentiate(multi, 1, 1, 12))
+        for c = 1:2
+            single = TimeArray(dts, cols[:, c], [Symbol("c", c)])
+            @test got[:, c] == values(differentiate(single, 1, 1, 12))
+        end
+        @test values(differentiate(TimeArray(dts, cols[:, 1], [:a]), 1, 0, 1)) isa Vector
+    end
+
     @testset "Differentiate" begin
         airPassengers = load_dataset(AIR_PASSENGERS)
         diff_0_0 = differentiate(values(airPassengers), 0, 0, 12)

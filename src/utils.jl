@@ -26,9 +26,26 @@ julia> stationaryAirPassengers = differentiate(airPassengers, d=1, D=1, s=12)
 """
 function differentiate(series::TimeArray, d::Int = 0, D::Int = 0, s::Int = 1)
     Fl = eltype(values(series))
-    copiedValues::Vector{Fl} = values(series)
     coeffs = differentiated_coefficients(d, D, s, Fl)
     lenCoeffs = length(coeffs)
+    seriesValues = values(series)
+
+    # Multi-column input (several exogenous regressors) is differenced column by column
+    # with the same coefficients. The single-column path below is kept separate so that
+    # its result stays a `Vector` rather than a one-column `Matrix`.
+    if ndims(seriesValues) == 2
+        nRows, nCols = size(seriesValues)
+        diffMatrix = Matrix{Fl}(undef, nRows - lenCoeffs + 1, nCols)
+        for col = 1:nCols
+            column = @view seriesValues[:, col]
+            for (row, i) in enumerate(lenCoeffs:nRows)
+                diffMatrix[row, col] = coeffs'column[i:-1:i-lenCoeffs+1]
+            end
+        end
+        return TimeArray(timestamp(series)[lenCoeffs:end], diffMatrix, colnames(series))
+    end
+
+    copiedValues::Vector{Fl} = seriesValues
     diffValues::Vector{Fl} = Vector{Fl}()
     for i = lenCoeffs:length(copiedValues)
         y_diff = coeffs'copiedValues[i:-1:i-lenCoeffs+1]

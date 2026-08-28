@@ -33,6 +33,27 @@ the API and the estimation defaults that the reported results were produced unde
   observable when regressors are present: at `nExog == 0` both modes take the same
   branch.
 
+### Added
+- **`penaltyTarget` selects which coefficient blocks the elastic-net penalty applies
+  to**: `:all` (default), `:dynamics` for the autoregressive and moving-average blocks
+  only, or `:exogenous` for the regressors only. The intercept and the drift are never
+  penalized. Targeting the regressors alone is the usual choice when the point of the fit
+  is selecting among them while leaving the dynamics unshrunk. Available on `fit!` and on
+  `auto`.
+- **`auto` accepts `exogDynamics`.** The keyword existed on `fit!` only, so the
+  regression-with-ARIMA-errors semantics was unreachable from the package's main entry
+  point. It is threaded through the search as a keyword argument, deliberately: the
+  internal search functions take long positional argument lists, and a new positional
+  would shift every slot after it.
+
+### Fixed
+- **`differentiate` accepts more than one column**, and with it `auto` accepts more than
+  one exogenous regressor. `auto` differences the exogenous block whenever `d > 0`, and
+  the function declared its working buffer as a `Vector`, so any multi-regressor SARIMAX
+  reaching that path failed with a `MethodError`. Multi-column input is now differenced
+  column by column with the same coefficients; the single-column path is unchanged and
+  still returns a `Vector`.
+
 ### Deprecated
 - **`objectiveFunction = "bilevel"`** warns once per session and is scheduled for
   removal in v2.0. It optimizes the moving-average coefficients in an outer loop

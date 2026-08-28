@@ -93,6 +93,30 @@
         @test maximum(abs.(values(a.forecast) .- values(b.forecast))) > 1e-3
     end
 
+    # `auto` must expose the same keyword as `fit!`: without it the alternative semantics
+    # is unreachable from the package's main entry point. With p = P = 0 the two forms
+    # coincide by the identity above, so the flag is exercised where it can bind.
+    @testset "auto expoe exogDynamics" begin
+        y, X = geraErrosArima(7, 0)
+        common = (exog = X, seasonality = 12, maxp = 2, maxq = 0, maxP = 0, maxQ = 0,
+                  d = 0, D = 0)
+        a = auto(y; common..., exogDynamics = :armax)
+        b = auto(y; common..., exogDynamics = :regression_errors)
+        @test a.metadata["exogDynamics"] == "armax"
+        @test b.metadata["exogDynamics"] == "regression_errors"
+        @test_throws Exception auto(y; common..., exogDynamics = :naosei)
+    end
+
+    # `auto` differences the exogenous block whenever d > 0, which requires `differentiate`
+    # to accept more than one column. Anything else makes multi-regressor SARIMAX
+    # unreachable from `auto`.
+    @testset "auto aceita mais de uma exogena" begin
+        y, X = geraErrosArima(8, 0)
+        m = auto(y; exog = X, seasonality = 12, maxp = 1, maxq = 0, maxP = 0, maxQ = 0)
+        @test Sarimax.isFitted(m)
+        @test length([m.exogCoefficients...]) == size(values(X), 2)
+    end
+
     # Under the ARIMA-errors form, b is the marginal effect of the data generating process
     # and must be recovered. Under :armax, b is an impact multiplier and has no such
     # interpretation, so this asserts only the side the theory guarantees.

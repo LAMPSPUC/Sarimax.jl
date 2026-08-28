@@ -140,16 +140,14 @@ predict!(m; stepsAhead = 8)
     multiplier conditional on past `y`. R's `Arima(xreg=)` and statsmodels'
     `SARIMAX(exog=)` fit regression-with-ARIMA-errors, where the coefficient is
     the usual marginal effect. To match them, pass
-    `exogDynamics = :regression_errors` to `fit!`:
+    `exogDynamics = :regression_errors`, on either `fit!` or `auto`:
 
     ```julia
-    m = SARIMA(y, 1, 1, 1; exog = nrou)
-    fit!(m; exogDynamics = :regression_errors)
+    m = auto(y; exog = nrou, seasonality = 4, exogDynamics = :regression_errors)
     ```
 
     The two forms coincide only when the autoregressive polynomial is unitary and
-    there is no differencing. The keyword is currently available on `fit!` only:
-    order selection through `auto` always uses the ARX form.
+    there is no differencing, so the choice is only observable outside that class.
 
 ## Where to go next
 

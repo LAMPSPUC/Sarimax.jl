@@ -73,7 +73,8 @@ fit!(m)                                            # CSS, multiplicative form (d
 fit!(m; initialization = :warmup)                  # R-compatible: matches arima(method="CSS")
 fit!(m; objectiveFunction = "mae")                 # robust L1 loss
 fit!(m; objectiveFunction = "elastic_net",         # penalized: λ[α‖·‖₁ + (1−α)/2‖·‖₂²]
-     alpha = 0.5, lambda = 1.0)
+     alpha = 0.5, lambda = 1.0,
+     penaltyTarget = :exogenous)                   # shrink regressors only
 fit!(m; invertible = true, stationary = true)      # constrained-by-construction estimates
 fit!(m; optimizer = Sarimax.SCIP.Optimizer)        # certified global optimum
 
@@ -112,9 +113,9 @@ should know before comparing outputs:
    errors* instead, where the coefficient is the usual marginal effect. These are
    different model families and the two coincide only when the autoregressive
    polynomial is unitary and there is no differencing. Both are available on
-   `fit!`: `exogDynamics = :armax` (default) and
+   `fit!` and on `auto`: `exogDynamics = :armax` (default) and
    `exogDynamics = :regression_errors`, the latter matching the reference
-   implementations. Order selection through `auto` always uses the ARX form.
+   implementations.
 3. **Estimation (CSS, no Kalman filter).** Estimation is conditional least
    squares / concentrated conditional Gaussian ML as a JuMP problem. Log-likelihood
    and AIC/AICc/BIC follow the CSS convention with full Gaussian constants —
@@ -167,9 +168,9 @@ predict!(m; stepsAhead = 8)    # uses the future NROU values
 ```
 
 Remember item 2 above: this is an ARX specification, not regression with ARIMA
-errors. To fit the regression-with-ARIMA-errors form, pass
-`exogDynamics = :regression_errors` to `fit!` on a model of known order; see the
-documentation for both model equations.
+errors. Pass `exogDynamics = :regression_errors` to `fit!` or `auto` to fit the
+regression-with-ARIMA-errors form instead; see the documentation for both model
+equations.
 
 ## Ecosystem
 

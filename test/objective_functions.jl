@@ -292,6 +292,46 @@
         @test sum(abs2, values(residuals(empty))) ≈ sum(abs2, values(residuals(plain))) atol = 1e-8
     end
 
+    @testset "penaltyTarget selects which blocks are shrunk" begin
+        # The penalty must be able to target coefficient blocks separately: shrinking the
+        # regressors while leaving the dynamics free is the usual choice when the point of
+        # the fit is selecting among regressors. The intercept and drift are never
+        # penalized under any target.
+        Random.seed!(99)
+        n = 140
+        dts = collect(Date(2000, 1, 1):Month(1):Date(2000, 1, 1)+Month(n - 1))
+        X = TimeArray(dts, hcat(randn(n), randn(n)), [:x1, :x2])
+        y = TimeArray(dts, 100 .+ cumsum(randn(n)) .+ 2 .* values(X)[:, 1])
+
+        function fitTarget(target)
+            m = SARIMA(y, X, 2, 1, 1)
+            fit!(m; objectiveFunction = "elastic_net", alpha = 1.0, lambda = 200.0,
+                 initialization = :zeroed, penaltyTarget = target)
+            m
+        end
+        dynNorm(m) = sum(abs.([m.ϕ...])) + sum(abs.([m.θ...]))
+        exogNorm(m) = sum(abs.([m.exogCoefficients...]))
+
+        allT, dynT, exogT = fitTarget(:all), fitTarget(:dynamics), fitTarget(:exogenous)
+
+        # `:dynamics` shrinks the AR/MA blocks and leaves the regressors alone.
+        @test dynNorm(dynT) < 1e-5
+        @test exogNorm(dynT) > 1e-3
+
+        # `:exogenous` does the opposite.
+        @test exogNorm(exogT) < 1e-5
+        @test dynNorm(exogT) > 1e-3
+
+        # `:all` is the default and reaches both.
+        @test dynNorm(allT) < 1e-5
+        @test exogNorm(allT) < 1e-5
+
+        @test_throws ArgumentError fit!(
+            SARIMA(y, X, 1, 1, 1);
+            objectiveFunction = "elastic_net", alpha = 0.5, penaltyTarget = :nope,
+        )
+    end
+
     @testset "elastic net survives a saturated model" begin
         # A short seasonal series leaves few residual degrees of freedom after
         # conditioning, since seasonal conditioning consumes the sample faster than a

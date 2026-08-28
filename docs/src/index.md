@@ -38,7 +38,7 @@ Sarimax.jl is a groundbreaking Julia package that revolutionizes SARIMA (Seasona
 Before comparing Sarimax.jl outputs with `forecast` (R) or `statsmodels` (Python), be aware of four deliberate design differences:
 
 1. **Seasonal form.** Since v0.3 the default is the **multiplicative** Box-Jenkins SARIMA ``\phi(B)\Phi(B^s)y'_t = \theta(B)\Theta(B^s)\epsilon_t`` — coefficients are directly comparable with R/statsmodels given the same estimation method (item 3). The pre-v0.3 additive form (no cross terms) remains available via `seasonalForm = :additive` in `fit!` and `auto`.
-2. **Exogenous variables (ARX by default).** Regressors enter a dynamic-regression/ARX model: the AR terms act on the observed series, so the coefficient is an impact multiplier conditional on past ``y``. R's `Arima(xreg=)` and statsmodels' `SARIMAX(exog=)` fit regression-with-ARIMA-errors instead, where the coefficient is the usual marginal effect. These are different model families and coincide only when the autoregressive polynomial is unitary and there is no differencing. Both forms ship on `fit!`: `exogDynamics = :armax` (default) and `exogDynamics = :regression_errors`. Order selection through `auto` always uses the ARX form.
+2. **Exogenous variables (ARX by default).** Regressors enter a dynamic-regression/ARX model: the AR terms act on the observed series, so the coefficient is an impact multiplier conditional on past ``y``. R's `Arima(xreg=)` and statsmodels' `SARIMAX(exog=)` fit regression-with-ARIMA-errors instead, where the coefficient is the usual marginal effect. These are different model families and coincide only when the autoregressive polynomial is unitary and there is no differencing. Both forms ship on `fit!` and on `auto`: `exogDynamics = :armax` (default) and `exogDynamics = :regression_errors`.
 3. **Estimation and information criteria (CSS).** Estimation is conditional least squares / concentrated conditional Gaussian ML formulated as a JuMP optimization problem; there is no Kalman filter. `loglike`, `aic`, `aicc` and `bic` follow the CSS convention with full Gaussian constants — comparable to R's `arima(..., method = "CSS")`, not to exact-ML defaults.
 4. **What the optimization formulation buys.** Swappable objectives (MSE, MAE, Huber, CVaR, ridge, elastic net), custom constraints, an invertible-MA parameterization (`fit!(model; invertible = true)`), and certified global optima via SCIP.
 
@@ -52,11 +52,21 @@ The `"elastic_net"` objective is the conventional penalized estimator
 ```
 
 where ``L(\varepsilon)`` is the residual loss and ``\Theta`` collects the penalized
-coefficient blocks: the autoregressive and moving-average coefficients and, when
-present, the exogenous ones. The intercept and the drift are excluded, since
-penalizing the level has no shrinkage interpretation here. ``\alpha = 0`` recovers a
-ridge-type penalty and ``\alpha = 1`` a lasso-type one. `lambda` defaults to the square
-root of the effective sample size, matching the scale of the sum-form objective.
+coefficient blocks. The intercept and the drift are always excluded, since penalizing
+the level has no shrinkage interpretation here. ``\alpha = 0`` recovers a ridge-type
+penalty and ``\alpha = 1`` a lasso-type one. `lambda` defaults to the square root of the
+effective sample size, matching the scale of the sum-form objective.
+
+Which blocks make up ``\Theta`` is selected with `penaltyTarget`, on `fit!` and on `auto`:
+
+| `penaltyTarget` | Penalized blocks |
+|---|---|
+| `:all` (default) | autoregressive, moving-average and exogenous coefficients |
+| `:dynamics` | autoregressive and moving-average coefficients only |
+| `:exogenous` | exogenous coefficients only |
+
+Targeting the regressors alone is the usual choice when the point of the fit is
+selecting among them while leaving the dynamics unshrunk.
 
 Exogenous coefficients carry the units of their own regressor, which the package does
 not standardize, so scale-comparable regressors are the caller's responsibility.

@@ -134,3 +134,9 @@ $RECYCLE.BIN/
 /models/opt_sarima.jl
 
 # End of https://www.toptal.com/developers/gitignore/api/julia,macos,linux,windows,visualstudiocode
+### Replication material
+# The rule above is right for the package: a library must not pin its dependents. It is
+# wrong for `experiments/env/`, whose whole purpose is to pin the environment a published
+# result was produced under. A manifest regenerated later is a different environment
+# wearing the original's name, which is worse than having none — so this one is tracked.
+!experiments/env/Manifest.toml

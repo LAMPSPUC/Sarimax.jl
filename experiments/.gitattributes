@@ -1,0 +1,7 @@
+# No line-ending translation anywhere under experiments/.
+#
+# SHA256SUMS is computed over the bytes of these files. If Git translated LF to CRLF on
+# checkout — which it does by default on Windows — every checksum would fail on a platform
+# other than the one that generated them, and a reviewer would be unable to tell a real
+# corruption from a line-ending artefact. The files are stored and checked out verbatim.
+* -text

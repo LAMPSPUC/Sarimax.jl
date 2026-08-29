@@ -15,13 +15,13 @@ is what appears in the `sarimax_commit` column of every raw row. The campaigns h
 under four different commits: `aa68d57`, `87f7bfb`, `6a11698` and `5b2ec6b`.
 
 **The publication version** is the released version of the package alongside which this
-replication material is distributed. At the time of writing this material is staged on a
-branch based on `dev` at `fc2c482`, whose `Project.toml` declares `version = "1.0.0"`.
-**The `v1.0.0` tag does not exist in the repository yet.** Nothing in this package was
-produced under `v1.0.0`, and nothing here should be read as claiming that it was.
+replication material is distributed: **`v1.0.0`, at commit `a1ebc0d`**.
 
-Section 7 answers, campaign by campaign, whether running the scripts under the current
-`dev` reproduces the numbers in the tables.
+The two are not the same, and none of the four campaign commits is an ancestor of the
+release. **No archived result in `results/raw/` was produced under `v1.0.0`**, and nothing
+here should be read as claiming that it was. Section 7 answers, cell by cell, whether
+running the scripts under `v1.0.0` reproduces the archived numbers — three cells do not,
+and it says why.
 
 ## 2. Scope — what this host produced, and what it did not
 
@@ -285,61 +285,71 @@ re-running with instrumentation; they cannot be reconstructed from the stored ou
 The four `censo_ridge_*` campaigns and the two smoke runs predate the `solver` column
 entirely; their breakdown reads `not-recorded` for the same reason.
 
-## 7. Does the explicit-argument script reproduce the tables under the current `dev`?
+## 7. Does the explicit-argument script reproduce the tables under `v1.0.0`?
 
-This section answers, per cell, the question that matters most for a reader who picks up
-the released package and runs these scripts.
+This section answers, per cell, the question that matters for a reader who installs the
+released package and runs these scripts.
 
 It is answered by **measurement**, not by reading the diff. `scripts/probe_reproduction.jl`
-runs the first 120 M4 monthly series through every cell of both families, with all
-arguments declared explicitly, against a checkout of `dev` at `fc2c482` — the commit whose
-`Project.toml` declares `version = "1.0.0"`. Its output is
-`results/reproduction_probe_dev.csv` and it is compared against the stored campaign rows
-for the same series. The environment is held fixed: same host, same Julia 1.10.12, same
-`env/Manifest.toml`.
+runs the first 120 M4 monthly series through every cell of both families, with all arguments
+declared explicitly, against a clean checkout of the **`v1.0.0` tag (`a1ebc0d`)**. Its
+output is `results/reproduction_probe_v1.0.0.csv`; `scripts/compare_probe.py` diffs it
+against the stored campaign rows for the same series. The environment is held fixed: same
+host, same Julia 1.10.12, same `env/Manifest.toml`. Only the package checkout differs.
 
-**Caveat on the target.** The `v1.0.0` tag does not exist yet, so this probe measures
-against `dev` at `fc2c482`. If `dev` moves before the tag is cut, the answers below have to
-be re-measured. The probe is cheap — about twelve minutes — and is included so that it can
-be.
-
-| table cell | campaign commit | series compared | identical | different order | reproduces under `dev`? |
+| table cell | campaign commit | series | identical | different order | reproduces under `v1.0.0`? |
 |---|---|---:|---:|---:|---|
 | `mse` / `:zeroed` | `87f7bfb` | 120 | 119 | 1 | **Almost** — see (a) |
-| `huber` / `:zeroed` | `87f7bfb` | 120 | 120 | 0 | **Yes**, bit-identical |
 | `mae` / `:zeroed` | `87f7bfb` | 120 | 120 | 0 | **Yes**, bit-identical |
 | `mse` / `:innovations` | `87f7bfb` | 120 | 120 | 0 | **Yes**, bit-identical |
-| `huber` / `:innovations` | `5b2ec6b` | 120 | 120 | 0 | **Yes**, bit-identical |
 | `mae` / `:innovations` | `5b2ec6b` | 120 | 120 | 0 | **Yes**, bit-identical |
-| `ridge` / `:innovations` | `5b2ec6b` | 120 | **15** | **34** | **No** — see (b) |
+| `huber` / `:zeroed` | `87f7bfb` | 120 | 99 | 19 | **No** — see (b) |
+| `huber` / `:innovations` | `5b2ec6b` | 120 | 99 | 18 | **No** — see (b) |
+| `ridge` / `:innovations` | `5b2ec6b` | 120 | **15** | **34** | **No** — see (c) |
+
+An earlier revision of this section reported the same probe against `dev` at `fc2c482`,
+before the `v1.0.0` tag existed. That run is kept as `results/reproduction_probe_dev.csv`
+and is worth comparing against: the two probes differ **only** in the two `huber` rows,
+which isolates the cause in (b) to the single change that landed between those two commits.
 
 ### (a) `mse` / `:zeroed` — one series in 120
 
-Series 50 selects a different order under `dev` and its sMAPE moves by 0.0254. Over the
-120-series probe the mean sMAPE moves from 7.7610 to 7.7613. The cause was **not isolated**;
-the pattern is consistent with a near-tie in AICc resolved differently, but that is a
-conjecture and is recorded as such. The other six `:zeroed` and `:innovations` cells are
-bit-identical, so this is not a systematic shift.
+Series 50 selects a different order and its sMAPE moves by 0.0254. Over the probe the mean
+sMAPE moves from 7.7610 to 7.7613. The cause was **not isolated**; the pattern is consistent
+with a near-tie in AICc resolved differently, but that is a conjecture and is recorded as
+such. Identical under both `dev` and `v1.0.0`, so it is not related to any change in the
+release.
 
-### (b) `ridge` / `:innovations` — does not reproduce, and the reason is known
+### (b) `huber` — the warm-start scale fix moves the selection, not the result
 
-Only 15 of 120 series match; 34 select a different order; the mean sMAPE over the probe
-sample moves from 7.5270 to 7.5462. This is a **behavioural change, not a default change**,
-and no amount of argument declaration recovers it.
+21 of 120 series differ in each initialization. The cause is known: the release contains a
+fix to how a warm start seeds the residual vector. The seed arrived in the series' original
+units while the model works in standardized units, which made the warm start a large guess
+rather than an informed one; the fix divides by the scale. The `huber` branch of `auto`
+fits an `mse` model first and passes it as `warmStart`, so it is the objective this path
+reaches. `mse` and `mae` are untouched, which the probe confirms: `warmStartFromBox` only
+engages when `stationary || invertible`, and these campaigns ran with both `false`.
 
-The ridge objective was built differently at the campaign commit. At `5b2ec6b` — and at
-`87f7bfb`, which produced the ridge censuses — the penalized-initialization branch covered
-`mse` and `ridge` together and closed with
+The full re-run of all eight `huber` cells under `v1.0.0` measures the size of it. The
+selected order changes in 1.6% (yearly, `:zeroed`) to 15.4% (monthly, `:innovations`) of
+series, and the aggregate barely moves: **|ΔOWA| ≤ 0.0083 in every cell, and ≤ 0.0010 in the
+three large frequencies.** The visible gain is elsewhere — the count of fits that degrade
+to `mse` falls from 32 to 21 across the eight cells.
+
+### (c) `ridge` — the objective itself changed
+
+Only 15 of 120 series match; 34 select a different order. This is a **behavioural change,
+not a default change**, and no amount of argument declaration recovers it.
+
+At the campaign commits the penalized-initialization branch covered `mse` and `ridge`
+together and closed with
 
 ```julia
 @objective(jumpModel, Min, S * fator)
 ```
 
 where `S = RSS + presample + λ‖β‖²` and `fator` is the determinant factor
-`∏ⱼ(1-κⱼ²)^(-j/T)`. The fit minimised the shrunk residual sum **multiplied by** the
-determinant factor — a MAP-style objective.
-
-On `dev` at `fc2c482`, `ridge` is its own branch and closes with
+`∏ⱼ(1-κⱼ²)^(-j/T)`. On `v1.0.0`, `ridge` is its own branch and closes with
 
 ```julia
 @objective(jumpModel, Min, sum(ϵ.^2) + presampleSquares(jumpModel, penalizado) + λ*sum(coefs.^2))
@@ -347,37 +357,33 @@ On `dev` at `fc2c482`, `ridge` is its own branch and closes with
 
 with **no determinant factor**. The shrinkage constant is unchanged —
 `λ = sqrt(max(T - lb + 1, 1))` on both sides, over the same AR/MA coefficient set — so the
-divergence is the determinant term, not the penalty.
+divergence is the determinant term, not the penalty. The commits that produced the archived
+`ridge` cells sit on `feat/ridge-innovations` and `feat/ridge-determinante-sobre-dev`,
+neither of which is an ancestor of the release.
 
-The commits that produced the ridge cells here (`6a11698`, `5b2ec6b`) sit on
-`feat/ridge-determinante-sobre-dev`, and **none of the four campaign commits on this host —
-`aa68d57`, `87f7bfb`, `6a11698`, `5b2ec6b` — is an ancestor of `dev`**. That branch was
-never merged; `dev` went the other way for `ridge`. Two independent measurements confirm
-the split is exactly there and nowhere else: the ridge census at `87f7bfb` is byte-identical
-to `obj_ridge_innov_monthly` at `5b2ec6b` across all 48 000 monthly series, so the two
-feature-branch commits changed nothing numerically; and `mse` under `:innovations` is
-bit-identical across the same boundary, so the branch did not disturb the other objectives.
+The full re-run of the four `ridge` cells measures it. In the three large frequencies the
+aggregate is small and not one-signed: **monthly +0.0024, quarterly −0.0010, yearly
+−0.0021** — the largest is a quarter of the 0.01 threshold used elsewhere in this work —
+even though a quarter of the monthly series select a different order (12 236 of 48 000,
+17 984 worse against 17 959 better, a near-perfect cancellation with no concentration).
 
-**Consequence for the manuscript.** Any table row reporting `ridge` — the `ridge` cells of
-Tables 1 and 2, at every frequency — was produced by a ridge implementation that does not
-exist in `dev` and will not exist in `v1.0.0` unless that branch is merged. A referee who
-installs `v1.0.0` and re-runs the `ridge` row will not get these numbers. Three ways out,
-none of which this package can choose on its own: merge the branch before tagging; re-run
-the `ridge` cells under the released implementation; or state in the caption that the
-`ridge` row was produced under a named experimental commit and is not reproducible from the
-release.
+**Weekly is the exception, and it is three series.** ΔOWA is **+0.1431**, of which one
+series accounts for 39.9%, three for 86.6% and five for 97.5%; head to head the two
+implementations are a coin flip (110 worse, 108 better, 141 identical). The mechanism is
+specific: without the determinant factor the fit drops the MA terms under `d = 2` — series
+61 and 248 go from `(1,2,4)` to `(1,2,0)` and their sMAPE goes from ≈2 to 135 and 98. With
+`d + D ≥ 2` and no MA term to damp the second difference, the extrapolation diverges. These
+land in exactly the bucket the over-differencing guard admits, since it requires only one
+ARMA term. The effect does not generalize: in monthly that bucket **shrinks** under
+`v1.0.0` (1 829 → 1 598) and the mean ARMA term count barely moves (2.793 → 2.775).
 
-### Cells this probe does not cover
+### Scope of the probe
 
-The probe covers monthly, on 120 series. It does **not** establish anything about
-quarterly, yearly or weekly, nor about the `req_false_*` guard arms. Two of those carry a
-known additional risk and are recorded as **NOT KNOWN** rather than assumed:
-
-* the weekly cells ran under `6a11698` rather than `5b2ec6b`, the only frequency to do so;
-* `obj_huber_innov_yearly` is split across `6a11698` and `5b2ec6b`.
-
-Extending the probe to them is a matter of running the same script with a different
-frequency argument.
+The probe covers monthly, on 120 series. The full re-runs cover all four frequencies for
+`ridge` and `huber`; `mse` and `mae` were deliberately not re-run, since the probe shows
+them unaffected and the code path that the release changed is not reached with
+`stationary = false, invertible = false`. Nothing here establishes anything about the
+`req_false_*` guard arms, which are not table cells.
 
 ## 8. Declared unknowns
 

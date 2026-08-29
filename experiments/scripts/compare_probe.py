@@ -1,11 +1,16 @@
 # Compares the output of probe_reproduction.jl against the stored campaign outputs,
-# cell by cell. Reads results/reproduction_probe_dev.csv by default; point PROBE at
-# another probe run to check a different package build.
-import csv, gzip, os, pathlib, statistics as st
+# cell by cell.
+#
+#   python scripts/compare_probe.py [probe.csv]
+#
+# With no argument it reads results/reproduction_probe_v1.0.0.csv, the probe against the
+# released package. Pass a path to check any other probe run.
+import csv, gzip, os, pathlib, statistics as st, sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 RAW = ROOT / "results" / "raw"
-PROBE = ROOT / "results" / "reproduction_probe_dev.csv"
+PROBE = (pathlib.Path(sys.argv[1]) if len(sys.argv) > 1
+         else ROOT / "results" / "reproduction_probe_v1.0.0.csv")
 
 # cell -> (campaign file, campaign commit)
 CELLS = {

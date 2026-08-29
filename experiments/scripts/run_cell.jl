@@ -107,11 +107,18 @@ function pmapWithTimeout(f::Function, inputs::Vector, limit::Float64, ncols::Int
     ospid = Dict(w => remotecall_fetch(getpid, w) for w in free)
     running = Dict{Int,NamedTuple{(:idx, :task, :t0),Tuple{Int,Task,Float64}}}()
     nextJob = 1
-    # 10 header columns (series, T, the six orders, has_mean, has_drift), then the 8 metrics
-    # plus mase_den as NaN, then fallback, time, status, solver, forecast. `ncols - 15`
-    # comes from 10 + X + 5 = ncols; getting it wrong shifts the entire CSV row.
-    failureRow(e, elapsed, reason) =
-        Any[e[1], length(e[2]), fill(-1, 8)..., fill(NaN, ncols - 15)..., elapsed, reason, "", ""]
+    # A failure row must be exactly as wide as a success row, or every field after the gap
+    # shifts and a recorded failure becomes silently corrupt data. The layout is:
+    # 10 leading columns (series, T, the six orders, has_mean, has_drift), then the 8
+    # metrics plus mase_den, then fallback, time, status, solver, forecast — 10 + 9 + 5.
+    # The count is asserted rather than derived, because an arithmetic slip here is
+    # invisible until someone parses the file months later.
+    function failureRow(e, elapsed, reason)
+        row = Any[e[1], length(e[2]), fill(-1, 8)..., fill(NaN, 9)..., -1,
+            elapsed, reason, "", ""]
+        @assert length(row) == ncols "failure row is $(length(row)) wide, expected $(ncols)"
+        return row
+    end
 
     # Rebuild a dead worker and REFUND the stall to the series still in flight: `addprocs`
     # and the package include block the master for one to two minutes, and without the

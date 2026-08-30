@@ -66,6 +66,24 @@ to 0.00234, truncating legitimate near-unit-root estimates. R has no such bound:
 the open interval `(-1, 1)`.
 """
 const DEFAULT_DOMAIN_MARGIN = 1e-6
+
+"""
+Floor imposed on `1 - κ_l²` for the reflection coordinates of the COMPLETE MA polynomial
+when the quadratic pre-sample objective carries its Gaussian determinant normalization.
+
+The normalization is `∏_l (1 - κ_l²)^(-l/T)`. That expression is real only where every
+`1 - κ_l² > 0`, i.e. on the invertible region of the complete polynomial: outside it the base
+is negative and a fractional power is not defined over the reals. Rather than letting the
+solver step there and receive a domain error, the denominators are materialized as variables
+bounded below by this floor.
+
+The floor is a DOMAIN guard, not a modelling choice: it is small enough that the `^(-l/T)`
+term is already an enormous barrier long before the bound is reached, so the bound is not
+what shapes the estimate — it only keeps the iterates inside the region where the objective
+is defined. See `maDeterminantDenominators!` for what this implies about invertibility.
+"""
+const DEFAULT_MA_DETERMINANT_FLOOR = 1e-10
+
 """
 Teto de modelos que uma busca stepwise pode visitar, equivalente ao `nmodels = 94` do
 `forecast::auto.arima`.
@@ -2450,28 +2468,53 @@ function objectiveFunctionDefinition!(
         # which does carry the term.
         #
         # The form matches the AR side, with the MA reflection coefficients:
-        #     log|Omega| = -sum_j j*log(1 - kappa_j^2)
-        # Verified against the determinant of a directly constructed MA(q) theoretical
+        #     log|Omega| = -sum_l l*log(1 - kappa_l^2)
+        # Verified against the determinant of a directly constructed MA theoretical
         # covariance: error ~1e-14 at theta = [0.5], [0.7], [0.4,0.2], [0.6,-0.3],
-        # [0.5,0.3,0.2]. The seasonal MA block gains the multiplicity `s`, by the same
-        # factorization into phase chains.
+        # [0.5,0.3,0.2].
         #
-        # The MA reflection coefficients do NOT require the invertible parameterization:
-        # the inverse Levinson-Durbin recursion produces them from `theta` itself, so the
-        # determinant term holds with `theta` FREE. It also makes the hard constraint
-        # redundant — `-sum_j j*log(1 - kappa_j^2)` diverges as |kappa| -> 1, so the
-        # determinant is itself the invertibility barrier, repelling the boundary without
-        # excluding any point by decree.
-        if model.q > 0
-            κMA = maToReflectionExpr(jumpModel[:θ], model.q)
-            isnothing(κMA) ||
-                (fator = fator * prod([(1 - κMA[j]^2)^(-j / T) for j = 1:model.q]))
-        end
-        if model.Q > 0
-            κSMA = maToReflectionExpr(jumpModel[:Θ], model.Q)
-            isnothing(κSMA) || (fator =
-                fator *
-                prod([(1 - κSMA[j]^2)^(-model.seasonality * j / T) for j = 1:model.Q]))
+        # THE REFLECTION COORDINATES ARE THOSE OF THE COMPLETE POLYNOMIAL.
+        #
+        # This term is a property of the MA polynomial the model actually has,
+        #     Psi(B) = 1 + a_1 B + ... + a_L B^L,
+        # and not of the factors it happens to be written as. Under the multiplicative
+        # seasonal form Psi(B) = theta(B)*Theta(B^s) carries cross coefficients
+        # theta_j*Theta_w at lags j + s*w, and the reflection coordinates of that product
+        # are NOT recoverable from the coordinates of the two factors. Normalizing the
+        # blocks separately, i.e.
+        #     prod_j (1-kappa_MA[j]^2)^(-j/T) * prod_w (1-kappa_SMA[w]^2)^(-s*w/T),
+        # is therefore wrong whenever q > 0 AND Q > 0. It is exact when one of the blocks
+        # is empty, which is why the error stayed invisible: the pure cases reduce to it.
+        #
+        # The `s`-fold phase-chain reading — the seasonal block behaving as `s` independent
+        # copies of a regular block — is valid for q = 0, where Psi(B) is a polynomial in
+        # B^s and the chains genuinely decouple. It does not survive q > 0: the regular
+        # factor couples the phases, and there is then one polynomial, not s of them.
+        #
+        # The MA reflection coordinates do NOT require the invertible parameterization: the
+        # step-down Levinson-Durbin recursion produces them from the coefficients themselves,
+        # so the term holds with `theta` and `Theta` FREE. What it DOES require is that the
+        # complete polynomial be invertible, since the normalization is real only there;
+        # `maDeterminantDenominators!` makes that domain explicit instead of leaving it to a
+        # solver-side domain error. Within that region the term is still the barrier it was:
+        # it diverges as any |kappa_l| -> 1.
+        if model.q > 0 || model.Q > 0
+            fullMA = fullMACoefficients(
+                model.q > 0 ? jumpModel[:θ] : Any[],
+                model.Q > 0 ? jumpModel[:Θ] : Any[],
+                model.seasonality,
+                modelSeasonalForm(model),
+            )
+            if !isempty(fullMA)
+                d = maDeterminantDenominators!(jumpModel, fullMA)
+                L = length(fullMA)
+                fator = fator * prod([d[l]^(-l / T) for l = 1:L])
+                # The floor on those denominators confines the fit to the invertible region
+                # of the COMPLETE polynomial; recorded because it is a restriction on what
+                # can be estimated, not an implementation detail.
+                model.metadata["innovationsFullMAInvertible"] = "true"
+                model.metadata["innovationsFullMAOrder"] = string(L)
+            end
         end
         @objective(jumpModel, Min, S * fator)
 
@@ -2869,6 +2912,75 @@ end
 
 
 """
+    fullMACoefficients(θ, Θ, s, seasonalForm)
+
+Coefficients `a₁, …, a_L` of the COMPLETE moving-average polynomial the model represents,
+
+    Ψ(B) = 1 + a₁B + … + a_L B^L,
+
+assembled from the regular block `θ`, the seasonal block `Θ` and the seasonal period `s`.
+The leading 1 is not returned.
+
+Under `:multiplicative`, Ψ(B) = θ(B)·Θ(Bˢ), so the vector carries the cross coefficients
+`θ_j·Θ_w` at lags `j + s·w` and has length `L = q + s·Q`. Under `:additive` the model has
+no cross terms and Ψ(B) = 1 + Σθ_jB^j + ΣΘ_wB^{sw}, of length `max(q, s·Q)`; at a lag where
+a seasonal position collides with a regular one the seasonal coefficient OVERWRITES the
+regular one, which is the additive form's own (warned-about) behaviour and is reproduced
+here rather than silently corrected.
+
+This is the single source of truth for "which polynomial is this model's MA part".
+Root checking, the determinant normalization of the quadratic pre-sample objective and any
+future diagnostic read it from here, so they cannot drift apart. Entries may be numbers or
+JuMP variables/expressions; the returned vector then holds the corresponding expressions.
+"""
+function fullMACoefficients(θ, Θ, s::Int, seasonalForm::Symbol)
+    q = length(θ)
+    Q = length(Θ)
+    (q == 0 && Q == 0) && return Any[]
+
+    if seasonalForm === :multiplicative
+        Q == 0 && return Any[θ[j] for j = 1:q]
+        L = q + s * Q
+        a = Any[0.0 for _ = 1:L]
+        for j = 1:q
+            a[j] = a[j] + θ[j]
+        end
+        for w = 1:Q
+            a[s*w] = a[s*w] + Θ[w]
+            for j = 1:q
+                a[s*w+j] = a[s*w+j] + θ[j] * Θ[w]
+            end
+        end
+        return a
+    end
+
+    # Additive: zero-padded merge, no cross terms.
+    Q == 0 && return Any[θ[j] for j = 1:q]
+    L = max(q, s * Q)
+    a = Any[0.0 for _ = 1:L]
+    for j = 1:q
+        a[j] = θ[j]
+    end
+    for w = 1:Q
+        a[s*w] = Θ[w]
+    end
+    return a
+end
+
+"""
+    fullMACoefficients(model::SARIMAModel)
+
+The complete MA polynomial of a fitted model, read from its own coefficients and
+seasonal form.
+"""
+fullMACoefficients(model::SARIMAModel) = fullMACoefficients(
+    isnothing(model.θ) ? Any[] : model.θ,
+    isnothing(model.Θ) ? Any[] : model.Θ,
+    model.seasonality,
+    modelSeasonalForm(model),
+)
+
+"""
     completeCoefficientsVector(model::SARIMAModel)
 
 Complete the coefficient vectors for AR and MA parts of a SARIMA model.
@@ -2899,14 +3011,11 @@ function completeCoefficientsVector(model::SARIMAModel)
         for k = 1:length(PhiV)
             arS[k*s+1] = -PhiV[k]
         end
-        maNS = vcat(one(ModelFl), thetaV)
-        maS = zeros(ModelFl, length(ThetaV) * s + 1)
-        maS[1] = one(ModelFl)
-        for w = 1:length(ThetaV)
-            maS[w*s+1] = ThetaV[w]
-        end
         arCoefficients = -polynomialMultiplication(arNS, arS)[2:end]
-        maCoefficients = polynomialMultiplication(maNS, maS)[2:end]
+        # MA side via the shared builder, so this and the determinant normalization can
+        # never disagree about which polynomial the model's MA part is.
+        maCoefficients =
+            ModelFl[x for x in fullMACoefficients(thetaV, ThetaV, s, :multiplicative)]
         return arCoefficients, maCoefficients
     end
 
@@ -2915,15 +3024,7 @@ function completeCoefficientsVector(model::SARIMAModel)
         "Additive seasonal form with p >= s (or q >= s): seasonal coefficients " *
         "overwrite non-seasonal ones at the colliding lags."
     )
-    maCoefficients = thetaV
-    if model.Q > 0
-        sizeMA = (model.Q * s > model.q) ? model.Q * s : model.q
-        maCoefficients = zeros(ModelFl, sizeMA)
-        maCoefficients[1:model.q] = thetaV
-        for i = 1:model.Q
-            maCoefficients[s*i] = ThetaV[i]
-        end
-    end
+    maCoefficients = ModelFl[x for x in fullMACoefficients(thetaV, ThetaV, s, :additive)]
 
     arCoefficients = phiV
     if model.P > 0
@@ -5992,18 +6093,23 @@ end
 """
     maToReflectionExpr(θ, q)
 
-Reflection coefficients of the MA block as JuMP EXPRESSIONS, through the inverse
+Reflection coefficients of an MA coefficient vector as JuMP EXPRESSIONS, through the inverse
 Levinson-Durbin recursion — the same one as [`maToReflection`](@ref), written for decision
-variables rather than numbers. It exists so that the MA log-determinant term can be assembled
-without requiring `invertible = true`: the invertible parameterization creates the `kappa` as
-bounded variables, but the determinant needs only their VALUE, which is a rational function of
-the `theta`.
+variables rather than numbers.
+
+The determinant normalization of the quadratic pre-sample objective no longer builds on this:
+it needs the coordinates of the COMPLETE polynomial, whose order reaches `q + s·Q`, and the
+nested rational expressions this produces grow badly at that size. That path uses
+[`maDeterminantDenominators!`](@ref), which stages the identical recursion through auxiliary
+variables. This function is retained as the small-order expression reference the staged
+construction is checked against.
 
 Returns `nothing` when the order is zero. The divisions by `1 - kappa^2` are the same
 denominators as in the numerical version; there is no zero guard here because the determinant
 term itself diverges there, which is the intended behaviour — it repels the boundary instead
 of needing a constraint that excludes it.
 """
+
 function maToReflectionExpr(θ, q::Int)
     q == 0 && return nothing
     a = Any[θ[i] for i = 1:q]
@@ -6022,4 +6128,85 @@ function maToReflectionExpr(θ, q::Int)
         end
     end
     κ
+end
+
+"""
+    maDeterminantDenominators!(jumpModel, a; margin, tag)
+
+Materializes `d_l = 1 - κ_l²`, `l = 1, …, L`, for the reflection coordinates `κ` of the
+COMPLETE MA polynomial whose coefficients are `a₁, …, a_L`, and returns the `d` vector. The
+Gaussian determinant normalization is then `∏_l d_l^(-l/T)`.
+
+WHY VARIABLES INSTEAD OF NESTED EXPRESSIONS. The step-down Levinson-Durbin recursion divides
+by `1 - κ_m²` at every stage, so writing it as one expression nests `L` levels of rational
+function. For the complete polynomial `L = q + s·Q`, which reaches 24–30 at `s = 12` with
+`Q = 2` — an expression graph that is expensive to build and to differentiate. Here each
+stage of the recursion instead gets its own variables and equality constraints:
+
+    d_m           = 1 - κ_m²
+    a⁽ᵐ⁻¹⁾_i · d_m = a⁽ᵐ⁾_i - κ_m · a⁽ᵐ⁾_{m-i}
+
+which is the same recursion in staged form, algebraically identical and of bounded degree
+per constraint. Only the top stage carries the incoming expressions in `a`.
+
+DOMAIN, AND WHAT IT IMPLIES. `d_l` is bounded below by `margin > 0`. This is not cosmetic:
+`d_l^(-l/T)` is real only for `d_l > 0`, so the normalization exists exactly on the region
+where the COMPLETE polynomial is invertible. Imposing the floor therefore restricts the fit
+to that region — the normalization and invertibility of `Ψ(B)` are NOT independent here, and
+this is the deliberate, explicit form of a restriction the objective imposes anyway by
+diverging at the boundary. It is recorded in the fitted model's metadata as
+`innovationsFullMAInvertible`.
+
+Note that this binds the FULL polynomial. Under `:multiplicative` with `invertible = true`
+each FACTOR is already invertible by construction, which implies the product is; the floor
+is then slack. With `invertible = false` the factors are free and the floor is the only thing
+keeping the objective real.
+
+Start values are set so the recursion is consistent at the origin (`a = 0 ⟹ κ = 0 ⟹ d = 1`),
+which leaves the added equality constraints satisfied at iteration 0 rather than making the
+starting point infeasible.
+"""
+function maDeterminantDenominators!(
+    jumpModel::Model,
+    a;
+    margin::AbstractFloat = DEFAULT_MA_DETERMINANT_FLOOR,
+    tag::String = "dMA",
+)
+    L = length(a)
+    L == 0 && return nothing
+    d = @variable(jumpModel, [1:L], lower_bound = margin, base_name = tag)
+    for l = 1:L
+        set_start_value(d[l], 1.0)
+    end
+    cur = Any[a[i] for i = 1:L]
+    for m = L:-1:1
+        κm = cur[m]
+        @constraint(jumpModel, d[m] == 1 - κm^2)
+        if m > 1
+            prev = @variable(jumpModel, [1:m-1], base_name = string(tag, "_a", m - 1))
+            for i = 1:(m-1)
+                set_start_value(prev[i], 0.0)
+                @constraint(jumpModel, prev[i] * d[m] == cur[i] - κm * cur[m-i])
+            end
+            cur = Any[prev[i] for i = 1:(m-1)]
+        end
+    end
+    return d
+end
+
+"""
+    fullMADeterminantFactor(a, T)
+
+Numeric counterpart of [`maDeterminantDenominators!`](@ref): `∏_l (1 - κ_l²)^(-l/T)` for the
+complete MA coefficient vector `a`. Returns `1.0` for an empty polynomial. Used by the tests
+and by any diagnostic that needs the factor outside a JuMP model.
+"""
+function fullMADeterminantFactor(a::AbstractVector, T::Real = 1)
+    isempty(a) && return 1.0
+    κ = maToReflection(collect(float.(a)))
+    f = 1.0
+    for l in eachindex(κ)
+        f *= (1 - κ[l]^2)^(-l / T)
+    end
+    return f
 end

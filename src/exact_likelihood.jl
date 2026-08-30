@@ -193,7 +193,13 @@ function exactLoglike(model::SARIMAModel)
     Φ = isnothing(model.Φ) ? Float64[] : Float64.([model.Φ...])
     Θ = isnothing(model.Θ) ? Float64[] : Float64.([model.Θ...])
     ar = expandMultiplicativePolynomial(ϕ, Φ, s; negate = true)
-    ma = expandMultiplicativePolynomial(θ, Θ, s; negate = false)
+    # MA side through the shared builder, so this and the determinant normalization of the
+    # quadratic pre-sample objective cannot disagree about which polynomial the model's MA
+    # part is. Equivalent to `expandMultiplicativePolynomial(θ, Θ, s; negate = false)` for
+    # numeric input — pinned by a test — but it also accepts JuMP expressions and knows the
+    # additive form, neither of which that function does. The AR side keeps its own
+    # expansion because its sign convention differs.
+    ma = Float64[x for x in fullMACoefficients(θ, Θ, s, :multiplicative)]
 
     diffY = differentiate(model.y, model.d, model.D, s)
     z = Float64.(values(diffY))

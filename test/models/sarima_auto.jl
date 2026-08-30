@@ -159,7 +159,15 @@
         # sum starts at t = 1 and the criterion `n` is `T` rather than `T - lb + 1`. The
         # selected ORDER is unchanged by all of these; only the value moves, as it must when
         # the likelihood scale changes.
-        @test aicc(model) ≈ 520.6574204583987 atol = 1e-6
+        #
+        # Moved from 520.6574204583987 when the Gaussian determinant normalization of the
+        # quadratic pre-sample objective was corrected to use the reflection coordinates of
+        # the COMPLETE MA polynomial. This model has q = 1 AND Q = 1, so its polynomial
+        # carries the cross coefficient theta*Theta at lag s+1 and the old separate-block
+        # normalization was not its determinant. The fitted coefficients therefore move, and
+        # the exact likelihood evaluated at them moves with them. Models with q = 0 or Q = 0
+        # are unaffected to the last digit — see `full_ma_determinant.jl`.
+        @test aicc(model) ≈ 520.6626767227478 atol = 1e-6
     end
 
     @testset "parallel candidate fitting (smoke)" begin
@@ -211,10 +219,18 @@
         # reach that. The pinned order is documented rather than asserted to be optimal, so
         # that a change in selection is visible in the diff instead of being absorbed
         # silently.
+        #
+        # It moved, and this is the diff it was meant to make visible: from (0,1,3)(2,1,0)
+        # to (0,1,4)(0,1,1) when the determinant normalization was corrected to the complete
+        # MA polynomial. The grid scores every candidate, and every candidate with q > 0 AND
+        # Q > 0 was previously scored under a normalization that was not its determinant, so
+        # the ranking across the grid changes even though each individual pure candidate is
+        # unaffected. The new selection is the one the corrected criterion prefers; it is not
+        # asserted to forecast better.
         @test model.p == 0
-        @test model.q == 3
-        @test model.P == 2
-        @test model.Q == 0
+        @test model.q == 4
+        @test model.P == 0
+        @test model.Q == 1
         @test model.d == 1
         @test model.D == 1
         # Exhaustive search must not do worse than the stepwise heuristic, but only within

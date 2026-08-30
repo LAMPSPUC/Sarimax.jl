@@ -177,21 +177,29 @@ end
     end
 end
 
-@testset "Staged JuMP construction equals the numeric recursion" begin
-    # `maDeterminantDenominators!` stages the step-down recursion through auxiliary variables
-    # instead of nesting rational expressions. It must produce the same `1 - kappa_l^2`.
+@testset "Forward JuMP construction equals the numeric recursion" begin
+    # `maReflectionForward!` states the FORWARD Levinson-Durbin recursion through auxiliary
+    # variables — no division anywhere — and pins the coefficients it produces to the given
+    # polynomial. Solving it must recover exactly the reflection coordinates the numeric
+    # step-down reads off the same polynomial, which is the claim that the two directions
+    # describe one relationship.
     for a in ([0.5], [0.4, 0.2], [0.7, 0.0, 0.4, 0.28], [0.5, 0.7, 0.2, 0.12])
         mod = Sarimax.JuMP.Model(Sarimax.Ipopt.Optimizer)
         Sarimax.JuMP.set_silent(mod)
         L = length(a)
         Sarimax.JuMP.@variable(mod, x[1:L])
         Sarimax.JuMP.fix.(x, a; force = true)
-        d = Sarimax.maDeterminantDenominators!(mod, [x[i] for i = 1:L])
+        κvars = Sarimax.maReflectionForward!(mod, [x[i] for i = 1:L])
         Sarimax.JuMP.@objective(mod, Min, 0.0)
         Sarimax.JuMP.optimize!(mod)
         κ = Sarimax.maToReflection(a)
-        esperado = [1 - κ[l]^2 for l = 1:L]
-        @test isapprox(Sarimax.JuMP.value.(d), esperado; atol = 1e-8)
+        @test isapprox(Sarimax.JuMP.value.(κvars), κ; atol = 1e-7)
+        # and therefore the same determinant factor
+        @test isapprox(
+            prod((1 - Sarimax.JuMP.value(κvars[l])^2)^(-l) for l = 1:L),
+            Sarimax.fullMADeterminantFactor(a, 1);
+            rtol = 1e-6,
+        )
     end
 
     @testset "agrees with the small-order expression reference" begin

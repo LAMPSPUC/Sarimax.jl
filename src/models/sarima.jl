@@ -2499,22 +2499,46 @@ function objectiveFunctionDefinition!(
         # solver-side domain error. Within that region the term is still the barrier it was:
         # it diverges as any |kappa_l| -> 1.
         if model.q > 0 || model.Q > 0
-            fullMA = fullMACoefficients(
-                model.q > 0 ? jumpModel[:θ] : Any[],
-                model.Q > 0 ? jumpModel[:Θ] : Any[],
-                model.seasonality,
-                modelSeasonalForm(model),
-            )
-            if !isempty(fullMA)
-                d = maDeterminantDenominators!(jumpModel, fullMA)
+            # EXACT REDUCTIONS, taken because they are exact and not because they are cheap.
+            #
+            # When one of the blocks is empty the complete polynomial IS that block, and its
+            # reflection coordinates are the block's own: with Q = 0 the polynomial is
+            # theta(B); with q = 0 it is Theta(B^s), a polynomial in B^s whose s phase chains
+            # decouple, which is what produces the s*w exponent. Both reductions are proved
+            # against the complete-polynomial formula in `full_ma_determinant.jl`.
+            #
+            # Reading the single block there costs a recursion of depth q (at most 5) or Q
+            # (at most 2) instead of one of depth q + s*Q, which reaches 26 at s = 12. It is
+            # the same number by two routes, so nothing is approximated — the expensive route
+            # is simply confined to the models that need it, those with q > 0 AND Q > 0.
+            if model.Q == 0
+                κMA = maToReflectionExpr(jumpModel[:θ], model.q)
+                isnothing(κMA) ||
+                    (fator = fator * prod([(1 - κMA[j]^2)^(-j / T) for j = 1:model.q]))
+                model.metadata["innovationsFullMAOrder"] = string(model.q)
+            elseif model.q == 0
+                κSMA = maToReflectionExpr(jumpModel[:Θ], model.Q)
+                isnothing(κSMA) || (fator =
+                    fator *
+                    prod([(1 - κSMA[w]^2)^(-model.seasonality * w / T) for w = 1:model.Q]))
+                model.metadata["innovationsFullMAOrder"] =
+                    string(model.seasonality * model.Q)
+            else
+                fullMA = fullMACoefficients(
+                    jumpModel[:θ],
+                    jumpModel[:Θ],
+                    model.seasonality,
+                    modelSeasonalForm(model),
+                )
                 L = length(fullMA)
-                fator = fator * prod([d[l]^(-l / T) for l = 1:L])
-                # The floor on those denominators confines the fit to the invertible region
-                # of the COMPLETE polynomial; recorded because it is a restriction on what
-                # can be estimated, not an implementation detail.
-                model.metadata["innovationsFullMAInvertible"] = "true"
+                κFull = maReflectionForward!(jumpModel, fullMA)
+                fator = fator * prod([(1 - κFull[l]^2)^(-l / T) for l = 1:L])
                 model.metadata["innovationsFullMAOrder"] = string(L)
             end
+            # The box on the reflection coordinates confines the fit to the invertible region
+            # of the COMPLETE polynomial; recorded because it is a restriction on what can be
+            # estimated, not an implementation detail.
+            model.metadata["innovationsFullMAInvertible"] = "true"
         end
         @objective(jumpModel, Min, S * fator)
 
@@ -6131,67 +6155,77 @@ function maToReflectionExpr(θ, q::Int)
 end
 
 """
-    maDeterminantDenominators!(jumpModel, a; margin, tag)
+    maReflectionForward!(jumpModel, a; margin, tag)
 
-Materializes `d_l = 1 - κ_l²`, `l = 1, …, L`, for the reflection coordinates `κ` of the
-COMPLETE MA polynomial whose coefficients are `a₁, …, a_L`, and returns the `d` vector. The
-Gaussian determinant normalization is then `∏_l d_l^(-l/T)`.
+Reflection coordinates `κ₁, …, κ_L` of the COMPLETE MA polynomial whose coefficients are
+`a₁, …, a_L`, as bounded JuMP VARIABLES. The Gaussian determinant normalization is then
+`∏_l (1 - κ_l²)^(-l/T)`.
 
-WHY VARIABLES INSTEAD OF NESTED EXPRESSIONS. The step-down Levinson-Durbin recursion divides
-by `1 - κ_m²` at every stage, so writing it as one expression nests `L` levels of rational
-function. For the complete polynomial `L = q + s·Q`, which reaches 24–30 at `s = 12` with
-`Q = 2` — an expression graph that is expensive to build and to differentiate. Here each
-stage of the recursion instead gets its own variables and equality constraints:
+DIRECTION MATTERS, AND THIS IS THE FORWARD ONE. The obvious encoding is the step-down
+recursion that reads `κ` off the coefficients, but every one of its stages divides by
+`1 - κ_m²`, and staging that as `a⁽ᵐ⁻¹⁾_i · d_m = a⁽ᵐ⁾_i - κ_m · a⁽ᵐ⁾_{m-i}` puts a product
+that vanishes exactly where the barrier drives the iterates. Measured on 1500 M4 monthly
+series, that encoding cost 57.3 s/series against 5.0 for the previous release and produced
+796 non-success candidate terminations where the previous release produced none.
 
-    d_m           = 1 - κ_m²
-    a⁽ᵐ⁻¹⁾_i · d_m = a⁽ᵐ⁾_i - κ_m · a⁽ᵐ⁾_{m-i}
+The forward Levinson-Durbin recursion has no division at all:
 
-which is the same recursion in staged form, algebraically identical and of bounded degree
-per constraint. Only the top stage carries the incoming expressions in `a`.
+    t⁽ᵐ⁾_m = κ_m
+    t⁽ᵐ⁾_i = t⁽ᵐ⁻¹⁾_i + κ_m · t⁽ᵐ⁻¹⁾_{m-i},    i = 1, …, m-1
 
-DOMAIN, AND WHAT IT IMPLIES. `d_l` is bounded below by `margin > 0`. This is not cosmetic:
-`d_l^(-l/T)` is real only for `d_l > 0`, so the normalization exists exactly on the region
-where the COMPLETE polynomial is invertible. Imposing the floor therefore restricts the fit
-to that region — the normalization and invertibility of `Ψ(B)` are NOT independent here, and
-this is the deliberate, explicit form of a restriction the objective imposes anyway by
-diverging at the boundary. It is recorded in the fitted model's metadata as
-`innovationsFullMAInvertible`.
+and the coefficients it produces are matched to the model's own polynomial by `t⁽ᴸ⁾_l = a_l`.
+Given an invertible `a` the system determines `κ` uniquely, so this states the same
+relationship as the step-down — read in the direction that is well conditioned.
 
-Note that this binds the FULL polynomial. Under `:multiplicative` with `invertible = true`
-each FACTOR is already invertible by construction, which implies the product is; the floor
-is then slack. With `invertible = false` the factors are free and the floor is the only thing
-keeping the objective real.
+DOMAIN. Invertibility of the complete polynomial becomes a SIMPLE BOX on `κ`, which is the
+form an interior-point method handles natively: `|κ_l| ≤ 1 - margin` keeps `1 - κ_l² > 0` by
+construction, so the fractional power is never handed a negative base and no nonlinear bound
+is needed. The normalization exists only on that region, so this makes explicit a restriction
+the objective imposes anyway by diverging at the boundary; it is recorded in the fitted
+model's metadata as `innovationsFullMAInvertible`.
 
-Start values are set so the recursion is consistent at the origin (`a = 0 ⟹ κ = 0 ⟹ d = 1`),
-which leaves the added equality constraints satisfied at iteration 0 rather than making the
-starting point infeasible.
+Under `:multiplicative` the region is unchanged from the per-factor one: a product is
+invertible exactly when its factors are. Under `:additive` it is a different and correct
+condition, the polynomial being a sum rather than a product.
+
+Start values are the origin (`κ = 0 ⟹ t = 0 ⟹ a = 0`), which leaves every added equality
+satisfied at iteration 0 instead of starting infeasible.
 """
-function maDeterminantDenominators!(
+function maReflectionForward!(
     jumpModel::Model,
     a;
     margin::AbstractFloat = DEFAULT_MA_DETERMINANT_FLOOR,
-    tag::String = "dMA",
+    tag::String = "kMA",
 )
     L = length(a)
     L == 0 && return nothing
-    d = @variable(jumpModel, [1:L], lower_bound = margin, base_name = tag)
+    cota = sqrt(max(zero(margin), one(margin) - margin))
+    κ = @variable(
+        jumpModel,
+        [1:L],
+        lower_bound = -cota,
+        upper_bound = cota,
+        base_name = tag
+    )
     for l = 1:L
-        set_start_value(d[l], 1.0)
+        set_start_value(κ[l], 0.0)
     end
-    cur = Any[a[i] for i = 1:L]
-    for m = L:-1:1
-        κm = cur[m]
-        @constraint(jumpModel, d[m] == 1 - κm^2)
-        if m > 1
-            prev = @variable(jumpModel, [1:m-1], base_name = string(tag, "_a", m - 1))
-            for i = 1:(m-1)
-                set_start_value(prev[i], 0.0)
-                @constraint(jumpModel, prev[i] * d[m] == cur[i] - κm * cur[m-i])
-            end
-            cur = Any[prev[i] for i = 1:(m-1)]
+    prev = nothing
+    for m = 1:L
+        cur = @variable(jumpModel, [1:m], base_name = string(tag, "_t", m))
+        for i = 1:m
+            set_start_value(cur[i], 0.0)
         end
+        @constraint(jumpModel, cur[m] == κ[m])
+        for i = 1:(m-1)
+            @constraint(jumpModel, cur[i] == prev[i] + κ[m] * prev[m-i])
+        end
+        prev = cur
     end
-    return d
+    for l = 1:L
+        @constraint(jumpModel, prev[l] == a[l])
+    end
+    return κ
 end
 
 """

@@ -1,0 +1,198 @@
+
+******************************************************************************
+This program contains Ipopt, a library for large-scale nonlinear optimization.
+ Ipopt is released as open source code under the Eclipse Public License (EPL).
+         For more information visit https://github.com/coin-or/Ipopt
+******************************************************************************
+
+SONDA quarterly/stable — tag v1.0.0, processo unico, 30 series semeadas de 24000 arquivadas
+
+sid     sMAPE arquivado   sMAPE agora     ordem arq        ordem agora      veredito
+349           3.360913       3.360913   (2, 1, 0, 1, 0, 0) (2, 1, 0, 1, 0, 0) IGUAL
+1334          0.423577       0.423577   (0, 2, 1, 0, 0, 0) (0, 2, 1, 0, 0, 0) IGUAL
+1491         40.763452      40.763452   (1, 0, 0, 1, 0, 0) (1, 0, 0, 1, 0, 0) IGUAL
+1577         33.596440      33.596440   (1, 1, 0, 0, 0, 1) (1, 1, 0, 0, 0, 1) IGUAL
+2545          0.485259       0.485259   (1, 1, 1, 0, 0, 1) (1, 1, 1, 0, 0, 1) IGUAL
+3323         57.578927      57.578927   (0, 1, 1, 1, 0, 1) (0, 1, 1, 1, 0, 1) IGUAL
+3566         13.268882      13.268882   (0, 1, 1, 0, 0, 0) (0, 1, 1, 0, 0, 0) IGUAL
+4680          3.481386       3.481386   (0, 2, 1, 0, 0, 0) (0, 2, 1, 0, 0, 0) IGUAL
+5777         11.608917      11.608917   (1, 1, 0, 0, 0, 0) (1, 1, 0, 0, 0, 0) IGUAL
+6731          1.883013       1.883013   (1, 0, 1, 0, 1, 1) (1, 0, 1, 0, 1, 1) IGUAL
+8537         12.276945      12.276945   (1, 1, 0, 0, 0, 2) (1, 1, 0, 0, 0, 2) IGUAL
+8608         62.235708      62.235708   (0, 1, 0, 0, 0, 0) (0, 1, 0, 0, 0, 0) IGUAL
+9223         12.873470      12.873470   (0, 1, 1, 0, 0, 0) (0, 1, 1, 0, 0, 0) IGUAL
+10483         2.273679       2.273679   (1, 0, 0, 2, 1, 0) (1, 0, 0, 2, 1, 0) IGUAL
+11073         7.643355       7.643355   (2, 0, 0, 0, 0, 0) (2, 0, 0, 0, 0, 0) IGUAL
+12627        35.756430      35.756430   (0, 1, 0, 0, 0, 0) (0, 1, 0, 0, 0, 0) IGUAL
+12837        12.764927      12.764927   (0, 1, 1, 1, 0, 0) (0, 1, 1, 1, 0, 0) IGUAL
+13466         2.191467       2.191467   (1, 2, 0, 0, 0, 0) (1, 2, 0, 0, 0, 0) IGUAL
+13498         3.349229       3.349229   (1, 0, 2, 0, 1, 2) (1, 0, 2, 0, 1, 2) IGUAL
+14722        11.352608      11.352608   (0, 1, 1, 0, 0, 0) (0, 1, 1, 0, 0, 0) IGUAL
+17108        22.137567      22.137567   (0, 1, 1, 0, 0, 1) (0, 1, 1, 0, 0, 1) IGUAL
+17304        31.985153      31.985153   (0, 1, 1, 0, 0, 1) (0, 1, 1, 0, 0, 1) IGUAL
+17587        39.937256      39.937256   (0, 1, 0, 0, 0, 0) (0, 1, 0, 0, 0, 0) IGUAL
+17970        11.027734      11.027734   (0, 1, 1, 0, 0, 2) (0, 1, 1, 0, 0, 2) IGUAL
+19245        43.496465      43.496465   (1, 0, 0, 0, 0, 1) (1, 0, 0, 0, 0, 1) IGUAL
+19810         5.324154       5.324154   (1, 1, 1, 1, 0, 0) (1, 1, 1, 1, 0, 0) IGUAL
+20931        14.229368      14.229368   (0, 1, 1, 0, 0, 2) (0, 1, 1, 0, 0, 2) IGUAL
+21883        21.876021      21.876021   (2, 1, 2, 2, 0, 0) (2, 1, 2, 2, 0, 0) IGUAL
+23745        11.370883      11.370883   (1, 0, 0, 0, 0, 0) (1, 0, 0, 0, 0, 0) IGUAL
+23805        14.441164      14.441164   (0, 1, 1, 0, 0, 1) (0, 1, 1, 0, 0, 1) IGUAL
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = NUMERICAL_ERROR::TerminationStatusCode = 20
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = OTHER_ERROR::TerminationStatusCode = 24
+└ @ Sarimax ~/dev/wt_v100/src/models/sarima.jl:2764
+
+RESULTADO: 30/30 reproduzem (100.0%)

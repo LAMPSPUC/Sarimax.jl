@@ -49,6 +49,8 @@ using LinearAlgebra
 
     include("objective_functions.jl")
 
+    include("quantile_objective.jl")
+
     include("warm_start.jl")
 
     include("solver_interface.jl")

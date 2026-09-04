@@ -19,6 +19,21 @@ choice in this package.
 const DEFAULT_CVAR_LEVEL = 0.9
 
 """
+    DEFAULT_QUANTILE_LEVEL
+
+Level `α` of the `"quantile"` objective, the asymmetric extension of `"mae"`. The default
+`0.5` is the median, where the check loss is symmetric: the objective is then `mae` scaled by
+one half, hence the same estimator.
+
+WHY THIS IS NOT NAMED `alpha`. `alpha` is already the mixing parameter of the elastic-net
+penalty, carried on the model as `model.alpha`, and it also defaults to `0.5`. `auto` further
+rejects `alpha` for any objective other than `elastic_net`. Two meanings under one name with
+one default is the ambiguity this package has paid for before, so the level follows the naming
+of `cvarLevel`, which plays exactly this role for `"stable"`.
+"""
+const DEFAULT_QUANTILE_LEVEL = 0.5
+
+"""
     DEFAULT_HUBER_DELTA
 
 Threshold where the `"huber"` objective switches from quadratic to linear, in units of the
@@ -957,9 +972,15 @@ function fit!(
     maxTimeSeconds::Union{Nothing,Real} = nothing,
     warmStartFromBox::Bool = false,
     cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
+    quantileLevel::AbstractFloat = DEFAULT_QUANTILE_LEVEL,
     multistart::Bool = false,
 )
     @assert 0.0 < cvarLevel < 1.0 "cvarLevel must lie strictly between 0 and 1."
+    # Strictly inside (0, 1): at 0 or 1 the check loss stops being a quantile criterion —
+    # one side of the residual distribution becomes free of charge and the minimizer runs
+    # off. Rejected rather than clamped, because a silently clamped level would report a
+    # quantile the fit did not target.
+    @assert 0.0 < quantileLevel < 1.0 "quantileLevel must lie strictly between 0 and 1."
     penaltyTarget in (:all, :dynamics, :exogenous) || throw(
         ArgumentError(
             "penaltyTarget must be :all, :dynamics or :exogenous, got $(penaltyTarget)",
@@ -1011,6 +1032,7 @@ function fit!(
             silent, optimizer, mipSolver, automaticExogDifferentiation, alpha, lambda,
             invertible, invertibilityMargin, minConditioningObs, seasonalForm,
             stationary, stationarityMargin, maxTimeSeconds, warmStartFromBox, cvarLevel,
+            quantileLevel,
         )
         criterio(m) = try
             v = aicc(m)
@@ -1082,7 +1104,7 @@ function fit!(
             silent, optimizer, mipSolver, automaticExogDifferentiation, alpha, lambda,
             invertible, invertibilityMargin, minConditioningObs, seasonalForm,
             initialization, stationary, stationarityMargin, maxTimeSeconds,
-            warmStartFromBox, cvarLevel,
+            warmStartFromBox, cvarLevel, quantileLevel,
         )
         base = deepcopy(model)
         fit!(base; passa..., objectiveFunction = "mse")
@@ -1130,6 +1152,7 @@ function fit!(
         common = (;
             silent, optimizer, mipSolver, objectiveFunction, automaticExogDifferentiation,
             alpha, lambda, minConditioningObs, seasonalForm, initialization, cvarLevel,
+            quantileLevel,
         )
         seed = deepcopy(model)
         fit!(seed; common..., stationary = false, invertible = false,
@@ -1207,7 +1230,7 @@ function fit!(
     Fl = typeofModelElements(model)
     isFitted(model) &&
         @info("The model has already been fitted. Overwriting the previous results")
-    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge", "huber", "ml_exact"] "The objective function $objectiveFunction is not supported. Please use 'mae', 'mse', 'ml', 'bilevel', 'elastic_net', 'stable', 'ridge', 'huber' or 'ml_exact'"
+    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge", "huber", "ml_exact", "quantile"] "The objective function $objectiveFunction is not supported. Please use 'mae', 'mse', 'ml', 'bilevel', 'elastic_net', 'stable', 'ridge', 'huber', 'ml_exact' or 'quantile'"
     @assert !(invertible && MACoefficientsAreModelParameters(objectiveFunction)) "The invertible MA parameterization is not compatible with the '$objectiveFunction' objective (MA coefficients are treated as outer parameters there)."
     @assert 0.0 <= invertibilityMargin < 1.0 "invertibilityMargin (ρ) must lie in [0, 1)."
     @assert 0.0 <= stationarityMargin < 1.0 "stationarityMargin must lie in [0, 1)."
@@ -1254,18 +1277,20 @@ function fit!(
     # The penalized pre-sample block is implemented for the losses whose block term can be
     # written in the SAME loss as the data, which is what prevents mixing scales (an L2
     # block penalty against an L1 data loss). Under `mse` the block enters as a sum of
-    # squares and the determinant factor applies. Under `mae` and `huber` it enters as the
-    # data loss itself and the determinant factor does NOT apply: that factor comes from
-    # concentrating sigma^2, a step that holds only under a quadratic loss. The remaining
-    # objectives add the block through `presampleSquares`.
+    # squares and the determinant factor applies. Under `mae`, `huber` and `quantile` it
+    # enters as the data loss itself and the determinant factor does NOT apply: that factor
+    # comes from concentrating sigma^2, a step that holds only under a quadratic loss. The
+    # remaining objectives add the block through `presampleSquares`.
     if initialization in (:penalized, :innovations) &&
        !(objectiveFunction in
-         ("mse", "mae", "huber", "ml", "ml_exact", "ridge", "stable", "bilevel", "elastic_net"))
+         ("mse", "mae", "huber", "ml", "ml_exact", "ridge", "stable", "bilevel", "elastic_net",
+          "quantile"))
         throw(
             ArgumentError(
                 "initialization = :$(initialization) is implemented for objectiveFunction " *
                 "in (\"mse\", \"mae\", \"huber\", \"ml\", \"ml_exact\", \"ridge\", " *
-                "\"stable\", \"bilevel\", \"elastic_net\"); got \"$(objectiveFunction)\". " *
+                "\"stable\", \"bilevel\", \"elastic_net\", \"quantile\"); " *
+                "got \"$(objectiveFunction)\". " *
                 "The pre-sample values would stay unpenalized, i.e. the fit would " *
                 "silently degrade to :free.",
             ),
@@ -1285,6 +1310,10 @@ function fit!(
     # Recorded because the PARAMETER COUNT depends on the objective that actually fitted
     # the model, not on `lambda`/`alpha` being set — see `get_hyperparameters_number`.
     model.metadata["objectiveFunction"] = objectiveFunction
+    # The level is part of WHAT WAS ESTIMATED under `quantile`, not a tuning detail: the
+    # same series and orders at two levels are two different estimates. Recorded so a
+    # result can never be read without it.
+    objectiveFunction == "quantile" && (model.metadata["quantileLevel"] = quantileLevel)
 
     # The `ridge` objective fixes `lambda = sqrt(nEff)` internally and ignores the
     # argument. Accepting it silently would let the caller believe they control the
@@ -1792,7 +1821,8 @@ if inovacoes
     includeModelConstraints!(mod, yData, T, objectiveFunction, lb)
 
     objectiveFunctionDefinition!(mod, model, objectiveFunction, T, lb, cvarLevel, yValues,
-                                 penalizado, yLo, epsLo; penaltyTarget = penaltyTarget)
+                                 penalizado, yLo, epsLo; penaltyTarget = penaltyTarget,
+                                 quantileLevel = quantileLevel)
 
     isnothing(warmStart) || applyWarmStart!(
         mod,
@@ -2297,7 +2327,10 @@ function includeModelConstraints!(
         [t = offset:T],
         yValues[t] == jumpModel[:ŷ][t] + jumpModel[:ϵ][t]
     )
-    if objectiveFunction == "mae"
+    if objectiveFunction in ("mae", "quantile")
+        # `quantile` shares this decomposition with `mae`: both need the residual split into
+        # its non-negative parts, and they differ only in how the two parts are WEIGHTED in
+        # the objective. `mae` weights them equally; `quantile` weights them α and 1-α.
         @variable(jumpModel, ϵ_plus[offset:T] >= 0)
         @variable(jumpModel, ϵ_minus[offset:T] >= 0)
         @constraint(jumpModel, [t = offset:T], jumpModel[:ϵ][t] == ϵ_plus[t] - ϵ_minus[t])
@@ -2367,6 +2400,7 @@ function objectiveFunctionDefinition!(
     # KEYWORD: this argument list is positional, so a new positional would shift the
     # slots after it.
     penaltyTarget::Symbol = :all,
+    quantileLevel::AbstractFloat = DEFAULT_QUANTILE_LEVEL,
 )
     parametersVector::Vector{Symbol} = getParametersVector(model)
     parametersVectorExtended::Vector{VariableRef} =
@@ -2644,6 +2678,45 @@ function objectiveFunctionDefinition!(
                      sum(jumpModel[:ϵpre_plus] + jumpModel[:ϵpre_minus])
         end
         @objective(jumpModel, Min, maeObj)
+    elseif objectiveFunction == "quantile"
+        # QUANTILE REGRESSION: the check loss of Koenker and Bassett,
+        #
+        #     rho_a(e) = a * max(e, 0) + (1 - a) * max(-e, 0),
+        #
+        # minimized over the sample. `mae` is the symmetric member of this family: at
+        # a = 1/2 the two weights coincide and the objective is `mae`/2 — the same
+        # argmin, and the same estimator, at half the scale. The reduction is exact and
+        # tested; the factor is not absorbed because rho_a as written above is the standard
+        # definition and rescaling it to match `mae` numerically would be a non-standard
+        # loss.
+        #
+        # ORIENTATION IS THE WHOLE POINT, AND IT IS NOT SYMMETRIC HERE. The residual is
+        # `eps = y - yhat` (from `y[t] == yhat[t] + eps[t]`), so a POSITIVE residual is an
+        # under-prediction. Weighting it by `a` means a high `a` makes under-prediction
+        # expensive and pushes the fit up: at the optimum a fraction `a` of the residuals
+        # lies at or below zero, i.e. `yhat` estimates the conditional a-quantile of `y`.
+        #
+        # This is why the orientation needs its own test rather than inheriting `mae`'s.
+        # A sign inversion in `mae` is invisible in the objective, because |e| is even —
+        # exactly how the inverted `eps = yhat - y` bug once survived here while corrupting
+        # every forecast with q > 0. Under an asymmetric loss the same inversion would
+        # silently fit the (1-a)-quantile instead, and the objective value would not reveal
+        # it either. The empirical-coverage test is what pins it.
+        a = quantileLevel
+        quantObj =
+            a * sum(jumpModel[:ϵ_plus]) + (1 - a) * sum(jumpModel[:ϵ_minus])
+        if penalizado && haskey(object_dictionary(jumpModel), :ϵpre_plus)
+            # Pre-sample block in the SAME loss, with the SAME asymmetry: those are
+            # residuals like the others, only at index t <= 0. Weighting them symmetrically
+            # would target one quantile on the sample and another on the block.
+            quantObj = quantObj +
+                       a * sum(jumpModel[:ϵpre_plus]) +
+                       (1 - a) * sum(jumpModel[:ϵpre_minus])
+        end
+        # Deliberately WITHOUT the determinant factor, for the same reason as `mae`: that
+        # factor comes from concentrating sigma^2 in `T*log(S) + log|Omega|`, a step that
+        # requires a quadratic loss.
+        @objective(jumpModel, Min, quantObj)
     elseif objectiveFunction == "bilevel"
         # `bilevel` is not a different loss but a SOLUTION STRATEGY, with the MA
         # coefficients taken out of JuMP and optimized in an outer loop. The inner problem
@@ -3481,6 +3554,7 @@ function auto(
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
     cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
+    quantileLevel::AbstractFloat = DEFAULT_QUANTILE_LEVEL,
     lambda::Union{Float64,Nothing} = nothing,
     alpha::Union{Float64,Nothing} = nothing,
     requireTermsWhenOverDifferenced::Bool = false,
@@ -3509,7 +3583,7 @@ function auto(
     @assert informationCriteria ∈ ["aic", "aicc", "bic"]
     @assert integrationTest ∈ ["kpss", "kpssShort"]
     @assert seasonalIntegrationTest ∈ ["seas", "ch", "ocsb"]
-    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge", "huber", "ml_exact"]
+    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge", "huber", "ml_exact", "quantile"]
     @assert objectiveFunction == "elastic_net" || isnothing(lambda)
     @assert objectiveFunction == "elastic_net" || isnothing(alpha)
     @assert searchMethod ∈ ["stepwise", "stepwiseNaive", "grid", "sarimax"]
@@ -3666,7 +3740,7 @@ function auto(
             maxOrder = maxp + maxq + maxP + maxQ,
             warmStartFromBox = warmStartFromBox,
             maxTimeSeconds = searchMaxTime,
-            cvarLevel = cvarLevel, multistart = multistart,
+            cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart,
             objectiveFunction = objectiveFunction,
             assertStationarity = assertStationarity,
             assertInvertibility = assertInvertibility,
@@ -3707,7 +3781,7 @@ function auto(
             maxOrder = maxp + maxq + maxP + maxQ,
             warmStartFromBox = warmStartFromBox,
             maxTimeSeconds = searchMaxTime,
-            cvarLevel = cvarLevel, multistart = multistart,
+            cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart,
             objectiveFunction = objectiveFunction,
             assertStationarity = assertStationarity,
             assertInvertibility = assertInvertibility,
@@ -3746,7 +3820,7 @@ function auto(
             maxOrder = maxOrder,
             warmStartFromBox = warmStartFromBox,
             maxTimeSeconds = searchMaxTime,
-            cvarLevel = cvarLevel, multistart = multistart,
+            cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart,
             objectiveFunction = objectiveFunction,
             assertStationarity = assertStationarity,
             assertInvertibility = assertInvertibility,
@@ -3801,7 +3875,7 @@ function auto(
             )
         end
 
-        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs, minConditioningObs = searchLb, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs, minConditioningObs = searchLb, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
     end
 
     bestModel.exog = exog
@@ -4609,6 +4683,7 @@ function localSearch!(
     # would shift every slot after it.
     exogDynamics::Symbol = :armax,
     penaltyTarget::Symbol = :all,
+    quantileLevel::AbstractFloat = DEFAULT_QUANTILE_LEVEL,
 ) where {Fl<:AbstractFloat}
     ModelFl = Fl
     localBestCriteria::ModelFl = Inf
@@ -4617,13 +4692,13 @@ function localSearch!(
     if parallel
         Threads.@threads for model in toFit
             try
-                fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+                fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
             catch e
                 @warn "Parallel candidate fit failed" exception = e
             end
         end
     else
-        foreach(model -> fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart), toFit)
+        foreach(model -> fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart), toFit)
     end
     for model in toFit
         isFitted(model) || continue
@@ -5069,6 +5144,7 @@ function stepWiseSearchNaive(
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
     cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
+    quantileLevel::AbstractFloat = DEFAULT_QUANTILE_LEVEL,
     fixConstant::Bool = false,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,Float64} = nothing,
@@ -5135,6 +5211,7 @@ function stepWiseSearchNaive(
         multistart;
         exogDynamics = exogDynamics,
         penaltyTarget = penaltyTarget,
+        quantileLevel = quantileLevel,
     )
 
     if isnothing(bestModel)
@@ -5207,6 +5284,7 @@ function stepWiseSearchNaive(
             multistart;
             exogDynamics = exogDynamics,
             penaltyTarget = penaltyTarget,
+            quantileLevel = quantileLevel,
         )
         showLogs && !isnothing(itBestModel) && @info(
             "Iteration $(iterations): Best model found is $(getId(itBestModel)) with $(itBestCriteria) criteria"
@@ -5343,6 +5421,7 @@ function stepwiseSearch(
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
     cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
+    quantileLevel::AbstractFloat = DEFAULT_QUANTILE_LEVEL,
     maxModels::Int = DEFAULT_NMODELS,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
     lambda::Union{Nothing,<:AbstractFloat} = nothing,
@@ -5409,7 +5488,7 @@ function stepwiseSearch(
         alpha = alpha,
         lambda = lambda
     )
-    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
     showLogs && @info(
         "Fitted $(getId(bestModel)) with $(informationCriteriaFunction(bestModel; offset=icOffset)) criteria"
     )
@@ -5466,7 +5545,7 @@ function stepwiseSearch(
         alpha = alpha,
         lambda = lambda
     )
-    fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+    fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
     showLogs && @info(
         "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
     )
@@ -5523,7 +5602,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -5576,7 +5655,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -5627,7 +5706,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -5685,7 +5764,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda,
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -5896,6 +5975,7 @@ function gridSearch(
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
     cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
+    quantileLevel::AbstractFloat = DEFAULT_QUANTILE_LEVEL,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,Float64} = nothing,
 )
@@ -5944,7 +6024,7 @@ function gridSearch(
         )
     end
 
-    fitOne!(m) = fit!(m; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+    fitOne!(m) = fit!(m; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
     if parallel
         Threads.@threads for m in candidates
             try

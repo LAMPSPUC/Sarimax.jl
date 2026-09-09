@@ -85,6 +85,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   range check on a level that IS read is unchanged, `AssertionError` included.
 
 ### Fixed
+- **`"ridge"` refused a `lambda` passed as an argument but accepted one carried on the
+  model.** `lambda` reaches a fit by two routes — the `fit!` keyword and `model.lambda`, set
+  by the `SARIMA` constructor or left behind by an earlier penalized fit — and `"ridge"`
+  ignores both, since its shrinkage is fixed at `sqrt(effective sample size)` by
+  construction. Only the first was refused, so `SARIMA(y; lambda = 2.0)` followed by a
+  ridge fit passed in silence: precisely the case the guard exists to prevent. Both routes
+  are now refused, and the message names which one to remove.
+- **`auto` applied a different rule to a scalar `lambda` than to a heterogeneous one.** It
+  required `lambda > 0` for a scalar while admitting zeros inside a vector or a structured
+  specification, so the same strength was legal or illegal depending on how it was spelled —
+  and `auto` disagreed with `fit!`, where `lambda = 0.0` is accepted and pinned by a test
+  requiring it to reproduce least squares. One rule now applies to every shape:
+  non-negative and finite, with negative, `NaN` and `Inf` refused on both surfaces. Saying
+  "no penalty at all" is better spelled `penalty = :none`, but that is style, not a reason
+  for the search to refuse a value the fit accepts.
 - **`mae` and `quantile` built an unbounded, unused pre-sample block under
   `initialization = :free`.** The non-negative pair that linearizes `|ε_pre|` was created
   whenever a free pre-sample block existed, but the two objectives only SUM it when the

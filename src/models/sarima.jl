@@ -970,7 +970,9 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
   uniform case `λⱼ = λ` and reproduces the previous fit exactly.
 
   `0.0` is a legal weight and means "leave this coefficient unpenalized"; negative, `NaN`
-  and `Inf` are rejected. A structured `lambda` must name every penalized block of the
+  and `Inf` are rejected. The same rule applies to every shape and on both `fit!` and
+  `auto`. The `"ridge"` objective refuses `lambda` altogether — by keyword or through
+  `model.lambda` — because its shrinkage is fixed by construction. A structured `lambda` must name every penalized block of the
   model — filling an unnamed block with the default would make `lambda = (ar = 0.0,)` read
   as "penalize nothing" while the moving-average block stayed at the default. The intercept
   and the drift are never reachable, whatever the weights say.
@@ -1541,18 +1543,34 @@ function fit!(
     objectiveFunction == "quantile" &&
         (model.metadata["quantileLevel"] = quantileLevelUsed)
 
-    # The `ridge` objective fixes `lambda = sqrt(nEff)` internally and ignores the
-    # argument. Accepting it silently would let the caller believe they control the
+    # The `ridge` objective fixes `lambda = sqrt(nEff)` internally and ignores whatever the
+    # caller supplied. Accepting it silently would let them believe they control the
     # shrinkage while the fit does not change; `elastic_net` is the objective that honours
     # a caller-supplied lambda.
-    if objectiveFunction == "ridge" && !isnothing(lambda)
+    #
+    # THE FIELD, NOT ONLY THE ARGUMENT. `lambda` reaches a fit by two routes -- the keyword
+    # here, and `model.lambda`, set by the `SARIMA` constructor or left behind by an earlier
+    # penalized fit -- and the second is ignored exactly as loudly as the first, so it has to
+    # be refused exactly as loudly. Guarding only the keyword meant
+    # `SARIMA(y; lambda = 2.0)` followed by a `ridge` fit passed in silence, which is the
+    # very case the guard was written to prevent.
+    #
+    # `model.lambda` is already up to date here: the assignment above copies the keyword
+    # into it, so this single test covers both routes. The message names the route so the
+    # caller knows what to remove.
+    if objectiveFunction == "ridge" && !isnothing(model.lambda)
+        rota = isnothing(lambda) ?
+               "carried on the model as `model.lambda` (set when the model was built, or " *
+               "left by an earlier penalized fit); clear it with `model.lambda = nothing`" :
+               "passed to `fit!`; drop the argument"
         throw(
             ArgumentError(
                 "objectiveFunction = \"ridge\" ignores `lambda`: the shrinkage is fixed at " *
-                "sqrt(effective sample size) by construction. Passing it would have no " *
-                "effect on the fit; drop the argument or use \"elastic_net\", whose " *
-                "`lambda` accepts a scalar and coefficient-specific weights alike " *
-                "(`alpha = 0` is the ridge-type penalty).",
+                "sqrt(effective sample size) by construction. Here it is " * rota * ". " *
+                "For a shrinkage you control, use \"elastic_net\" (or any loss with " *
+                "`penalty = :elastic_net`), whose `lambda` accepts a scalar and " *
+                "coefficient-specific weights alike -- `alpha = 0` is the ridge-type " *
+                "penalty.",
             ),
         )
     end
@@ -3874,14 +3892,21 @@ function auto(
     @assert maxP >= 0
     @assert maxD >= 0
     @assert maxQ >= 0
-    # A SCALAR lambda keeps its historical guard, `lambda > 0`: at zero there is no penalty
-    # and the caller wants another objective. A HETEROGENEOUS lambda is only checked for
-    # non-negative finite values here, because a zero there means something else -- exclude
-    # THIS coefficient from the penalty -- and the structural check (which blocks, which
-    # lengths) needs the candidate's own orders, which the search has not chosen yet. That
-    # check runs per candidate, in `fit!`.
-    @assert isnothing(lambda) || !(lambda isa Real) || (lambda > 0)
-    isnothing(lambda) || lambda isa Real || validatePenaltyLambdaValues(lambda)
+    # ONE RULE FOR EVERY SHAPE: non-negative and finite. `auto` used to hold a scalar to
+    # `lambda > 0` while admitting zeros inside a heterogeneous one, which made the same
+    # number legal or illegal depending on how it was spelled -- and, worse, made `auto`
+    # disagree with `fit!`, where `lambda = 0.0` is not only accepted but pinned by a test
+    # that requires it to reproduce least squares.
+    #
+    # Zero is a coherent value in both spellings, and it means the same thing in both: no
+    # penalty on the coefficients it covers. Saying "no penalty at all" is better spelled
+    # `penalty = :none`, but that is a matter of style, not a reason for the search to
+    # refuse a number the fit accepts.
+    #
+    # Only the VALUES are checked here. The structural check -- which blocks, which lengths
+    # -- needs the candidate's own orders, which the search has not chosen yet, so it runs
+    # per candidate inside `fit!`.
+    isnothing(lambda) || validatePenaltyLambdaValues(lambda)
     @assert isnothing(alpha) || (alpha >= 0 && alpha <= 1)
     @assert informationCriteria ∈ ["aic", "aicc", "bic"]
     @assert integrationTest ∈ ["kpss", "kpssShort"]

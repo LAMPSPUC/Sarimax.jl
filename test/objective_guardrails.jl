@@ -67,6 +67,67 @@
         )
         # sem `lambda` nao ha o que recusar, e o ajuste corre sem aviso
         @test_logs match_mode = :any fit!(mk(); objectiveFunction = "ridge", alpha = 0.0)
+
+        # THE FIELD COUNTS TOO. `lambda` reaches a fit by two routes, and the second one --
+        # `model.lambda`, from the constructor or from an earlier penalized fit -- is
+        # ignored by `ridge` exactly as loudly as the keyword, so it is refused the same way.
+        # Guarding only the keyword left this call passing in silence.
+        comCampo = SARIMA(y, 2, 1, 1; allowMean = false)
+        comCampo.lambda = 2.0
+        @test_throws ArgumentError fit!(comCampo; objectiveFunction = "ridge")
+
+        # ... including when the field was left behind by a previous penalized fit on the
+        # same object, which is how it happens in a sweep rather than in a constructor call.
+        reaproveitado = SARIMA(y, 2, 1, 1; allowMean = false)
+        fit!(reaproveitado; objectiveFunction = "elastic_net", alpha = 0.5, lambda = 10.0)
+        @test_throws ArgumentError fit!(reaproveitado; objectiveFunction = "ridge")
+        # e limpar o campo devolve o ajuste
+        reaproveitado.lambda = nothing
+        fit!(reaproveitado; objectiveFunction = "ridge")
+        @test Sarimax.isFitted(reaproveitado)
+    end
+
+    @testset "lambda escalar e heterogeneo seguem a MESMA regra" begin
+        # `auto` held a scalar to `lambda > 0` while admitting zeros inside a structured
+        # one, so the same strength was legal or illegal depending on the spelling -- and
+        # `auto` disagreed with `fit!`, where `lambda = 0.0` is accepted and pinned by a
+        # test requiring it to reproduce least squares. One rule now: non-negative, finite.
+        n = 120
+        y = TimeArray(dates(n), 10 .+ cumsum(randn(rng, n) .* 0.3))
+
+        # zero e aceito nas duas superficies e nas duas grafias
+        mZero = SARIMA(y, 1, 1, 0; allowMean = false)
+        fit!(mZero; objectiveFunction = "elastic_net", alpha = 0.5, lambda = 0.0)
+        @test Sarimax.isFitted(mZero)
+        aZero = auto(
+            y; seasonality = 1, objectiveFunction = "elastic_net", alpha = 0.5,
+            lambda = 0.0, maxp = 1, maxq = 0, maxP = 0, maxQ = 0,
+        )
+        @test Sarimax.isFitted(aZero)
+        aZeroVetor = auto(
+            y; seasonality = 1, objectiveFunction = "elastic_net", alpha = 0.5,
+            lambda = [0.0], maxp = 1, maxq = 0, maxP = 0, maxQ = 0,
+        )
+        @test Sarimax.isFitted(aZeroVetor)
+
+        # ... e as duas GRAFIAS do mesmo peso nulo dao o mesmo ajuste, que e onde a
+        # simetria e verificavel: `auto` escolhe a propria ordem, entao comparar o ajuste
+        # dele com um de ordem fixa nao diria nada sobre lambda.
+        mZeroVetor = SARIMA(y, 1, 1, 0; allowMean = false)
+        fit!(mZeroVetor; objectiveFunction = "elastic_net", alpha = 0.5, lambda = [0.0])
+        @test Float64.([mZeroVetor.ϕ...]) == Float64.([mZero.ϕ...])
+
+        # negativo, NaN e Inf continuam recusados nas duas superficies e nas duas grafias
+        for ruim in (-1.0, NaN, Inf)
+            @test_throws ArgumentError auto(
+                y; seasonality = 1, objectiveFunction = "elastic_net", alpha = 0.5,
+                lambda = ruim, maxp = 1, maxq = 0, maxP = 0, maxQ = 0,
+            )
+            @test_throws ArgumentError auto(
+                y; seasonality = 1, objectiveFunction = "elastic_net", alpha = 0.5,
+                lambda = [ruim], maxp = 1, maxq = 0, maxP = 0, maxQ = 0,
+            )
+        end
     end
 
     @testset "um NIVEL so e aceito pelo objetivo que o le" begin

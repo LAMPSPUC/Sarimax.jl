@@ -51,6 +51,8 @@ using LinearAlgebra
 
     include("quantile_objective.jl")
 
+    include("penalty_weights.jl")
+
     include("warm_start.jl")
 
     include("solver_interface.jl")

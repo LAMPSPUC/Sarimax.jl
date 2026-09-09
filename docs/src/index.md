@@ -21,6 +21,8 @@ Sarimax.jl is a groundbreaking Julia package that revolutionizes SARIMA (Seasona
   ("quantile"), concentrated Gaussian CSS ("ml"), exact treatment of the initial
   observations ("ml_exact"), ridge, penalized elastic net, and a tail-oriented CVaR
   criterion ("stable")
+* Coefficient-specific regularization weights (`lambda` per coefficient or per block),
+  which is what an adaptive Lasso needs
 * Certified globally optimal estimates via SCIP; any JuMP solver via `fit!(optimizer=…)`
 * Automatic order selection (Hyndman-Khandakar stepwise, grid, opt-in parallel)
 * Stationarity/invertibility **by construction** (reflection-coefficient parameterizations)
@@ -105,17 +107,51 @@ comparing raw pinball values across specifications.
 The `"elastic_net"` objective is the conventional penalized estimator
 
 ```math
-\min_{\vartheta,\varepsilon}\; L(\varepsilon) \;+\; \lambda\left[\alpha\lVert\Theta\rVert_1 + \frac{1-\alpha}{2}\lVert\Theta\rVert_2^2\right],
+\min_{\vartheta,\varepsilon}\; L(\varepsilon) \;+\; \sum_j \lambda_j\left[\alpha\lvert\psi_j\rvert + \frac{1-\alpha}{2}\psi_j^2\right],
 \qquad 0 \le \alpha \le 1,
 ```
 
-where ``L(\varepsilon)`` is the residual loss and ``\Theta`` collects the penalized
-coefficient blocks. The intercept and the drift are always excluded, since penalizing
-the level has no shrinkage interpretation here. ``\alpha = 0`` recovers a ridge-type
-penalty and ``\alpha = 1`` a lasso-type one. `lambda` defaults to the square root of the
-effective sample size, matching the scale of the sum-form objective.
+where ``L(\varepsilon)`` is the innovation loss and ``\psi_j`` runs over the penalized
+coefficients. The intercept and the drift are always excluded, since penalizing the level
+has no shrinkage interpretation here. ``\alpha = 0`` recovers a ridge-type penalty and
+``\alpha = 1`` a lasso-type one.
 
-Which blocks make up ``\Theta`` is selected with `penaltyTarget`, on `fit!` and on `auto`:
+A **scalar** `lambda` is the uniform case ``\lambda_j = \lambda`` and reproduces the
+classical form ``\lambda[\alpha\lVert\psi\rVert_1 + \frac{1-\alpha}{2}\lVert\psi\rVert_2^2]``
+exactly. It defaults to the square root of the effective sample size, matching the scale of
+the sum-form objective.
+
+### Coefficient-specific weights
+
+``\lambda_j`` is a per-coefficient *strength*; ``\alpha`` remains the L1/L2 mixing
+parameter, and the two never trade places. Three shapes are accepted:
+
+| `lambda` | meaning |
+|---|---|
+| `2.0` | one strength for every penalized coefficient |
+| `[2.0, 0.5, 0.0]` | one weight per penalized coefficient, in the order of `penaltyCoefficientNames(model)` |
+| `(ar = 2.0, ma = [0.5, 0.0])` | keyed by block; each value a scalar or a per-coefficient vector |
+
+Block keys are `:ar`, `:ma`, `:sar`, `:sma`, `:exog` (the Greek coefficient names `:ϕ`,
+`:θ`, `:Φ`, `:Θ`, `:β` are accepted as aliases). The flat-vector ordering is
+`[ar; ma; sar; sma; exog]`, restricted to the blocks the model has and `penaltyTarget`
+admits — call `penaltyCoefficientNames` rather than reconstructing it:
+
+```julia
+model = SARIMA(y, X, 2, 0, 1)
+penaltyCoefficientNames(model)                            # ["ar1","ar2","ma1","exog:x1","exog:x2"]
+penaltyCoefficientNames(model; penaltyTarget = :exogenous) # ["exog:x1","exog:x2"]
+```
+
+`0.0` is a legal weight and means "leave this coefficient unpenalized"; negative, `NaN`
+and `Inf` are rejected, as are wrong lengths and unknown block keys. A structured `lambda`
+must name *every* penalized block of the model: filling an unnamed block with the default
+would make `lambda = (ar = 0.0,)` read as "penalize nothing" while the moving-average block
+stayed at the default.
+
+### Which blocks are penalized
+
+Selected with `penaltyTarget`, on `fit!` and on `auto`:
 
 | `penaltyTarget` | Penalized blocks |
 |---|---|
@@ -128,6 +164,29 @@ selecting among them while leaving the dynamics unshrunk.
 
 Exogenous coefficients carry the units of their own regressor, which the package does
 not standardize, so scale-comparable regressors are the caller's responsibility.
+
+The `"ridge"` objective is the fixed-``\lambda`` special case: it sets
+``\lambda = \sqrt{n_{\text{eff}}}`` on the autoregressive and moving-average blocks, ignores
+`penaltyTarget`, and *refuses* a caller-supplied `lambda` rather than ignoring it. Use
+`"elastic_net"` with `alpha = 0` for a ridge-type penalty you control.
+
+### Adaptive Lasso
+
+Heterogeneous weights are exactly what an adaptive Lasso needs. The package does **not**
+run the two-stage procedure — it accepts the weights the procedure produces:
+
+```julia
+first = SARIMA(y, X, 0, 0, 0)
+fit!(first; objectiveFunction = "mse")
+
+β̃ = [first.exogCoefficients...]
+γ = 1.0
+w = 1.0 ./ abs.(β̃) .^ γ              # w_j = 1 / |β̃_j|^γ
+
+model = SARIMA(y, X, 0, 0, 0)
+fit!(model; objectiveFunction = "elastic_net", alpha = 1.0,
+     penaltyTarget = :exogenous, lambda = 10.0 .* w)
+```
 
 ## Known limitations
 

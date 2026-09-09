@@ -186,6 +186,13 @@ The `SARIMAModel` struct represents a SARIMA model. It contains the following fi
 - `lambda`: Strength of the elastic-net penalty (`lambda >= 0`). Defaults to the square
   root of the effective sample size. Only the `"elastic_net"` objective honours it; the
   `"ridge"` objective fixes its own value and rejects the argument.
+
+  Besides a scalar, which applies one strength to every penalized coefficient, it accepts
+  COEFFICIENT-SPECIFIC weights: a vector read in the order of
+  [`penaltyCoefficientNames`](@ref), or a `NamedTuple`/`Dict` keyed by coefficient block
+  (`:ar`, `:ma`, `:sar`, `:sma`, `:exog`) whose values are scalars or per-coefficient
+  vectors. See [`PenaltyLambda`](@ref). The intercept and the drift are never penalized,
+  whatever the weights say.
 - `alpha`: Mixing parameter of the elastic-net penalty (0 <= alpha <= 1); `alpha = 1` is
   lasso, `alpha = 0` is ridge.
 """
@@ -215,7 +222,11 @@ mutable struct SARIMAModel{Fl<:AbstractFloat} <: SarimaxModel
     allowMean::Bool
     allowDrift::Bool
     keepProvidedCoefficients::Bool
-    lambda::Union{Fl,Nothing}
+    # Widened from `Union{Fl,Nothing}` to carry coefficient-specific penalty weights. A
+    # scalar remains a scalar and behaves exactly as before; the vector/NamedTuple/Dict
+    # forms are expanded to one weight per penalized coefficient at fit time, by
+    # `resolvePenaltyWeights`.
+    lambda::Union{Nothing,PenaltyLambda}
     alpha::Union{Fl,Nothing}
     icOffset::Union{Fl,Nothing}
     function SARIMAModel{Fl}(
@@ -243,7 +254,7 @@ mutable struct SARIMAModel{Fl<:AbstractFloat} <: SarimaxModel
         allowMean::Bool = true,
         allowDrift::Bool = false,
         keepProvidedCoefficients::Bool = false,
-        lambda::Union{Fl,Nothing} = nothing,
+        lambda::Union{Nothing,PenaltyLambda} = nothing,
         alpha::Union{Fl,Nothing} = nothing,
         icOffset::Union{Fl,Nothing} = nothing,
     ) where {Fl<:AbstractFloat}
@@ -429,7 +440,7 @@ function SARIMA(
     silent::Bool = true,
     allowMean::Bool = true,
     allowDrift::Bool = false,
-    lambda::Union{Nothing,<:AbstractFloat} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
     icOffset::Union{Nothing,<:AbstractFloat} = nothing,
 )
@@ -488,7 +499,7 @@ function SARIMA(
     silent::Bool = true,
     allowMean::Bool = true,
     allowDrift::Bool = false,
-    lambda::Union{<:AbstractFloat,Nothing} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
     alpha::Union{<:AbstractFloat,Nothing} = nothing,
     icOffset::Union{<:AbstractFloat,Nothing} = nothing,
 )
@@ -529,12 +540,25 @@ function SARIMA(
         )
     end
 
-    if !isnothing(lambda) && lambda < 0
-        throw(
-            InvalidParametersCombination(
-                "The lambda value must be non-negative",
-            ),
-        )
+    # VALUE-level check only. Whether the weights COVER the penalized blocks depends on
+    # `penaltyTarget`, which is a `fit!` argument and is unknown here; that structural check
+    # runs in `resolvePenaltyWeights`. The scalar case keeps raising
+    # `InvalidParametersCombination`, which is what the constructor has always thrown.
+    if !isnothing(lambda)
+        if lambda isa Real
+            lambda < 0 && throw(
+                InvalidParametersCombination(
+                    "The lambda value must be non-negative",
+                ),
+            )
+        else
+            try
+                validatePenaltyLambdaValues(lambda)
+            catch err
+                err isa ArgumentError || rethrow()
+                throw(InvalidParametersCombination(err.msg))
+            end
+        end
     end
 
     if !isnothing(alpha) && (alpha < 0 || alpha > 1)
@@ -612,7 +636,7 @@ function SARIMA(
     silent::Bool = true,
     allowMean::Bool = true,
     allowDrift::Bool = false,
-    lambda::Union{Nothing,<:AbstractFloat} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
     icOffset::Union{Nothing,<:AbstractFloat} = nothing,
 )
@@ -886,7 +910,30 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
 - `penaltyTarget::Symbol`: Which coefficient blocks the `"elastic_net"` penalty applies
   to: `:all` (default), `:dynamics` for the autoregressive and moving-average blocks only,
   or `:exogenous` for the regressors only. The intercept and the drift are never
-  penalized. Ignored by every other objective.
+  penalized. Ignored by every other objective (`"ridge"` fixes its own block list, the
+  autoregressive and moving-average coefficients).
+- `lambda`: Strength of the `"elastic_net"` penalty. Defaults to `sqrt` of the effective
+  sample size — the scale that matches this objective's SUM form. Three shapes:
+
+  | `lambda` | meaning |
+  |---|---|
+  | `2.0` | one strength for every penalized coefficient (the historical API) |
+  | `[2.0, 0.5, 0.0]` | one weight per penalized coefficient, in the order of [`penaltyCoefficientNames`](@ref) |
+  | `(ar = 2.0, ma = [0.5, 0.0])` | keyed by coefficient block; each value a scalar or a per-coefficient vector |
+
+  The objective is `L(ε) + Σⱼ λⱼ [α|ψⱼ| + (1-α)/2 ψⱼ²]`, so `λⱼ` is a per-coefficient
+  STRENGTH and `alpha` keeps its own meaning as the L1/L2 mixing parameter. A scalar is the
+  uniform case `λⱼ = λ` and reproduces the previous fit exactly.
+
+  `0.0` is a legal weight and means "leave this coefficient unpenalized"; negative, `NaN`
+  and `Inf` are rejected. A structured `lambda` must name every penalized block of the
+  model — filling an unnamed block with the default would make `lambda = (ar = 0.0,)` read
+  as "penalize nothing" while the moving-average block stayed at the default. The intercept
+  and the drift are never reachable, whatever the weights say.
+
+  Heterogeneous weights are what an adaptive Lasso needs — `λⱼ = λ / |β̃ⱼ|^γ` from a
+  first-stage fit — but the package does not run that two-stage procedure for you; it
+  accepts the weights it produces. See [`penaltyCoefficientNames`](@ref).
 - `stationary::Bool`: When `true`, the (seasonal) AR coefficients are generated from
   bounded reflection coefficients (partial autocorrelations) via [`reflectionToAR`](@ref),
   guaranteeing a stationary AR polynomial by construction (exact under `:multiplicative`;
@@ -971,7 +1018,7 @@ function fit!(
     objectiveFunction::String = "mse",
     automaticExogDifferentiation::Bool = false,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
-    lambda::Union{Nothing,<:AbstractFloat} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
     invertible::Bool = false,
     invertibilityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
     minConditioningObs::Int = 0,
@@ -1063,11 +1110,16 @@ function fit!(
     # can change the selected order, so measure it through `auto` rather than through a
     # fixed-order fit.
     if multistart && isnothing(warmStart)
+        # `penaltyTarget`, `exogDynamics` and `presampleBurnIn` are on this list because
+        # each of them changes WHICH MODEL IS ESTIMATED, not how it is solved. Leaving them
+        # out let a multistart fit silently revert to the defaults -- an `elastic_net` asked
+        # to shrink only the regressors would shrink the dynamics too, and the winner would
+        # be reported under the caller's label.
         passaM = (;
             silent, optimizer, mipSolver, automaticExogDifferentiation, alpha, lambda,
             invertible, invertibilityMargin, minConditioningObs, seasonalForm,
             stationary, stationarityMargin, maxTimeSeconds, warmStartFromBox, cvarLevel,
-            quantileLevel,
+            quantileLevel, penaltyTarget, exogDynamics, presampleBurnIn,
         )
         criterio(m) = try
             v = aicc(m)
@@ -1135,11 +1187,13 @@ function fit!(
     end
 
     if objectiveFunction == "huber" && isnothing(warmStart)
+        # Same reason as `passaM`: the seed fit and the Huber fit must state the SAME model.
         passa = (;
             silent, optimizer, mipSolver, automaticExogDifferentiation, alpha, lambda,
             invertible, invertibilityMargin, minConditioningObs, seasonalForm,
             initialization, stationary, stationarityMargin, maxTimeSeconds,
-            warmStartFromBox, cvarLevel, quantileLevel,
+            warmStartFromBox, cvarLevel, quantileLevel, penaltyTarget, exogDynamics,
+            presampleBurnIn,
         )
         base = deepcopy(model)
         fit!(base; passa..., objectiveFunction = "mse")
@@ -1184,10 +1238,12 @@ function fit!(
     end
 
     if warmStartFromBox && (stationary || invertible) && isnothing(warmStart)
+        # Same reason as `passaM`: every tier must state the SAME model, so the arguments
+        # that define the estimand travel with the ones that define the solve.
         common = (;
             silent, optimizer, mipSolver, objectiveFunction, automaticExogDifferentiation,
             alpha, lambda, minConditioningObs, seasonalForm, initialization, cvarLevel,
-            quantileLevel,
+            quantileLevel, penaltyTarget, exogDynamics, presampleBurnIn,
         )
         seed = deepcopy(model)
         fit!(seed; common..., stationary = false, invertible = false,
@@ -1359,9 +1415,23 @@ function fit!(
             ArgumentError(
                 "objectiveFunction = \"ridge\" ignores `lambda`: the shrinkage is fixed at " *
                 "sqrt(effective sample size) by construction. Passing it would have no " *
-                "effect on the fit; drop the argument or use \"elastic_net\".",
+                "effect on the fit; drop the argument or use \"elastic_net\", whose " *
+                "`lambda` accepts a scalar and coefficient-specific weights alike " *
+                "(`alpha = 0` is the ridge-type penalty).",
             ),
         )
+    end
+
+    # STRUCTURAL check of the penalty weights, raised HERE rather than during the objective
+    # build: a wrong length or an unknown block is a call-site error, and the caller should
+    # see it before the solver is even constructed. It runs only for the objective that
+    # honours `lambda` -- under any other one `lambda` does not reach the optimization, and
+    # rejecting a shape that would be ignored anyway would be a new refusal, not a guard.
+    #
+    # `model.lambda` rather than the argument, because a `lambda` supplied to the SARIMA
+    # constructor reaches the fit through the field alone.
+    if objectiveFunction == "elastic_net"
+        resolvePenaltyWeights(model, model.lambda, penaltyTarget, 1.0)
     end
 
     # Cost telemetry (performance attribution). A search costs (number of fits) x (cost per
@@ -2680,22 +2750,25 @@ function objectiveFunctionDefinition!(
         # left out: they carry the units of their own regressor, which this package does
         # NOT standardize, so an L2 term over them would not be scale-invariant.
         nEff = T - lb + 1
-        λ = sqrt(max(nEff, 1))
-        shrunk = Symbol[]
-        model.p > 0 && push!(shrunk, :ϕ)
-        model.q > 0 && push!(shrunk, :θ)
-        model.P > 0 && push!(shrunk, :Φ)
-        model.Q > 0 && push!(shrunk, :Θ)
-        if isempty(shrunk)
+        # `nothing` and `:dynamics`, both deliberate and both the historical behaviour:
+        # this objective sets its own lambda (hence it REFUSES a caller-supplied one in
+        # `fit!`) and reaches the AR/MA blocks only, regardless of `penaltyTarget`. The
+        # shared walk yields exactly the block list this branch used to assemble inline.
+        spec = penaltySpec(jumpModel, model, :dynamics, nothing, sqrt(max(nEff, 1)))
+        if isempty(spec.vars)
             @objective(jumpModel, Min,
                 sum(jumpModel[:ϵ] .^ 2) + presampleSquares(jumpModel, penalizado))
         else
-            coefs = reduce(vcat, [Vector{VariableRef}([jumpModel[el]...]) for el in shrunk])
+            # Uniform by construction here; the branch is written out so the emitted
+            # expression is the historical `λ * Σ ψ²`, not an algebraically equal rewrite.
+            penalty = penaltyIsUniform(spec) ?
+                      spec.weights[1] * sum(spec.vars .^ 2) :
+                      sum(spec.weights[i] * spec.vars[i]^2 for i in eachindex(spec.vars))
             @objective(
                 jumpModel,
                 Min,
                 sum(jumpModel[:ϵ] .^ 2) + presampleSquares(jumpModel, penalizado) +
-                λ * sum(coefs .^ 2)
+                penalty
             )
         end
     elseif objectiveFunction == "mae"
@@ -2820,44 +2893,47 @@ function objectiveFunctionDefinition!(
         # the fit is selecting among regressors. Exogenous coefficients carry the units of
         # their own regressor, which the package does not standardize, so scale-comparable
         # regressors are the caller's responsibility.
-        shrunk = Symbol[]
-        if penaltyTarget in (:all, :dynamics)
-            model.p > 0 && push!(shrunk, :ϕ)
-            model.q > 0 && push!(shrunk, :θ)
-            model.P > 0 && push!(shrunk, :Φ)
-            model.Q > 0 && push!(shrunk, :Θ)
-        end
-        if penaltyTarget in (:all, :exogenous)
-            isnothing(model.exog) || push!(shrunk, :β)
-        end
+        #
+        # LAMBDA MAY BE HETEROGENEOUS. The scalar form is the uniform special case: the
+        # objective is
+        #     L(eps) + sum_j lambda_j * [ alpha*|psi_j| + (1-alpha)/2 * psi_j^2 ]
+        # and `lambda_j = lambda` for every j reproduces the historical
+        #     L(eps) + lambda * [ alpha*||psi||_1 + (1-alpha)/2 * ||psi||_2^2 ]
+        # exactly -- the uniform branch below emits that expression verbatim rather than an
+        # algebraically equal rewrite, so a scalar fit is unchanged down to the floating
+        # point. `alpha` keeps its meaning: it mixes L1 against L2. `lambda_j` is a
+        # per-coefficient STRENGTH and never a second mixing parameter.
+        #
+        # Ordering and weights both come from `penaltySpec`, which walks the blocks once;
+        # see `src/penalty.jl` for why the two cannot drift apart.
+        # Same lambda scale as the "ridge" objective: the 1/sqrt(n) heuristic is stated
+        # for a MEAN squared loss, and this objective is a SUM, so the equivalent default
+        # is sqrt(n) over the effective sample.
+        nEff = T - lb + 1
+        spec = penaltySpec(
+            jumpModel, model, penaltyTarget, model.lambda, sqrt(max(nEff, 1)),
+        )
 
         fitLoss = sum(jumpModel[:ϵ] .^ 2) + presampleSquares(jumpModel, penalizado)
 
-        if isempty(shrunk)
+        if isempty(spec.vars)
             @objective(jumpModel, Min, fitLoss)
         else
-            shrunkCoefs =
-                reduce(vcat, [Vector{VariableRef}([jumpModel[el]...]) for el in shrunk])
-            # Same lambda scale as the "ridge" objective: the 1/sqrt(n) heuristic is
-            # stated for a MEAN squared loss, and this objective is a SUM, so the
-            # equivalent default is sqrt(n) over the effective sample.
-            nEff = T - lb + 1
-            λ = isnothing(model.lambda) ? sqrt(max(nEff, 1)) : model.lambda
+            shrunkCoefs = spec.vars
             α = isnothing(model.alpha) ? 0.5 : model.alpha
-            @variable(jumpModel, absShrunk[i = 1:length(shrunkCoefs)] >= 0)
-            @constraints(
-                jumpModel,
-                begin
-                    [i = 1:length(shrunkCoefs)], absShrunk[i] >= shrunkCoefs[i]
-                    [i = 1:length(shrunkCoefs)], absShrunk[i] >= -shrunkCoefs[i]
-                end
-            )
-            @objective(
-                jumpModel,
-                Min,
-                fitLoss +
+            absShrunk = penaltyAbsoluteVariables!(jumpModel, spec)
+            penalty = if penaltyIsUniform(spec)
+                # HISTORICAL expression, emitted verbatim: lambda factored out of both
+                # terms, exactly as before coefficient-specific weights existed.
+                λ = spec.weights[1]
                 λ * (α * sum(absShrunk) + (1 - α) / 2 * sum(shrunkCoefs .^ 2))
-            )
+            else
+                w = spec.weights
+                idx = eachindex(shrunkCoefs)
+                α * sum(w[i] * absShrunk[i] for i in idx) +
+                (1 - α) / 2 * sum(w[i] * shrunkCoefs[i]^2 for i in idx)
+            end
+            @objective(jumpModel, Min, fitLoss + penalty)
         end
     elseif objectiveFunction == "ml"
         # Concentrated conditional (CSS) Gaussian likelihood: profiling sigma out
@@ -3602,7 +3678,7 @@ function auto(
     maxTimeSeconds::Union{Nothing,Real} = nothing,
     cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
     quantileLevel::AbstractFloat = DEFAULT_QUANTILE_LEVEL,
-    lambda::Union{Float64,Nothing} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
     alpha::Union{Float64,Nothing} = nothing,
     requireTermsWhenOverDifferenced::Bool = false,
     requireMAWhenDoublyDifferenced::Bool = false,
@@ -3625,7 +3701,14 @@ function auto(
     @assert maxP >= 0
     @assert maxD >= 0
     @assert maxQ >= 0
-    @assert isnothing(lambda) || (lambda > 0)
+    # A SCALAR lambda keeps its historical guard, `lambda > 0`: at zero there is no penalty
+    # and the caller wants another objective. A HETEROGENEOUS lambda is only checked for
+    # non-negative finite values here, because a zero there means something else -- exclude
+    # THIS coefficient from the penalty -- and the structural check (which blocks, which
+    # lengths) needs the candidate's own orders, which the search has not chosen yet. That
+    # check runs per candidate, in `fit!`.
+    @assert isnothing(lambda) || !(lambda isa Real) || (lambda > 0)
+    isnothing(lambda) || lambda isa Real || validatePenaltyLambdaValues(lambda)
     @assert isnothing(alpha) || (alpha >= 0 && alpha <= 1)
     @assert informationCriteria ∈ ["aic", "aicc", "bic"]
     @assert integrationTest ∈ ["kpss", "kpssShort"]
@@ -4222,7 +4305,7 @@ function initialNonSeasonalModels!(
     allowMean::Bool,
     allowDrift::Bool,
     alpha::Union{Nothing,Float64} = nothing,
-    lambda::Union{Nothing,Float64} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
 )
     push!(models, SARIMA(y, exog, 0, d, 0; allowMean = false, allowDrift = false, alpha = alpha, lambda = lambda))
     push!(models, SARIMA(y, exog, 0, d, 0; allowMean = allowMean, allowDrift = allowDrift, alpha = alpha, lambda = lambda))
@@ -4291,7 +4374,7 @@ function initialSeasonalModels!(
     allowMean::Bool,
     allowDrift::Bool,
     alpha::Union{Nothing,Float64} = nothing,
-    lambda::Union{Nothing,Float64} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
 )
     push!(
         models,
@@ -4832,7 +4915,7 @@ function addNonSeasonalModels!(
     allowDrift::Bool,
     fixConstant::Bool,
     alpha::Union{Nothing,Float64} = nothing,
-    lambda::Union{Nothing,Float64} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
 )
     for p = -1:1, q = -1:1
         newp = bestModel.p + p
@@ -4910,7 +4993,7 @@ function addSeasonalModels!(
     allowDrift::Bool,
     fixConstant::Bool,
     alpha::Union{Nothing,Float64} = nothing,
-    lambda::Union{Nothing,Float64} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
 )
     for P = -1:1, Q = -1:1
         newP = bestModel.P + P
@@ -4997,7 +5080,7 @@ function addNonSeasonalAndSeasonalModels!(
     allowDrift::Bool,
     fixConstant::Bool,
     alpha::Union{Nothing,Float64} = nothing,
-    lambda::Union{Nothing,Float64} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
 )
     for p in [-1, 1], q in [-1, 1], P in [-1, 1], Q in [-1, 1]
         newp = bestModel.p + p
@@ -5073,7 +5156,7 @@ function addChangedConstantModel!(
     visitedModels::Dict{String,Dict{String,Any}},
     drift::Bool = false,
     alpha::Union{Nothing,Float64} = nothing,
-    lambda::Union{Nothing,Float64} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
 )
     allowDrift = drift && !bestModel.allowDrift
     allowMean = !drift && !bestModel.allowMean
@@ -5194,7 +5277,7 @@ function stepWiseSearchNaive(
     quantileLevel::AbstractFloat = DEFAULT_QUANTILE_LEVEL,
     fixConstant::Bool = false,
     alpha::Union{Nothing,Float64} = nothing,
-    lambda::Union{Nothing,Float64} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
 )
     # Include initial models
     candidateModels = Vector{SARIMAModel}()
@@ -5471,7 +5554,7 @@ function stepwiseSearch(
     quantileLevel::AbstractFloat = DEFAULT_QUANTILE_LEVEL,
     maxModels::Int = DEFAULT_NMODELS,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
-    lambda::Union{Nothing,<:AbstractFloat} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
     requireTermsWhenOverDifferenced::Bool = false,
     requireMAWhenDoublyDifferenced::Bool = false,
 )
@@ -6024,7 +6107,7 @@ function gridSearch(
     cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
     quantileLevel::AbstractFloat = DEFAULT_QUANTILE_LEVEL,
     alpha::Union{Nothing,Float64} = nothing,
-    lambda::Union{Nothing,Float64} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
 )
     maxK = (allowMean || allowDrift) ? 1 : 0
     candidates = SARIMAModel[]

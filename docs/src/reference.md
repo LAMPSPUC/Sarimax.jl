@@ -62,6 +62,18 @@ Sarimax.criterionLoglike
 Sarimax.exactLoglike
 ```
 
+## Regularization
+
+```@docs
+Sarimax.penaltyCoefficientNames
+Sarimax.PenaltyLambda
+Sarimax.PENALTY_BLOCKS
+Sarimax.PENALTY_BLOCK_ALIASES
+Sarimax.resolvePenaltyWeights
+Sarimax.penaltySpec
+Sarimax.checkPenaltyWeight
+```
+
 ## Residual diagnostics
 
 ```@docs

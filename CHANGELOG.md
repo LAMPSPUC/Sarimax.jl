@@ -24,6 +24,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The level is recorded in `metadata["quantileLevel"]`. This is an estimation criterion,
   not a probabilistic forecasting mode — `predict!` is unchanged and the package does not
   claim its intervals are calibrated quantile forecasts.
+- **Coefficient-specific regularization weights.** `lambda` on the `"elastic_net"`
+  objective now accepts, besides the historical scalar, a per-coefficient vector or a
+  `NamedTuple`/`Dict` keyed by coefficient block (`:ar`, `:ma`, `:sar`, `:sma`, `:exog`,
+  with the Greek coefficient names as aliases). The objective becomes
+  `L(ε) + Σⱼ λⱼ [α|ψⱼ| + (1-α)/2 ψⱼ²]`; `alpha` keeps its meaning as the L1/L2 mixing
+  parameter and `λⱼ` is a per-coefficient strength.
+
+  A zero weight excludes a coefficient from the penalty; negative, `NaN` and `Inf`
+  weights, wrong lengths, unknown block keys and structured specifications that do not
+  cover every penalized block are rejected with errors that name the expected ordering.
+  The intercept and the drift remain unreachable by any weight.
+
+  This is what an adaptive Lasso needs — `λⱼ = λ/|β̃ⱼ|^γ` from a first-stage fit — but the
+  package accepts the weights rather than running the two-stage procedure itself.
+- **`penaltyCoefficientNames(model; penaltyTarget = :all)`**, exported: the penalized
+  coefficients in the deterministic order a flat `lambda` vector is read
+  (`[ar; ma; sar; sma; exog]`, restricted to the blocks the model has and the target
+  admits).
+
+### Fixed
+- **`penaltyTarget`, `exogDynamics` and `presampleBurnIn` were dropped by the multistart,
+  Huber-fallback and `warmStartFromBox` paths.** Each of those re-fits through an argument
+  bundle that omitted them, so they silently reverted to their defaults: an `elastic_net`
+  fit asked to shrink only the regressors shrank the dynamics too whenever `multistart`,
+  `objectiveFunction = "huber"` or `warmStartFromBox` was in play, and the result was
+  returned under the caller's label. The three arguments now travel with the bundle.
+
+### Internal
+- Coefficient ordering and penalty weights now come from a single walk over the coefficient
+  blocks (`src/penalty.jl`) instead of a `reduce(vcat, ...)` repeated in each penalized
+  objective, so a weight cannot land on the wrong coefficient. The uniform case emits the
+  historical scalar expression verbatim: scalar-`lambda` and `"ridge"` fits are unchanged
+  down to the floating point (verified over 23 fits spanning every `penaltyTarget`, every
+  `alpha`, the default and an explicit `lambda`, seasonal and exogenous specifications).
 
 ## [1.0.0] - 2026-08-27
 

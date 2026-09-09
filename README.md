@@ -74,9 +74,11 @@ fit!(m; initialization = :warmup)                  # R-compatible: matches arima
 fit!(m; objectiveFunction = "mae")                 # robust L1 loss
 fit!(m; objectiveFunction = "quantile",            # pinball loss ρ_τ(ε), ε = y − ŷ
      quantileLevel = 0.9)                          # τ > 0.5 pushes the fit up
-fit!(m; objectiveFunction = "elastic_net",         # penalized: λ[α‖·‖₁ + (1−α)/2‖·‖₂²]
+fit!(m; objectiveFunction = "elastic_net",         # penalized: Σⱼ λⱼ[α|ψⱼ| + (1−α)/2 ψⱼ²]
      alpha = 0.5, lambda = 1.0,
      penaltyTarget = :exogenous)                   # shrink regressors only
+fit!(m; objectiveFunction = "elastic_net",         # ... or one weight per coefficient
+     alpha = 1.0, lambda = (ar = 2.0, ma = 0.0))   # (see penaltyCoefficientNames)
 fit!(m; invertible = true, stationary = true)      # constrained-by-construction estimates
 fit!(m; optimizer = Sarimax.SCIP.Optimizer)        # certified global optimum
 
@@ -143,10 +145,15 @@ repository's AirPassengers data, `initialization = :warmup` — pinned in CI):
   (pinball loss at level `quantileLevel`; `τ = 0.5` is `"mae"` up to a factor of
   two), `"ml"` (concentrated Gaussian CSS), `"ml_exact"` (exact treatment of the
   initial observations), `"ridge"`, `"elastic_net"` (penalized,
-  `L(ε) + λ[α‖·‖₁ + (1−α)/2‖·‖₂²]`, with `α = 0` giving ridge and `α = 1` lasso),
+  `L(ε) + Σⱼ λⱼ[α|ψⱼ| + (1−α)/2 ψⱼ²]`, with `α = 0` giving ridge and `α = 1` lasso),
   and `"stable"` (a tail-oriented criterion: the conditional value at risk of the
   squared errors, in the spirit of Bertsimas & Paskov's sample-robust regression).
   `"bilevel"` is deprecated as of v1.0 and will be removed in v2.0.
+- **Coefficient-specific penalties**: `lambda` takes a scalar, a per-coefficient
+  vector, or a `NamedTuple`/`Dict` keyed by block (`:ar`, `:ma`, `:sar`, `:sma`,
+  `:exog`). A zero weight leaves a coefficient unpenalized; the intercept and the
+  drift are never penalized. `penaltyCoefficientNames(model)` prints the ordering a
+  vector is read in — which is what supplying adaptive-Lasso weights needs.
 - **Constraints by construction**: `invertible = true` and `stationary = true`
   reparameterize the MA/AR coefficients through bounded reflection coefficients
   (Durbin-Levinson), guaranteeing invertibility/stationarity instead of

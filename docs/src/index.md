@@ -102,6 +102,41 @@ Under `auto`, a candidate is *fitted* with the pinball loss but *ranked* by the 
 declared criterion machinery (the Gaussian likelihood behind `aic`/`aicc`/`bic`), never by
 comparing raw pinball values across specifications.
 
+### Composing a loss with a penalty
+
+The loss and the coefficient penalty are two independent axes of the objective:
+
+```math
+\min_{\vartheta,\varepsilon}\; \underbrace{L(\varepsilon)}_{\texttt{objectiveFunction}} \;+\;
+\underbrace{\sum_j \lambda_j\left[\alpha\lvert\psi_j\rvert + \frac{1-\alpha}{2}\psi_j^2\right]}_{\texttt{penalty}}
+```
+
+subject to the same SARIMAX equations. `penalty = :elastic_net` adds the term to whichever
+loss `objectiveFunction` selected, so a quantile fit with a lasso penalty is one call:
+
+```julia
+fit!(model; objectiveFunction = "quantile", quantileLevel = 0.9,
+     penalty = :elastic_net, alpha = 1.0, lambda = 20.0)
+```
+
+`objectiveFunction = "elastic_net"` is exactly `"mse"` with `penalty = :elastic_net` — the
+same estimator under its historical name.
+
+| | |
+|---|---|
+| **admitted losses** | `"mse"`, `"mae"`, `"huber"`, `"quantile"`, `"ml"` |
+| **refused: scale** | `"ml_exact"` (log scale), `"stable"` (mean scale) |
+| **refused: reachability** | `"bilevel"` — the moving-average coefficients are not decision variables there |
+| **refused: double specification** | `"elastic_net"`, `"ridge"` — they already carry a penalty |
+
+The admitted set is decided on **scale**: `lambda` defaults to the square root of the
+effective sample because the fit term is a *sum over observations*, so the two sides of the
+objective are commensurable. The refusals are errors rather than warnings — the combination
+is fixed at the call site, and a mis-scaled penalty is invisible in the fitted coefficients.
+
+The penalty is recorded in `model.metadata["penalty"]` and drives the sparse parameter
+count: what shrinks a coefficient to zero is the penalty, not the loss.
+
 ## Regularization
 
 The `"elastic_net"` objective is the conventional penalized estimator

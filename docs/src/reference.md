@@ -71,6 +71,7 @@ Sarimax.PENALTY_BLOCKS
 Sarimax.PENALTY_BLOCK_ALIASES
 Sarimax.resolvePenaltyWeights
 Sarimax.penaltySpec
+Sarimax.elasticNetPenalty!
 Sarimax.checkPenaltyWeight
 ```
 

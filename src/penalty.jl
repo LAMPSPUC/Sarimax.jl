@@ -417,3 +417,44 @@ function penaltyAbsoluteVariables!(jumpModel::Model, spec::PenaltySpec)
     )
     return absShrunk
 end
+
+"""
+    elasticNetPenalty!(jumpModel, model, penaltyTarget, defaultLambda) -> expression or nothing
+
+The elastic-net penalty term ALONE, with no loss attached:
+
+    sum_j lambda_j * [ alpha * |psi_j| + (1 - alpha)/2 * psi_j^2 ]
+
+Returns `nothing` when the model has no penalizable coefficient under `penaltyTarget`, which
+is the caller's signal to leave the objective as it is.
+
+This is deliberately separated from any particular loss. The `"elastic_net"` objective adds
+it to a sum of squares — its historical meaning — and the `penalty` keyword adds the SAME
+term to whichever loss the caller selected, so a quantile or MAE fit can be penalized
+without a second implementation of the penalty. Loss and penalty compose because the
+penalty never reads the loss.
+
+The auxiliary variables that linearize `|psi_j|` are created here, so calling this twice on
+one JuMP model would create two sets of them; call it once per fit.
+"""
+function elasticNetPenalty!(
+    jumpModel::Model,
+    model,
+    penaltyTarget::Symbol,
+    defaultLambda::Real,
+)
+    spec = penaltySpec(jumpModel, model, penaltyTarget, model.lambda, defaultLambda)
+    isempty(spec.vars) && return nothing
+    α = isnothing(model.alpha) ? 0.5 : model.alpha
+    absShrunk = penaltyAbsoluteVariables!(jumpModel, spec)
+    if penaltyIsUniform(spec)
+        # HISTORICAL expression, emitted verbatim: lambda factored out of both terms,
+        # exactly as before coefficient-specific weights existed.
+        λ = spec.weights[1]
+        return λ * (α * sum(absShrunk) + (1 - α) / 2 * sum(spec.vars .^ 2))
+    end
+    w = spec.weights
+    idx = eachindex(spec.vars)
+    return α * sum(w[i] * absShrunk[i] for i in idx) +
+           (1 - α) / 2 * sum(w[i] * spec.vars[i]^2 for i in idx)
+end

@@ -53,6 +53,8 @@ using LinearAlgebra
 
     include("penalty_weights.jl")
 
+    include("loss_penalty_composition.jl")
+
     include("warm_start.jl")
 
     include("solver_interface.jl")

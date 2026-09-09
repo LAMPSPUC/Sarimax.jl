@@ -79,6 +79,10 @@ fit!(m; objectiveFunction = "elastic_net",         # penalized: Σⱼ λⱼ[α|�
      penaltyTarget = :exogenous)                   # shrink regressors only
 fit!(m; objectiveFunction = "elastic_net",         # ... or one weight per coefficient
      alpha = 1.0, lambda = (ar = 2.0, ma = 0.0))   # (see penaltyCoefficientNames)
+fit!(m; objectiveFunction = "quantile",            # loss and penalty compose:
+     quantileLevel = 0.9,                          #   quantile loss ...
+     penalty = :elastic_net, alpha = 1.0,          #   ... plus a lasso penalty
+     lambda = 20.0)
 fit!(m; invertible = true, stationary = true)      # constrained-by-construction estimates
 fit!(m; optimizer = Sarimax.SCIP.Optimizer)        # certified global optimum
 
@@ -149,6 +153,10 @@ repository's AirPassengers data, `initialization = :warmup` — pinned in CI):
   and `"stable"` (a tail-oriented criterion: the conditional value at risk of the
   squared errors, in the spirit of Bertsimas & Paskov's sample-robust regression).
   `"bilevel"` is deprecated as of v1.0 and will be removed in v2.0.
+- **Loss and penalty compose**: `objectiveFunction` picks the loss, `penalty` picks
+  the coefficient penalty added to it, so `"quantile"` + `penalty = :elastic_net`
+  is a quantile fit with a lasso penalty. `"elastic_net"` is exactly `"mse"` +
+  `penalty = :elastic_net` under its historical name.
 - **Coefficient-specific penalties**: `lambda` takes a scalar, a per-coefficient
   vector, or a `NamedTuple`/`Dict` keyed by block (`:ar`, `:ma`, `:sar`, `:sma`,
   `:exog`). A zero weight leaves a coefficient unpenalized; the intercept and the

@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Loss and coefficient penalty now compose**, through a new `penalty` keyword on `fit!`
+  and `auto`. `objectiveFunction` selects the loss, `penalty` selects the penalty added to
+  it, and the problem solved is
+
+      min  L(eps) + sum_j lambda_j [ alpha*|psi_j| + (1-alpha)/2 * psi_j^2 ]
+
+  over the same SARIMAX equations. `penalty = :none` is the default and inert; a quantile
+  fit with a lasso penalty is `objectiveFunction = "quantile"` with
+  `penalty = :elastic_net, alpha = 1.0`.
+
+  Until now the objective STRING selected both at once — `"elastic_net"` meant "quadratic
+  loss AND elastic net" — so "quantile loss AND lasso" was unspellable.
+  `objectiveFunction = "elastic_net"` is now exactly `"mse"` with `penalty = :elastic_net`,
+  builds the penalty through the same code path, and is unchanged.
+
+  Admitted for `"mse"`, `"mae"`, `"huber"`, `"quantile"` and `"ml"`, whose fit term is a
+  sum over observations — the scale `lambda` is calibrated for. Refused, rather than
+  silently mis-scaled, for `"ml_exact"` (log scale) and `"stable"` (mean scale); refused for
+  `"bilevel"`, where the moving-average coefficients are not decision variables; and refused
+  for `"elastic_net"` and `"ridge"`, which already carry a penalty and would be specifying
+  one twice. `metadata["penalty"]` records what was used.
+
+  The sparse parameter count in `get_hyperparameters_number` now keys off the PENALTY
+  rather than the objective name: what shrinks a coefficient to zero is the penalty, so a
+  composed fit counts the same way the `"elastic_net"` objective does.
 - **Quantile / pinball loss as an estimation criterion**, `objectiveFunction = "quantile"`
   with level `quantileLevel` (`τ ∈ (0,1)`, default `0.5`). It minimizes
   `Σₜ ρ_τ(εₜ)` with `ρ_τ(ε) = τ·max(ε,0) + (1-τ)·max(-ε,0)` over the same SARIMAX

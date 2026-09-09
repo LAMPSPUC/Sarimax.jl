@@ -280,6 +280,30 @@
         end
     end
 
+    @testset ":free keeps the sign convention with no pre-sample split" begin
+        # Under `:free` the pre-sample block is open but NOT priced, so `mae` and
+        # `quantile` no longer build the `eps_pre_plus`/`eps_pre_minus` pair: with neither
+        # part in the objective it was an unbounded, unused block. Removing it is not
+        # observable from outside — those variables entered no objective and constrained
+        # nothing — so what this pins is that the mode still WORKS and still produces the
+        # package's residual orientation.
+        #
+        # The orientation is the part worth guarding: the decomposition being edited here is
+        # the same one whose inverted form once shipped as `eps = yhat - y`, corrupting
+        # every forecast with q > 0 while leaving the objective value plausible.
+        for (p, q, P, Q, s) in ((1, 1, 0, 0, 1), (0, 2, 0, 0, 1), (1, 1, 1, 1, 12))
+            for obj in ("mae", "quantile")
+                m = ajusta(y, p, q, s, P, Q, obj; nivel = 0.6, ini = :free)
+                @test Sarimax.isFitted(m)
+                @test all(isfinite, m.ϵ)
+                # eps = y - yhat, positive on an under-prediction
+                observado = values(m.y)[(end-length(m.ϵ)+1):end]
+                ajustado = values(m.fitInSample)[(end-length(m.ϵ)+1):end]
+                @test Statistics.cor(m.ϵ, observado .- ajustado) > 0.999
+            end
+        end
+    end
+
     @testset "the level reaches every initialization mode" begin
         # The default (`:innovations`) plus the three other free/fixed conventions the
         # objective supports. The level must survive all of them: the pre-sample block joins

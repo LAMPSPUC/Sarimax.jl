@@ -85,6 +85,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   range check on a level that IS read is unchanged, `AssertionError` included.
 
 ### Fixed
+- **`mae` and `quantile` built an unbounded, unused pre-sample block under
+  `initialization = :free`.** The non-negative pair that linearizes `|ε_pre|` was created
+  whenever a free pre-sample block existed, but the two objectives only SUM it when the
+  block is priced (`:penalized`/`:innovations`). Under `:free` the pair therefore appeared
+  in exactly one constraint, `ε_pre = ε_pre⁺ - ε_pre⁻`, and in no objective: both parts
+  could grow without bound along the direction holding their difference fixed, and the
+  identity restricted nothing, since a non-negative pair exists for any `ε_pre`. The
+  estimates were never wrong — the block could not influence them — but every `:free` solve
+  carried `2(1-lo)` variables and `(1-lo)` constraints of rank-deficient ballast.
+  `huber` already created its pre-sample decomposition inside its own `penalizado` branch;
+  this brings `mae` and `quantile` in line with it.
+
+  **This moves `mae`/`quantile` results under `:free`, and only there.** Measured over 192
+  fits (12 series × 8 specifications × 2 objectives): 143 identical, 26 with a lower
+  objective value, 23 with a higher one — the objective FUNCTION is unchanged, so the values
+  are directly comparable. The changes are roughly symmetric and can be large in both
+  directions (−74% to +259%), and the convergence-status distribution is unchanged (189
+  `LOCALLY_SOLVED`, 2 `ITERATION_LIMIT`, 1 `ALMOST_LOCALLY_SOLVED`, before and after).
+
+  Read that as a property of the configuration rather than of the fix: under a non-quadratic
+  loss with a free, unpriced pre-sample block the problem has many local optima, and the
+  solver's answer moves when a mathematically irrelevant detail of the formulation moves.
+  Anyone with recorded `mae`/`quantile` + `:free` numbers should expect them to shift.
+  `:penalized`, `:innovations`, `:zeroed` and `:warmup` are bit-identical, as are every
+  other objective under every mode.
 - **`penaltyTarget`, `exogDynamics` and `presampleBurnIn` were dropped by the multistart,
   Huber-fallback and `warmStartFromBox` paths.** Each of those re-fits through an argument
   bundle that omitted them, so they silently reverted to their defaults: an `elastic_net`

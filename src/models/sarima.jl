@@ -2058,7 +2058,7 @@ if inovacoes
         )
     end
 
-    includeModelConstraints!(mod, yData, T, objectiveFunction, lb)
+    includeModelConstraints!(mod, yData, T, objectiveFunction, lb; penalizado = penalizado)
 
     # The RESOLVED levels: `objectiveFunctionDefinition!` takes concrete numbers, since by
     # this point "the caller said nothing" has already been answered.
@@ -2533,7 +2533,7 @@ function includeSolverParameters!(
 end
 
 """
-    includeModelConstraints!(jumpModel::Model, yValues::Fl, T::Int, objectiveFunction::String, offset::Int) where Fl<:AbstractFloat
+    includeModelConstraints!(jumpModel::Model, yValues, T::Int, objectiveFunction::String, offset::Int; penalizado::Bool = false)
 
 Includes the constraints in the JuMP model for the SARIMA model.
 
@@ -2543,13 +2543,19 @@ Includes the constraints in the JuMP model for the SARIMA model.
 - `T::Int`: The total number of observations.
 - `objectiveFunction::String`: The objective function used for optimization.
 - `offset::Int`: The offset value.
+- `penalizado::Bool`: Whether the pre-sample block is PRICED by the objective
+  (`initialization in (:penalized, :innovations)`). It gates the pre-sample half of the
+  `"mae"`/`"quantile"` decomposition: those variables exist to carry a term of the
+  objective, so under a mode that does not charge the block there is nothing for them to
+  do. See the comment at their declaration.
 """
 function includeModelConstraints!(
     jumpModel::Model,
     yValues::AbstractVector,
     T::Int,
     objectiveFunction::String,
-    offset::Int,
+    offset::Int;
+    penalizado::Bool = false,
 )
     # Every objective shares the same defining relation, eps = y - yhat. The MAE branch
     # only adds the split into non-negative parts that linearizes the absolute value.
@@ -2577,7 +2583,23 @@ function includeModelConstraints!(
         @variable(jumpModel, ϵ_minus[offset:T] >= 0)
         @constraint(jumpModel, [t = offset:T], jumpModel[:ϵ][t] == ϵ_plus[t] - ϵ_minus[t])
         # Pre-sample block in the SAME loss: |eps_pre| through the same non-negative pair.
-        if haskey(object_dictionary(jumpModel), :ϵpre)
+        #
+        # ONLY UNDER A MODE THAT CHARGES THE BLOCK. The pair exists for one reason: to give
+        # the objective a linear stand-in for |eps_pre|. Under `:free` the block is open but
+        # NOT priced, so `mae`/`quantile` never sum these, and creating them anyway left
+        # 2*(1-lo) variables and (1-lo) constraints whose only appearance in the whole
+        # problem was the identity below.
+        #
+        # That is not merely wasteful, it is DEGENERATE: with neither part in the objective,
+        # `eps_pre_plus` and `eps_pre_minus` can both grow without bound along the direction
+        # that holds their difference fixed. The identity constrains nothing either -- for
+        # any value of `eps_pre` a non-negative pair exists -- so the estimates were never
+        # wrong, but the solver carried a rank-deficient block through every iteration.
+        #
+        # `huber` already did this correctly: its pre-sample decomposition (`uHpre`,
+        # `vHpre_plus`, `vHpre_minus`) is created inside its own `penalizado` branch. This
+        # brings `mae` and `quantile` in line with it.
+        if penalizado && haskey(object_dictionary(jumpModel), :ϵpre)
             pre = jumpModel[:ϵpre]
             lo = first(axes(pre, 1))
             @variable(jumpModel, ϵpre_plus[lo:0] >= 0)

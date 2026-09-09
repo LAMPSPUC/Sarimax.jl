@@ -69,6 +69,75 @@
         @test_logs match_mode = :any fit!(mk(); objectiveFunction = "ridge", alpha = 0.0)
     end
 
+    @testset "um NIVEL so e aceito pelo objetivo que o le" begin
+        # `cvarLevel` belongs to "stable" and `quantileLevel` to "quantile". Passing one to
+        # any other objective used to be accepted and ignored, which is the failure mode
+        # this file exists to prevent: in a parallel sweep the cell would report one
+        # estimator under another's label, with nothing in the log to say so.
+        #
+        # This is why both default to `nothing` rather than to their constants: a numeric
+        # default cannot tell "the caller asked for 0.5" from "the caller said nothing", so
+        # the guard could not be written at all.
+        n = 90
+        y = TimeArray(dates(n), 10 .+ cumsum(randn(rng, n) .* 0.3))
+        mk() = SARIMA(y, 1, 0, 0; allowMean = false)
+
+        for obj in ("mse", "mae", "huber", "ml", "quantile", "elastic_net")
+            kw = obj == "elastic_net" ? (; alpha = 0.5) : (;)
+            @test_throws ArgumentError fit!(
+                mk(); objectiveFunction = obj, cvarLevel = 0.9, kw...
+            )
+        end
+        for obj in ("mse", "mae", "huber", "ml", "stable", "elastic_net")
+            kw = obj == "elastic_net" ? (; alpha = 0.5) : (;)
+            @test_throws ArgumentError fit!(
+                mk(); objectiveFunction = obj, quantileLevel = 0.9, kw...
+            )
+        end
+
+        # ... and each level still reaches the objective that DOES read it.
+        mq = mk()
+        fit!(mq; objectiveFunction = "quantile", quantileLevel = 0.8,
+             initialization = :zeroed)
+        @test mq.metadata["quantileLevel"] == 0.8
+        ms = mk()
+        fit!(ms; objectiveFunction = "stable", cvarLevel = 0.95, initialization = :zeroed)
+        @test Sarimax.isFitted(ms)
+
+        # Omitting them keeps the documented defaults, so the guard costs no caller
+        # anything: the level is recorded as 0.5 without having been passed.
+        md = mk()
+        fit!(md; objectiveFunction = "quantile", initialization = :zeroed)
+        @test md.metadata["quantileLevel"] == Sarimax.DEFAULT_QUANTILE_LEVEL
+        for obj in ("mse", "mae", "huber", "ml", "stable")
+            m = mk()
+            fit!(m; objectiveFunction = obj, initialization = :zeroed)
+            @test Sarimax.isFitted(m)
+            @test isnothing(get(m.metadata, "quantileLevel", nothing))
+        end
+
+        # The range check still applies to the objective that reads the level, and still
+        # raises the same exception type it always did.
+        @test_throws AssertionError fit!(
+            mk(); objectiveFunction = "quantile", quantileLevel = 1.5,
+        )
+        @test_throws AssertionError fit!(
+            mk(); objectiveFunction = "stable", cvarLevel = 0.0,
+        )
+
+        # `auto` refuses it up front rather than at the first candidate fit: a constant
+        # series returns from `auto` before any fit happens, so a guard only in `fit!`
+        # would let that call through in silence.
+        @test_throws AssertionError auto(
+            y; seasonality = 1, objectiveFunction = "mse", quantileLevel = 0.9,
+            maxp = 1, maxq = 0, maxP = 0, maxQ = 0,
+        )
+        @test_throws AssertionError auto(
+            y; seasonality = 1, objectiveFunction = "mae", cvarLevel = 0.9,
+            maxp = 1, maxq = 0, maxP = 0, maxQ = 0,
+        )
+    end
+
     @testset ":penalized RECUSA objetivo nao coberto" begin
         # Same policy. The accepted list must mirror the penalized-objective gate; if it
         # admits something the gate does not cover, the fit degrades to :free silently,

@@ -68,6 +68,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`[ar; ma; sar; sma; exog]`, restricted to the blocks the model has and the target
   admits).
 
+### Changed
+- **`quantileLevel` and `cvarLevel` are refused by the objectives that do not read them**,
+  instead of being accepted and ignored. `cvarLevel` belongs to `"stable"` and
+  `quantileLevel` to `"quantile"`; under any other objective the level never reached the
+  optimization, so a call like `fit!(m; objectiveFunction = "mse", quantileLevel = 0.9)`
+  returned a plain least-squares fit while reading as a quantile one. A warning would not
+  do: it is invisible in a parallel sweep, which is exactly where a cell that silently
+  means something else does the damage. This is the policy the `ridge`/`lambda` guard
+  already stated.
+
+  Both keywords now default to `nothing` rather than to their constants — only `nothing`
+  separates "the caller asked for 0.5" from "the caller said nothing", and without that
+  the guard cannot be written. `DEFAULT_QUANTILE_LEVEL` (`0.5`) and `DEFAULT_CVAR_LEVEL`
+  (`0.9`) remain the effective defaults, so omitting the argument behaves as before. The
+  range check on a level that IS read is unchanged, `AssertionError` included.
+
 ### Fixed
 - **`penaltyTarget`, `exogDynamics` and `presampleBurnIn` were dropped by the multistart,
   Huber-fallback and `warmStartFromBox` paths.** Each of those re-fits through an argument

@@ -23,10 +23,15 @@
             copy(y),
         )
         m = SARIMA(ta, p, 0, q; seasonality = s, P = P, D = 0, Q = Q, silent = true)
+        # The level travels ONLY with the objective that reads it. This helper is also used
+        # to fit `mae`, and passing a quantile level there is refused — which is the point
+        # of the guard: attaching a level to an objective that ignores it is how a sweep
+        # ends up reporting one estimator under another's name.
+        nivelKw = obj == "quantile" ? (; quantileLevel = nivel) : (;)
         Sarimax.fit!(
             m;
             objectiveFunction = obj,
-            quantileLevel = nivel,
+            nivelKw...,
             initialization = ini,
             seasonalForm = :multiplicative,
             stationary = true,

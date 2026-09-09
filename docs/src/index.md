@@ -93,6 +93,13 @@ the standard definition.
 The level is recorded in `model.metadata["quantileLevel"]`: the same series and orders at
 two levels are two different estimates.
 
+`quantileLevel` is **refused** by every other objective rather than ignored — as is
+`cvarLevel`, the level of `"stable"`, by every objective but that one. Under an objective
+that does not read it the level never reaches the optimization, so accepting it would let a
+caller believe they had selected an estimator they did not, and a warning would be invisible
+in a parallel sweep. Both keywords default to `nothing`; omitting one applies its documented
+default (`0.5` and `0.9`).
+
 !!! warning "This is an estimation criterion, not a forecasting mode"
     Fitting with the pinball loss does **not** make `predict!` return calibrated
     probabilistic quantile forecasts, and the package makes no such claim. Explicit

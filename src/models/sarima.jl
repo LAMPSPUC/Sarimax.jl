@@ -15,6 +15,12 @@ Value-at-Risk of the squared residuals. At `α` the fit optimises the mean of th
 `α → 1` degenerates to min-max. Note this is a *conservative* (worst-case) objective,
 not a robust one: it fits the tail rather than discounting it — `"mae"` is the robust
 choice in this package.
+
+The `cvarLevel` KEYWORD defaults to `nothing`, not to this constant, and is refused by every
+objective other than `"stable"`. The distinction the `nothing` buys is between "the caller
+asked for 0.9" and "the caller said nothing", without which the refusal could not be
+written; this constant is what an omitted level resolves to. Same arrangement as
+[`DEFAULT_QUANTILE_LEVEL`].
 """
 const DEFAULT_CVAR_LEVEL = 0.9
 
@@ -38,6 +44,11 @@ WHY NOT `tau` EITHER. The literature writes `τ`, and the docstrings do too; the
 follows the package's own convention for a level attached to one objective — `cvarLevel`
 for `"stable"`, `quantileLevel` for `"quantile"` — so the name says which objective reads
 it.
+
+The `quantileLevel` KEYWORD defaults to `nothing`, not to this constant, and is refused by
+every objective other than `"quantile"`. Only `nothing` distinguishes "the caller asked for
+0.5" from "the caller said nothing", and without that distinction the refusal could not be
+written at all; this constant is what an omitted level resolves to.
 """
 const DEFAULT_QUANTILE_LEVEL = 0.5
 
@@ -868,9 +879,13 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
   `"elastic_net"`, `"stable"`, `"bilevel"` (deprecated). Every one of them is a different
   ESTIMATION CRITERION over the same SARIMAX equations and the same initialization
   constraints; none of them changes the dynamics.
-- `quantileLevel::AbstractFloat`: Level `τ ∈ (0, 1)` of the `"quantile"` objective, the
-  asymmetric extension of `"mae"`. Default is [`DEFAULT_QUANTILE_LEVEL`] (`0.5`).
-  Ignored by every other objective; recorded in `metadata["quantileLevel"]` when this one
+- `quantileLevel::Union{Nothing,AbstractFloat}`: Level `τ ∈ (0, 1)` of the `"quantile"`
+  objective, the asymmetric extension of `"mae"`. Omit it (`nothing`, the default) to use
+  [`DEFAULT_QUANTILE_LEVEL`] (`0.5`). REFUSED by every other objective rather than ignored:
+  under them the level never reaches the optimization, so accepting it would let a caller
+  believe they had selected an estimator they did not — invisible in a parallel sweep,
+  which is where it matters most. (`cvarLevel` is the same argument for `"stable"`, and
+  carries the same guard.) Recorded in `metadata["quantileLevel"]` when this objective
   fitted the model, because the same series and orders at two levels are two different
   estimates.
 
@@ -1083,16 +1098,44 @@ function fit!(
     warmStart::Union{Nothing,SARIMAModel} = nothing,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
     warmStartFromBox::Bool = false,
-    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
-    quantileLevel::AbstractFloat = DEFAULT_QUANTILE_LEVEL,
+    cvarLevel::Union{Nothing,AbstractFloat} = nothing,
+    quantileLevel::Union{Nothing,AbstractFloat} = nothing,
     multistart::Bool = false,
 )
-    @assert 0.0 < cvarLevel < 1.0 "cvarLevel must lie strictly between 0 and 1."
+    # A LEVEL BELONGS TO ONE OBJECTIVE, and passing it to another is refused rather than
+    # ignored. `cvarLevel` is read only by `"stable"` and `quantileLevel` only by
+    # `"quantile"`; under any other objective they never reach the optimization, so
+    # accepting them would let a caller believe they had selected an estimator they did
+    # not. That is the same policy the `ridge`/`lambda` guard states, and it matters most
+    # exactly where it is least visible: in a parallel sweep, a cell that silently means
+    # something else is indistinguishable from one that does not.
+    #
+    # This is why the defaults are `nothing` and not the constants: with a numeric default
+    # there is no way to tell "the caller asked for 0.5" from "the caller said nothing", and
+    # the guard could not exist. `DEFAULT_QUANTILE_LEVEL` / `DEFAULT_CVAR_LEVEL` remain the
+    # effective defaults, applied here.
+    isnothing(cvarLevel) || objectiveFunction == "stable" || throw(
+        ArgumentError(
+            "cvarLevel is the confidence level of objectiveFunction = \"stable\" and is " *
+            "not read by \"$(objectiveFunction)\", which would ignore it. Drop the " *
+            "argument, or select the objective that uses it.",
+        ),
+    )
+    isnothing(quantileLevel) || objectiveFunction == "quantile" || throw(
+        ArgumentError(
+            "quantileLevel is the level of objectiveFunction = \"quantile\" and is not " *
+            "read by \"$(objectiveFunction)\", which would ignore it. Drop the argument, " *
+            "or select the objective that uses it.",
+        ),
+    )
+    cvarLevelUsed = isnothing(cvarLevel) ? DEFAULT_CVAR_LEVEL : cvarLevel
+    quantileLevelUsed = isnothing(quantileLevel) ? DEFAULT_QUANTILE_LEVEL : quantileLevel
+    @assert 0.0 < cvarLevelUsed < 1.0 "cvarLevel must lie strictly between 0 and 1."
     # Strictly inside (0, 1): at 0 or 1 the check loss stops being a quantile criterion —
     # one side of the residual distribution becomes free of charge and the minimizer runs
     # off. Rejected rather than clamped, because a silently clamped level would report a
     # quantile the fit did not target.
-    @assert 0.0 < quantileLevel < 1.0 "quantileLevel must lie strictly between 0 and 1."
+    @assert 0.0 < quantileLevelUsed < 1.0 "quantileLevel must lie strictly between 0 and 1."
     penaltyTarget in (:all, :dynamics, :exogenous) || throw(
         ArgumentError(
             "penaltyTarget must be :all, :dynamics or :exogenous, got $(penaltyTarget)",
@@ -1495,7 +1538,8 @@ function fit!(
     # The level is part of WHAT WAS ESTIMATED under `quantile`, not a tuning detail: the
     # same series and orders at two levels are two different estimates. Recorded so a
     # result can never be read without it.
-    objectiveFunction == "quantile" && (model.metadata["quantileLevel"] = quantileLevel)
+    objectiveFunction == "quantile" &&
+        (model.metadata["quantileLevel"] = quantileLevelUsed)
 
     # The `ridge` objective fixes `lambda = sqrt(nEff)` internally and ignores the
     # argument. Accepting it silently would let the caller believe they control the
@@ -2016,9 +2060,11 @@ if inovacoes
 
     includeModelConstraints!(mod, yData, T, objectiveFunction, lb)
 
-    objectiveFunctionDefinition!(mod, model, objectiveFunction, T, lb, cvarLevel, yValues,
+    # The RESOLVED levels: `objectiveFunctionDefinition!` takes concrete numbers, since by
+    # this point "the caller said nothing" has already been answered.
+    objectiveFunctionDefinition!(mod, model, objectiveFunction, T, lb, cvarLevelUsed, yValues,
                                  penalizado, yLo, epsLo; penaltyTarget = penaltyTarget, penalty = penalty,
-                                 quantileLevel = quantileLevel)
+                                 quantileLevel = quantileLevelUsed)
 
     isnothing(warmStart) || applyWarmStart!(
         mod,
@@ -3781,8 +3827,8 @@ function auto(
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
-    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
-    quantileLevel::AbstractFloat = DEFAULT_QUANTILE_LEVEL,
+    cvarLevel::Union{Nothing,AbstractFloat} = nothing,
+    quantileLevel::Union{Nothing,AbstractFloat} = nothing,
     lambda::Union{Nothing,PenaltyLambda} = nothing,
     alpha::Union{Float64,Nothing} = nothing,
     requireTermsWhenOverDifferenced::Bool = false,
@@ -3826,6 +3872,11 @@ function auto(
     penalizedHere = objectiveFunction == "elastic_net" || penalty !== :none
     @assert penalizedHere || isnothing(lambda)
     @assert penalizedHere || isnothing(alpha)
+    # Same guard as in `fit!`, raised HERE so it fires before the search spends anything --
+    # and because a constant series returns early from `auto` without ever reaching `fit!`,
+    # where the argument would then be ignored without a word.
+    @assert isnothing(cvarLevel) || objectiveFunction == "stable" "cvarLevel is the confidence level of objectiveFunction = \"stable\" and is not read by \"$(objectiveFunction)\""
+    @assert isnothing(quantileLevel) || objectiveFunction == "quantile" "quantileLevel is the level of objectiveFunction = \"quantile\" and is not read by \"$(objectiveFunction)\""
     @assert searchMethod ∈ ["stepwise", "stepwiseNaive", "grid", "sarimax"]
     @assert !(invertible && objectiveFunction == "bilevel") "invertible = true is not compatible with the bilevel objective"
     @assert seasonalForm in (:multiplicative, :additive) "seasonalForm must be :multiplicative or :additive (:free is planned)"
@@ -4916,7 +4967,7 @@ function localSearch!(
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
-    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
+    cvarLevel::Union{Nothing,AbstractFloat} = nothing,
     # LAST positional, deliberately: any other position shifts `rootMargin`/`optimizer`
     # and reproduces the MethodError documented above.
     multistart::Bool = false;
@@ -4925,7 +4976,7 @@ function localSearch!(
     exogDynamics::Symbol = :armax,
     penaltyTarget::Symbol = :all,
     penalty::Symbol = :none,
-    quantileLevel::AbstractFloat = DEFAULT_QUANTILE_LEVEL,
+    quantileLevel::Union{Nothing,AbstractFloat} = nothing,
 ) where {Fl<:AbstractFloat}
     ModelFl = Fl
     localBestCriteria::ModelFl = Inf
@@ -5386,8 +5437,8 @@ function stepWiseSearchNaive(
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
-    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
-    quantileLevel::AbstractFloat = DEFAULT_QUANTILE_LEVEL,
+    cvarLevel::Union{Nothing,AbstractFloat} = nothing,
+    quantileLevel::Union{Nothing,AbstractFloat} = nothing,
     fixConstant::Bool = false,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,PenaltyLambda} = nothing,
@@ -5664,8 +5715,8 @@ function stepwiseSearch(
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
-    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
-    quantileLevel::AbstractFloat = DEFAULT_QUANTILE_LEVEL,
+    cvarLevel::Union{Nothing,AbstractFloat} = nothing,
+    quantileLevel::Union{Nothing,AbstractFloat} = nothing,
     maxModels::Int = DEFAULT_NMODELS,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
     lambda::Union{Nothing,PenaltyLambda} = nothing,
@@ -6219,8 +6270,8 @@ function gridSearch(
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
-    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
-    quantileLevel::AbstractFloat = DEFAULT_QUANTILE_LEVEL,
+    cvarLevel::Union{Nothing,AbstractFloat} = nothing,
+    quantileLevel::Union{Nothing,AbstractFloat} = nothing,
     alpha::Union{Nothing,Float64} = nothing,
     lambda::Union{Nothing,PenaltyLambda} = nothing,
 )

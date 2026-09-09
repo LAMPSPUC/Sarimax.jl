@@ -207,10 +207,24 @@ selecting among them while leaving the dynamics unshrunk.
 Exogenous coefficients carry the units of their own regressor, which the package does
 not standardize, so scale-comparable regressors are the caller's responsibility.
 
-The `"ridge"` objective is the fixed-``\lambda`` special case: it sets
-``\lambda = \sqrt{n_{\text{eff}}}`` on the autoregressive and moving-average blocks, ignores
-`penaltyTarget`, and *refuses* a caller-supplied `lambda` rather than ignoring it. Use
-`"elastic_net"` with `alpha = 0` for a ridge-type penalty you control.
+!!! warning "`objectiveFunction = \"ridge\"` is deprecated"
+    It is the fixed-``\lambda`` case of this same penalty: ``\alpha = 0`` over the dynamics
+    blocks, with ``\lambda = \sqrt{n_{\text{eff}}}`` chosen internally. It ignores `lambda`,
+    `alpha` and `penaltyTarget` alike, which is why every guard has to special-case it, and
+    it will be removed in v2.0.
+
+    Carry a fit over exactly with
+
+    ```julia
+    fit!(model; objectiveFunction = "mse", penalty = :elastic_net,
+         alpha = 0.0, penaltyTarget = :dynamics,
+         lambda = 2 * model.metadata["ridgeLambda"])
+    ```
+
+    **Twice** the recorded value, because the elastic-net L2 term is
+    ``\frac{1-\alpha}{2}\psi_j^2`` and `"ridge"` carries no ``\frac{1}{2}``; and
+    `metadata["ridgeLambda"]` because ``n_{\text{eff}}`` discounts the CSS conditioning and
+    cannot be rebuilt from the series length. The equivalence is pinned by a test.
 
 ### Adaptive Lasso
 

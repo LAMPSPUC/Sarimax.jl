@@ -68,6 +68,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`[ar; ma; sar; sma; exog]`, restricted to the blocks the model has and the target
   admits).
 
+### Deprecated
+- **`objectiveFunction = "ridge"`** warns once per session and is scheduled for removal in
+  v2.0. Now that the loss and the penalty are independent axes it is the fixed-`lambda` case
+  of the elastic-net penalty — `alpha = 0` over the dynamics blocks — and it ignores
+  `lambda`, `alpha` and `penaltyTarget` alike, so every guard in the package has to
+  special-case it.
+
+  The migration is exact and the warning states it: `objectiveFunction = "mse"`,
+  `penalty = :elastic_net`, `alpha = 0.0`, `penaltyTarget = :dynamics`, and
+  `lambda = 2 * metadata["ridgeLambda"]`. **Twice**, because the elastic-net L2 term is
+  `(1-alpha)/2 * psi^2` and `"ridge"` carries no `1/2`; and read from the metadata, because
+  `"ridge"` sets `lambda = sqrt(effective sample size)` and the effective sample discounts
+  the CSS conditioning, so it cannot be rebuilt from the series length alone. The
+  equivalence — and the fact that omitting the factor of two does NOT reproduce it — is
+  pinned by a test rather than left to the algebra. Fits recorded `metadata["ridgeLambda"]`
+  for that purpose.
+
+### Added
+- **`auto` accepts `presampleBurnIn`** and threads it through the search. The keyword
+  existed on `fit!` only, so the extra window of pre-sample innovations was pinned at its
+  default of 12 for every candidate `auto` fitted — and `auto` defaults to
+  `initialization = :innovations`, the one mode where the window changes the estimates.
+  Same class as the `penaltyTarget`/`exogDynamics` omission fixed below, and the last of it.
+
 ### Changed
 - **`quantileLevel` and `cvarLevel` are refused by the objectives that do not read them**,
   instead of being accepted and ignored. `cvarLevel` belongs to `"stable"` and

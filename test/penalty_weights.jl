@@ -416,6 +416,48 @@
     # =====================================================================================
     # ridge: contrato inalterado
     # =====================================================================================
+    @testset "a migracao que a depreciacao do ridge promete e exata" begin
+        # `"ridge"` is deprecated in favour of the composed form, and the warning tells the
+        # caller exactly how to carry a fit over. That instruction is VERIFIED here rather
+        # than trusted to the algebra, because it has two adjustments that are easy to state
+        # wrongly:
+        #
+        #   * the elastic-net L2 term is (1-alpha)/2 * psi^2, and `"ridge"` has no 1/2, so
+        #     the composed form needs TWICE the shrinkage;
+        #   * `"ridge"` picks lambda = sqrt(effective sample size), and the effective sample
+        #     discounts the CSS conditioning `lb`, so it cannot be rebuilt from the series
+        #     length. The fit records it.
+        for (p, q, P, Q, s) in ((2, 1, 0, 0, 1), (1, 1, 1, 1, 12))
+            r = SARIMA(serie, p, 0, q; seasonality = s, P = P, D = 0, Q = Q,
+                       allowMean = false, silent = true)
+            fit!(r; objectiveFunction = "ridge", initialization = :zeroed)
+            λ = get(r.metadata, "ridgeLambda", nothing)
+            @test !isnothing(λ) && λ > 0
+
+            composto = SARIMA(serie, p, 0, q; seasonality = s, P = P, D = 0, Q = Q,
+                              allowMean = false, silent = true)
+            fit!(composto; objectiveFunction = "mse", penalty = :elastic_net, alpha = 0.0,
+                 penaltyTarget = :dynamics, lambda = 2 * λ, initialization = :zeroed)
+
+            @test isapprox(coefsOf(r), coefsOf(composto); atol = 1e-6)
+            @test isapprox(
+                get(r.metadata, "objectiveValue", NaN),
+                get(composto.metadata, "objectiveValue", NaN);
+                rtol = 1e-6,
+            )
+        end
+
+        # ... e o fator 2 nao e decorativo: sem ele a penalidade sai pela metade, e o ajuste
+        # difere. Isto e o que impede a instrucao de migracao de estar errada em silencio.
+        r = SARIMA(serie, 2, 0, 1; allowMean = false, silent = true)
+        fit!(r; objectiveFunction = "ridge", initialization = :zeroed)
+        semFator = SARIMA(serie, 2, 0, 1; allowMean = false, silent = true)
+        fit!(semFator; objectiveFunction = "mse", penalty = :elastic_net, alpha = 0.0,
+             penaltyTarget = :dynamics, lambda = r.metadata["ridgeLambda"],
+             initialization = :zeroed)
+        @test !isapprox(coefsOf(r), coefsOf(semFator); atol = 1e-6)
+    end
+
     @testset "ridge continua recusando lambda, escalar ou heterogeneo" begin
         mk() = SARIMA(serie, 2, 0, 1; allowMean = false, silent = true)
         @test_throws ArgumentError fit!(mk(); objectiveFunction = "ridge", lambda = 1.0)

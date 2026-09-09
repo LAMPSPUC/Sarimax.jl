@@ -875,10 +875,17 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
   supplied it only works with the linear `"mae"` objective; a warning is issued otherwise. Only
   relevant when `optimizer = Alpine.Optimizer`.
 - `objectiveFunction::String`: The objective function used for estimation. Default is "mse".
-  One of `"mse"`, `"mae"`, `"huber"`, `"quantile"`, `"ml"`, `"ml_exact"`, `"ridge"`,
-  `"elastic_net"`, `"stable"`, `"bilevel"` (deprecated). Every one of them is a different
+  One of `"mse"`, `"mae"`, `"huber"`, `"quantile"`, `"ml"`, `"ml_exact"`, `"elastic_net"`,
+  `"stable"`, and the deprecated `"ridge"` and `"bilevel"`. Every one of them is a different
   ESTIMATION CRITERION over the same SARIMAX equations and the same initialization
   constraints; none of them changes the dynamics.
+
+  `"ridge"` is deprecated since loss and penalty became independent axes: it is the
+  fixed-`lambda` case of the elastic-net penalty at `alpha = 0` over the dynamics blocks.
+  Carry a fit over with `objectiveFunction = "mse", penalty = :elastic_net, alpha = 0.0,
+  penaltyTarget = :dynamics` and `lambda = 2 * metadata["ridgeLambda"]` — twice, because the
+  elastic-net L2 term carries a factor `1/2` that `"ridge"` does not. The equivalence is
+  exact and is pinned by a test.
 - `quantileLevel::Union{Nothing,AbstractFloat}`: Level `τ ∈ (0, 1)` of the `"quantile"`
   objective, the asymmetric extension of `"mae"`. Omit it (`nothing`, the default) to use
   [`DEFAULT_QUANTILE_LEVEL`] (`0.5`). REFUSED by every other objective rather than ignored:
@@ -1468,6 +1475,30 @@ function fit!(
             "objectiveFunction = \"bilevel\" is deprecated and will be removed in " *
             "Sarimax v2.0. Use \"mse\" (or \"ml\") instead; they estimate the same " *
             "moving-average coefficients as decision variables at a fraction of the cost.",
+            maxlog = 1
+        )
+    end
+
+    # Deprecated once loss and penalty became independent axes: `"ridge"` is the fixed-lambda
+    # special case of the elastic-net penalty at `alpha = 0`, restricted to the dynamics
+    # blocks. Keeping it as its own objective means every guard has to special-case it -- it
+    # ignores `lambda`, `alpha` and `penaltyTarget` alike -- for an estimator the composed
+    # form already expresses.
+    #
+    # The migration is exact, and the two adjustments it needs are the reason this warning
+    # is specific rather than a pointer: the elastic-net L2 term carries a factor 1/2 that
+    # this objective does not, and the lambda it picks discounts the CSS conditioning, so a
+    # caller cannot reconstruct it from the series length alone. Both are pinned by a test.
+    if objectiveFunction == "ridge"
+        @warn(
+            "objectiveFunction = \"ridge\" is deprecated and will be removed in Sarimax " *
+            "v2.0. It is the fixed-lambda case of the elastic-net penalty: use " *
+            "objectiveFunction = \"mse\", penalty = :elastic_net, alpha = 0.0, " *
+            "penaltyTarget = :dynamics. Two adjustments carry it over exactly: the " *
+            "elastic-net L2 term carries a factor 1/2 that \"ridge\" does not, so pass " *
+            "TWICE the shrinkage; and \"ridge\" chooses sqrt(effective sample size) " *
+            "itself, which this fit records in metadata[\"ridgeLambda\"] -- so " *
+            "lambda = 2 * metadata[\"ridgeLambda\"] reproduces it.",
             maxlog = 1
         )
     end
@@ -2932,7 +2963,14 @@ function objectiveFunctionDefinition!(
         # this objective sets its own lambda (hence it REFUSES a caller-supplied one in
         # `fit!`) and reaches the AR/MA blocks only, regardless of `penaltyTarget`. The
         # shared walk yields exactly the block list this branch used to assemble inline.
-        spec = penaltySpec(jumpModel, model, :dynamics, nothing, sqrt(max(nEff, 1)))
+        λRidge = sqrt(max(nEff, 1))
+        # Recorded because this objective is DEPRECATED and the lambda it chose is the one
+        # piece of the migration a caller cannot compute from outside: the effective sample
+        # discounts the conditioning `lb`. See the deprecation warning in `fit!` -- the
+        # composed form needs twice this number, since the elastic-net L2 term carries a
+        # factor 1/2 that this objective does not.
+        model.metadata["ridgeLambda"] = λRidge
+        spec = penaltySpec(jumpModel, model, :dynamics, nothing, λRidge)
         if isempty(spec.vars)
             @objective(jumpModel, Min,
                 sum(jumpModel[:ϵ] .^ 2) + presampleSquares(jumpModel, penalizado))
@@ -3853,6 +3891,7 @@ function auto(
     exogDynamics::Symbol = :armax,
     penaltyTarget::Symbol = :all,
     penalty::Symbol = :none,
+    presampleBurnIn::Int = 12,
     initialization::Symbol = DEFAULT_INITIALIZATION,
     multistart::Bool = false,
     # INDEPENDENT of `assertStationarity`. Tying the two would conflate distinct decisions:
@@ -4086,7 +4125,7 @@ function auto(
             minConditioningObs = searchLb,
             seasonalForm = seasonalForm,
             exogDynamics = exogDynamics,
-            penaltyTarget = penaltyTarget, penalty = penalty,
+            penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
             initialization = initialization,
             stationary = stationary,
             stationarityMargin = stationarityMargin,
@@ -4127,7 +4166,7 @@ function auto(
             minConditioningObs = searchLb,
             seasonalForm = seasonalForm,
             exogDynamics = exogDynamics,
-            penaltyTarget = penaltyTarget, penalty = penalty,
+            penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
             initialization = initialization,
             stationary = stationary,
             stationarityMargin = stationarityMargin,
@@ -4166,7 +4205,7 @@ function auto(
             minConditioningObs = searchLb,
             seasonalForm = seasonalForm,
             exogDynamics = exogDynamics,
-            penaltyTarget = penaltyTarget, penalty = penalty,
+            penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
             initialization = initialization,
             stationary = stationary,
             stationarityMargin = stationarityMargin,
@@ -4213,7 +4252,7 @@ function auto(
             )
         end
 
-        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs, minConditioningObs = searchLb, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
+        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs, minConditioningObs = searchLb, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
     end
 
     bestModel.exog = exog
@@ -4894,6 +4933,7 @@ function ensureAdmissible!(
     exogDynamics::Symbol = :armax,
     penaltyTarget::Symbol = :all,
     penalty::Symbol = :none,
+    presampleBurnIn::Int = 12,
     initialization::Symbol = DEFAULT_INITIALIZATION,
     multistart::Bool = false,
     refitMargin::AbstractFloat = 2e-3,
@@ -4927,7 +4967,7 @@ function ensureAdmissible!(
             minConditioningObs = minConditioningObs,
             seasonalForm = seasonalForm,
             exogDynamics = exogDynamics,
-            penaltyTarget = penaltyTarget, penalty = penalty,
+            penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
             initialization = initialization,
             # The on-demand refit takes the parameterization from the caller, which holds
             # the assertion and the constraint decisions separately, rather than deriving
@@ -5023,6 +5063,7 @@ function localSearch!(
     exogDynamics::Symbol = :armax,
     penaltyTarget::Symbol = :all,
     penalty::Symbol = :none,
+    presampleBurnIn::Int = 12,
     quantileLevel::Union{Nothing,AbstractFloat} = nothing,
 ) where {Fl<:AbstractFloat}
     ModelFl = Fl
@@ -5032,13 +5073,13 @@ function localSearch!(
     if parallel
         Threads.@threads for model in toFit
             try
-                fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
+                fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
             catch e
                 @warn "Parallel candidate fit failed" exception = e
             end
         end
     else
-        foreach(model -> fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart), toFit)
+        foreach(model -> fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart), toFit)
     end
     for model in toFit
         isFitted(model) || continue
@@ -5053,7 +5094,7 @@ function localSearch!(
             minConditioningObs = minConditioningObs,
             seasonalForm = seasonalForm,
             exogDynamics = exogDynamics,
-            penaltyTarget = penaltyTarget, penalty = penalty,
+            penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
             initialization = initialization,
             refit = constrainedRefit,
             optimizer = optimizer,
@@ -5465,6 +5506,7 @@ function stepWiseSearchNaive(
     exogDynamics::Symbol = :armax,
     penaltyTarget::Symbol = :all,
     penalty::Symbol = :none,
+    presampleBurnIn::Int = 12,
     initialization::Symbol = DEFAULT_INITIALIZATION,
     multistart::Bool = false,
     # R's default: `stats::arima` with `transform.pars = TRUE` parameterizes the AR part
@@ -5551,7 +5593,7 @@ function stepWiseSearchNaive(
         cvarLevel,
         multistart;
         exogDynamics = exogDynamics,
-        penaltyTarget = penaltyTarget, penalty = penalty,
+        penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
         quantileLevel = quantileLevel,
     )
 
@@ -5624,7 +5666,7 @@ function stepWiseSearchNaive(
             cvarLevel,
             multistart;
             exogDynamics = exogDynamics,
-            penaltyTarget = penaltyTarget, penalty = penalty,
+            penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
             quantileLevel = quantileLevel,
         )
         showLogs && !isnothing(itBestModel) && @info(
@@ -5748,6 +5790,7 @@ function stepwiseSearch(
     exogDynamics::Symbol = :armax,
     penaltyTarget::Symbol = :all,
     penalty::Symbol = :none,
+    presampleBurnIn::Int = 12,
     initialization::Symbol = DEFAULT_INITIALIZATION,
     multistart::Bool = false,
     # R's default: `stats::arima` with `transform.pars = TRUE` parameterizes the AR part
@@ -5830,7 +5873,7 @@ function stepwiseSearch(
         alpha = alpha,
         lambda = lambda
     )
-    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
+    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
     showLogs && @info(
         "Fitted $(getId(bestModel)) with $(informationCriteriaFunction(bestModel; offset=icOffset)) criteria"
     )
@@ -5846,7 +5889,7 @@ function stepwiseSearch(
         minConditioningObs = minConditioningObs,
         seasonalForm = seasonalForm,
         exogDynamics = exogDynamics,
-        penaltyTarget = penaltyTarget, penalty = penalty,
+        penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
         initialization = initialization,
         refit = constrainedRefit,
         optimizer = optimizer,
@@ -5887,7 +5930,7 @@ function stepwiseSearch(
         alpha = alpha,
         lambda = lambda
     )
-    fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
+    fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
     showLogs && @info(
         "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
     )
@@ -5904,7 +5947,7 @@ function stepwiseSearch(
         minConditioningObs = minConditioningObs,
         seasonalForm = seasonalForm,
         exogDynamics = exogDynamics,
-        penaltyTarget = penaltyTarget, penalty = penalty,
+        penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
         initialization = initialization,
         refit = constrainedRefit,
         optimizer = optimizer,
@@ -5944,7 +5987,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -5957,7 +6000,7 @@ function stepwiseSearch(
             minConditioningObs = minConditioningObs,
             seasonalForm = seasonalForm,
             exogDynamics = exogDynamics,
-            penaltyTarget = penaltyTarget, penalty = penalty,
+            penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
             initialization = initialization,
             refit = constrainedRefit,
             optimizer = optimizer,
@@ -5997,7 +6040,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -6010,7 +6053,7 @@ function stepwiseSearch(
             minConditioningObs = minConditioningObs,
             seasonalForm = seasonalForm,
             exogDynamics = exogDynamics,
-            penaltyTarget = penaltyTarget, penalty = penalty,
+            penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
             initialization = initialization,
             refit = constrainedRefit,
             optimizer = optimizer,
@@ -6048,7 +6091,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -6061,7 +6104,7 @@ function stepwiseSearch(
             minConditioningObs = minConditioningObs,
             seasonalForm = seasonalForm,
             exogDynamics = exogDynamics,
-            penaltyTarget = penaltyTarget, penalty = penalty,
+            penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
             initialization = initialization,
             refit = constrainedRefit,
             optimizer = optimizer,
@@ -6106,7 +6149,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda,
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -6119,7 +6162,7 @@ function stepwiseSearch(
             minConditioningObs = minConditioningObs,
             seasonalForm = seasonalForm,
             exogDynamics = exogDynamics,
-            penaltyTarget = penaltyTarget, penalty = penalty,
+            penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
             initialization = initialization,
             refit = constrainedRefit,
             optimizer = optimizer,
@@ -6302,6 +6345,7 @@ function gridSearch(
     exogDynamics::Symbol = :armax,
     penaltyTarget::Symbol = :all,
     penalty::Symbol = :none,
+    presampleBurnIn::Int = 12,
     initialization::Symbol = DEFAULT_INITIALIZATION,
     multistart::Bool = false,
     # R's default: `stats::arima` with `transform.pars = TRUE` parameterizes the AR part
@@ -6367,7 +6411,7 @@ function gridSearch(
         )
     end
 
-    fitOne!(m) = fit!(m; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
+    fitOne!(m) = fit!(m; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
     if parallel
         Threads.@threads for m in candidates
             try
@@ -6393,7 +6437,7 @@ function gridSearch(
             minConditioningObs = minConditioningObs,
             seasonalForm = seasonalForm,
             exogDynamics = exogDynamics,
-            penaltyTarget = penaltyTarget, penalty = penalty,
+            penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
             initialization = initialization,
             refit = constrainedRefit,
             optimizer = optimizer,

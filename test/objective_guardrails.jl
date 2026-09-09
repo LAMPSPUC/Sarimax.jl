@@ -65,8 +65,10 @@
         @test_throws ArgumentError fit!(
             mk(); objectiveFunction = "ridge", alpha = 0.0, lambda = 1.0
         )
-        # sem `lambda` nao ha o que recusar, e o ajuste corre sem aviso
-        @test_logs match_mode = :any fit!(mk(); objectiveFunction = "ridge", alpha = 0.0)
+        # sem `lambda` nao ha o que recusar, e o ajuste corre (avisando da depreciacao)
+        @test_logs (:warn, r"deprecated") match_mode = :any fit!(
+            mk(); objectiveFunction = "ridge", alpha = 0.0,
+        )
 
         # THE FIELD COUNTS TOO. `lambda` reaches a fit by two routes, and the second one --
         # `model.lambda`, from the constructor or from an earlier penalized fit -- is

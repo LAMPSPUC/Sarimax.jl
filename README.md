@@ -148,11 +148,13 @@ repository's AirPassengers data, `initialization = :warmup` — pinned in CI):
 - **Swappable objectives**: `"mse"`, `"mae"` (L1), `"huber"`, `"quantile"`
   (pinball loss at level `quantileLevel`; `τ = 0.5` is `"mae"` up to a factor of
   two), `"ml"` (concentrated Gaussian CSS), `"ml_exact"` (exact treatment of the
-  initial observations), `"ridge"`, `"elastic_net"` (penalized,
+  initial observations), `"elastic_net"` (penalized,
   `L(ε) + Σⱼ λⱼ[α|ψⱼ| + (1−α)/2 ψⱼ²]`, with `α = 0` giving ridge and `α = 1` lasso),
   and `"stable"` (a tail-oriented criterion: the conditional value at risk of the
   squared errors, in the spirit of Bertsimas & Paskov's sample-robust regression).
-  `"bilevel"` is deprecated as of v1.0 and will be removed in v2.0.
+  `"bilevel"` and `"ridge"` are deprecated and will be removed in v2.0 — `"ridge"`
+  is the fixed-λ case of the elastic-net penalty, and the warning it emits gives the
+  exact call that replaces it.
 - **Loss and penalty compose**: `objectiveFunction` picks the loss, `penalty` picks
   the coefficient penalty added to it, so `"quantile"` + `penalty = :elastic_net`
   is a quantile fit with a lasso penalty. `"elastic_net"` is exactly `"mse"` +

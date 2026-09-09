@@ -21,15 +21,23 @@ const DEFAULT_CVAR_LEVEL = 0.9
 """
     DEFAULT_QUANTILE_LEVEL
 
-Level `α` of the `"quantile"` objective, the asymmetric extension of `"mae"`. The default
-`0.5` is the median, where the check loss is symmetric: the objective is then `mae` scaled by
-one half, hence the same estimator.
+Level `τ ∈ (0, 1)` of the `"quantile"` objective, the asymmetric extension of `"mae"`. The
+default `0.5` is the median, where the check loss is symmetric: the objective is then `mae`
+scaled by one half, hence the same estimator.
+
+The innovation is `ε = y - ŷ`, so a positive innovation is an under-prediction and `τ` is
+the weight it carries: `τ > 0.5` pushes the fit UP, towards an upper conditional quantile.
 
 WHY THIS IS NOT NAMED `alpha`. `alpha` is already the mixing parameter of the elastic-net
 penalty, carried on the model as `model.alpha`, and it also defaults to `0.5`. `auto` further
 rejects `alpha` for any objective other than `elastic_net`. Two meanings under one name with
 one default is the ambiguity this package has paid for before, so the level follows the naming
 of `cvarLevel`, which plays exactly this role for `"stable"`.
+
+WHY NOT `tau` EITHER. The literature writes `τ`, and the docstrings do too; the KEYWORD
+follows the package's own convention for a level attached to one objective — `cvarLevel`
+for `"stable"`, `quantileLevel` for `"quantile"` — so the name says which objective reads
+it.
 """
 const DEFAULT_QUANTILE_LEVEL = 0.5
 
@@ -825,6 +833,33 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
   supplied it only works with the linear `"mae"` objective; a warning is issued otherwise. Only
   relevant when `optimizer = Alpine.Optimizer`.
 - `objectiveFunction::String`: The objective function used for estimation. Default is "mse".
+  One of `"mse"`, `"mae"`, `"huber"`, `"quantile"`, `"ml"`, `"ml_exact"`, `"ridge"`,
+  `"elastic_net"`, `"stable"`, `"bilevel"` (deprecated). Every one of them is a different
+  ESTIMATION CRITERION over the same SARIMAX equations and the same initialization
+  constraints; none of them changes the dynamics.
+- `quantileLevel::AbstractFloat`: Level `τ ∈ (0, 1)` of the `"quantile"` objective, the
+  asymmetric extension of `"mae"`. Default is [`DEFAULT_QUANTILE_LEVEL`] (`0.5`).
+  Ignored by every other objective; recorded in `metadata["quantileLevel"]` when this one
+  fitted the model, because the same series and orders at two levels are two different
+  estimates.
+
+  The objective is the check (pinball) loss over the innovations,
+  `Σₜ ρ_τ(εₜ)` with `ρ_τ(ε) = τ·max(ε, 0) + (1-τ)·max(-ε, 0)`.
+
+  SIGN CONVENTION. The innovation is `εₜ = yₜ - ŷₜ`, so a POSITIVE innovation is an
+  under-prediction, and `τ` is the weight it carries. A high `τ` therefore makes
+  under-prediction expensive and pushes the fit UP: at the optimum a fraction `τ` of the
+  fitted residuals lies at or below zero. `τ = 0.9` estimates an upper conditional
+  quantile, `τ = 0.1` a lower one.
+
+  At `τ = 0.5` the loss is symmetric and equals `|ε|/2`, so the estimator is exactly
+  `"mae"` — same coefficients, same fitted values, same fitted residuals, same forecasts —
+  while the reported objective VALUE is half of `"mae"`'s. The factor is not absorbed:
+  `ρ_τ` above is the standard definition.
+
+  This is an estimation criterion, not a probabilistic forecasting mode. `predict!` and
+  `simulate` are unchanged by it, and the package does not claim that their intervals are
+  calibrated quantile forecasts.
 - `automaticExogDifferentiation::Bool`: Whether to automatically differentiate the exogenous variables. Default is `false`.
 - `invertible::Bool`: When `true`, the (seasonal) moving-average coefficients are generated from
   bounded reflection coefficients `κ` via [`reflectionToMA`](@ref), guaranteeing an invertible MA
@@ -2679,36 +2714,48 @@ function objectiveFunctionDefinition!(
         end
         @objective(jumpModel, Min, maeObj)
     elseif objectiveFunction == "quantile"
-        # QUANTILE REGRESSION: the check loss of Koenker and Bassett,
+        # QUANTILE REGRESSION: the check (pinball) loss of Koenker and Bassett, over the
+        # INNOVATIONS of the same SARIMAX equations every other objective uses,
         #
-        #     rho_a(e) = a * max(e, 0) + (1 - a) * max(-e, 0),
+        #     rho_tau(eps) = tau * max(eps, 0) + (1 - tau) * max(-eps, 0)
+        #                  = eps * (tau - 1{eps < 0}) ,
         #
-        # minimized over the sample. `mae` is the symmetric member of this family: at
-        # a = 1/2 the two weights coincide and the objective is `mae`/2 — the same
-        # argmin, and the same estimator, at half the scale. The reduction is exact and
-        # tested; the factor is not absorbed because rho_a as written above is the standard
-        # definition and rescaling it to match `mae` numerically would be a non-standard
-        # loss.
+        # minimized over the sample. In the split form actually emitted, with
+        # eps = eps_plus - eps_minus and both parts non-negative (imposed in
+        # `includeModelConstraints!`, shared with `mae`),
         #
-        # ORIENTATION IS THE WHOLE POINT, AND IT IS NOT SYMMETRIC HERE. The residual is
-        # `eps = y - yhat` (from `y[t] == yhat[t] + eps[t]`), so a POSITIVE residual is an
-        # under-prediction. Weighting it by `a` means a high `a` makes under-prediction
-        # expensive and pushes the fit up: at the optimum a fraction `a` of the residuals
-        # lies at or below zero, i.e. `yhat` estimates the conditional a-quantile of `y`.
+        #     min  sum_t [ tau * eps_plus_t + (1 - tau) * eps_minus_t ] .
+        #
+        # Both weights are strictly positive, which is what makes the split tight at the
+        # optimum: eps_plus = max(eps, 0) and eps_minus = max(-eps, 0), never both non-zero.
+        #
+        # `mae` is the symmetric member of this family: at tau = 1/2 the two weights
+        # coincide and the objective is `mae`/2 — the same argmin, and the same estimator,
+        # at half the scale. The reduction is exact and tested; the factor is not absorbed
+        # because rho_tau as written above is the standard definition and rescaling it to
+        # match `mae` numerically would be a non-standard loss.
+        #
+        # ORIENTATION IS THE WHOLE POINT, AND IT IS NOT SYMMETRIC HERE. The innovation is
+        # `eps = y - yhat` (from `y[t] == yhat[t] + eps[t]`), so a POSITIVE innovation is an
+        # under-prediction. Weighting it by `tau` means a high `tau` makes under-prediction
+        # expensive and pushes the fit up: at the optimum a fraction `tau` of the fitted
+        # residuals lies at or below zero, i.e. `yhat` estimates the conditional
+        # tau-quantile of `y`.
         #
         # This is why the orientation needs its own test rather than inheriting `mae`'s.
-        # A sign inversion in `mae` is invisible in the objective, because |e| is even —
+        # A sign inversion in `mae` is invisible in the objective, because |eps| is even —
         # exactly how the inverted `eps = yhat - y` bug once survived here while corrupting
         # every forecast with q > 0. Under an asymmetric loss the same inversion would
-        # silently fit the (1-a)-quantile instead, and the objective value would not reveal
-        # it either. The empirical-coverage test is what pins it.
+        # silently fit the (1-tau)-quantile instead, and the objective value would not
+        # reveal it either. The empirical-coverage test is what pins it.
         a = quantileLevel
         quantObj =
             a * sum(jumpModel[:ϵ_plus]) + (1 - a) * sum(jumpModel[:ϵ_minus])
         if penalizado && haskey(object_dictionary(jumpModel), :ϵpre_plus)
             # Pre-sample block in the SAME loss, with the SAME asymmetry: those are
-            # residuals like the others, only at index t <= 0. Weighting them symmetrically
-            # would target one quantile on the sample and another on the block.
+            # innovations like the others, only at index t <= 0. Weighting them
+            # symmetrically would target one quantile on the sample and another on the
+            # block.
             quantObj = quantObj +
                        a * sum(jumpModel[:ϵpre_plus]) +
                        (1 - a) * sum(jumpModel[:ϵpre_minus])

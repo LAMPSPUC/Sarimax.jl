@@ -17,9 +17,10 @@ Sarimax.jl is a groundbreaking Julia package that revolutionizes SARIMA (Seasona
 ### Key Features
 
 * Multiplicative Box-Jenkins SARIMA (additive form available)
-* Swappable objective functions: MSE, MAE (L1), Huber, concentrated Gaussian CSS
-  ("ml"), exact treatment of the initial observations ("ml_exact"), ridge,
-  penalized elastic net, and a tail-oriented CVaR criterion ("stable")
+* Swappable objective functions: MSE, MAE (L1), Huber, quantile / pinball loss
+  ("quantile"), concentrated Gaussian CSS ("ml"), exact treatment of the initial
+  observations ("ml_exact"), ridge, penalized elastic net, and a tail-oriented CVaR
+  criterion ("stable")
 * Certified globally optimal estimates via SCIP; any JuMP solver via `fit!(optimizer=…)`
 * Automatic order selection (Hyndman-Khandakar stepwise, grid, opt-in parallel)
 * Stationarity/invertibility **by construction** (reflection-coefficient parameterizations)
@@ -41,6 +42,63 @@ Before comparing Sarimax.jl outputs with `forecast` (R) or `statsmodels` (Python
 2. **Exogenous variables (ARX by default).** Regressors enter a dynamic-regression/ARX model: the AR terms act on the observed series, so the coefficient is an impact multiplier conditional on past ``y``. R's `Arima(xreg=)` and statsmodels' `SARIMAX(exog=)` fit regression-with-ARIMA-errors instead, where the coefficient is the usual marginal effect. These are different model families and coincide only when the autoregressive polynomial is unitary and there is no differencing. Both forms ship on `fit!` and on `auto`: `exogDynamics = :armax` (default) and `exogDynamics = :regression_errors`.
 3. **Estimation and information criteria (CSS).** Estimation is conditional least squares / concentrated conditional Gaussian ML formulated as a JuMP optimization problem; there is no Kalman filter. `loglike`, `aic`, `aicc` and `bic` follow the CSS convention with full Gaussian constants — comparable to R's `arima(..., method = "CSS")`, not to exact-ML defaults.
 4. **What the optimization formulation buys.** Swappable objectives (MSE, MAE, Huber, CVaR, ridge, elastic net), custom constraints, an invertible-MA parameterization (`fit!(model; invertible = true)`), and certified global optima via SCIP.
+
+## Estimation criteria
+
+Every objective is a different criterion over the SAME SARIMAX equations and the same
+initialization constraints. Changing the criterion never changes the dynamics — that is
+the point of writing the model as a JuMP program:
+
+```
+coefficients + innovations = optimization variables
+SARIMAX dynamics           = algebraic constraints
+estimation criterion       = objective function
+```
+
+Throughout, ``\varepsilon_t`` is the model **innovation**, defined by
+``y_t = \hat y_t + \varepsilon_t``; after a fit, the realized values are the **fitted
+residuals** (`model.ϵ`).
+
+### Quantile (pinball) loss
+
+`objectiveFunction = "quantile"` minimizes the check loss of Koenker and Bassett over the
+innovations,
+
+```math
+\min_{\vartheta,\varepsilon}\;\sum_t \rho_\tau(\varepsilon_t),
+\qquad
+\rho_\tau(\varepsilon) = \tau\max(\varepsilon, 0) + (1-\tau)\max(-\varepsilon, 0)
+                       = \varepsilon\,\bigl(\tau - \mathbb{1}\{\varepsilon < 0\}\bigr),
+```
+
+with ``\tau \in (0,1)`` given by `quantileLevel` (default `0.5`). In the linearized form
+the package actually builds, ``\varepsilon_t = \varepsilon_t^{+} - \varepsilon_t^{-}`` with
+``\varepsilon_t^{+}, \varepsilon_t^{-} \ge 0`` — the same decomposition `"mae"` uses — and
+the objective is ``\sum_t [\tau\varepsilon_t^{+} + (1-\tau)\varepsilon_t^{-}]``.
+
+**Sign convention.** In this package ``\varepsilon_t = y_t - \hat y_t``, so a *positive*
+innovation is an *under-prediction*, and ``\tau`` is the weight it carries. A high ``\tau``
+therefore makes under-prediction expensive and pushes the fitted location **up**: at the
+optimum a fraction ``\tau`` of the fitted residuals lies at or below zero. ``\tau = 0.9``
+estimates an upper conditional quantile, ``\tau = 0.1`` a lower one.
+
+**Relation to MAE.** At ``\tau = 0.5`` the loss is symmetric and equals
+``\lvert\varepsilon\rvert/2``, so `"quantile"` is the *same estimator* as `"mae"` — same
+coefficients, fitted values, fitted residuals and forecasts — while the reported objective
+*value* is half of `"mae"`'s. The factor is not absorbed, because ``\rho_\tau`` above is
+the standard definition.
+
+The level is recorded in `model.metadata["quantileLevel"]`: the same series and orders at
+two levels are two different estimates.
+
+!!! warning "This is an estimation criterion, not a forecasting mode"
+    Fitting with the pinball loss does **not** make `predict!` return calibrated
+    probabilistic quantile forecasts, and the package makes no such claim. Explicit
+    quantile forecasts are a separate API and statistical question.
+
+Under `auto`, a candidate is *fitted* with the pinball loss but *ranked* by the package's
+declared criterion machinery (the Gaussian likelihood behind `aic`/`aicc`/`bic`), never by
+comparing raw pinball values across specifications.
 
 ## Regularization
 

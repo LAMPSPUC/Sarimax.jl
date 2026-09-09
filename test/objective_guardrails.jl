@@ -86,7 +86,9 @@
         #
         # `ml_exact` is excluded for a pre-existing degeneracy: it returns sigma2 = 0 under
         # `:free` and emits its own warning, which the next testset covers.
-        suportados = ("mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge", "huber")
+        suportados =
+            ("mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge", "huber",
+             "quantile")
         for obj in suportados, init in (:penalized, :innovations)
             m = mk()
             kw = obj == "elastic_net" ? (; alpha = 0.5) : (;)

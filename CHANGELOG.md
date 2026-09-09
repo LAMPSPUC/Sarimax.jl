@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Quantile / pinball loss as an estimation criterion**, `objectiveFunction = "quantile"`
+  with level `quantileLevel` (`τ ∈ (0,1)`, default `0.5`). It minimizes
+  `Σₜ ρ_τ(εₜ)` with `ρ_τ(ε) = τ·max(ε,0) + (1-τ)·max(-ε,0)` over the same SARIMAX
+  equations and initialization constraints as every other objective, reusing the
+  non-negative decomposition `"mae"` already builds.
+
+  The innovation is `εₜ = yₜ - ŷₜ`, so a positive innovation is an under-prediction and
+  `τ` is the weight it carries: `τ > 0.5` pushes the fitted location up, towards an upper
+  conditional quantile. At `τ = 0.5` the estimator is exactly `"mae"` (same coefficients,
+  fitted values, fitted residuals and forecasts) while the reported objective value is
+  half of it, since `ρ_τ` is written in its standard form. The Gaussian moving-average
+  determinant factor is deliberately NOT applied: it comes from concentrating `σ²` under a
+  quadratic loss.
+
+  The level is recorded in `metadata["quantileLevel"]`. This is an estimation criterion,
+  not a probabilistic forecasting mode — `predict!` is unchanged and the package does not
+  claim its intervals are calibrated quantile forecasts.
+
 ## [1.0.0] - 2026-08-27
 
 First stable release. It accompanies the paper describing the package and freezes

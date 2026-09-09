@@ -72,6 +72,8 @@ m = SARIMA(airp_log, 0, 1, 1; seasonality = 12, P = 0, D = 1, Q = 1, allowMean =
 fit!(m)                                            # CSS, multiplicative form (defaults)
 fit!(m; initialization = :warmup)                  # R-compatible: matches arima(method="CSS")
 fit!(m; objectiveFunction = "mae")                 # robust L1 loss
+fit!(m; objectiveFunction = "quantile",            # pinball loss ρ_τ(ε), ε = y − ŷ
+     quantileLevel = 0.9)                          # τ > 0.5 pushes the fit up
 fit!(m; objectiveFunction = "elastic_net",         # penalized: λ[α‖·‖₁ + (1−α)/2‖·‖₂²]
      alpha = 0.5, lambda = 1.0,
      penaltyTarget = :exogenous)                   # shrink regressors only
@@ -137,9 +139,10 @@ repository's AirPassengers data, `initialization = :warmup` — pinned in CI):
 
 ## What the optimization formulation buys you
 
-- **Swappable objectives**: `"mse"`, `"mae"` (L1), `"huber"`, `"ml"`
-  (concentrated Gaussian CSS), `"ml_exact"` (exact treatment of the initial
-  observations), `"ridge"`, `"elastic_net"` (penalized,
+- **Swappable objectives**: `"mse"`, `"mae"` (L1), `"huber"`, `"quantile"`
+  (pinball loss at level `quantileLevel`; `τ = 0.5` is `"mae"` up to a factor of
+  two), `"ml"` (concentrated Gaussian CSS), `"ml_exact"` (exact treatment of the
+  initial observations), `"ridge"`, `"elastic_net"` (penalized,
   `L(ε) + λ[α‖·‖₁ + (1−α)/2‖·‖₂²]`, with `α = 0` giving ridge and `α = 1` lasso),
   and `"stable"` (a tail-oriented criterion: the conditional value at risk of the
   squared errors, in the spirit of Bertsimas & Paskov's sample-robust regression).

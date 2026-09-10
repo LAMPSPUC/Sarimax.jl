@@ -155,6 +155,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   range check on a level that IS read is unchanged, `AssertionError` included.
 
 ### Fixed
+- **The package did not work on current Julia: `load_dataset` returned a two-dimensional
+  `TimeArray`.** `TimeArray(df; timestamp = :date)` yields a one-dimensional array on some
+  resolutions of `TimeSeries`/`DataFrames` and a two-dimensional one on others. Under the
+  tree that Julia 1.13 resolves it returns the latter, so `values(y)` is a `Matrix` and
+  every signature written for the one-dimensional form stops dispatching —
+  `selectSeasonalIntegrationOrder`, `selectIntegrationOrder`, `kpss_test`, `ocsb_test`,
+  `differentiate`, `exactGaussianLogLikelihood` and `predict` among them.
+
+  Measured on the released `master` (`a1ebc0d`), with no part of this branch: **937 passed,
+  2 failed, 24 errored** under Julia 1.13, against a green suite under 1.10. All 26 have the
+  same cause; the two "failures" are `@test_throws ArgumentError` cases that got a
+  `MethodError` because the `Matrix` never dispatched.
+
+  `load_dataset` now normalizes a single-column result to the one-dimensional form its own
+  docstring documents (`TimeArray{Float64, 1, Date, Vector{Float64}}`). Fixing the shape at
+  the loader keeps the contract in one place instead of widening seven signatures, and
+  leaves multi-column arrays — the exogenous blocks, where the second dimension carries
+  meaning — untouched. It is a no-op wherever the constructor already returns the
+  one-dimensional form, so it cannot move a result on a platform where the suite passed.
+
+  After the fix the suite is 1408 passed / 5 broken / 0 failed / 0 errored under BOTH Julia
+  1.10 and 1.13, and the 23-fit backward-compatibility battery is still byte-identical.
+
+  Note this is why the CI matrix asks for `version: '1'`: it resolves to whatever the latest
+  release is AT RUN TIME, so the package broke without a single commit landing. `Project.toml`
+  declares `julia = "1.10"`, which means `[1.10, 2.0)` and therefore promises 1.13 support.
 - **`"ridge"` refused a `lambda` passed as an argument but accepted one carried on the
   model.** `lambda` reaches a fit by two routes — the `fit!` keyword and `model.lambda`, set
   by the `SARIMA` constructor or left behind by an earlier penalized fit — and `"ridge"`

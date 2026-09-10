@@ -65,7 +65,34 @@ function load_dataset(dataset::Datasets)
     datasetIndex = Int(dataset)
     seriesData = CSV.read(datasetsPaths[datasetIndex], DataFrame)
     y = TimeArray(seriesData, timestamp=:date)
-    return y
+    return singleColumnTimeArray(y)
+end
+
+"""
+    singleColumnTimeArray(y::TimeArray) -> TimeArray
+
+Returns a single-column `TimeArray` in its ONE-DIMENSIONAL form, and anything else
+unchanged.
+
+`TimeArray(df; timestamp = :date)` builds a two-dimensional array — values backed by a
+`Matrix` — on some resolutions of `TimeSeries`/`DataFrames`, and a one-dimensional one on
+others. The package's signatures were written for the one-dimensional form, which is also
+what `load_dataset`'s own docstring shows (`TimeArray{Float64, 1, Date, Vector{Float64}}`),
+so under a resolution that yields the two-dimensional form `values(y)` is a `Matrix` and
+calls like `selectSeasonalIntegrationOrder(::Vector{Fl}, ...)` stop dispatching.
+
+Normalizing here rather than widening every consumer keeps the shape contract in ONE place:
+a single-column series is one-dimensional everywhere downstream, exactly as documented.
+Multi-column arrays (exogenous blocks) pass through untouched, since their second dimension
+carries meaning.
+
+This is a no-op wherever the constructor already returns the one-dimensional form, so it
+cannot move any result on a platform where the suite already passed.
+"""
+function singleColumnTimeArray(y::TimeArray)
+    ndims(values(y)) == 1 && return y
+    size(values(y), 2) == 1 || return y
+    return TimeArray(timestamp(y), vec(values(y)), colnames(y), meta(y))
 end
 
 """
@@ -103,7 +130,7 @@ function load_dataset(df::DataFrame, showLogs::Bool=false)
         auxiliarDF[!, :date] = [Date(i) for i = 1:size(auxiliarDF, 1)]
     end
     y = TimeArray(auxiliarDF, timestamp=:date)
-    return y
+    return singleColumnTimeArray(y)
 end
 
 """

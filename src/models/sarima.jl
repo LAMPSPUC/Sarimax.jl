@@ -946,7 +946,8 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
   exact and is pinned by a test.
 - `quantileLevel::Union{Nothing,AbstractFloat}`: Level `τ ∈ (0, 1)` of the `"quantile"`
   objective, the asymmetric extension of `"mae"`. Omit it (`nothing`, the default) to use
-  [`DEFAULT_QUANTILE_LEVEL`] (`0.5`). REFUSED by every other objective rather than ignored:
+  [`DEFAULT_QUANTILE_LEVEL`], which is `0.5`. REFUSED by every other objective rather than
+  ignored:
   under them the level never reaches the optimization, so accepting it would let a caller
   believe they had selected an estimator they did not — invisible in a parallel sweep,
   which is where it matters most. (`cvarLevel` is the same argument for `"stable"`, and

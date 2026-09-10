@@ -126,8 +126,22 @@ fit!(model; objectiveFunction = "quantile", quantileLevel = 0.9,
      penalty = :elastic_net, alpha = 1.0, lambda = 20.0)
 ```
 
-`objectiveFunction = "elastic_net"` is exactly `"mse"` with `penalty = :elastic_net` — the
-same estimator under its historical name.
+`objectiveFunction = "elastic_net"` is `"mse"` with `penalty = :elastic_net` **when the
+pre-sample block is not priced** (`initialization` in `:zeroed`, `:free`) — there the two
+spellings emit the same expression and give bit-identical fits.
+
+!!! warning "They differ under `:penalized` and `:innovations`"
+    Under the modes that price the free pre-sample block — including `:innovations`, the
+    **default** — the two fit terms are not the same. `"mse"` prices that block as a
+    concentrated Gaussian likelihood and carries the determinant factor
+    ``\prod_j (1-\kappa_j^2)^{-j/T}``; the `"elastic_net"` objective's fit term is plain
+    ``\sum_t \varepsilon_t^2`` plus the pre-sample squares, with no determinant.
+
+    This asymmetry predates the `penalty` keyword — it is how the two branches have always
+    been written — and neither is changed. But it means that on the default path
+    `objectiveFunction = "elastic_net"` and `objectiveFunction = "mse", penalty = :elastic_net`
+    are **different estimators**, and a study should name which one it used. Pinned by a
+    test in `test/loss_penalty_composition.jl`.
 
 | | |
 |---|---|
@@ -162,6 +176,21 @@ A **scalar** `lambda` is the uniform case ``\lambda_j = \lambda`` and reproduces
 classical form ``\lambda[\alpha\lVert\psi\rVert_1 + \frac{1-\alpha}{2}\lVert\psi\rVert_2^2]``
 exactly. It defaults to the square root of the effective sample size, matching the scale of
 the sum-form objective.
+
+!!! warning "The default `lambda` is a scale convention, not a tuning rule"
+    ``\lambda = \sqrt{n_{\text{eff}}}`` exists so that the penalty is commensurable with a
+    fit term written as a **sum over observations** rather than a mean — it is the
+    package's sum-vs-mean bookkeeping, nothing more.
+
+    It is **not** an optimal or universally calibrated regularization parameter, and it
+    carries no such claim for any loss. It was never calibrated against MAE, Huber or the
+    quantile loss in particular: those fit terms live on a different numerical scale from
+    the squared one, so the same ``\lambda`` shrinks by a different amount under each.
+
+    For any substantive regularized analysis — and for anything reported in a paper —
+    **select or supply `lambda` explicitly**, by cross-validation or by whatever criterion
+    the study defends, and record the value. Relying on the default makes the shrinkage an
+    artefact of the package's internal scaling rather than a choice you can justify.
 
 ### Coefficient-specific weights
 
@@ -204,8 +233,38 @@ Selected with `penaltyTarget`, on `fit!` and on `auto`:
 Targeting the regressors alone is the usual choice when the point of the fit is
 selecting among them while leaving the dynamics unshrunk.
 
-Exogenous coefficients carry the units of their own regressor, which the package does
-not standardize, so scale-comparable regressors are the caller's responsibility.
+### Exogenous regressors are not standardized
+
+The endogenous series is divided by its own standard deviation before the model is built,
+and the autoregressive and moving-average coefficients are dimensionless, so a penalty over
+them is scale-free. **Exogenous coefficients are not.** Each ``\beta_j`` carries the units
+of its own regressor, and the package does not standardize the regressor matrix.
+
+The consequence is direct: with two regressors on very different scales,
+
+```math
+\lambda_{\beta_1} = \lambda_{\beta_2}
+\quad\text{does NOT imply comparable effective shrinkage.}
+```
+
+A regressor measured in thousands and one measured in units receive penalties that differ
+by that factor, whichever penalty is in play — lasso, ridge-type, elastic net, or
+adaptive-Lasso weights, all of which act on the coefficient rather than on the standardized
+effect.
+
+Two ways to get comparable shrinkage, both the caller's choice:
+
+1. **Standardize the regressors before fitting** — divide each column by its standard
+   deviation (or use whatever normalization the analysis defends) and remember that the
+   fitted ``\beta`` is then on the standardized scale and must be mapped back for
+   interpretation.
+2. **Supply coefficient-specific weights that absorb the scale**, e.g.
+   ``\lambda_j = \lambda \cdot s_j`` with ``s_j`` the standard deviation of regressor
+   ``j``, through the vector or block form of `lambda`.
+
+The package deliberately does **not** standardize regressors for you: doing so would change
+what the coefficients mean and would break backward compatibility for every existing
+SARIMAX fit.
 
 !!! warning "`objectiveFunction = \"ridge\"` is deprecated"
     It is the fixed-``\lambda`` case of this same penalty: ``\alpha = 0`` over the dynamics
@@ -243,6 +302,24 @@ model = SARIMA(y, X, 0, 0, 0)
 fit!(model; objectiveFunction = "elastic_net", alpha = 1.0,
      penaltyTarget = :exogenous, lambda = 10.0 .* w)
 ```
+
+!!! warning "Cap the weight when a first-stage coefficient is near zero"
+    ``1/|\tilde\beta_j|^\gamma`` diverges as ``\tilde\beta_j \to 0``, and an infinite weight
+    is **rejected** — the package does not silently transform what you pass, so `Inf`
+    raises an `ArgumentError` rather than being quietly turned into a large number. That
+    refusal is deliberate: a weight you did not choose is a shrinkage you cannot report.
+
+    Cap or floor it yourself, and say which you did:
+
+    ```julia
+    ε = 1e-6
+    w = 1.0 ./ max.(abs.(β̃), ε) .^ γ        # floor the coefficient
+    w = min.(1.0 ./ abs.(β̃) .^ γ, 1e6)      # or cap the weight
+    ```
+
+    A coefficient that is numerically zero at the first stage is also the case where the
+    adaptive weight is doing the most work, so the floor is a modelling choice worth
+    stating rather than a numerical detail.
 
 ## Known limitations
 

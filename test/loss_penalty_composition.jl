@@ -32,22 +32,52 @@
     cobertura(m) = count(<=(1e-9), m.ϵ) / length(m.ϵ)
     rho(tau, x) = tau * max(x, 0.0) + (1 - tau) * max(-x, 0.0)
 
-    @testset "elastic_net E mse+penalty sao o MESMO estimador" begin
-        # The historical objective is the composition under another name. Not "within
-        # tolerance": the same expression is emitted, so the two problems are one problem.
-        a = mk()
-        fit!(a; objectiveFunction = "elastic_net", alpha = 0.5, lambda = 60.0,
-             initialization = :zeroed)
-        b = mk()
-        fit!(b; objectiveFunction = "mse", penalty = :elastic_net, alpha = 0.5,
-             lambda = 60.0, initialization = :zeroed)
-        @test coefsOf(a) == coefsOf(b)
-        @test get(a.metadata, "objectiveValue", NaN) ==
-              get(b.metadata, "objectiveValue", NaN)
-        # ... and both declare the same penalty, so a result can be read without knowing
-        # which spelling produced it.
-        @test get(a.metadata, "penalty", nothing) == "elastic_net"
-        @test get(b.metadata, "penalty", nothing) == "elastic_net"
+    @testset "elastic_net E mse+penalty: onde coincidem e onde NAO" begin
+        par(ini) = begin
+            a = mk()
+            fit!(a; objectiveFunction = "elastic_net", alpha = 0.5, lambda = 60.0,
+                 initialization = ini)
+            b = mk()
+            fit!(b; objectiveFunction = "mse", penalty = :elastic_net, alpha = 0.5,
+                 lambda = 60.0, initialization = ini)
+            (a, b)
+        end
+
+        # WHERE THEY COINCIDE: when the pre-sample block is not priced. The same expression
+        # is emitted, so the two problems are one problem -- equality, not tolerance.
+        for ini in (:zeroed, :free)
+            a, b = par(ini)
+            @test coefsOf(a) == coefsOf(b)
+            @test get(a.metadata, "objectiveValue", NaN) ==
+                  get(b.metadata, "objectiveValue", NaN)
+        end
+
+        # WHERE THEY DO NOT: under `:penalized` and `:innovations` the two fit terms differ,
+        # and the difference is the GAUSSIAN DETERMINANT. `"mse"` prices the free pre-sample
+        # block as a concentrated Gaussian likelihood, `S * prod(1-kappa^2)^(-j/T)`, while
+        # the `"elastic_net"` objective's fit term is plain `sum(eps^2) + presampleSquares`
+        # with no determinant. That asymmetry predates the composition axis -- it is how the
+        # two branches have always been written -- and neither is changed here.
+        #
+        # It matters because `:innovations` is the DEFAULT: on the default path the two
+        # spellings are NOT interchangeable, and the documentation says so.
+        for ini in (:penalized, :innovations)
+            a, b = par(ini)
+            @test !isapprox(coefsOf(a), coefsOf(b); atol = 1e-8)
+            @test !isapprox(
+                get(a.metadata, "objectiveValue", NaN),
+                get(b.metadata, "objectiveValue", NaN);
+                rtol = 1e-8,
+            )
+        end
+
+        # Whatever the mode, both declare the same penalty, so a result can be read without
+        # knowing which spelling produced it.
+        for ini in (:zeroed, :innovations)
+            a, b = par(ini)
+            @test get(a.metadata, "penalty", nothing) == "elastic_net"
+            @test get(b.metadata, "penalty", nothing) == "elastic_net"
+        end
     end
 
     @testset "penalty = :none nao muda nada" begin
@@ -188,10 +218,13 @@
         end
         # unknown penalty family
         @test_throws ArgumentError fit!(mk(); objectiveFunction = "mse", penalty = :nope)
-        # alpha is required, exactly as under the `elastic_net` objective
-        @test_throws AssertionError fit!(
+        # alpha is required, exactly as under the `elastic_net` objective -- and with the
+        # same exception type, so the same missing argument does not raise two different
+        # things depending on which spelling selected the penalty.
+        @test_throws ArgumentError fit!(
             mk(); objectiveFunction = "quantile", penalty = :elastic_net,
         )
+        @test_throws ArgumentError fit!(mk(); objectiveFunction = "elastic_net")
         # and the weight validation is the same one, reached through the new axis
         @test_throws ArgumentError fit!(
             mk(); objectiveFunction = "mae", penalty = :elastic_net, alpha = 1.0,
@@ -244,8 +277,16 @@
 
         # `lambda`/`alpha` are admitted because a penalty is in play; without one they are
         # still refused, which is what keeps them from silently doing nothing.
-        @test_throws AssertionError auto(
+        @test_throws ArgumentError auto(
             serie; seasonality = 1, objectiveFunction = "quantile", lambda = 20.0,
+            maxp = 1, maxq = 0, maxP = 0, maxQ = 0,
+        )
+        @test_throws ArgumentError auto(
+            serie; seasonality = 1, objectiveFunction = "quantile", alpha = 1.0,
+            maxp = 1, maxq = 0, maxP = 0, maxQ = 0,
+        )
+        @test_throws ArgumentError auto(
+            serie; seasonality = 1, objectiveFunction = "mse", lambda = 20.0, alpha = 1.0,
             maxp = 1, maxq = 0, maxP = 0, maxQ = 0,
         )
     end

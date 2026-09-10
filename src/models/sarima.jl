@@ -53,6 +53,64 @@ written at all; this constant is what an omitted level resolves to.
 const DEFAULT_QUANTILE_LEVEL = 0.5
 
 """
+    refuseUnreadLevel(value, keyword, owner, objectiveFunction)
+
+Refuses a level keyword handed to an objective that does not read it.
+
+A level belongs to ONE objective — `cvarLevel` to `"stable"`, `quantileLevel` to
+`"quantile"`. Under any other objective it never reaches the optimization, so accepting it
+would let a caller believe they had selected an estimator they did not; and a warning is
+invisible in a parallel sweep, which is where that costs the most.
+
+`ArgumentError` rather than an assertion: this is ordinary bad user input on a public
+keyword, not a violated internal invariant.
+"""
+function refuseUnreadLevel(
+    value,
+    keyword::AbstractString,
+    owner::AbstractString,
+    objectiveFunction::AbstractString,
+)
+    isnothing(value) && return nothing
+    objectiveFunction == owner && return nothing
+    throw(
+        ArgumentError(
+            "$(keyword) is the level of objectiveFunction = \"$(owner)\" and is not read " *
+            "by \"$(objectiveFunction)\", which would ignore it. Drop the argument, or " *
+            "select the objective that uses it.",
+        ),
+    )
+end
+
+"""
+    validateQuantileLevel(value)
+
+Domain check for `quantileLevel`: `nothing` (meaning [`DEFAULT_QUANTILE_LEVEL`]) or a finite
+real strictly inside `(0, 1)`.
+
+The endpoints are excluded because at `0` or `1` the check loss stops being a quantile
+criterion — one side of the residual distribution becomes free of charge and the minimizer
+runs off. `NaN` and the infinities are excluded explicitly rather than by luck: `0 < NaN < 1`
+is already false, but `isfinite` states the intent, and an infinite level would otherwise
+have to be caught by the same accident.
+
+Invalid input is REJECTED, never clamped and never replaced by the default: a silently
+clamped level would report a quantile the fit did not target.
+
+Called from both `fit!` and `auto` so the two agree by construction — `auto` matters on its
+own because a constant series returns from it before any fit happens.
+"""
+function validateQuantileLevel(value)
+    isnothing(value) && return nothing
+    (value isa Real && isfinite(value) && 0.0 < value < 1.0) || throw(
+        ArgumentError(
+            "quantileLevel must be finite and lie strictly between 0 and 1; got $(value).",
+        ),
+    )
+    return nothing
+end
+
+"""
     DEFAULT_HUBER_DELTA
 
 Threshold where the `"huber"` objective switches from quadratic to linear, in units of the
@@ -955,8 +1013,15 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
   Refused for `"ml_exact"` (log scale), `"stable"` (mean scale) and `"bilevel"` (the
   moving-average coefficients are not decision variables there), and refused for
   `"elastic_net"` and `"ridge"`, which already carry a penalty and would be specifying one
-  twice. `objectiveFunction = "elastic_net"` is exactly `"mse"` with
-  `penalty = :elastic_net`.
+  twice.
+
+  `objectiveFunction = "elastic_net"` equals `"mse"` with `penalty = :elastic_net` ONLY
+  when the pre-sample block is not priced (`initialization` in `:zeroed`, `:free`). Under
+  `:penalized` and `:innovations` — the latter being the default — the two differ: `"mse"`
+  prices the free block as a concentrated Gaussian likelihood and carries the determinant
+  factor, while the `"elastic_net"` objective's fit term is plain squares plus the
+  pre-sample squares. That asymmetry predates this keyword and is left unchanged; a study
+  should name which of the two it used.
 - `penaltyTarget::Symbol`: Which coefficient blocks the penalty applies to: `:all`
   (default), `:dynamics` for the autoregressive and moving-average blocks only, or
   `:exogenous` for the regressors only. The intercept and the drift are never penalized.
@@ -975,6 +1040,17 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
   The objective is `L(ε) + Σⱼ λⱼ [α|ψⱼ| + (1-α)/2 ψⱼ²]`, so `λⱼ` is a per-coefficient
   STRENGTH and `alpha` keeps its own meaning as the L1/L2 mixing parameter. A scalar is the
   uniform case `λⱼ = λ` and reproduces the previous fit exactly.
+
+  SCALE, NOT TUNING. The default `sqrt(effective sample size)` exists so the penalty is
+  commensurable with a fit term written as a SUM rather than a mean. It is not an optimal
+  or calibrated regularization parameter, and it was never calibrated against `"mae"`,
+  `"huber"` or `"quantile"`, whose fit terms live on a different numerical scale from the
+  squared one. Supply `lambda` explicitly for any substantive regularized analysis, and
+  record the value.
+
+  Exogenous coefficients are NOT scale-free: the package standardizes the endogenous series
+  but not the regressors, so equal weights on regressors of different magnitudes do not
+  shrink them comparably. Standardize the columns, or absorb the scale into the weights.
 
   `0.0` is a legal weight and means "leave this coefficient unpenalized"; negative, `NaN`
   and `Inf` are rejected. The same rule applies to every shape and on both `fit!` and
@@ -1123,28 +1199,19 @@ function fit!(
     # there is no way to tell "the caller asked for 0.5" from "the caller said nothing", and
     # the guard could not exist. `DEFAULT_QUANTILE_LEVEL` / `DEFAULT_CVAR_LEVEL` remain the
     # effective defaults, applied here.
-    isnothing(cvarLevel) || objectiveFunction == "stable" || throw(
-        ArgumentError(
-            "cvarLevel is the confidence level of objectiveFunction = \"stable\" and is " *
-            "not read by \"$(objectiveFunction)\", which would ignore it. Drop the " *
-            "argument, or select the objective that uses it.",
-        ),
-    )
-    isnothing(quantileLevel) || objectiveFunction == "quantile" || throw(
-        ArgumentError(
-            "quantileLevel is the level of objectiveFunction = \"quantile\" and is not " *
-            "read by \"$(objectiveFunction)\", which would ignore it. Drop the argument, " *
-            "or select the objective that uses it.",
-        ),
-    )
+    refuseUnreadLevel(cvarLevel, "cvarLevel", "stable", objectiveFunction)
+    refuseUnreadLevel(quantileLevel, "quantileLevel", "quantile", objectiveFunction)
+    # Domain of `quantileLevel`, as `ArgumentError`: it is ordinary bad input on a public
+    # keyword, not a violated internal invariant. `auto` runs the SAME check, so the two
+    # entry points cannot drift.
+    validateQuantileLevel(quantileLevel)
     cvarLevelUsed = isnothing(cvarLevel) ? DEFAULT_CVAR_LEVEL : cvarLevel
     quantileLevelUsed = isnothing(quantileLevel) ? DEFAULT_QUANTILE_LEVEL : quantileLevel
+    # `cvarLevel` keeps the assertion it has always thrown. Converting it would change the
+    # exception type of a keyword this work did not introduce, and two tests in
+    # `test/objective_functions.jl` pin the current one; it is recorded as a follow-up
+    # rather than migrated here.
     @assert 0.0 < cvarLevelUsed < 1.0 "cvarLevel must lie strictly between 0 and 1."
-    # Strictly inside (0, 1): at 0 or 1 the check loss stops being a quantile criterion —
-    # one side of the residual distribution becomes free of charge and the minimizer runs
-    # off. Rejected rather than clamped, because a silently clamped level would report a
-    # quantile the fit did not target.
-    @assert 0.0 < quantileLevelUsed < 1.0 "quantileLevel must lie strictly between 0 and 1."
     penaltyTarget in (:all, :dynamics, :exogenous) || throw(
         ArgumentError(
             "penaltyTarget must be :all, :dynamics or :exogenous, got $(penaltyTarget)",
@@ -1414,7 +1481,15 @@ function fit!(
     @assert 0.0 <= invertibilityMargin < 1.0 "invertibilityMargin (ρ) must lie in [0, 1)."
     @assert 0.0 <= stationarityMargin < 1.0 "stationarityMargin must lie in [0, 1)."
     if objectiveFunction == "elastic_net"
-        @assert (!isnothing(alpha) || !isnothing(model.alpha)) "In elastic net objective function, alpha must be specified"
+        # `ArgumentError`, matching the identical requirement under `penalty = :elastic_net`
+        # below: the same missing argument must not raise two different exception types
+        # depending on which spelling selected the penalty.
+        (!isnothing(alpha) || !isnothing(model.alpha)) || throw(
+            ArgumentError(
+                "objectiveFunction = \"elastic_net\" requires `alpha`, the L1/L2 mixing " *
+                "parameter: 0 is a ridge-type penalty, 1 a lasso-type one.",
+            ),
+        )
     end
 
     # ---- COMPOSITION OF LOSS AND PENALTY --------------------------------------------------
@@ -1463,7 +1538,12 @@ function fit!(
         )
     end
     if penalty === :elastic_net
-        @assert (!isnothing(alpha) || !isnothing(model.alpha)) "With penalty = :elastic_net, alpha must be specified (0 is a ridge-type penalty, 1 a lasso-type one)"
+        (!isnothing(alpha) || !isnothing(model.alpha)) || throw(
+            ArgumentError(
+                "penalty = :elastic_net requires `alpha`, the L1/L2 mixing parameter: 0 is " *
+                "a ridge-type penalty, 1 a lasso-type one.",
+            ),
+        )
     end
 
     # Deprecated in v1.0, scheduled for removal in v2.0. The objective optimizes the
@@ -3956,13 +4036,25 @@ function auto(
     # explicit `penalty`. Passing them with neither would let a caller believe they control
     # a shrinkage that never reaches the optimization.
     penalizedHere = objectiveFunction == "elastic_net" || penalty !== :none
-    @assert penalizedHere || isnothing(lambda)
-    @assert penalizedHere || isnothing(alpha)
-    # Same guard as in `fit!`, raised HERE so it fires before the search spends anything --
+    if !penalizedHere && !(isnothing(lambda) && isnothing(alpha))
+        supplied = isnothing(lambda) ? "`alpha`" :
+                   (isnothing(alpha) ? "`lambda`" : "`lambda` and `alpha`")
+        throw(
+            ArgumentError(
+                "$(supplied) describe a coefficient penalty, and none is in play here: " *
+                "objectiveFunction = \"$(objectiveFunction)\" with penalty = :$(penalty). " *
+                "The shrinkage would never reach the optimization. Add " *
+                "penalty = :elastic_net, or drop the argument.",
+            ),
+        )
+    end
+    # Same guards as in `fit!`, raised HERE so they fire before the search spends anything --
     # and because a constant series returns early from `auto` without ever reaching `fit!`,
-    # where the argument would then be ignored without a word.
-    @assert isnothing(cvarLevel) || objectiveFunction == "stable" "cvarLevel is the confidence level of objectiveFunction = \"stable\" and is not read by \"$(objectiveFunction)\""
-    @assert isnothing(quantileLevel) || objectiveFunction == "quantile" "quantileLevel is the level of objectiveFunction = \"quantile\" and is not read by \"$(objectiveFunction)\""
+    # where the argument would then be ignored without a word. The DOMAIN check runs here
+    # for the same reason: on a constant series it is the only place it would run at all.
+    refuseUnreadLevel(cvarLevel, "cvarLevel", "stable", objectiveFunction)
+    refuseUnreadLevel(quantileLevel, "quantileLevel", "quantile", objectiveFunction)
+    validateQuantileLevel(quantileLevel)
     @assert searchMethod ∈ ["stepwise", "stepwiseNaive", "grid", "sarimax"]
     @assert !(invertible && objectiveFunction == "bilevel") "invertible = true is not compatible with the bilevel objective"
     @assert seasonalForm in (:multiplicative, :additive) "seasonalForm must be :multiplicative or :additive (:free is planned)"

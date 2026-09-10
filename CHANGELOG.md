@@ -6,6 +6,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (API)
+- **`quantileLevel` now raises `ArgumentError` instead of `AssertionError`**, and rejects
+  `NaN`, `Inf` and `-Inf` explicitly rather than by the accident that every comparison
+  against `NaN` is false. The domain is unchanged (`0 < tau < 1`, endpoints excluded), the
+  value is still rejected rather than clamped or replaced by the default, and
+  `quantileLevel = nothing` still means `DEFAULT_QUANTILE_LEVEL`. The same check now runs in
+  `auto` as well as `fit!` — it has to, because a constant series returns from `auto`
+  before any fit happens, so that was the one path where an invalid level was never seen.
+- **A missing `alpha` raises `ArgumentError`** under `objectiveFunction = "elastic_net"` and
+  under `penalty = :elastic_net` alike; the same missing argument no longer raises two
+  different exception types depending on which spelling selected the penalty. Likewise,
+  `lambda`/`alpha` supplied to `auto` with no penalty in play now raise `ArgumentError` with
+  a message naming which argument was unused, instead of a bare assertion.
+
+  `cvarLevel`'s domain check keeps its `AssertionError`: it predates this work and is pinned
+  by existing tests, so migrating it is a separate decision.
+
+### Documentation
+- **The default `lambda` is documented as a SCALE CONVENTION, not a tuning rule.**
+  `sqrt(effective sample size)` exists so the penalty is commensurable with a fit term
+  written as a sum rather than a mean. It is not an optimal or universally calibrated
+  regularization parameter, and it was never calibrated against `"mae"`, `"huber"` or
+  `"quantile"`, whose fit terms live on a different numerical scale from the squared one.
+  Substantive regularized analyses should select and record `lambda` explicitly. No default
+  value changed.
+- **Exogenous regressors are documented as un-standardized.** The endogenous series is
+  divided by its own standard deviation and the AR/MA coefficients are dimensionless, but
+  each exogenous coefficient carries the units of its regressor. Equal weights on regressors
+  of different magnitudes therefore do not produce comparable shrinkage, under any of lasso,
+  ridge-type, elastic net or adaptive-Lasso weighting. The documentation gives the two
+  remedies — standardize the columns, or absorb the scale into the weights — and states that
+  the package deliberately does not standardize them for you, since that would change what
+  the coefficients mean.
+- **Adaptive-Lasso weights: a near-zero first-stage coefficient is the caller's to handle.**
+  `1/|beta|^gamma` diverges, and an `Inf` weight is refused rather than silently transformed;
+  the documentation shows how to floor the coefficient or cap the weight, and notes that the
+  choice is a modelling decision worth reporting.
+- **The `"elastic_net"` vs `"mse" + penalty` equivalence is stated with its actual scope.**
+  The two coincide exactly when the pre-sample block is not priced (`:zeroed`, `:free`).
+  Under `:penalized` and `:innovations` — the latter the DEFAULT — they differ: `"mse"`
+  prices the free block as a concentrated Gaussian likelihood and carries the determinant
+  factor, while the `"elastic_net"` fit term does not. The asymmetry predates the `penalty`
+  keyword and is unchanged; earlier notes in this changelog and in the docs claimed the
+  equivalence without qualification, which was wrong on the default path. Now pinned by a
+  test that asserts both the agreement and the disagreement.
+
 ### Added
 - **Loss and coefficient penalty now compose**, through a new `penalty` keyword on `fit!`
   and `auto`. `objectiveFunction` selects the loss, `penalty` selects the penalty added to

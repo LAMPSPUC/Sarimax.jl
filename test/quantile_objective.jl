@@ -126,18 +126,50 @@
             collect(Date(2000, 1, 1):Month(1):(Date(2000, 1, 1)+Month(T - 1))),
             copy(y),
         )
-        # NaN is on the list on purpose: every comparison against it is false, so
-        # `0 < NaN < 1` fails and the guard fires. A guard written as `!(x <= 0 || x >= 1)`
-        # would let it through and the level would reach the objective as NaN.
-        for ruim in (0.0, 1.0, -0.1, 1.5, NaN)
+        # `ArgumentError`, not `AssertionError`: `quantileLevel` is a public keyword, so
+        # invalid input is ordinary bad input rather than a violated internal invariant.
+        #
+        # NaN and the infinities are on the list on purpose. `0 < NaN < 1` is already false,
+        # so NaN would be caught by accident; `isfinite` states the intent and catches the
+        # infinities, which a guard written as `!(x <= 0 || x >= 1)` would let through.
+        for ruim in (0.0, 1.0, -0.1, 1.1, NaN, Inf, -Inf)
             m = SARIMA(ta, 1, 0, 0; seasonality = 1, silent = true)
-            @test_throws AssertionError Sarimax.fit!(
+            @test_throws ArgumentError Sarimax.fit!(
                 m;
                 objectiveFunction = "quantile",
                 quantileLevel = ruim,
                 silent = true,
             )
+            # `auto` runs the same check, and it has to: a constant series returns from it
+            # before any fit happens, so this is the only place the level would be seen.
+            @test_throws ArgumentError auto(
+                ta;
+                seasonality = 1,
+                objectiveFunction = "quantile",
+                quantileLevel = ruim,
+                maxp = 1,
+                maxq = 0,
+                maxP = 0,
+                maxQ = 0,
+            )
         end
+
+        # The value is REJECTED, never clamped and never silently replaced by the default:
+        # a level of 0.5 must mean the caller asked for the median, not that the package
+        # rescued a bad number.
+        mDefault = SARIMA(ta, 1, 0, 0; seasonality = 1, silent = true)
+        Sarimax.fit!(mDefault; objectiveFunction = "quantile", silent = true)
+        @test mDefault.metadata["quantileLevel"] == Sarimax.DEFAULT_QUANTILE_LEVEL
+
+        # ... and a constant series, which never reaches a fit, still refuses the level.
+        constante = TimeArray(
+            collect(Date(2000, 1, 1):Month(1):(Date(2000, 1, 1)+Month(59))),
+            fill(7.0, 60),
+        )
+        @test_throws ArgumentError auto(
+            constante; seasonality = 1, objectiveFunction = "quantile",
+            quantileLevel = 1.5, maxp = 1, maxq = 0, maxP = 0, maxQ = 0,
+        )
     end
 
     @testset "tau = 1/2 reproduces mae on EVERY observable" begin

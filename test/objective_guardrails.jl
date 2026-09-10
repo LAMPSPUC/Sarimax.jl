@@ -179,11 +179,15 @@
             @test isnothing(get(m.metadata, "quantileLevel", nothing))
         end
 
-        # The range check still applies to the objective that reads the level, and still
-        # raises the same exception type it always did.
-        @test_throws AssertionError fit!(
+        # The range check still applies to the objective that reads the level. It now raises
+        # `ArgumentError`: a public keyword given a bad value is ordinary user input.
+        @test_throws ArgumentError fit!(
             mk(); objectiveFunction = "quantile", quantileLevel = 1.5,
         )
+        # `cvarLevel` keeps its historical `AssertionError` on the RANGE. Its refusal guard
+        # (above) is new and raises `ArgumentError`, but the domain check predates this work
+        # and is pinned by tests in `test/objective_functions.jl`, so migrating it is a
+        # separate decision rather than a side effect of this one.
         @test_throws AssertionError fit!(
             mk(); objectiveFunction = "stable", cvarLevel = 0.0,
         )
@@ -191,11 +195,11 @@
         # `auto` refuses it up front rather than at the first candidate fit: a constant
         # series returns from `auto` before any fit happens, so a guard only in `fit!`
         # would let that call through in silence.
-        @test_throws AssertionError auto(
+        @test_throws ArgumentError auto(
             y; seasonality = 1, objectiveFunction = "mse", quantileLevel = 0.9,
             maxp = 1, maxq = 0, maxP = 0, maxQ = 0,
         )
-        @test_throws AssertionError auto(
+        @test_throws ArgumentError auto(
             y; seasonality = 1, objectiveFunction = "mae", cvarLevel = 0.9,
             maxp = 1, maxq = 0, maxP = 0, maxQ = 0,
         )

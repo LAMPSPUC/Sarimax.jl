@@ -4,6 +4,238 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed (API)
+- **`quantileLevel` now raises `ArgumentError` instead of `AssertionError`**, and rejects
+  `NaN`, `Inf` and `-Inf` explicitly rather than by the accident that every comparison
+  against `NaN` is false. The domain is unchanged (`0 < tau < 1`, endpoints excluded), the
+  value is still rejected rather than clamped or replaced by the default, and
+  `quantileLevel = nothing` still means `DEFAULT_QUANTILE_LEVEL`. The same check now runs in
+  `auto` as well as `fit!` — it has to, because a constant series returns from `auto`
+  before any fit happens, so that was the one path where an invalid level was never seen.
+- **A missing `alpha` raises `ArgumentError`** under `objectiveFunction = "elastic_net"` and
+  under `penalty = :elastic_net` alike; the same missing argument no longer raises two
+  different exception types depending on which spelling selected the penalty. Likewise,
+  `lambda`/`alpha` supplied to `auto` with no penalty in play now raise `ArgumentError` with
+  a message naming which argument was unused, instead of a bare assertion.
+
+  `cvarLevel`'s domain check keeps its `AssertionError`: it predates this work and is pinned
+  by existing tests, so migrating it is a separate decision.
+
+### Documentation
+- **The default `lambda` is documented as a SCALE CONVENTION, not a tuning rule.**
+  `sqrt(effective sample size)` exists so the penalty is commensurable with a fit term
+  written as a sum rather than a mean. It is not an optimal or universally calibrated
+  regularization parameter, and it was never calibrated against `"mae"`, `"huber"` or
+  `"quantile"`, whose fit terms live on a different numerical scale from the squared one.
+  Substantive regularized analyses should select and record `lambda` explicitly. No default
+  value changed.
+- **Exogenous regressors are documented as un-standardized.** The endogenous series is
+  divided by its own standard deviation and the AR/MA coefficients are dimensionless, but
+  each exogenous coefficient carries the units of its regressor. Equal weights on regressors
+  of different magnitudes therefore do not produce comparable shrinkage, under any of lasso,
+  ridge-type, elastic net or adaptive-Lasso weighting. The documentation gives the two
+  remedies — standardize the columns, or absorb the scale into the weights — and states that
+  the package deliberately does not standardize them for you, since that would change what
+  the coefficients mean.
+- **Adaptive-Lasso weights: a near-zero first-stage coefficient is the caller's to handle.**
+  `1/|beta|^gamma` diverges, and an `Inf` weight is refused rather than silently transformed;
+  the documentation shows how to floor the coefficient or cap the weight, and notes that the
+  choice is a modelling decision worth reporting.
+- **The `"elastic_net"` vs `"mse" + penalty` equivalence is stated with its actual scope.**
+  The two coincide exactly when the pre-sample block is not priced (`:zeroed`, `:free`).
+  Under `:penalized` and `:innovations` — the latter the DEFAULT — they differ: `"mse"`
+  prices the free block as a concentrated Gaussian likelihood and carries the determinant
+  factor, while the `"elastic_net"` fit term does not. The asymmetry predates the `penalty`
+  keyword and is unchanged; earlier notes in this changelog and in the docs claimed the
+  equivalence without qualification, which was wrong on the default path. Now pinned by a
+  test that asserts both the agreement and the disagreement.
+
+### Added
+- **Loss and coefficient penalty now compose**, through a new `penalty` keyword on `fit!`
+  and `auto`. `objectiveFunction` selects the loss, `penalty` selects the penalty added to
+  it, and the problem solved is
+
+      min  L(eps) + sum_j lambda_j [ alpha*|psi_j| + (1-alpha)/2 * psi_j^2 ]
+
+  over the same SARIMAX equations. `penalty = :none` is the default and inert; a quantile
+  fit with a lasso penalty is `objectiveFunction = "quantile"` with
+  `penalty = :elastic_net, alpha = 1.0`.
+
+  Until now the objective STRING selected both at once — `"elastic_net"` meant "quadratic
+  loss AND elastic net" — so "quantile loss AND lasso" was unspellable.
+  `objectiveFunction = "elastic_net"` is now exactly `"mse"` with `penalty = :elastic_net`,
+  builds the penalty through the same code path, and is unchanged.
+
+  Admitted for `"mse"`, `"mae"`, `"huber"`, `"quantile"` and `"ml"`, whose fit term is a
+  sum over observations — the scale `lambda` is calibrated for. Refused, rather than
+  silently mis-scaled, for `"ml_exact"` (log scale) and `"stable"` (mean scale); refused for
+  `"bilevel"`, where the moving-average coefficients are not decision variables; and refused
+  for `"elastic_net"` and `"ridge"`, which already carry a penalty and would be specifying
+  one twice. `metadata["penalty"]` records what was used.
+
+  The sparse parameter count in `get_hyperparameters_number` now keys off the PENALTY
+  rather than the objective name: what shrinks a coefficient to zero is the penalty, so a
+  composed fit counts the same way the `"elastic_net"` objective does.
+- **Quantile / pinball loss as an estimation criterion**, `objectiveFunction = "quantile"`
+  with level `quantileLevel` (`τ ∈ (0,1)`, default `0.5`). It minimizes
+  `Σₜ ρ_τ(εₜ)` with `ρ_τ(ε) = τ·max(ε,0) + (1-τ)·max(-ε,0)` over the same SARIMAX
+  equations and initialization constraints as every other objective, reusing the
+  non-negative decomposition `"mae"` already builds.
+
+  The innovation is `εₜ = yₜ - ŷₜ`, so a positive innovation is an under-prediction and
+  `τ` is the weight it carries: `τ > 0.5` pushes the fitted location up, towards an upper
+  conditional quantile. At `τ = 0.5` the estimator is exactly `"mae"` (same coefficients,
+  fitted values, fitted residuals and forecasts) while the reported objective value is
+  half of it, since `ρ_τ` is written in its standard form. The Gaussian moving-average
+  determinant factor is deliberately NOT applied: it comes from concentrating `σ²` under a
+  quadratic loss.
+
+  The level is recorded in `metadata["quantileLevel"]`. This is an estimation criterion,
+  not a probabilistic forecasting mode — `predict!` is unchanged and the package does not
+  claim its intervals are calibrated quantile forecasts.
+- **Coefficient-specific regularization weights.** `lambda` on the `"elastic_net"`
+  objective now accepts, besides the historical scalar, a per-coefficient vector or a
+  `NamedTuple`/`Dict` keyed by coefficient block (`:ar`, `:ma`, `:sar`, `:sma`, `:exog`,
+  with the Greek coefficient names as aliases). The objective becomes
+  `L(ε) + Σⱼ λⱼ [α|ψⱼ| + (1-α)/2 ψⱼ²]`; `alpha` keeps its meaning as the L1/L2 mixing
+  parameter and `λⱼ` is a per-coefficient strength.
+
+  A zero weight excludes a coefficient from the penalty; negative, `NaN` and `Inf`
+  weights, wrong lengths, unknown block keys and structured specifications that do not
+  cover every penalized block are rejected with errors that name the expected ordering.
+  The intercept and the drift remain unreachable by any weight.
+
+  This is what an adaptive Lasso needs — `λⱼ = λ/|β̃ⱼ|^γ` from a first-stage fit — but the
+  package accepts the weights rather than running the two-stage procedure itself.
+- **`penaltyCoefficientNames(model; penaltyTarget = :all)`**, exported: the penalized
+  coefficients in the deterministic order a flat `lambda` vector is read
+  (`[ar; ma; sar; sma; exog]`, restricted to the blocks the model has and the target
+  admits).
+
+### Deprecated
+- **`objectiveFunction = "ridge"`** warns once per session and is scheduled for removal in
+  v2.0. Now that the loss and the penalty are independent axes it is the fixed-`lambda` case
+  of the elastic-net penalty — `alpha = 0` over the dynamics blocks — and it ignores
+  `lambda`, `alpha` and `penaltyTarget` alike, so every guard in the package has to
+  special-case it.
+
+  The migration is exact and the warning states it: `objectiveFunction = "mse"`,
+  `penalty = :elastic_net`, `alpha = 0.0`, `penaltyTarget = :dynamics`, and
+  `lambda = 2 * metadata["ridgeLambda"]`. **Twice**, because the elastic-net L2 term is
+  `(1-alpha)/2 * psi^2` and `"ridge"` carries no `1/2`; and read from the metadata, because
+  `"ridge"` sets `lambda = sqrt(effective sample size)` and the effective sample discounts
+  the CSS conditioning, so it cannot be rebuilt from the series length alone. The
+  equivalence — and the fact that omitting the factor of two does NOT reproduce it — is
+  pinned by a test rather than left to the algebra. Fits recorded `metadata["ridgeLambda"]`
+  for that purpose.
+
+### Added
+- **`auto` accepts `presampleBurnIn`** and threads it through the search. The keyword
+  existed on `fit!` only, so the extra window of pre-sample innovations was pinned at its
+  default of 12 for every candidate `auto` fitted — and `auto` defaults to
+  `initialization = :innovations`, the one mode where the window changes the estimates.
+  Same class as the `penaltyTarget`/`exogDynamics` omission fixed below, and the last of it.
+
+### Changed
+- **`quantileLevel` and `cvarLevel` are refused by the objectives that do not read them**,
+  instead of being accepted and ignored. `cvarLevel` belongs to `"stable"` and
+  `quantileLevel` to `"quantile"`; under any other objective the level never reached the
+  optimization, so a call like `fit!(m; objectiveFunction = "mse", quantileLevel = 0.9)`
+  returned a plain least-squares fit while reading as a quantile one. A warning would not
+  do: it is invisible in a parallel sweep, which is exactly where a cell that silently
+  means something else does the damage. This is the policy the `ridge`/`lambda` guard
+  already stated.
+
+  Both keywords now default to `nothing` rather than to their constants — only `nothing`
+  separates "the caller asked for 0.5" from "the caller said nothing", and without that
+  the guard cannot be written. `DEFAULT_QUANTILE_LEVEL` (`0.5`) and `DEFAULT_CVAR_LEVEL`
+  (`0.9`) remain the effective defaults, so omitting the argument behaves as before. The
+  range check on a level that IS read is unchanged, `AssertionError` included.
+
+### Fixed
+- **The package did not work on current Julia: `load_dataset` returned a two-dimensional
+  `TimeArray`.** `TimeArray(df; timestamp = :date)` yields a one-dimensional array on some
+  resolutions of `TimeSeries`/`DataFrames` and a two-dimensional one on others. Under the
+  tree that Julia 1.13 resolves it returns the latter, so `values(y)` is a `Matrix` and
+  every signature written for the one-dimensional form stops dispatching —
+  `selectSeasonalIntegrationOrder`, `selectIntegrationOrder`, `kpss_test`, `ocsb_test`,
+  `differentiate`, `exactGaussianLogLikelihood` and `predict` among them.
+
+  Measured on the released `master` (`a1ebc0d`), with no part of this branch: **937 passed,
+  2 failed, 24 errored** under Julia 1.13, against a green suite under 1.10. All 26 have the
+  same cause; the two "failures" are `@test_throws ArgumentError` cases that got a
+  `MethodError` because the `Matrix` never dispatched.
+
+  `load_dataset` now normalizes a single-column result to the one-dimensional form its own
+  docstring documents (`TimeArray{Float64, 1, Date, Vector{Float64}}`). Fixing the shape at
+  the loader keeps the contract in one place instead of widening seven signatures, and
+  leaves multi-column arrays — the exogenous blocks, where the second dimension carries
+  meaning — untouched. It is a no-op wherever the constructor already returns the
+  one-dimensional form, so it cannot move a result on a platform where the suite passed.
+
+  After the fix the suite is 1408 passed / 5 broken / 0 failed / 0 errored under BOTH Julia
+  1.10 and 1.13, and the 23-fit backward-compatibility battery is still byte-identical.
+
+  Note this is why the CI matrix asks for `version: '1'`: it resolves to whatever the latest
+  release is AT RUN TIME, so the package broke without a single commit landing. `Project.toml`
+  declares `julia = "1.10"`, which means `[1.10, 2.0)` and therefore promises 1.13 support.
+- **`"ridge"` refused a `lambda` passed as an argument but accepted one carried on the
+  model.** `lambda` reaches a fit by two routes — the `fit!` keyword and `model.lambda`, set
+  by the `SARIMA` constructor or left behind by an earlier penalized fit — and `"ridge"`
+  ignores both, since its shrinkage is fixed at `sqrt(effective sample size)` by
+  construction. Only the first was refused, so `SARIMA(y; lambda = 2.0)` followed by a
+  ridge fit passed in silence: precisely the case the guard exists to prevent. Both routes
+  are now refused, and the message names which one to remove.
+- **`auto` applied a different rule to a scalar `lambda` than to a heterogeneous one.** It
+  required `lambda > 0` for a scalar while admitting zeros inside a vector or a structured
+  specification, so the same strength was legal or illegal depending on how it was spelled —
+  and `auto` disagreed with `fit!`, where `lambda = 0.0` is accepted and pinned by a test
+  requiring it to reproduce least squares. One rule now applies to every shape:
+  non-negative and finite, with negative, `NaN` and `Inf` refused on both surfaces. Saying
+  "no penalty at all" is better spelled `penalty = :none`, but that is style, not a reason
+  for the search to refuse a value the fit accepts.
+- **`mae` and `quantile` built an unbounded, unused pre-sample block under
+  `initialization = :free`.** The non-negative pair that linearizes `|ε_pre|` was created
+  whenever a free pre-sample block existed, but the two objectives only SUM it when the
+  block is priced (`:penalized`/`:innovations`). Under `:free` the pair therefore appeared
+  in exactly one constraint, `ε_pre = ε_pre⁺ - ε_pre⁻`, and in no objective: both parts
+  could grow without bound along the direction holding their difference fixed, and the
+  identity restricted nothing, since a non-negative pair exists for any `ε_pre`. The
+  estimates were never wrong — the block could not influence them — but every `:free` solve
+  carried `2(1-lo)` variables and `(1-lo)` constraints of rank-deficient ballast.
+  `huber` already created its pre-sample decomposition inside its own `penalizado` branch;
+  this brings `mae` and `quantile` in line with it.
+
+  **This moves `mae`/`quantile` results under `:free`, and only there.** Measured over 192
+  fits (12 series × 8 specifications × 2 objectives): 143 identical, 26 with a lower
+  objective value, 23 with a higher one — the objective FUNCTION is unchanged, so the values
+  are directly comparable. The changes are roughly symmetric and can be large in both
+  directions (−74% to +259%), and the convergence-status distribution is unchanged (189
+  `LOCALLY_SOLVED`, 2 `ITERATION_LIMIT`, 1 `ALMOST_LOCALLY_SOLVED`, before and after).
+
+  Read that as a property of the configuration rather than of the fix: under a non-quadratic
+  loss with a free, unpriced pre-sample block the problem has many local optima, and the
+  solver's answer moves when a mathematically irrelevant detail of the formulation moves.
+  Anyone with recorded `mae`/`quantile` + `:free` numbers should expect them to shift.
+  `:penalized`, `:innovations`, `:zeroed` and `:warmup` are bit-identical, as are every
+  other objective under every mode.
+- **`penaltyTarget`, `exogDynamics` and `presampleBurnIn` were dropped by the multistart,
+  Huber-fallback and `warmStartFromBox` paths.** Each of those re-fits through an argument
+  bundle that omitted them, so they silently reverted to their defaults: an `elastic_net`
+  fit asked to shrink only the regressors shrank the dynamics too whenever `multistart`,
+  `objectiveFunction = "huber"` or `warmStartFromBox` was in play, and the result was
+  returned under the caller's label. The three arguments now travel with the bundle.
+
+### Internal
+- Coefficient ordering and penalty weights now come from a single walk over the coefficient
+  blocks (`src/penalty.jl`) instead of a `reduce(vcat, ...)` repeated in each penalized
+  objective, so a weight cannot land on the wrong coefficient. The uniform case emits the
+  historical scalar expression verbatim: scalar-`lambda` and `"ridge"` fits are unchanged
+  down to the floating point (verified over 23 fits spanning every `penaltyTarget`, every
+  `alpha`, the default and an explicit `lambda`, seasonal and exogenous specifications).
+
 ## [1.0.0] - 2026-08-27
 
 First stable release. It accompanies the paper describing the package and freezes

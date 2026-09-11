@@ -15,8 +15,100 @@ Value-at-Risk of the squared residuals. At `α` the fit optimises the mean of th
 `α → 1` degenerates to min-max. Note this is a *conservative* (worst-case) objective,
 not a robust one: it fits the tail rather than discounting it — `"mae"` is the robust
 choice in this package.
+
+The `cvarLevel` KEYWORD defaults to `nothing`, not to this constant, and is refused by every
+objective other than `"stable"`. The distinction the `nothing` buys is between "the caller
+asked for 0.9" and "the caller said nothing", without which the refusal could not be
+written; this constant is what an omitted level resolves to. Same arrangement as
+[`DEFAULT_QUANTILE_LEVEL`].
 """
 const DEFAULT_CVAR_LEVEL = 0.9
+
+"""
+    DEFAULT_QUANTILE_LEVEL
+
+Level `τ ∈ (0, 1)` of the `"quantile"` objective, the asymmetric extension of `"mae"`. The
+default `0.5` is the median, where the check loss is symmetric: the objective is then `mae`
+scaled by one half, hence the same estimator.
+
+The innovation is `ε = y - ŷ`, so a positive innovation is an under-prediction and `τ` is
+the weight it carries: `τ > 0.5` pushes the fit UP, towards an upper conditional quantile.
+
+WHY THIS IS NOT NAMED `alpha`. `alpha` is already the mixing parameter of the elastic-net
+penalty, carried on the model as `model.alpha`, and it also defaults to `0.5`. `auto` further
+rejects `alpha` for any objective other than `elastic_net`. Two meanings under one name with
+one default is the ambiguity this package has paid for before, so the level follows the naming
+of `cvarLevel`, which plays exactly this role for `"stable"`.
+
+WHY NOT `tau` EITHER. The literature writes `τ`, and the docstrings do too; the KEYWORD
+follows the package's own convention for a level attached to one objective — `cvarLevel`
+for `"stable"`, `quantileLevel` for `"quantile"` — so the name says which objective reads
+it.
+
+The `quantileLevel` KEYWORD defaults to `nothing`, not to this constant, and is refused by
+every objective other than `"quantile"`. Only `nothing` distinguishes "the caller asked for
+0.5" from "the caller said nothing", and without that distinction the refusal could not be
+written at all; this constant is what an omitted level resolves to.
+"""
+const DEFAULT_QUANTILE_LEVEL = 0.5
+
+"""
+    refuseUnreadLevel(value, keyword, owner, objectiveFunction)
+
+Refuses a level keyword handed to an objective that does not read it.
+
+A level belongs to ONE objective — `cvarLevel` to `"stable"`, `quantileLevel` to
+`"quantile"`. Under any other objective it never reaches the optimization, so accepting it
+would let a caller believe they had selected an estimator they did not; and a warning is
+invisible in a parallel sweep, which is where that costs the most.
+
+`ArgumentError` rather than an assertion: this is ordinary bad user input on a public
+keyword, not a violated internal invariant.
+"""
+function refuseUnreadLevel(
+    value,
+    keyword::AbstractString,
+    owner::AbstractString,
+    objectiveFunction::AbstractString,
+)
+    isnothing(value) && return nothing
+    objectiveFunction == owner && return nothing
+    throw(
+        ArgumentError(
+            "$(keyword) is the level of objectiveFunction = \"$(owner)\" and is not read " *
+            "by \"$(objectiveFunction)\", which would ignore it. Drop the argument, or " *
+            "select the objective that uses it.",
+        ),
+    )
+end
+
+"""
+    validateQuantileLevel(value)
+
+Domain check for `quantileLevel`: `nothing` (meaning [`DEFAULT_QUANTILE_LEVEL`]) or a finite
+real strictly inside `(0, 1)`.
+
+The endpoints are excluded because at `0` or `1` the check loss stops being a quantile
+criterion — one side of the residual distribution becomes free of charge and the minimizer
+runs off. `NaN` and the infinities are excluded explicitly rather than by luck: `0 < NaN < 1`
+is already false, but `isfinite` states the intent, and an infinite level would otherwise
+have to be caught by the same accident.
+
+Invalid input is REJECTED, never clamped and never replaced by the default: a silently
+clamped level would report a quantile the fit did not target.
+
+Called from both `fit!` and `auto` so the two agree by construction — `auto` matters on its
+own because a constant series returns from it before any fit happens.
+"""
+function validateQuantileLevel(value)
+    isnothing(value) && return nothing
+    (value isa Real && isfinite(value) && 0.0 < value < 1.0) || throw(
+        ArgumentError(
+            "quantileLevel must be finite and lie strictly between 0 and 1; got $(value).",
+        ),
+    )
+    return nothing
+end
 
 """
     DEFAULT_HUBER_DELTA
@@ -163,6 +255,13 @@ The `SARIMAModel` struct represents a SARIMA model. It contains the following fi
 - `lambda`: Strength of the elastic-net penalty (`lambda >= 0`). Defaults to the square
   root of the effective sample size. Only the `"elastic_net"` objective honours it; the
   `"ridge"` objective fixes its own value and rejects the argument.
+
+  Besides a scalar, which applies one strength to every penalized coefficient, it accepts
+  COEFFICIENT-SPECIFIC weights: a vector read in the order of
+  [`penaltyCoefficientNames`](@ref), or a `NamedTuple`/`Dict` keyed by coefficient block
+  (`:ar`, `:ma`, `:sar`, `:sma`, `:exog`) whose values are scalars or per-coefficient
+  vectors. See [`PenaltyLambda`](@ref). The intercept and the drift are never penalized,
+  whatever the weights say.
 - `alpha`: Mixing parameter of the elastic-net penalty (0 <= alpha <= 1); `alpha = 1` is
   lasso, `alpha = 0` is ridge.
 """
@@ -192,7 +291,11 @@ mutable struct SARIMAModel{Fl<:AbstractFloat} <: SarimaxModel
     allowMean::Bool
     allowDrift::Bool
     keepProvidedCoefficients::Bool
-    lambda::Union{Fl,Nothing}
+    # Widened from `Union{Fl,Nothing}` to carry coefficient-specific penalty weights. A
+    # scalar remains a scalar and behaves exactly as before; the vector/NamedTuple/Dict
+    # forms are expanded to one weight per penalized coefficient at fit time, by
+    # `resolvePenaltyWeights`.
+    lambda::Union{Nothing,PenaltyLambda}
     alpha::Union{Fl,Nothing}
     icOffset::Union{Fl,Nothing}
     function SARIMAModel{Fl}(
@@ -220,7 +323,7 @@ mutable struct SARIMAModel{Fl<:AbstractFloat} <: SarimaxModel
         allowMean::Bool = true,
         allowDrift::Bool = false,
         keepProvidedCoefficients::Bool = false,
-        lambda::Union{Fl,Nothing} = nothing,
+        lambda::Union{Nothing,PenaltyLambda} = nothing,
         alpha::Union{Fl,Nothing} = nothing,
         icOffset::Union{Fl,Nothing} = nothing,
     ) where {Fl<:AbstractFloat}
@@ -406,7 +509,7 @@ function SARIMA(
     silent::Bool = true,
     allowMean::Bool = true,
     allowDrift::Bool = false,
-    lambda::Union{Nothing,<:AbstractFloat} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
     icOffset::Union{Nothing,<:AbstractFloat} = nothing,
 )
@@ -465,7 +568,7 @@ function SARIMA(
     silent::Bool = true,
     allowMean::Bool = true,
     allowDrift::Bool = false,
-    lambda::Union{<:AbstractFloat,Nothing} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
     alpha::Union{<:AbstractFloat,Nothing} = nothing,
     icOffset::Union{<:AbstractFloat,Nothing} = nothing,
 )
@@ -506,12 +609,25 @@ function SARIMA(
         )
     end
 
-    if !isnothing(lambda) && lambda < 0
-        throw(
-            InvalidParametersCombination(
-                "The lambda value must be non-negative",
-            ),
-        )
+    # VALUE-level check only. Whether the weights COVER the penalized blocks depends on
+    # `penaltyTarget`, which is a `fit!` argument and is unknown here; that structural check
+    # runs in `resolvePenaltyWeights`. The scalar case keeps raising
+    # `InvalidParametersCombination`, which is what the constructor has always thrown.
+    if !isnothing(lambda)
+        if lambda isa Real
+            lambda < 0 && throw(
+                InvalidParametersCombination(
+                    "The lambda value must be non-negative",
+                ),
+            )
+        else
+            try
+                validatePenaltyLambdaValues(lambda)
+            catch err
+                err isa ArgumentError || rethrow()
+                throw(InvalidParametersCombination(err.msg))
+            end
+        end
     end
 
     if !isnothing(alpha) && (alpha < 0 || alpha > 1)
@@ -589,7 +705,7 @@ function SARIMA(
     silent::Bool = true,
     allowMean::Bool = true,
     allowDrift::Bool = false,
-    lambda::Union{Nothing,<:AbstractFloat} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
     icOffset::Union{Nothing,<:AbstractFloat} = nothing,
 )
@@ -728,7 +844,14 @@ function get_hyperparameters_number(model::SARIMAModel)
     # lasso case (`alpha = 1`), the only one with theoretical backing (Zou, Hastie &
     # Tibshirani 2007 — under ridge the count degenerates to the nominal one, since ridge
     # shrinks without zeroing), would be a policy change rather than a fix.
-    usesSparseCount = get(model.metadata, "objectiveFunction", "") == "elastic_net"
+    #
+    # It is keyed on the PENALTY, not on the loss: what shrinks a coefficient to zero is the
+    # penalty, so a `quantile` fit composed with an elastic-net penalty counts the same way
+    # the `elastic_net` objective does. The objective name is still read for models fitted
+    # before `metadata["penalty"]` existed.
+    usesSparseCount =
+        get(model.metadata, "objectiveFunction", "") == "elastic_net" ||
+        get(model.metadata, "penalty", "none") == "elastic_net"
     if isFitted(model) && usesSparseCount
         hyperparametersNumber = 1
         fields = [:c, :trend, :ϕ, :θ, :Φ, :Θ, :exogCoefficients]
@@ -810,6 +933,45 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
   supplied it only works with the linear `"mae"` objective; a warning is issued otherwise. Only
   relevant when `optimizer = Alpine.Optimizer`.
 - `objectiveFunction::String`: The objective function used for estimation. Default is "mse".
+  One of `"mse"`, `"mae"`, `"huber"`, `"quantile"`, `"ml"`, `"ml_exact"`, `"elastic_net"`,
+  `"stable"`, and the deprecated `"ridge"` and `"bilevel"`. Every one of them is a different
+  ESTIMATION CRITERION over the same SARIMAX equations and the same initialization
+  constraints; none of them changes the dynamics.
+
+  `"ridge"` is deprecated since loss and penalty became independent axes: it is the
+  fixed-`lambda` case of the elastic-net penalty at `alpha = 0` over the dynamics blocks.
+  Carry a fit over with `objectiveFunction = "mse", penalty = :elastic_net, alpha = 0.0,
+  penaltyTarget = :dynamics` and `lambda = 2 * metadata["ridgeLambda"]` — twice, because the
+  elastic-net L2 term carries a factor `1/2` that `"ridge"` does not. The equivalence is
+  exact and is pinned by a test.
+- `quantileLevel::Union{Nothing,AbstractFloat}`: Level `τ ∈ (0, 1)` of the `"quantile"`
+  objective, the asymmetric extension of `"mae"`. Omit it (`nothing`, the default) to use
+  [`DEFAULT_QUANTILE_LEVEL`], which is `0.5`. REFUSED by every other objective rather than
+  ignored:
+  under them the level never reaches the optimization, so accepting it would let a caller
+  believe they had selected an estimator they did not — invisible in a parallel sweep,
+  which is where it matters most. (`cvarLevel` is the same argument for `"stable"`, and
+  carries the same guard.) Recorded in `metadata["quantileLevel"]` when this objective
+  fitted the model, because the same series and orders at two levels are two different
+  estimates.
+
+  The objective is the check (pinball) loss over the innovations,
+  `Σₜ ρ_τ(εₜ)` with `ρ_τ(ε) = τ·max(ε, 0) + (1-τ)·max(-ε, 0)`.
+
+  SIGN CONVENTION. The innovation is `εₜ = yₜ - ŷₜ`, so a POSITIVE innovation is an
+  under-prediction, and `τ` is the weight it carries. A high `τ` therefore makes
+  under-prediction expensive and pushes the fit UP: at the optimum a fraction `τ` of the
+  fitted residuals lies at or below zero. `τ = 0.9` estimates an upper conditional
+  quantile, `τ = 0.1` a lower one.
+
+  At `τ = 0.5` the loss is symmetric and equals `|ε|/2`, so the estimator is exactly
+  `"mae"` — same coefficients, same fitted values, same fitted residuals, same forecasts —
+  while the reported objective VALUE is half of `"mae"`'s. The factor is not absorbed:
+  `ρ_τ` above is the standard definition.
+
+  This is an estimation criterion, not a probabilistic forecasting mode. `predict!` and
+  `simulate` are unchanged by it, and the package does not claim that their intervals are
+  calibrated quantile forecasts.
 - `automaticExogDifferentiation::Bool`: Whether to automatically differentiate the exogenous variables. Default is `false`.
 - `invertible::Bool`: When `true`, the (seasonal) moving-average coefficients are generated from
   bounded reflection coefficients `κ` via [`reflectionToMA`](@ref), guaranteeing an invertible MA
@@ -833,10 +995,75 @@ but it can be changed to the maximum likelihood (ML) by setting the `objectiveFu
   coefficient is the usual marginal effect. The two coincide only when the autoregressive
   polynomial is unitary and there is no differencing, so the choice is observable only
   when regressors are present.
-- `penaltyTarget::Symbol`: Which coefficient blocks the `"elastic_net"` penalty applies
-  to: `:all` (default), `:dynamics` for the autoregressive and moving-average blocks only,
-  or `:exogenous` for the regressors only. The intercept and the drift are never
-  penalized. Ignored by every other objective.
+- `penalty::Symbol`: Coefficient penalty added to the selected LOSS — the second axis of
+  the objective. `:none` (default) or `:elastic_net`, whose member is picked by `alpha`
+  (`0` is ridge-type, `1` lasso-type). The problem solved is
+
+  ```
+  min  L(ε)  +  Σⱼ λⱼ [ α|ψⱼ| + (1-α)/2 ψⱼ² ]      subject to the SAME SARIMAX equations
+  ```
+
+  with `L` given by `objectiveFunction`, so `objectiveFunction = "quantile"` with
+  `penalty = :elastic_net, alpha = 1.0` is a quantile fit with a lasso penalty. Recorded in
+  `metadata["penalty"]`, and it drives the sparse parameter count in
+  [`get_hyperparameters_number`](@ref) — what zeroes a coefficient is the penalty, not the
+  loss.
+
+  Admitted for `objectiveFunction` in `"mse"`, `"mae"`, `"huber"`, `"quantile"` and `"ml"`,
+  whose fit term is a sum over observations — the scale `lambda` is calibrated for.
+  Refused for `"ml_exact"` (log scale), `"stable"` (mean scale) and `"bilevel"` (the
+  moving-average coefficients are not decision variables there), and refused for
+  `"elastic_net"` and `"ridge"`, which already carry a penalty and would be specifying one
+  twice.
+
+  `objectiveFunction = "elastic_net"` equals `"mse"` with `penalty = :elastic_net` ONLY
+  when the pre-sample block is not priced (`initialization` in `:zeroed`, `:free`). Under
+  `:penalized` and `:innovations` — the latter being the default — the two differ: `"mse"`
+  prices the free block as a concentrated Gaussian likelihood and carries the determinant
+  factor, while the `"elastic_net"` objective's fit term is plain squares plus the
+  pre-sample squares. That asymmetry predates this keyword and is left unchanged; a study
+  should name which of the two it used.
+- `penaltyTarget::Symbol`: Which coefficient blocks the penalty applies to: `:all`
+  (default), `:dynamics` for the autoregressive and moving-average blocks only, or
+  `:exogenous` for the regressors only. The intercept and the drift are never penalized.
+  Read by the `"elastic_net"` objective and by `penalty = :elastic_net`; ignored by an
+  unpenalized fit and by `"ridge"`, which fixes its own block list (the autoregressive and
+  moving-average coefficients).
+- `lambda`: Strength of the `"elastic_net"` penalty. Defaults to `sqrt` of the effective
+  sample size — the scale that matches this objective's SUM form. Three shapes:
+
+  | `lambda` | meaning |
+  |---|---|
+  | `2.0` | one strength for every penalized coefficient (the historical API) |
+  | `[2.0, 0.5, 0.0]` | one weight per penalized coefficient, in the order of [`penaltyCoefficientNames`](@ref) |
+  | `(ar = 2.0, ma = [0.5, 0.0])` | keyed by coefficient block; each value a scalar or a per-coefficient vector |
+
+  The objective is `L(ε) + Σⱼ λⱼ [α|ψⱼ| + (1-α)/2 ψⱼ²]`, so `λⱼ` is a per-coefficient
+  STRENGTH and `alpha` keeps its own meaning as the L1/L2 mixing parameter. A scalar is the
+  uniform case `λⱼ = λ` and reproduces the previous fit exactly.
+
+  SCALE, NOT TUNING. The default `sqrt(effective sample size)` exists so the penalty is
+  commensurable with a fit term written as a SUM rather than a mean. It is not an optimal
+  or calibrated regularization parameter, and it was never calibrated against `"mae"`,
+  `"huber"` or `"quantile"`, whose fit terms live on a different numerical scale from the
+  squared one. Supply `lambda` explicitly for any substantive regularized analysis, and
+  record the value.
+
+  Exogenous coefficients are NOT scale-free: the package standardizes the endogenous series
+  but not the regressors, so equal weights on regressors of different magnitudes do not
+  shrink them comparably. Standardize the columns, or absorb the scale into the weights.
+
+  `0.0` is a legal weight and means "leave this coefficient unpenalized"; negative, `NaN`
+  and `Inf` are rejected. The same rule applies to every shape and on both `fit!` and
+  `auto`. The `"ridge"` objective refuses `lambda` altogether — by keyword or through
+  `model.lambda` — because its shrinkage is fixed by construction. A structured `lambda` must name every penalized block of the
+  model — filling an unnamed block with the default would make `lambda = (ar = 0.0,)` read
+  as "penalize nothing" while the moving-average block stayed at the default. The intercept
+  and the drift are never reachable, whatever the weights say.
+
+  Heterogeneous weights are what an adaptive Lasso needs — `λⱼ = λ / |β̃ⱼ|^γ` from a
+  first-stage fit — but the package does not run that two-stage procedure for you; it
+  accepts the weights it produces. See [`penaltyCoefficientNames`](@ref).
 - `stationary::Bool`: When `true`, the (seasonal) AR coefficients are generated from
   bounded reflection coefficients (partial autocorrelations) via [`reflectionToAR`](@ref),
   guaranteeing a stationary AR polynomial by construction (exact under `:multiplicative`;
@@ -921,7 +1148,7 @@ function fit!(
     objectiveFunction::String = "mse",
     automaticExogDifferentiation::Bool = false,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
-    lambda::Union{Nothing,<:AbstractFloat} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
     invertible::Bool = false,
     invertibilityMargin::AbstractFloat = DEFAULT_DOMAIN_MARGIN,
     minConditioningObs::Int = 0,
@@ -944,6 +1171,7 @@ function fit!(
     # `:dynamics` for the AR/MA blocks only, or `:exogenous` for the regressors only.
     # The intercept and the drift are never penalized. Ignored by every other objective.
     penaltyTarget::Symbol = :all,
+    penalty::Symbol = :none,
     # Extra window of pre-sample innovations under `initialization = :innovations`; it has
     # no effect in any other mode. The default covers one seasonal cycle beyond what the
     # order requires, enough for the null initial condition to decay.
@@ -956,13 +1184,44 @@ function fit!(
     warmStart::Union{Nothing,SARIMAModel} = nothing,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
     warmStartFromBox::Bool = false,
-    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
+    cvarLevel::Union{Nothing,AbstractFloat} = nothing,
+    quantileLevel::Union{Nothing,AbstractFloat} = nothing,
     multistart::Bool = false,
 )
-    @assert 0.0 < cvarLevel < 1.0 "cvarLevel must lie strictly between 0 and 1."
+    # A LEVEL BELONGS TO ONE OBJECTIVE, and passing it to another is refused rather than
+    # ignored. `cvarLevel` is read only by `"stable"` and `quantileLevel` only by
+    # `"quantile"`; under any other objective they never reach the optimization, so
+    # accepting them would let a caller believe they had selected an estimator they did
+    # not. That is the same policy the `ridge`/`lambda` guard states, and it matters most
+    # exactly where it is least visible: in a parallel sweep, a cell that silently means
+    # something else is indistinguishable from one that does not.
+    #
+    # This is why the defaults are `nothing` and not the constants: with a numeric default
+    # there is no way to tell "the caller asked for 0.5" from "the caller said nothing", and
+    # the guard could not exist. `DEFAULT_QUANTILE_LEVEL` / `DEFAULT_CVAR_LEVEL` remain the
+    # effective defaults, applied here.
+    refuseUnreadLevel(cvarLevel, "cvarLevel", "stable", objectiveFunction)
+    refuseUnreadLevel(quantileLevel, "quantileLevel", "quantile", objectiveFunction)
+    # Domain of `quantileLevel`, as `ArgumentError`: it is ordinary bad input on a public
+    # keyword, not a violated internal invariant. `auto` runs the SAME check, so the two
+    # entry points cannot drift.
+    validateQuantileLevel(quantileLevel)
+    cvarLevelUsed = isnothing(cvarLevel) ? DEFAULT_CVAR_LEVEL : cvarLevel
+    quantileLevelUsed = isnothing(quantileLevel) ? DEFAULT_QUANTILE_LEVEL : quantileLevel
+    # `cvarLevel` keeps the assertion it has always thrown. Converting it would change the
+    # exception type of a keyword this work did not introduce, and two tests in
+    # `test/objective_functions.jl` pin the current one; it is recorded as a follow-up
+    # rather than migrated here.
+    @assert 0.0 < cvarLevelUsed < 1.0 "cvarLevel must lie strictly between 0 and 1."
     penaltyTarget in (:all, :dynamics, :exogenous) || throw(
         ArgumentError(
             "penaltyTarget must be :all, :dynamics or :exogenous, got $(penaltyTarget)",
+        ),
+    )
+    penalty in (:none, :elastic_net) || throw(
+        ArgumentError(
+            "penalty must be :none or :elastic_net, got :$(penalty). The member of the " *
+            "family is chosen with `alpha`: 0 is a ridge-type penalty, 1 a lasso-type one.",
         ),
     )
     exogDynamics in (:armax, :regression_errors) || throw(
@@ -1007,10 +1266,16 @@ function fit!(
     # can change the selected order, so measure it through `auto` rather than through a
     # fixed-order fit.
     if multistart && isnothing(warmStart)
+        # `penaltyTarget`, `exogDynamics` and `presampleBurnIn` are on this list because
+        # each of them changes WHICH MODEL IS ESTIMATED, not how it is solved. Leaving them
+        # out let a multistart fit silently revert to the defaults -- an `elastic_net` asked
+        # to shrink only the regressors would shrink the dynamics too, and the winner would
+        # be reported under the caller's label.
         passaM = (;
             silent, optimizer, mipSolver, automaticExogDifferentiation, alpha, lambda,
             invertible, invertibilityMargin, minConditioningObs, seasonalForm,
             stationary, stationarityMargin, maxTimeSeconds, warmStartFromBox, cvarLevel,
+            quantileLevel, penaltyTarget, penalty, exogDynamics, presampleBurnIn,
         )
         criterio(m) = try
             v = aicc(m)
@@ -1078,11 +1343,13 @@ function fit!(
     end
 
     if objectiveFunction == "huber" && isnothing(warmStart)
+        # Same reason as `passaM`: the seed fit and the Huber fit must state the SAME model.
         passa = (;
             silent, optimizer, mipSolver, automaticExogDifferentiation, alpha, lambda,
             invertible, invertibilityMargin, minConditioningObs, seasonalForm,
             initialization, stationary, stationarityMargin, maxTimeSeconds,
-            warmStartFromBox, cvarLevel,
+            warmStartFromBox, cvarLevel, quantileLevel, penaltyTarget, penalty, exogDynamics,
+            presampleBurnIn,
         )
         base = deepcopy(model)
         fit!(base; passa..., objectiveFunction = "mse")
@@ -1127,9 +1394,12 @@ function fit!(
     end
 
     if warmStartFromBox && (stationary || invertible) && isnothing(warmStart)
+        # Same reason as `passaM`: every tier must state the SAME model, so the arguments
+        # that define the estimand travel with the ones that define the solve.
         common = (;
             silent, optimizer, mipSolver, objectiveFunction, automaticExogDifferentiation,
             alpha, lambda, minConditioningObs, seasonalForm, initialization, cvarLevel,
+            quantileLevel, penaltyTarget, penalty, exogDynamics, presampleBurnIn,
         )
         seed = deepcopy(model)
         fit!(seed; common..., stationary = false, invertible = false,
@@ -1207,12 +1477,74 @@ function fit!(
     Fl = typeofModelElements(model)
     isFitted(model) &&
         @info("The model has already been fitted. Overwriting the previous results")
-    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge", "huber", "ml_exact"] "The objective function $objectiveFunction is not supported. Please use 'mae', 'mse', 'ml', 'bilevel', 'elastic_net', 'stable', 'ridge', 'huber' or 'ml_exact'"
+    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge", "huber", "ml_exact", "quantile"] "The objective function $objectiveFunction is not supported. Please use 'mae', 'mse', 'ml', 'bilevel', 'elastic_net', 'stable', 'ridge', 'huber', 'ml_exact' or 'quantile'"
     @assert !(invertible && MACoefficientsAreModelParameters(objectiveFunction)) "The invertible MA parameterization is not compatible with the '$objectiveFunction' objective (MA coefficients are treated as outer parameters there)."
     @assert 0.0 <= invertibilityMargin < 1.0 "invertibilityMargin (ρ) must lie in [0, 1)."
     @assert 0.0 <= stationarityMargin < 1.0 "stationarityMargin must lie in [0, 1)."
     if objectiveFunction == "elastic_net"
-        @assert (!isnothing(alpha) || !isnothing(model.alpha)) "In elastic net objective function, alpha must be specified"
+        # `ArgumentError`, matching the identical requirement under `penalty = :elastic_net`
+        # below: the same missing argument must not raise two different exception types
+        # depending on which spelling selected the penalty.
+        (!isnothing(alpha) || !isnothing(model.alpha)) || throw(
+            ArgumentError(
+                "objectiveFunction = \"elastic_net\" requires `alpha`, the L1/L2 mixing " *
+                "parameter: 0 is a ridge-type penalty, 1 a lasso-type one.",
+            ),
+        )
+    end
+
+    # ---- COMPOSITION OF LOSS AND PENALTY --------------------------------------------------
+    #
+    # `objectiveFunction` selects the LOSS; `penalty` selects the coefficient penalty added
+    # to it. The two are independent axes, which is what lets a quantile or MAE fit be
+    # penalized without a second objective implementation.
+    #
+    # `"elastic_net"` and `"ridge"` are the historical spellings that carry their own
+    # penalty, so combining them with `penalty` is a DOUBLE specification, not a stronger
+    # one. It is refused rather than resolved by precedence: either reading is defensible,
+    # and a caller who wrote both did not mean either.
+    if penalty !== :none && objectiveFunction in ("elastic_net", "ridge")
+        throw(
+            ArgumentError(
+                "objectiveFunction = \"$(objectiveFunction)\" already carries a coefficient " *
+                "penalty, so `penalty = :$(penalty)` would specify one twice. Use " *
+                "objectiveFunction = \"mse\" with penalty = :elastic_net for the same " *
+                "estimator with an explicit loss, or drop the `penalty` argument.",
+            ),
+        )
+    end
+    # SCALE is the criterion for which losses admit a penalty. `lambda` defaults to the
+    # square root of the effective sample because the fit term is a SUM over observations,
+    # so the two sides are commensurable. They are not for every objective:
+    #
+    #   `ml_exact` minimizes `nEf*log(S) + log|Gamma|` -- a LOG scale, on which a raw
+    #   `sum_j lambda_j |psi_j|` is not a shrinkage of comparable size;
+    #   `stable` minimizes a CVaR, `delta + sum(u)/((1-alpha)*n)` -- a MEAN scale;
+    #   `bilevel` takes the moving-average coefficients OUT of JuMP (they are `Parameter`s
+    #   there), so a penalty over them would not even reach a decision variable.
+    #
+    # Refused, not warned: the combination is fixed at the call site, so the caller can
+    # check it in advance, and a mis-scaled penalty is invisible in the fitted coefficients.
+    if penalty !== :none &&
+       !(objectiveFunction in ("mse", "mae", "huber", "quantile", "ml"))
+        throw(
+            ArgumentError(
+                "penalty = :$(penalty) is implemented for objectiveFunction in " *
+                "(\"mse\", \"mae\", \"huber\", \"quantile\", \"ml\"), whose fit term is a " *
+                "sum over observations on the scale `lambda` is calibrated for; got " *
+                "\"$(objectiveFunction)\". `ml_exact` is on a log scale, `stable` on a mean " *
+                "scale, and `bilevel` keeps the moving-average coefficients outside the " *
+                "optimization, so the penalty would be mis-scaled or unreachable.",
+            ),
+        )
+    end
+    if penalty === :elastic_net
+        (!isnothing(alpha) || !isnothing(model.alpha)) || throw(
+            ArgumentError(
+                "penalty = :elastic_net requires `alpha`, the L1/L2 mixing parameter: 0 is " *
+                "a ridge-type penalty, 1 a lasso-type one.",
+            ),
+        )
     end
 
     # Deprecated in v1.0, scheduled for removal in v2.0. The objective optimizes the
@@ -1224,6 +1556,30 @@ function fit!(
             "objectiveFunction = \"bilevel\" is deprecated and will be removed in " *
             "Sarimax v2.0. Use \"mse\" (or \"ml\") instead; they estimate the same " *
             "moving-average coefficients as decision variables at a fraction of the cost.",
+            maxlog = 1
+        )
+    end
+
+    # Deprecated once loss and penalty became independent axes: `"ridge"` is the fixed-lambda
+    # special case of the elastic-net penalty at `alpha = 0`, restricted to the dynamics
+    # blocks. Keeping it as its own objective means every guard has to special-case it -- it
+    # ignores `lambda`, `alpha` and `penaltyTarget` alike -- for an estimator the composed
+    # form already expresses.
+    #
+    # The migration is exact, and the two adjustments it needs are the reason this warning
+    # is specific rather than a pointer: the elastic-net L2 term carries a factor 1/2 that
+    # this objective does not, and the lambda it picks discounts the CSS conditioning, so a
+    # caller cannot reconstruct it from the series length alone. Both are pinned by a test.
+    if objectiveFunction == "ridge"
+        @warn(
+            "objectiveFunction = \"ridge\" is deprecated and will be removed in Sarimax " *
+            "v2.0. It is the fixed-lambda case of the elastic-net penalty: use " *
+            "objectiveFunction = \"mse\", penalty = :elastic_net, alpha = 0.0, " *
+            "penaltyTarget = :dynamics. Two adjustments carry it over exactly: the " *
+            "elastic-net L2 term carries a factor 1/2 that \"ridge\" does not, so pass " *
+            "TWICE the shrinkage; and \"ridge\" chooses sqrt(effective sample size) " *
+            "itself, which this fit records in metadata[\"ridgeLambda\"] -- so " *
+            "lambda = 2 * metadata[\"ridgeLambda\"] reproduces it.",
             maxlog = 1
         )
     end
@@ -1254,18 +1610,20 @@ function fit!(
     # The penalized pre-sample block is implemented for the losses whose block term can be
     # written in the SAME loss as the data, which is what prevents mixing scales (an L2
     # block penalty against an L1 data loss). Under `mse` the block enters as a sum of
-    # squares and the determinant factor applies. Under `mae` and `huber` it enters as the
-    # data loss itself and the determinant factor does NOT apply: that factor comes from
-    # concentrating sigma^2, a step that holds only under a quadratic loss. The remaining
-    # objectives add the block through `presampleSquares`.
+    # squares and the determinant factor applies. Under `mae`, `huber` and `quantile` it
+    # enters as the data loss itself and the determinant factor does NOT apply: that factor
+    # comes from concentrating sigma^2, a step that holds only under a quadratic loss. The
+    # remaining objectives add the block through `presampleSquares`.
     if initialization in (:penalized, :innovations) &&
        !(objectiveFunction in
-         ("mse", "mae", "huber", "ml", "ml_exact", "ridge", "stable", "bilevel", "elastic_net"))
+         ("mse", "mae", "huber", "ml", "ml_exact", "ridge", "stable", "bilevel", "elastic_net",
+          "quantile"))
         throw(
             ArgumentError(
                 "initialization = :$(initialization) is implemented for objectiveFunction " *
                 "in (\"mse\", \"mae\", \"huber\", \"ml\", \"ml_exact\", \"ridge\", " *
-                "\"stable\", \"bilevel\", \"elastic_net\"); got \"$(objectiveFunction)\". " *
+                "\"stable\", \"bilevel\", \"elastic_net\", \"quantile\"); " *
+                "got \"$(objectiveFunction)\". " *
                 "The pre-sample values would stay unpenalized, i.e. the fit would " *
                 "silently degrade to :free.",
             ),
@@ -1285,19 +1643,60 @@ function fit!(
     # Recorded because the PARAMETER COUNT depends on the objective that actually fitted
     # the model, not on `lambda`/`alpha` being set — see `get_hyperparameters_number`.
     model.metadata["objectiveFunction"] = objectiveFunction
+    # The penalty is part of WHAT WAS ESTIMATED, on the same footing as the loss: a fit
+    # under `quantile` alone and one under `quantile` + elastic net are different
+    # estimators. Recorded on every fit, so `"none"` is an explicit statement rather than an
+    # absent key, and read back by `get_hyperparameters_number`.
+    model.metadata["penalty"] =
+        objectiveFunction == "elastic_net" ? "elastic_net" : String(penalty)
+    # The level is part of WHAT WAS ESTIMATED under `quantile`, not a tuning detail: the
+    # same series and orders at two levels are two different estimates. Recorded so a
+    # result can never be read without it.
+    objectiveFunction == "quantile" &&
+        (model.metadata["quantileLevel"] = quantileLevelUsed)
 
-    # The `ridge` objective fixes `lambda = sqrt(nEff)` internally and ignores the
-    # argument. Accepting it silently would let the caller believe they control the
+    # The `ridge` objective fixes `lambda = sqrt(nEff)` internally and ignores whatever the
+    # caller supplied. Accepting it silently would let them believe they control the
     # shrinkage while the fit does not change; `elastic_net` is the objective that honours
     # a caller-supplied lambda.
-    if objectiveFunction == "ridge" && !isnothing(lambda)
+    #
+    # THE FIELD, NOT ONLY THE ARGUMENT. `lambda` reaches a fit by two routes -- the keyword
+    # here, and `model.lambda`, set by the `SARIMA` constructor or left behind by an earlier
+    # penalized fit -- and the second is ignored exactly as loudly as the first, so it has to
+    # be refused exactly as loudly. Guarding only the keyword meant
+    # `SARIMA(y; lambda = 2.0)` followed by a `ridge` fit passed in silence, which is the
+    # very case the guard was written to prevent.
+    #
+    # `model.lambda` is already up to date here: the assignment above copies the keyword
+    # into it, so this single test covers both routes. The message names the route so the
+    # caller knows what to remove.
+    if objectiveFunction == "ridge" && !isnothing(model.lambda)
+        rota = isnothing(lambda) ?
+               "carried on the model as `model.lambda` (set when the model was built, or " *
+               "left by an earlier penalized fit); clear it with `model.lambda = nothing`" :
+               "passed to `fit!`; drop the argument"
         throw(
             ArgumentError(
                 "objectiveFunction = \"ridge\" ignores `lambda`: the shrinkage is fixed at " *
-                "sqrt(effective sample size) by construction. Passing it would have no " *
-                "effect on the fit; drop the argument or use \"elastic_net\".",
+                "sqrt(effective sample size) by construction. Here it is " * rota * ". " *
+                "For a shrinkage you control, use \"elastic_net\" (or any loss with " *
+                "`penalty = :elastic_net`), whose `lambda` accepts a scalar and " *
+                "coefficient-specific weights alike -- `alpha = 0` is the ridge-type " *
+                "penalty.",
             ),
         )
+    end
+
+    # STRUCTURAL check of the penalty weights, raised HERE rather than during the objective
+    # build: a wrong length or an unknown block is a call-site error, and the caller should
+    # see it before the solver is even constructed. It runs only for the objective that
+    # honours `lambda` -- under any other one `lambda` does not reach the optimization, and
+    # rejecting a shape that would be ignored anyway would be a new refusal, not a guard.
+    #
+    # `model.lambda` rather than the argument, because a `lambda` supplied to the SARIMA
+    # constructor reaches the fit through the field alone.
+    if objectiveFunction == "elastic_net" || penalty === :elastic_net
+        resolvePenaltyWeights(model, model.lambda, penaltyTarget, 1.0)
     end
 
     # Cost telemetry (performance attribution). A search costs (number of fits) x (cost per
@@ -1789,10 +2188,13 @@ if inovacoes
         )
     end
 
-    includeModelConstraints!(mod, yData, T, objectiveFunction, lb)
+    includeModelConstraints!(mod, yData, T, objectiveFunction, lb; penalizado = penalizado)
 
-    objectiveFunctionDefinition!(mod, model, objectiveFunction, T, lb, cvarLevel, yValues,
-                                 penalizado, yLo, epsLo; penaltyTarget = penaltyTarget)
+    # The RESOLVED levels: `objectiveFunctionDefinition!` takes concrete numbers, since by
+    # this point "the caller said nothing" has already been answered.
+    objectiveFunctionDefinition!(mod, model, objectiveFunction, T, lb, cvarLevelUsed, yValues,
+                                 penalizado, yLo, epsLo; penaltyTarget = penaltyTarget, penalty = penalty,
+                                 quantileLevel = quantileLevelUsed)
 
     isnothing(warmStart) || applyWarmStart!(
         mod,
@@ -2261,7 +2663,7 @@ function includeSolverParameters!(
 end
 
 """
-    includeModelConstraints!(jumpModel::Model, yValues::Fl, T::Int, objectiveFunction::String, offset::Int) where Fl<:AbstractFloat
+    includeModelConstraints!(jumpModel::Model, yValues, T::Int, objectiveFunction::String, offset::Int; penalizado::Bool = false)
 
 Includes the constraints in the JuMP model for the SARIMA model.
 
@@ -2271,13 +2673,19 @@ Includes the constraints in the JuMP model for the SARIMA model.
 - `T::Int`: The total number of observations.
 - `objectiveFunction::String`: The objective function used for optimization.
 - `offset::Int`: The offset value.
+- `penalizado::Bool`: Whether the pre-sample block is PRICED by the objective
+  (`initialization in (:penalized, :innovations)`). It gates the pre-sample half of the
+  `"mae"`/`"quantile"` decomposition: those variables exist to carry a term of the
+  objective, so under a mode that does not charge the block there is nothing for them to
+  do. See the comment at their declaration.
 """
 function includeModelConstraints!(
     jumpModel::Model,
     yValues::AbstractVector,
     T::Int,
     objectiveFunction::String,
-    offset::Int,
+    offset::Int;
+    penalizado::Bool = false,
 )
     # Every objective shares the same defining relation, eps = y - yhat. The MAE branch
     # only adds the split into non-negative parts that linearizes the absolute value.
@@ -2297,12 +2705,31 @@ function includeModelConstraints!(
         [t = offset:T],
         yValues[t] == jumpModel[:ŷ][t] + jumpModel[:ϵ][t]
     )
-    if objectiveFunction == "mae"
+    if objectiveFunction in ("mae", "quantile")
+        # `quantile` shares this decomposition with `mae`: both need the residual split into
+        # its non-negative parts, and they differ only in how the two parts are WEIGHTED in
+        # the objective. `mae` weights them equally; `quantile` weights them α and 1-α.
         @variable(jumpModel, ϵ_plus[offset:T] >= 0)
         @variable(jumpModel, ϵ_minus[offset:T] >= 0)
         @constraint(jumpModel, [t = offset:T], jumpModel[:ϵ][t] == ϵ_plus[t] - ϵ_minus[t])
         # Pre-sample block in the SAME loss: |eps_pre| through the same non-negative pair.
-        if haskey(object_dictionary(jumpModel), :ϵpre)
+        #
+        # ONLY UNDER A MODE THAT CHARGES THE BLOCK. The pair exists for one reason: to give
+        # the objective a linear stand-in for |eps_pre|. Under `:free` the block is open but
+        # NOT priced, so `mae`/`quantile` never sum these, and creating them anyway left
+        # 2*(1-lo) variables and (1-lo) constraints whose only appearance in the whole
+        # problem was the identity below.
+        #
+        # That is not merely wasteful, it is DEGENERATE: with neither part in the objective,
+        # `eps_pre_plus` and `eps_pre_minus` can both grow without bound along the direction
+        # that holds their difference fixed. The identity constrains nothing either -- for
+        # any value of `eps_pre` a non-negative pair exists -- so the estimates were never
+        # wrong, but the solver carried a rank-deficient block through every iteration.
+        #
+        # `huber` already did this correctly: its pre-sample decomposition (`uHpre`,
+        # `vHpre_plus`, `vHpre_minus`) is created inside its own `penalizado` branch. This
+        # brings `mae` and `quantile` in line with it.
+        if penalizado && haskey(object_dictionary(jumpModel), :ϵpre)
             pre = jumpModel[:ϵpre]
             lo = first(axes(pre, 1))
             @variable(jumpModel, ϵpre_plus[lo:0] >= 0)
@@ -2367,6 +2794,8 @@ function objectiveFunctionDefinition!(
     # KEYWORD: this argument list is positional, so a new positional would shift the
     # slots after it.
     penaltyTarget::Symbol = :all,
+    penalty::Symbol = :none,
+    quantileLevel::AbstractFloat = DEFAULT_QUANTILE_LEVEL,
 )
     parametersVector::Vector{Symbol} = getParametersVector(model)
     parametersVectorExtended::Vector{VariableRef} =
@@ -2611,22 +3040,32 @@ function objectiveFunctionDefinition!(
         # left out: they carry the units of their own regressor, which this package does
         # NOT standardize, so an L2 term over them would not be scale-invariant.
         nEff = T - lb + 1
-        λ = sqrt(max(nEff, 1))
-        shrunk = Symbol[]
-        model.p > 0 && push!(shrunk, :ϕ)
-        model.q > 0 && push!(shrunk, :θ)
-        model.P > 0 && push!(shrunk, :Φ)
-        model.Q > 0 && push!(shrunk, :Θ)
-        if isempty(shrunk)
+        # `nothing` and `:dynamics`, both deliberate and both the historical behaviour:
+        # this objective sets its own lambda (hence it REFUSES a caller-supplied one in
+        # `fit!`) and reaches the AR/MA blocks only, regardless of `penaltyTarget`. The
+        # shared walk yields exactly the block list this branch used to assemble inline.
+        λRidge = sqrt(max(nEff, 1))
+        # Recorded because this objective is DEPRECATED and the lambda it chose is the one
+        # piece of the migration a caller cannot compute from outside: the effective sample
+        # discounts the conditioning `lb`. See the deprecation warning in `fit!` -- the
+        # composed form needs twice this number, since the elastic-net L2 term carries a
+        # factor 1/2 that this objective does not.
+        model.metadata["ridgeLambda"] = λRidge
+        spec = penaltySpec(jumpModel, model, :dynamics, nothing, λRidge)
+        if isempty(spec.vars)
             @objective(jumpModel, Min,
                 sum(jumpModel[:ϵ] .^ 2) + presampleSquares(jumpModel, penalizado))
         else
-            coefs = reduce(vcat, [Vector{VariableRef}([jumpModel[el]...]) for el in shrunk])
+            # Uniform by construction here; the branch is written out so the emitted
+            # expression is the historical `λ * Σ ψ²`, not an algebraically equal rewrite.
+            penalty = penaltyIsUniform(spec) ?
+                      spec.weights[1] * sum(spec.vars .^ 2) :
+                      sum(spec.weights[i] * spec.vars[i]^2 for i in eachindex(spec.vars))
             @objective(
                 jumpModel,
                 Min,
                 sum(jumpModel[:ϵ] .^ 2) + presampleSquares(jumpModel, penalizado) +
-                λ * sum(coefs .^ 2)
+                penalty
             )
         end
     elseif objectiveFunction == "mae"
@@ -2644,6 +3083,57 @@ function objectiveFunctionDefinition!(
                      sum(jumpModel[:ϵpre_plus] + jumpModel[:ϵpre_minus])
         end
         @objective(jumpModel, Min, maeObj)
+    elseif objectiveFunction == "quantile"
+        # QUANTILE REGRESSION: the check (pinball) loss of Koenker and Bassett, over the
+        # INNOVATIONS of the same SARIMAX equations every other objective uses,
+        #
+        #     rho_tau(eps) = tau * max(eps, 0) + (1 - tau) * max(-eps, 0)
+        #                  = eps * (tau - 1{eps < 0}) ,
+        #
+        # minimized over the sample. In the split form actually emitted, with
+        # eps = eps_plus - eps_minus and both parts non-negative (imposed in
+        # `includeModelConstraints!`, shared with `mae`),
+        #
+        #     min  sum_t [ tau * eps_plus_t + (1 - tau) * eps_minus_t ] .
+        #
+        # Both weights are strictly positive, which is what makes the split tight at the
+        # optimum: eps_plus = max(eps, 0) and eps_minus = max(-eps, 0), never both non-zero.
+        #
+        # `mae` is the symmetric member of this family: at tau = 1/2 the two weights
+        # coincide and the objective is `mae`/2 — the same argmin, and the same estimator,
+        # at half the scale. The reduction is exact and tested; the factor is not absorbed
+        # because rho_tau as written above is the standard definition and rescaling it to
+        # match `mae` numerically would be a non-standard loss.
+        #
+        # ORIENTATION IS THE WHOLE POINT, AND IT IS NOT SYMMETRIC HERE. The innovation is
+        # `eps = y - yhat` (from `y[t] == yhat[t] + eps[t]`), so a POSITIVE innovation is an
+        # under-prediction. Weighting it by `tau` means a high `tau` makes under-prediction
+        # expensive and pushes the fit up: at the optimum a fraction `tau` of the fitted
+        # residuals lies at or below zero, i.e. `yhat` estimates the conditional
+        # tau-quantile of `y`.
+        #
+        # This is why the orientation needs its own test rather than inheriting `mae`'s.
+        # A sign inversion in `mae` is invisible in the objective, because |eps| is even —
+        # exactly how the inverted `eps = yhat - y` bug once survived here while corrupting
+        # every forecast with q > 0. Under an asymmetric loss the same inversion would
+        # silently fit the (1-tau)-quantile instead, and the objective value would not
+        # reveal it either. The empirical-coverage test is what pins it.
+        a = quantileLevel
+        quantObj =
+            a * sum(jumpModel[:ϵ_plus]) + (1 - a) * sum(jumpModel[:ϵ_minus])
+        if penalizado && haskey(object_dictionary(jumpModel), :ϵpre_plus)
+            # Pre-sample block in the SAME loss, with the SAME asymmetry: those are
+            # innovations like the others, only at index t <= 0. Weighting them
+            # symmetrically would target one quantile on the sample and another on the
+            # block.
+            quantObj = quantObj +
+                       a * sum(jumpModel[:ϵpre_plus]) +
+                       (1 - a) * sum(jumpModel[:ϵpre_minus])
+        end
+        # Deliberately WITHOUT the determinant factor, for the same reason as `mae`: that
+        # factor comes from concentrating sigma^2 in `T*log(S) + log|Omega|`, a step that
+        # requires a quadratic loss.
+        @objective(jumpModel, Min, quantObj)
     elseif objectiveFunction == "bilevel"
         # `bilevel` is not a different loss but a SOLUTION STRATEGY, with the MA
         # coefficients taken out of JuMP and optimized in an outer loop. The inner problem
@@ -2700,45 +3190,31 @@ function objectiveFunctionDefinition!(
         # the fit is selecting among regressors. Exogenous coefficients carry the units of
         # their own regressor, which the package does not standardize, so scale-comparable
         # regressors are the caller's responsibility.
-        shrunk = Symbol[]
-        if penaltyTarget in (:all, :dynamics)
-            model.p > 0 && push!(shrunk, :ϕ)
-            model.q > 0 && push!(shrunk, :θ)
-            model.P > 0 && push!(shrunk, :Φ)
-            model.Q > 0 && push!(shrunk, :Θ)
-        end
-        if penaltyTarget in (:all, :exogenous)
-            isnothing(model.exog) || push!(shrunk, :β)
-        end
-
+        #
+        # LAMBDA MAY BE HETEROGENEOUS. The scalar form is the uniform special case: the
+        # objective is
+        #     L(eps) + sum_j lambda_j * [ alpha*|psi_j| + (1-alpha)/2 * psi_j^2 ]
+        # and `lambda_j = lambda` for every j reproduces the historical
+        #     L(eps) + lambda * [ alpha*||psi||_1 + (1-alpha)/2 * ||psi||_2^2 ]
+        # exactly -- the uniform branch below emits that expression verbatim rather than an
+        # algebraically equal rewrite, so a scalar fit is unchanged down to the floating
+        # point. `alpha` keeps its meaning: it mixes L1 against L2. `lambda_j` is a
+        # per-coefficient STRENGTH and never a second mixing parameter.
+        #
+        # Ordering and weights both come from `penaltySpec`, which walks the blocks once;
+        # see `src/penalty.jl` for why the two cannot drift apart.
+        # Same lambda scale as the "ridge" objective: the 1/sqrt(n) heuristic is stated
+        # for a MEAN squared loss, and this objective is a SUM, so the equivalent default
+        # is sqrt(n) over the effective sample.
+        #
+        # This objective is now exactly `mse` + `penalty = :elastic_net`, and it builds the
+        # penalty through the same `elasticNetPenalty!` the composition path uses. It stays
+        # a named objective because it is the historical spelling and because `auto` and the
+        # parameter count key off the name.
+        nEff = T - lb + 1
         fitLoss = sum(jumpModel[:ϵ] .^ 2) + presampleSquares(jumpModel, penalizado)
-
-        if isempty(shrunk)
-            @objective(jumpModel, Min, fitLoss)
-        else
-            shrunkCoefs =
-                reduce(vcat, [Vector{VariableRef}([jumpModel[el]...]) for el in shrunk])
-            # Same lambda scale as the "ridge" objective: the 1/sqrt(n) heuristic is
-            # stated for a MEAN squared loss, and this objective is a SUM, so the
-            # equivalent default is sqrt(n) over the effective sample.
-            nEff = T - lb + 1
-            λ = isnothing(model.lambda) ? sqrt(max(nEff, 1)) : model.lambda
-            α = isnothing(model.alpha) ? 0.5 : model.alpha
-            @variable(jumpModel, absShrunk[i = 1:length(shrunkCoefs)] >= 0)
-            @constraints(
-                jumpModel,
-                begin
-                    [i = 1:length(shrunkCoefs)], absShrunk[i] >= shrunkCoefs[i]
-                    [i = 1:length(shrunkCoefs)], absShrunk[i] >= -shrunkCoefs[i]
-                end
-            )
-            @objective(
-                jumpModel,
-                Min,
-                fitLoss +
-                λ * (α * sum(absShrunk) + (1 - α) / 2 * sum(shrunkCoefs .^ 2))
-            )
-        end
+        pen = elasticNetPenalty!(jumpModel, model, penaltyTarget, sqrt(max(nEff, 1)))
+        @objective(jumpModel, Min, isnothing(pen) ? fitLoss : fitLoss + pen)
     elseif objectiveFunction == "ml"
         # Concentrated conditional (CSS) Gaussian likelihood: profiling sigma out
         # analytically (sigma2 = RSS/n) makes maximizing the likelihood equivalent
@@ -2750,6 +3226,35 @@ function objectiveFunctionDefinition!(
             Min,
             sum(jumpModel[:ϵ][t]^2 for t = lb:T) + presampleSquares(jumpModel, penalizado)
         )
+    end
+
+    # ---- COMPOSITION: loss + penalty ------------------------------------------------------
+    #
+    # Until now the objective STRING selected the loss and the penalty together, so
+    # `elastic_net` meant "quadratic loss AND elastic net" and there was no way to spell
+    # "quantile loss AND lasso". The `penalty` keyword is the missing axis: the loss branch
+    # above writes the fit term, and this adds `sum_j lambda_j p(psi_j)` on top of whatever
+    # it wrote.
+    #
+    # Adding to `objective_function(jumpModel)` rather than threading a penalty argument
+    # through every branch is deliberate: the branches differ in what they build (some add
+    # variables and constraints of their own, one multiplies by a determinant factor), and
+    # the penalty depends on none of that. Reading the objective back is the one operation
+    # that works the same for all of them.
+    #
+    # `elastic_net` is excluded because it already added the term itself -- that is what the
+    # name has always meant, and adding it twice would double the shrinkage. `fit!` refuses
+    # the combination before reaching here, so this guard is the second line, not the first.
+    #
+    # WHICH LOSSES ARE ADMITTED is decided in `fit!`, on a SCALE argument: `lambda` defaults
+    # to sqrt of the effective sample because the fit term is a SUM. The objectives whose
+    # fit term is not a sum on that scale (`ml_exact`, on a log scale; `stable`, on a mean
+    # scale) are refused there rather than silently mis-scaled here.
+    if penalty === :elastic_net && objectiveFunction != "elastic_net"
+        nEff = T - lb + 1
+        pen = elasticNetPenalty!(jumpModel, model, penaltyTarget, sqrt(max(nEff, 1)))
+        isnothing(pen) ||
+            @objective(jumpModel, Min, objective_function(jumpModel) + pen)
     end
 end
 
@@ -3466,6 +3971,8 @@ function auto(
     seasonalForm::Symbol = :multiplicative,
     exogDynamics::Symbol = :armax,
     penaltyTarget::Symbol = :all,
+    penalty::Symbol = :none,
+    presampleBurnIn::Int = 12,
     initialization::Symbol = DEFAULT_INITIALIZATION,
     multistart::Bool = false,
     # INDEPENDENT of `assertStationarity`. Tying the two would conflate distinct decisions:
@@ -3480,8 +3987,9 @@ function auto(
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
-    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
-    lambda::Union{Float64,Nothing} = nothing,
+    cvarLevel::Union{Nothing,AbstractFloat} = nothing,
+    quantileLevel::Union{Nothing,AbstractFloat} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
     alpha::Union{Float64,Nothing} = nothing,
     requireTermsWhenOverDifferenced::Bool = false,
     requireMAWhenDoublyDifferenced::Bool = false,
@@ -3504,14 +4012,50 @@ function auto(
     @assert maxP >= 0
     @assert maxD >= 0
     @assert maxQ >= 0
-    @assert isnothing(lambda) || (lambda > 0)
+    # ONE RULE FOR EVERY SHAPE: non-negative and finite. `auto` used to hold a scalar to
+    # `lambda > 0` while admitting zeros inside a heterogeneous one, which made the same
+    # number legal or illegal depending on how it was spelled -- and, worse, made `auto`
+    # disagree with `fit!`, where `lambda = 0.0` is not only accepted but pinned by a test
+    # that requires it to reproduce least squares.
+    #
+    # Zero is a coherent value in both spellings, and it means the same thing in both: no
+    # penalty on the coefficients it covers. Saying "no penalty at all" is better spelled
+    # `penalty = :none`, but that is a matter of style, not a reason for the search to
+    # refuse a number the fit accepts.
+    #
+    # Only the VALUES are checked here. The structural check -- which blocks, which lengths
+    # -- needs the candidate's own orders, which the search has not chosen yet, so it runs
+    # per candidate inside `fit!`.
+    isnothing(lambda) || validatePenaltyLambdaValues(lambda)
     @assert isnothing(alpha) || (alpha >= 0 && alpha <= 1)
     @assert informationCriteria ∈ ["aic", "aicc", "bic"]
     @assert integrationTest ∈ ["kpss", "kpssShort"]
     @assert seasonalIntegrationTest ∈ ["seas", "ch", "ocsb"]
-    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge", "huber", "ml_exact"]
-    @assert objectiveFunction == "elastic_net" || isnothing(lambda)
-    @assert objectiveFunction == "elastic_net" || isnothing(alpha)
+    @assert objectiveFunction ∈ ["mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge", "huber", "ml_exact", "quantile"]
+    # `lambda` and `alpha` describe the PENALTY, so they are admitted exactly when a penalty
+    # is in play: under the `"elastic_net"` objective (which carries its own) or under an
+    # explicit `penalty`. Passing them with neither would let a caller believe they control
+    # a shrinkage that never reaches the optimization.
+    penalizedHere = objectiveFunction == "elastic_net" || penalty !== :none
+    if !penalizedHere && !(isnothing(lambda) && isnothing(alpha))
+        supplied = isnothing(lambda) ? "`alpha`" :
+                   (isnothing(alpha) ? "`lambda`" : "`lambda` and `alpha`")
+        throw(
+            ArgumentError(
+                "$(supplied) describe a coefficient penalty, and none is in play here: " *
+                "objectiveFunction = \"$(objectiveFunction)\" with penalty = :$(penalty). " *
+                "The shrinkage would never reach the optimization. Add " *
+                "penalty = :elastic_net, or drop the argument.",
+            ),
+        )
+    end
+    # Same guards as in `fit!`, raised HERE so they fire before the search spends anything --
+    # and because a constant series returns early from `auto` without ever reaching `fit!`,
+    # where the argument would then be ignored without a word. The DOMAIN check runs here
+    # for the same reason: on a constant series it is the only place it would run at all.
+    refuseUnreadLevel(cvarLevel, "cvarLevel", "stable", objectiveFunction)
+    refuseUnreadLevel(quantileLevel, "quantileLevel", "quantile", objectiveFunction)
+    validateQuantileLevel(quantileLevel)
     @assert searchMethod ∈ ["stepwise", "stepwiseNaive", "grid", "sarimax"]
     @assert !(invertible && objectiveFunction == "bilevel") "invertible = true is not compatible with the bilevel objective"
     @assert seasonalForm in (:multiplicative, :additive) "seasonalForm must be :multiplicative or :additive (:free is planned)"
@@ -3666,7 +4210,7 @@ function auto(
             maxOrder = maxp + maxq + maxP + maxQ,
             warmStartFromBox = warmStartFromBox,
             maxTimeSeconds = searchMaxTime,
-            cvarLevel = cvarLevel, multistart = multistart,
+            cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart,
             objectiveFunction = objectiveFunction,
             assertStationarity = assertStationarity,
             assertInvertibility = assertInvertibility,
@@ -3674,7 +4218,7 @@ function auto(
             minConditioningObs = searchLb,
             seasonalForm = seasonalForm,
             exogDynamics = exogDynamics,
-            penaltyTarget = penaltyTarget,
+            penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
             initialization = initialization,
             stationary = stationary,
             stationarityMargin = stationarityMargin,
@@ -3707,7 +4251,7 @@ function auto(
             maxOrder = maxp + maxq + maxP + maxQ,
             warmStartFromBox = warmStartFromBox,
             maxTimeSeconds = searchMaxTime,
-            cvarLevel = cvarLevel, multistart = multistart,
+            cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart,
             objectiveFunction = objectiveFunction,
             assertStationarity = assertStationarity,
             assertInvertibility = assertInvertibility,
@@ -3715,7 +4259,7 @@ function auto(
             minConditioningObs = searchLb,
             seasonalForm = seasonalForm,
             exogDynamics = exogDynamics,
-            penaltyTarget = penaltyTarget,
+            penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
             initialization = initialization,
             stationary = stationary,
             stationarityMargin = stationarityMargin,
@@ -3746,7 +4290,7 @@ function auto(
             maxOrder = maxOrder,
             warmStartFromBox = warmStartFromBox,
             maxTimeSeconds = searchMaxTime,
-            cvarLevel = cvarLevel, multistart = multistart,
+            cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart,
             objectiveFunction = objectiveFunction,
             assertStationarity = assertStationarity,
             assertInvertibility = assertInvertibility,
@@ -3754,7 +4298,7 @@ function auto(
             minConditioningObs = searchLb,
             seasonalForm = seasonalForm,
             exogDynamics = exogDynamics,
-            penaltyTarget = penaltyTarget,
+            penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
             initialization = initialization,
             stationary = stationary,
             stationarityMargin = stationarityMargin,
@@ -3801,7 +4345,7 @@ function auto(
             )
         end
 
-        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs, minConditioningObs = searchLb, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+        fit!(bestModel; objectiveFunction = objectiveFunction, alpha = alpha, silent = !showLogs, minConditioningObs = searchLb, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
     end
 
     bestModel.exog = exog
@@ -4101,7 +4645,7 @@ function initialNonSeasonalModels!(
     allowMean::Bool,
     allowDrift::Bool,
     alpha::Union{Nothing,Float64} = nothing,
-    lambda::Union{Nothing,Float64} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
 )
     push!(models, SARIMA(y, exog, 0, d, 0; allowMean = false, allowDrift = false, alpha = alpha, lambda = lambda))
     push!(models, SARIMA(y, exog, 0, d, 0; allowMean = allowMean, allowDrift = allowDrift, alpha = alpha, lambda = lambda))
@@ -4170,7 +4714,7 @@ function initialSeasonalModels!(
     allowMean::Bool,
     allowDrift::Bool,
     alpha::Union{Nothing,Float64} = nothing,
-    lambda::Union{Nothing,Float64} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
 )
     push!(
         models,
@@ -4481,6 +5025,8 @@ function ensureAdmissible!(
     seasonalForm::Symbol = :multiplicative,
     exogDynamics::Symbol = :armax,
     penaltyTarget::Symbol = :all,
+    penalty::Symbol = :none,
+    presampleBurnIn::Int = 12,
     initialization::Symbol = DEFAULT_INITIALIZATION,
     multistart::Bool = false,
     refitMargin::AbstractFloat = 2e-3,
@@ -4514,7 +5060,7 @@ function ensureAdmissible!(
             minConditioningObs = minConditioningObs,
             seasonalForm = seasonalForm,
             exogDynamics = exogDynamics,
-            penaltyTarget = penaltyTarget,
+            penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
             initialization = initialization,
             # The on-demand refit takes the parameterization from the caller, which holds
             # the assertion and the constraint decisions separately, rather than deriving
@@ -4601,7 +5147,7 @@ function localSearch!(
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
-    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
+    cvarLevel::Union{Nothing,AbstractFloat} = nothing,
     # LAST positional, deliberately: any other position shifts `rootMargin`/`optimizer`
     # and reproduces the MethodError documented above.
     multistart::Bool = false;
@@ -4609,6 +5155,9 @@ function localSearch!(
     # would shift every slot after it.
     exogDynamics::Symbol = :armax,
     penaltyTarget::Symbol = :all,
+    penalty::Symbol = :none,
+    presampleBurnIn::Int = 12,
+    quantileLevel::Union{Nothing,AbstractFloat} = nothing,
 ) where {Fl<:AbstractFloat}
     ModelFl = Fl
     localBestCriteria::ModelFl = Inf
@@ -4617,13 +5166,13 @@ function localSearch!(
     if parallel
         Threads.@threads for model in toFit
             try
-                fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+                fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
             catch e
                 @warn "Parallel candidate fit failed" exception = e
             end
         end
     else
-        foreach(model -> fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart), toFit)
+        foreach(model -> fit!(model; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart), toFit)
     end
     for model in toFit
         isFitted(model) || continue
@@ -4638,7 +5187,7 @@ function localSearch!(
             minConditioningObs = minConditioningObs,
             seasonalForm = seasonalForm,
             exogDynamics = exogDynamics,
-            penaltyTarget = penaltyTarget,
+            penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
             initialization = initialization,
             refit = constrainedRefit,
             optimizer = optimizer,
@@ -4710,7 +5259,7 @@ function addNonSeasonalModels!(
     allowDrift::Bool,
     fixConstant::Bool,
     alpha::Union{Nothing,Float64} = nothing,
-    lambda::Union{Nothing,Float64} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
 )
     for p = -1:1, q = -1:1
         newp = bestModel.p + p
@@ -4788,7 +5337,7 @@ function addSeasonalModels!(
     allowDrift::Bool,
     fixConstant::Bool,
     alpha::Union{Nothing,Float64} = nothing,
-    lambda::Union{Nothing,Float64} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
 )
     for P = -1:1, Q = -1:1
         newP = bestModel.P + P
@@ -4875,7 +5424,7 @@ function addNonSeasonalAndSeasonalModels!(
     allowDrift::Bool,
     fixConstant::Bool,
     alpha::Union{Nothing,Float64} = nothing,
-    lambda::Union{Nothing,Float64} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
 )
     for p in [-1, 1], q in [-1, 1], P in [-1, 1], Q in [-1, 1]
         newp = bestModel.p + p
@@ -4951,7 +5500,7 @@ function addChangedConstantModel!(
     visitedModels::Dict{String,Dict{String,Any}},
     drift::Bool = false,
     alpha::Union{Nothing,Float64} = nothing,
-    lambda::Union{Nothing,Float64} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
 )
     allowDrift = drift && !bestModel.allowDrift
     allowMean = !drift && !bestModel.allowMean
@@ -5049,6 +5598,8 @@ function stepWiseSearchNaive(
     seasonalForm::Symbol = :multiplicative,
     exogDynamics::Symbol = :armax,
     penaltyTarget::Symbol = :all,
+    penalty::Symbol = :none,
+    presampleBurnIn::Int = 12,
     initialization::Symbol = DEFAULT_INITIALIZATION,
     multistart::Bool = false,
     # R's default: `stats::arima` with `transform.pars = TRUE` parameterizes the AR part
@@ -5068,10 +5619,11 @@ function stepWiseSearchNaive(
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
-    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
+    cvarLevel::Union{Nothing,AbstractFloat} = nothing,
+    quantileLevel::Union{Nothing,AbstractFloat} = nothing,
     fixConstant::Bool = false,
     alpha::Union{Nothing,Float64} = nothing,
-    lambda::Union{Nothing,Float64} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
 )
     # Include initial models
     candidateModels = Vector{SARIMAModel}()
@@ -5134,7 +5686,8 @@ function stepWiseSearchNaive(
         cvarLevel,
         multistart;
         exogDynamics = exogDynamics,
-        penaltyTarget = penaltyTarget,
+        penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
+        quantileLevel = quantileLevel,
     )
 
     if isnothing(bestModel)
@@ -5206,7 +5759,8 @@ function stepWiseSearchNaive(
             cvarLevel,
             multistart;
             exogDynamics = exogDynamics,
-            penaltyTarget = penaltyTarget,
+            penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
+            quantileLevel = quantileLevel,
         )
         showLogs && !isnothing(itBestModel) && @info(
             "Iteration $(iterations): Best model found is $(getId(itBestModel)) with $(itBestCriteria) criteria"
@@ -5328,6 +5882,8 @@ function stepwiseSearch(
     seasonalForm::Symbol = :multiplicative,
     exogDynamics::Symbol = :armax,
     penaltyTarget::Symbol = :all,
+    penalty::Symbol = :none,
+    presampleBurnIn::Int = 12,
     initialization::Symbol = DEFAULT_INITIALIZATION,
     multistart::Bool = false,
     # R's default: `stats::arima` with `transform.pars = TRUE` parameterizes the AR part
@@ -5342,10 +5898,11 @@ function stepwiseSearch(
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
-    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
+    cvarLevel::Union{Nothing,AbstractFloat} = nothing,
+    quantileLevel::Union{Nothing,AbstractFloat} = nothing,
     maxModels::Int = DEFAULT_NMODELS,
     alpha::Union{Nothing,<:AbstractFloat} = nothing,
-    lambda::Union{Nothing,<:AbstractFloat} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
     requireTermsWhenOverDifferenced::Bool = false,
     requireMAWhenDoublyDifferenced::Bool = false,
 )
@@ -5409,7 +5966,7 @@ function stepwiseSearch(
         alpha = alpha,
         lambda = lambda
     )
-    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+    fit!(bestModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
     showLogs && @info(
         "Fitted $(getId(bestModel)) with $(informationCriteriaFunction(bestModel; offset=icOffset)) criteria"
     )
@@ -5425,7 +5982,7 @@ function stepwiseSearch(
         minConditioningObs = minConditioningObs,
         seasonalForm = seasonalForm,
         exogDynamics = exogDynamics,
-        penaltyTarget = penaltyTarget,
+        penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
         initialization = initialization,
         refit = constrainedRefit,
         optimizer = optimizer,
@@ -5466,7 +6023,7 @@ function stepwiseSearch(
         alpha = alpha,
         lambda = lambda
     )
-    fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+    fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
     showLogs && @info(
         "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
     )
@@ -5483,7 +6040,7 @@ function stepwiseSearch(
         minConditioningObs = minConditioningObs,
         seasonalForm = seasonalForm,
         exogDynamics = exogDynamics,
-        penaltyTarget = penaltyTarget,
+        penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
         initialization = initialization,
         refit = constrainedRefit,
         optimizer = optimizer,
@@ -5523,7 +6080,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -5536,7 +6093,7 @@ function stepwiseSearch(
             minConditioningObs = minConditioningObs,
             seasonalForm = seasonalForm,
             exogDynamics = exogDynamics,
-            penaltyTarget = penaltyTarget,
+            penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
             initialization = initialization,
             refit = constrainedRefit,
             optimizer = optimizer,
@@ -5576,7 +6133,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -5589,7 +6146,7 @@ function stepwiseSearch(
             minConditioningObs = minConditioningObs,
             seasonalForm = seasonalForm,
             exogDynamics = exogDynamics,
-            penaltyTarget = penaltyTarget,
+            penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
             initialization = initialization,
             refit = constrainedRefit,
             optimizer = optimizer,
@@ -5627,7 +6184,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -5640,7 +6197,7 @@ function stepwiseSearch(
             minConditioningObs = minConditioningObs,
             seasonalForm = seasonalForm,
             exogDynamics = exogDynamics,
-            penaltyTarget = penaltyTarget,
+            penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
             initialization = initialization,
             refit = constrainedRefit,
             optimizer = optimizer,
@@ -5685,7 +6242,7 @@ function stepwiseSearch(
             alpha = alpha,
             lambda = lambda,
         )
-        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+        fit!(fitModel; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
         showLogs && @info(
             "Fitted $(getId(fitModel)) with $(informationCriteriaFunction(fitModel; offset=icOffset)) criteria"
         )
@@ -5698,7 +6255,7 @@ function stepwiseSearch(
             minConditioningObs = minConditioningObs,
             seasonalForm = seasonalForm,
             exogDynamics = exogDynamics,
-            penaltyTarget = penaltyTarget,
+            penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
             initialization = initialization,
             refit = constrainedRefit,
             optimizer = optimizer,
@@ -5880,6 +6437,8 @@ function gridSearch(
     seasonalForm::Symbol = :multiplicative,
     exogDynamics::Symbol = :armax,
     penaltyTarget::Symbol = :all,
+    penalty::Symbol = :none,
+    presampleBurnIn::Int = 12,
     initialization::Symbol = DEFAULT_INITIALIZATION,
     multistart::Bool = false,
     # R's default: `stats::arima` with `transform.pars = TRUE` parameterizes the AR part
@@ -5895,9 +6454,10 @@ function gridSearch(
     optimizer::Union{DataType,MOI.OptimizerWithAttributes} = Ipopt.Optimizer,
     warmStartFromBox::Bool = false,
     maxTimeSeconds::Union{Nothing,Real} = nothing,
-    cvarLevel::AbstractFloat = DEFAULT_CVAR_LEVEL,
+    cvarLevel::Union{Nothing,AbstractFloat} = nothing,
+    quantileLevel::Union{Nothing,AbstractFloat} = nothing,
     alpha::Union{Nothing,Float64} = nothing,
-    lambda::Union{Nothing,Float64} = nothing,
+    lambda::Union{Nothing,PenaltyLambda} = nothing,
 )
     maxK = (allowMean || allowDrift) ? 1 : 0
     candidates = SARIMAModel[]
@@ -5944,7 +6504,7 @@ function gridSearch(
         )
     end
 
-    fitOne!(m) = fit!(m; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, multistart = multistart)
+    fitOne!(m) = fit!(m; objectiveFunction = objectiveFunction, minConditioningObs = minConditioningObs, seasonalForm = seasonalForm, exogDynamics = exogDynamics, penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn, initialization = initialization, stationary = stationary, stationarityMargin = stationarityMargin, invertible = invertible, invertibilityMargin = invertibilityMargin, optimizer = optimizer, warmStartFromBox = warmStartFromBox, maxTimeSeconds = maxTimeSeconds, cvarLevel = cvarLevel, quantileLevel = quantileLevel, multistart = multistart)
     if parallel
         Threads.@threads for m in candidates
             try
@@ -5970,7 +6530,7 @@ function gridSearch(
             minConditioningObs = minConditioningObs,
             seasonalForm = seasonalForm,
             exogDynamics = exogDynamics,
-            penaltyTarget = penaltyTarget,
+            penaltyTarget = penaltyTarget, penalty = penalty, presampleBurnIn = presampleBurnIn,
             initialization = initialization,
             refit = constrainedRefit,
             optimizer = optimizer,

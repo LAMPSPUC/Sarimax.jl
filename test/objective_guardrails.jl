@@ -65,8 +65,144 @@
         @test_throws ArgumentError fit!(
             mk(); objectiveFunction = "ridge", alpha = 0.0, lambda = 1.0
         )
-        # sem `lambda` nao ha o que recusar, e o ajuste corre sem aviso
-        @test_logs match_mode = :any fit!(mk(); objectiveFunction = "ridge", alpha = 0.0)
+        # sem `lambda` nao ha o que recusar, e o ajuste corre (avisando da depreciacao)
+        @test_logs (:warn, r"deprecated") match_mode = :any fit!(
+            mk(); objectiveFunction = "ridge", alpha = 0.0,
+        )
+
+        # THE FIELD COUNTS TOO. `lambda` reaches a fit by two routes, and the second one --
+        # `model.lambda`, from the constructor or from an earlier penalized fit -- is
+        # ignored by `ridge` exactly as loudly as the keyword, so it is refused the same way.
+        # Guarding only the keyword left this call passing in silence.
+        comCampo = SARIMA(y, 2, 1, 1; allowMean = false)
+        comCampo.lambda = 2.0
+        @test_throws ArgumentError fit!(comCampo; objectiveFunction = "ridge")
+
+        # ... including when the field was left behind by a previous penalized fit on the
+        # same object, which is how it happens in a sweep rather than in a constructor call.
+        reaproveitado = SARIMA(y, 2, 1, 1; allowMean = false)
+        fit!(reaproveitado; objectiveFunction = "elastic_net", alpha = 0.5, lambda = 10.0)
+        @test_throws ArgumentError fit!(reaproveitado; objectiveFunction = "ridge")
+        # e limpar o campo devolve o ajuste
+        reaproveitado.lambda = nothing
+        fit!(reaproveitado; objectiveFunction = "ridge")
+        @test Sarimax.isFitted(reaproveitado)
+    end
+
+    @testset "lambda escalar e heterogeneo seguem a MESMA regra" begin
+        # `auto` held a scalar to `lambda > 0` while admitting zeros inside a structured
+        # one, so the same strength was legal or illegal depending on the spelling -- and
+        # `auto` disagreed with `fit!`, where `lambda = 0.0` is accepted and pinned by a
+        # test requiring it to reproduce least squares. One rule now: non-negative, finite.
+        n = 120
+        y = TimeArray(dates(n), 10 .+ cumsum(randn(rng, n) .* 0.3))
+
+        # zero e aceito nas duas superficies e nas duas grafias
+        mZero = SARIMA(y, 1, 1, 0; allowMean = false)
+        fit!(mZero; objectiveFunction = "elastic_net", alpha = 0.5, lambda = 0.0)
+        @test Sarimax.isFitted(mZero)
+        aZero = auto(
+            y; seasonality = 1, objectiveFunction = "elastic_net", alpha = 0.5,
+            lambda = 0.0, maxp = 1, maxq = 0, maxP = 0, maxQ = 0,
+        )
+        @test Sarimax.isFitted(aZero)
+        aZeroVetor = auto(
+            y; seasonality = 1, objectiveFunction = "elastic_net", alpha = 0.5,
+            lambda = [0.0], maxp = 1, maxq = 0, maxP = 0, maxQ = 0,
+        )
+        @test Sarimax.isFitted(aZeroVetor)
+
+        # ... e as duas GRAFIAS do mesmo peso nulo dao o mesmo ajuste, que e onde a
+        # simetria e verificavel: `auto` escolhe a propria ordem, entao comparar o ajuste
+        # dele com um de ordem fixa nao diria nada sobre lambda.
+        mZeroVetor = SARIMA(y, 1, 1, 0; allowMean = false)
+        fit!(mZeroVetor; objectiveFunction = "elastic_net", alpha = 0.5, lambda = [0.0])
+        @test Float64.([mZeroVetor.ϕ...]) == Float64.([mZero.ϕ...])
+
+        # negativo, NaN e Inf continuam recusados nas duas superficies e nas duas grafias
+        for ruim in (-1.0, NaN, Inf)
+            @test_throws ArgumentError auto(
+                y; seasonality = 1, objectiveFunction = "elastic_net", alpha = 0.5,
+                lambda = ruim, maxp = 1, maxq = 0, maxP = 0, maxQ = 0,
+            )
+            @test_throws ArgumentError auto(
+                y; seasonality = 1, objectiveFunction = "elastic_net", alpha = 0.5,
+                lambda = [ruim], maxp = 1, maxq = 0, maxP = 0, maxQ = 0,
+            )
+        end
+    end
+
+    @testset "um NIVEL so e aceito pelo objetivo que o le" begin
+        # `cvarLevel` belongs to "stable" and `quantileLevel` to "quantile". Passing one to
+        # any other objective used to be accepted and ignored, which is the failure mode
+        # this file exists to prevent: in a parallel sweep the cell would report one
+        # estimator under another's label, with nothing in the log to say so.
+        #
+        # This is why both default to `nothing` rather than to their constants: a numeric
+        # default cannot tell "the caller asked for 0.5" from "the caller said nothing", so
+        # the guard could not be written at all.
+        n = 90
+        y = TimeArray(dates(n), 10 .+ cumsum(randn(rng, n) .* 0.3))
+        mk() = SARIMA(y, 1, 0, 0; allowMean = false)
+
+        for obj in ("mse", "mae", "huber", "ml", "quantile", "elastic_net")
+            kw = obj == "elastic_net" ? (; alpha = 0.5) : (;)
+            @test_throws ArgumentError fit!(
+                mk(); objectiveFunction = obj, cvarLevel = 0.9, kw...
+            )
+        end
+        for obj in ("mse", "mae", "huber", "ml", "stable", "elastic_net")
+            kw = obj == "elastic_net" ? (; alpha = 0.5) : (;)
+            @test_throws ArgumentError fit!(
+                mk(); objectiveFunction = obj, quantileLevel = 0.9, kw...
+            )
+        end
+
+        # ... and each level still reaches the objective that DOES read it.
+        mq = mk()
+        fit!(mq; objectiveFunction = "quantile", quantileLevel = 0.8,
+             initialization = :zeroed)
+        @test mq.metadata["quantileLevel"] == 0.8
+        ms = mk()
+        fit!(ms; objectiveFunction = "stable", cvarLevel = 0.95, initialization = :zeroed)
+        @test Sarimax.isFitted(ms)
+
+        # Omitting them keeps the documented defaults, so the guard costs no caller
+        # anything: the level is recorded as 0.5 without having been passed.
+        md = mk()
+        fit!(md; objectiveFunction = "quantile", initialization = :zeroed)
+        @test md.metadata["quantileLevel"] == Sarimax.DEFAULT_QUANTILE_LEVEL
+        for obj in ("mse", "mae", "huber", "ml", "stable")
+            m = mk()
+            fit!(m; objectiveFunction = obj, initialization = :zeroed)
+            @test Sarimax.isFitted(m)
+            @test isnothing(get(m.metadata, "quantileLevel", nothing))
+        end
+
+        # The range check still applies to the objective that reads the level. It now raises
+        # `ArgumentError`: a public keyword given a bad value is ordinary user input.
+        @test_throws ArgumentError fit!(
+            mk(); objectiveFunction = "quantile", quantileLevel = 1.5,
+        )
+        # `cvarLevel` keeps its historical `AssertionError` on the RANGE. Its refusal guard
+        # (above) is new and raises `ArgumentError`, but the domain check predates this work
+        # and is pinned by tests in `test/objective_functions.jl`, so migrating it is a
+        # separate decision rather than a side effect of this one.
+        @test_throws AssertionError fit!(
+            mk(); objectiveFunction = "stable", cvarLevel = 0.0,
+        )
+
+        # `auto` refuses it up front rather than at the first candidate fit: a constant
+        # series returns from `auto` before any fit happens, so a guard only in `fit!`
+        # would let that call through in silence.
+        @test_throws ArgumentError auto(
+            y; seasonality = 1, objectiveFunction = "mse", quantileLevel = 0.9,
+            maxp = 1, maxq = 0, maxP = 0, maxQ = 0,
+        )
+        @test_throws ArgumentError auto(
+            y; seasonality = 1, objectiveFunction = "mae", cvarLevel = 0.9,
+            maxp = 1, maxq = 0, maxP = 0, maxQ = 0,
+        )
     end
 
     @testset ":penalized RECUSA objetivo nao coberto" begin
@@ -86,7 +222,9 @@
         #
         # `ml_exact` is excluded for a pre-existing degeneracy: it returns sigma2 = 0 under
         # `:free` and emits its own warning, which the next testset covers.
-        suportados = ("mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge", "huber")
+        suportados =
+            ("mae", "mse", "ml", "bilevel", "elastic_net", "stable", "ridge", "huber",
+             "quantile")
         for obj in suportados, init in (:penalized, :innovations)
             m = mk()
             kw = obj == "elastic_net" ? (; alpha = 0.5) : (;)

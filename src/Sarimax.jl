@@ -54,6 +54,10 @@ include("datasets.jl")
 include("datetime_utils.jl")
 include("exceptions.jl")
 include("fit.jl")
+# antes de `models/sarima.jl`: define `PenaltyLambda`, que aparece nas assinaturas de lá.
+# As funções daqui recebem o modelo sem anotação de tipo pelo mesmo motivo que as de
+# `fit.jl`: `SARIMAModel` só existe depois.
+include("penalty.jl")
 include("models/sarima.jl")
 include("utils.jl")
 # depois de `utils.jl`: usa `differentiate` e `isFitted`
@@ -115,6 +119,8 @@ export SARIMAForecaster
 export build_datetimes
 export to_ma
 export differentiated_coefficients
+# Ordem determinística em que um `lambda` vetorial é lido — ver `src/penalty.jl`.
+export penaltyCoefficientNames
 
 # StatsAPI interface
 export coef

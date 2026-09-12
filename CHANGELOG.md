@@ -4,7 +4,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-09-12
+
+First stable release. It accompanies the paper describing the package and freezes
+the API and the estimation defaults that the reported results were produced under.
+
+### Dependencies
+- **`MathOptInterface` now requires `>= 1.32`** (was `>= 1.29`). The 1.31 series is
+  excluded: 1.31.0 carries a performance defect that inflates solve time by roughly two
+  orders of magnitude on this package's formulations, and 1.31.1 / 1.31.2 were not
+  measured, so the whole minor is refused rather than admitted on the assumption that the
+  patch releases fixed it. The empirical battery behind the paper ran under
+  `MathOptInterface` 1.51.1, `JuMP` 1.30.1 and `Ipopt` 1.15.0, which the new bound admits.
+  The same floor is applied to `docs/Project.toml`.
 
 ### Changed (API)
 - **`quantileLevel` now raises `ArgumentError` instead of `AssertionError`**, and rejects
@@ -235,11 +247,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   historical scalar expression verbatim: scalar-`lambda` and `"ridge"` fits are unchanged
   down to the floating point (verified over 23 fits spanning every `penaltyTarget`, every
   `alpha`, the default and an explicit `lambda`, seasonal and exogenous specifications).
-
-## [1.0.0] - 2026-08-27
-
-First stable release. It accompanies the paper describing the package and freezes
-the API and the estimation defaults that the reported results were produced under.
 
 ### Changed (breaking)
 - **`elastic_net` is now the conventional penalized estimator.** The objective is

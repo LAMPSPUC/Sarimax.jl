@@ -12,18 +12,24 @@ Elas são **diferentes** e nunca devem ser confundidas.
 
 | | valor |
 |---|---|
-| **Versão junto da qual este material é PUBLICADO** | **`v1.0.0`** (tag `a1ebc0d`) |
+| **Versão junto da qual este material é PUBLICADO** | **`v1.0.0`** do General — árvore `ecb41417`, commit `14dd5816` (tag refeita em 12/09/2026) |
+| **Commit para o qual a tag `v1.0.0` apontava durante as campanhas** | **`a1ebc0d`** (28/08–02/09/2026) — ancestral do `master`, fetchável por SHA |
 | **Commit sob o qual cada resultado foi PRODUZIDO** | varia por campanha — coluna `commit` de cada linha de CSV |
 
 Nenhum resultado histórico é descrito como "produzido sob v1.0.0" se não foi. A tabela da
 seção 3 diz, campanha a campanha, qual commit produziu o quê.
 
+> **Nota de 14/09/2026.** Em 12/09 a tag `v1.0.0` foi apagada e refeita sobre `14dd5816`
+> (12 commits e um PR de compat depois de `a1ebc0d`), e foi essa árvore que entrou no
+> General. Por isso este documento cita o commit `a1ebc0d`, e não a tag: o nome `v1.0.0`
+> deixou de identificar a árvore medida. Nenhum número mudou; só a etiqueta.
+
 ## 2. Máquina e ambiente
 
 - **Hardware:** Apple M4, 10 núcleos, 24 GB de RAM, macOS (Darwin 24.6.0)
 - **Julia 1.12.3**
-- **Ambiente fixado em `env/Project.toml` e `env/Manifest.toml`**, resolvido contra a tag
-  `v1.0.0`: MathOptInterface 1.53.0, Ipopt 1.11.0, JuMP 1.31.2, MUMPS_seq_jll 5.4.1,
+- **Ambiente fixado em `env/Project.toml` e `env/Manifest.toml`**, resolvido contra o commit
+  `a1ebc0d`: MathOptInterface 1.53.0, Ipopt 1.11.0, JuMP 1.31.2, MUMPS_seq_jll 5.4.1,
   Ipopt_jll 300.1400.400+0, CSV 0.10.17, TimeSeries 0.24.2
 - `JULIA_NUM_THREADS=1`, `OPENBLAS_NUM_THREADS=1`, `BLAS.set_num_threads(1)` em todo runner
 
@@ -35,10 +41,10 @@ seção 3 diz, campanha a campanha, qual commit produziu o quê.
 |---|---:|---|---|
 | M4 `stable` hourly, dois braços | 414 + 414 | `dev@fc2c482+PR26` | `mse` vs `stable` α=0,5 |
 | M4 `stable` quarterly, dois braços | 24.000 + 24.000 | `dev@fc2c482+PR26` | idem |
-| M4 `stable` daily, dois braços | 4.227 + 3.998 | **`v1.0.0@a1ebc0d`** | idem, com censura declarada |
+| M4 `stable` daily, dois braços | 4.227 + 3.998 | **`a1ebc0d`** | idem, com censura declarada |
 | M4 `stable` monthly | 5.000 + 5.000 + 923 | `aa68d57` | `mse`, α=0,9, α=0,5 (α=0,5 PARCIAL) |
 | Campanha 2×2×2×2 | 8 × 48.000 | `4e8cf11` | `stationary` × `invertible` × fator log-det |
-| `requireTermsWhenOverDifferenced` | 414 + 24.000 + 4.227 | `v1.0.0@a1ebc0d` | braço `true`; o `false` são as campanhas acima |
+| `requireTermsWhenOverDifferenced` | 414 + 24.000 + 4.227 | `a1ebc0d` | braço `true`; o `false` são as campanhas acima |
 
 ### 3.2 Diagnóstico que sustenta afirmação em prosa
 
@@ -47,16 +53,16 @@ seção 3 diz, campanha a campanha, qual commit produziu o quê.
 | Curva de custo `stable`/`mse` por T | 50 buscas | `dev@fc2c482+PR26` | spread de 114× no mesmo T = 4.315 |
 | Inércia do `mumps_mem_percent` | 7 pares | `4e8cf11` | objetivo idêntico em 17 dígitos |
 | **Atalho de busca — REPROVADO** | 3 × 359 | `4e8cf11` | ordem do `mse` + refit `stable`: reprovou no portão pré-registrado |
-| **Warm start — achado RETRATADO** | 7 + 5 séries | `4e8cf11` / `v1.0.0` | atrator degenerado no canto da caixa; eu mesmo derrubei |
-| Sondas de reprodutibilidade | 102 + 80 séries | `v1.0.0` e `4e8cf11` | ver `tables/REPRODUTIBILIDADE.md` |
-| Reprodutor do crash do MUMPS | 2 séries | `v1.0.0` | vítima × culpado |
+| **Warm start — achado RETRATADO** | 7 + 5 séries | `4e8cf11` / `a1ebc0d` | atrator degenerado no canto da caixa; eu mesmo derrubei |
+| Sondas de reprodutibilidade | 102 + 80 séries | `a1ebc0d` e `4e8cf11` | ver `tables/REPRODUTIBILIDADE.md` |
+| Reprodutor do crash do MUMPS | 2 séries | `a1ebc0d` | vítima × culpado |
 
 Os dois itens em **negrito** entram rotulados pelo que são: **um resultado reprovado no seu
 próprio portão** e **um achado retratado**. Não são apresentados como positivos nem omitidos.
 
 ## 4. A pergunta central, respondida por MEDIÇÃO
 
-> *Rodando o script com todos os argumentos explícitos, sob a tag `v1.0.0`, ele reproduz os
+> *Rodando o script com todos os argumentos explícitos, sob o commit `a1ebc0d`, ele reproduz os
 > números arquivados?*
 
 Sonda: amostra semeada (`Random.seed!` fixo), reajuste em **processo único**, comparação de
@@ -75,7 +81,7 @@ sMAPE (6 casas) e ordem selecionada. Script em `scripts/sonda_v100.jl`.
 1. **As quatro células `fator = 1` do 2×2×2×2 são irreproduzíveis.** Foram produzidas com o
    gancho de ambiente `SARIMAX_PROBE_FATOR1`, que era um **patch aplicado apenas dentro do
    worktree `wt_probe`**, destruído por uma limpeza do `/tmp`. Verificado: o gancho **não
-   existe** em `4e8cf11` nem em `v1.0.0`. **O código que as produziu não existe mais em lugar
+   existe** em `4e8cf11` nem em `a1ebc0d`. **O código que as produziu não existe mais em lugar
    nenhum.** São comparáveis entre si e contra as células fator-ativo da mesma campanha, mas
    não são re-rodáveis.
 2. **O `Manifest.toml` da campanha 2×2×2×2 se perdeu na mesma limpeza.** As oito células
@@ -143,7 +149,7 @@ configuração declarada na legenda da Tabela 6 não reproduz a tabela.** A lege
 séries weekly, devolvendo o resultado do `mse` bit a bit. Rodada como descrita, três colunas
 lançariam e a do `huber` seria cópia da coluna MSE.
 
-Corrigido depois: em `4e8cf11` e na `v1.0.0` a guarda enumera os nove objetivos e nunca
+Corrigido depois: em `4e8cf11` e em `a1ebc0d` a guarda enumera os nove objetivos e nunca
 dispara.
 
 ## 9. Achado de método: a lista de argumentos explícitos NÃO é portável entre commits

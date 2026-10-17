@@ -1,0 +1,12 @@
+# Shell scripts must keep LF endings: they run inside Linux containers even
+# when the repository is checked out on Windows with core.autocrlf=true.
+*.sh text eol=lf
+reproduce.sh text eol=lf
+
+# The IJF replication package is checksummed (replication/ijf-2026/checksums.sha256),
+# so its text files must have the same bytes on every platform.
+replication/** text=auto eol=lf
+replication/**/*.png binary
+replication/**/*.pdf binary
+replication/**/*.gz binary
+replication/**/*.zip binary

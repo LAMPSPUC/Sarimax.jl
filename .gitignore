@@ -138,3 +138,12 @@ $RECYCLE.BIN/
 # distribution; kept out of the default branch by request.
 /experiments/
 /WORKLOG.md
+
+# IJF replication package: fetched inputs and generated outputs never enter git
+/replication/ijf-2026/artifacts/
+/replication/ijf-2026/output/
+/replication/ijf-2026/output-*/
+/replication/ijf-2026/data/external/
+__pycache__/
+# ...but the replication environment IS pinned by its Manifest (unlike the package itself)
+!/replication/ijf-2026/environments/julia/Manifest.toml

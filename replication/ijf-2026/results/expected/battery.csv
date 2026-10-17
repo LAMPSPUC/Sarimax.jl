@@ -1,0 +1,584 @@
+table,row,column,expected,decimals,source
+battery.validation,"airpassengers|(1, 0, 1)(0, 0, 0, 0)|statsmodels",phi1,1.0090,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1, 0, 1)(0, 0, 0, 0)|statsmodels",theta1,-0.9976,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1, 0, 1)(0, 0, 0, 0)|statsmodels",logLik,-416.95,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1, 0, 1)(0, 0, 0, 0)|statsmodels",AIC,841.90,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1, 0, 1)(0, 0, 0, 0)|statsmodels",BIC,855.14,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1, 0, 1)(0, 0, 0, 0)|statsmodels",RSS,734.33,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1, 0, 1)(0, 0, 0, 0)|statsmodels",runtime_s,0.041,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1, 0, 1)(0, 0, 0, 0)|statsmodels",status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1, 0, 1)(1, 0, 1, 12)|statsmodels",phi1,0.9143,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1, 0, 1)(1, 0, 1, 12)|statsmodels",theta1,-0.7639,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1, 0, 1)(1, 0, 1, 12)|statsmodels",logLik,-245.73,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1, 0, 1)(1, 0, 1, 12)|statsmodels",AIC,503.46,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1, 0, 1)(1, 0, 1, 12)|statsmodels",BIC,522.94,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1, 0, 1)(1, 0, 1, 12)|statsmodels",RSS,167.59,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1, 0, 1)(1, 0, 1, 12)|statsmodels",runtime_s,0.179,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1, 0, 1)(1, 0, 1, 12)|statsmodels",status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|R-forecast",phi1,1.0000,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|R-forecast",theta1,0.0106,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|R-forecast",logLik,-454.59,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|R-forecast",AIC,917.18,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|R-forecast",BIC,930.45,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|R-forecast",RSS,1024.64,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|R-forecast",runtime_s,0.003,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|R-forecast",status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|R-forecast (CSS)",phi1,0.9964,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|R-forecast (CSS)",theta1,-0.8043,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|R-forecast (CSS)",logLik,-429.49,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|R-forecast (CSS)",AIC,NA,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|R-forecast (CSS)",BIC,NA,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|R-forecast (CSS)",RSS,801.12,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|R-forecast (CSS)",runtime_s,0.003,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|R-forecast (CSS)",status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|SARIMAX.jl",phi1,1.0000,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|SARIMAX.jl",theta1,-0.8600,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|SARIMAX.jl",logLik,-425.89,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|SARIMAX.jl",AIC,859.77,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|SARIMAX.jl",BIC,873.02,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|SARIMAX.jl",RSS,789.38,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|SARIMAX.jl",runtime_s,0.004,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|SARIMAX.jl",status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",phi1,1.0000,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",theta1,-0.8600,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",logLik,-425.89,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",AIC,859.77,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",BIC,873.02,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",RSS,789.38,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",runtime_s,0.004,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|R-forecast",phi1,0.9942,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|R-forecast",theta1,-0.7660,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|R-forecast",logLik,-308.88,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|R-forecast",AIC,629.76,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|R-forecast",BIC,649.67,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|R-forecast",RSS,203.54,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|R-forecast",runtime_s,0.106,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|R-forecast",status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|R-forecast (CSS)",phi1,1.0011,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|R-forecast (CSS)",theta1,-0.8537,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|R-forecast (CSS)",logLik,-257.51,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|R-forecast (CSS)",AIC,NA,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|R-forecast (CSS)",BIC,NA,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|R-forecast (CSS)",RSS,139.63,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|R-forecast (CSS)",runtime_s,0.006,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|R-forecast (CSS)",status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|SARIMAX.jl",phi1,0.9933,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|SARIMAX.jl",theta1,-0.8075,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|SARIMAX.jl",logLik,-258.72,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|SARIMAX.jl",AIC,529.44,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|SARIMAX.jl",BIC,548.96,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|SARIMAX.jl",RSS,167.93,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|SARIMAX.jl",runtime_s,0.635,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|SARIMAX.jl",status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|SARIMAX.jl (CSS-warmup)",phi1,0.9933,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|SARIMAX.jl (CSS-warmup)",theta1,-0.8075,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|SARIMAX.jl (CSS-warmup)",logLik,-258.72,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|SARIMAX.jl (CSS-warmup)",AIC,529.44,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|SARIMAX.jl (CSS-warmup)",BIC,548.96,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|SARIMAX.jl (CSS-warmup)",RSS,167.93,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|SARIMAX.jl (CSS-warmup)",runtime_s,0.015,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"airpassengers|(1,0,1)(1,0,1)_12|SARIMAX.jl (CSS-warmup)",status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0, 0, 1)(0, 0, 0, 0)|statsmodels",phi1,--,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0, 0, 1)(0, 0, 0, 0)|statsmodels",theta1,1.2730,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0, 0, 1)(0, 0, 0, 0)|statsmodels",logLik,-456.65,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0, 0, 1)(0, 0, 0, 0)|statsmodels",AIC,919.30,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0, 0, 1)(0, 0, 0, 0)|statsmodels",BIC,930.39,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0, 0, 1)(0, 0, 0, 0)|statsmodels",RSS,374.22,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0, 0, 1)(0, 0, 0, 0)|statsmodels",runtime_s,0.014,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0, 0, 1)(0, 0, 0, 0)|statsmodels",status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|R-forecast",phi1,--,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|R-forecast",theta1,0.7853,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|R-forecast",logLik,-458.93,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|R-forecast",AIC,923.87,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|R-forecast",BIC,934.98,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|R-forecast",RSS,373.26,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|R-forecast",runtime_s,0.002,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|R-forecast",status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|R-forecast (CSS)",phi1,--,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|R-forecast (CSS)",theta1,0.7872,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|R-forecast (CSS)",logLik,-458.52,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|R-forecast (CSS)",AIC,NA,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|R-forecast (CSS)",BIC,NA,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|R-forecast (CSS)",RSS,373.43,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|R-forecast (CSS)",runtime_s,0.001,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|R-forecast (CSS)",status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|SARIMAX.jl",phi1,--,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|SARIMAX.jl",theta1,0.7842,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|SARIMAX.jl",logLik,-457.66,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|SARIMAX.jl",AIC,921.33,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|SARIMAX.jl",BIC,932.43,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|SARIMAX.jl",RSS,373.85,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|SARIMAX.jl",runtime_s,0.266,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|SARIMAX.jl",status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",phi1,--,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",theta1,0.7872,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",logLik,-458.52,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",AIC,923.05,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",BIC,934.16,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",RSS,373.43,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",runtime_s,0.114,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(0,0,1)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1, 0, 0)(0, 0, 0, 0)|statsmodels",phi1,0.7381,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1, 0, 0)(0, 0, 0, 0)|statsmodels",theta1,--,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1, 0, 0)(0, 0, 0, 0)|statsmodels",logLik,-453.01,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1, 0, 0)(0, 0, 0, 0)|statsmodels",AIC,912.02,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1, 0, 0)(0, 0, 0, 0)|statsmodels",BIC,923.12,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1, 0, 0)(0, 0, 0, 0)|statsmodels",RSS,363.15,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1, 0, 0)(0, 0, 0, 0)|statsmodels",runtime_s,0.018,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1, 0, 0)(0, 0, 0, 0)|statsmodels",status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1, 0, 1)(0, 0, 0, 0)|statsmodels",phi1,0.5208,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1, 0, 1)(0, 0, 0, 0)|statsmodels",theta1,0.5545,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1, 0, 1)(0, 0, 0, 0)|statsmodels",logLik,-427.44,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1, 0, 1)(0, 0, 0, 0)|statsmodels",AIC,862.88,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1, 0, 1)(0, 0, 0, 0)|statsmodels",BIC,877.67,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1, 0, 1)(0, 0, 0, 0)|statsmodels",RSS,307.91,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1, 0, 1)(0, 0, 0, 0)|statsmodels",runtime_s,0.010,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1, 0, 1)(0, 0, 0, 0)|statsmodels",status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|R-forecast",phi1,0.7362,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|R-forecast",theta1,--,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|R-forecast",logLik,-454.56,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|R-forecast",AIC,915.13,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|R-forecast",BIC,926.24,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|R-forecast",RSS,362.75,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|R-forecast",runtime_s,0.014,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|R-forecast",status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|R-forecast (CSS)",phi1,0.7381,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|R-forecast (CSS)",theta1,--,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|R-forecast (CSS)",logLik,-454.53,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|R-forecast (CSS)",AIC,NA,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|R-forecast (CSS)",BIC,NA,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|R-forecast (CSS)",RSS,362.40,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|R-forecast (CSS)",runtime_s,0.001,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|R-forecast (CSS)",status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|SARIMAX.jl",phi1,0.7381,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|SARIMAX.jl",theta1,--,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|SARIMAX.jl",logLik,-453.01,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|SARIMAX.jl",AIC,912.02,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|SARIMAX.jl",BIC,923.12,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|SARIMAX.jl",RSS,362.40,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|SARIMAX.jl",runtime_s,3.454,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|SARIMAX.jl",status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",phi1,0.7381,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",theta1,--,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",logLik,-453.01,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",AIC,912.02,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",BIC,923.12,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",RSS,362.40,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",runtime_s,0.004,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,0)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|R-forecast",phi1,0.5181,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|R-forecast",theta1,0.5556,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|R-forecast",logLik,-429.86,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|R-forecast",AIC,867.72,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|R-forecast",BIC,882.53,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|R-forecast",RSS,307.25,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|R-forecast",runtime_s,0.002,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|R-forecast",status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|R-forecast (CSS)",phi1,0.5203,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|R-forecast (CSS)",theta1,0.5561,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|R-forecast (CSS)",logLik,-429.64,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|R-forecast (CSS)",AIC,NA,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|R-forecast (CSS)",BIC,NA,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|R-forecast (CSS)",RSS,306.99,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|R-forecast (CSS)",runtime_s,0.001,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|R-forecast (CSS)",status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|SARIMAX.jl",phi1,0.5203,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|SARIMAX.jl",theta1,0.5561,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|SARIMAX.jl",logLik,-428.21,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|SARIMAX.jl",AIC,864.41,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|SARIMAX.jl",BIC,879.21,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|SARIMAX.jl",RSS,306.99,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|SARIMAX.jl",runtime_s,0.004,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|SARIMAX.jl",status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",phi1,0.5203,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",theta1,0.5561,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",logLik,-428.21,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",AIC,864.41,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",BIC,879.21,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",RSS,306.99,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",runtime_s,0.004,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,"sim_arma|(1,0,1)(0,0,0)_1|SARIMAX.jl (CSS-warmup)",status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,sim_sarimax|ARX(1)+2exog|R-forecast,phi1,0.5203,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,sim_sarimax|ARX(1)+2exog|R-forecast,theta1,--,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,sim_sarimax|ARX(1)+2exog|R-forecast,logLik,-422.56,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,sim_sarimax|ARX(1)+2exog|R-forecast,AIC,855.12,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,sim_sarimax|ARX(1)+2exog|R-forecast,BIC,873.62,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,sim_sarimax|ARX(1)+2exog|R-forecast,RSS,295.61,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,sim_sarimax|ARX(1)+2exog|R-forecast,runtime_s,0.003,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,sim_sarimax|ARX(1)+2exog|R-forecast,status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,sim_sarimax|ARX(1)+2exog|SARIMAX.jl,phi1,0.5203,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,sim_sarimax|ARX(1)+2exog|SARIMAX.jl,theta1,--,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,sim_sarimax|ARX(1)+2exog|SARIMAX.jl,logLik,-422.56,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,sim_sarimax|ARX(1)+2exog|SARIMAX.jl,AIC,855.12,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,sim_sarimax|ARX(1)+2exog|SARIMAX.jl,BIC,873.62,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,sim_sarimax|ARX(1)+2exog|SARIMAX.jl,RSS,295.61,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,sim_sarimax|ARX(1)+2exog|SARIMAX.jl,runtime_s,0.256,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,sim_sarimax|ARX(1)+2exog|SARIMAX.jl,status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,sim_sarimax|ARX(1)+2exog|statsmodels,phi1,0.5203,4,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,sim_sarimax|ARX(1)+2exog|statsmodels,theta1,--,,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,sim_sarimax|ARX(1)+2exog|statsmodels,logLik,-422.56,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,sim_sarimax|ARX(1)+2exog|statsmodels,AIC,855.12,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,sim_sarimax|ARX(1)+2exog|statsmodels,BIC,873.62,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,sim_sarimax|ARX(1)+2exog|statsmodels,RSS,295.61,2,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,sim_sarimax|ARX(1)+2exog|statsmodels,runtime_s,0.014,3,historical-tables/battery-2026-07/table_validation.csv
+battery.validation,sim_sarimax|ARX(1)+2exog|statsmodels,status,ok,,historical-tables/battery-2026-07/table_validation.csv
+battery.forecasting,"GDPC1|R-forecast|(1,1,1) drift",Protocol,rolling-origin,,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|R-forecast|(1,1,1) drift",Origins,5,0,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|R-forecast|(1,1,1) drift",H,8,0,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|R-forecast|(1,1,1) drift",MAE,273.9182,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|R-forecast|(1,1,1) drift",RMSE,367.3913,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|R-forecast|(1,1,1) drift",sMAPE,1.4830,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|R-forecast|(1,1,1) drift",MASE,3.4400,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|R-forecast|(1,1,1) drift",s/fit,0.003,3,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|R-forecast|(1,1,1) drift",status,ok,,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|SARIMAX.jl|(1,1,1) drift",Protocol,rolling-origin,,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|SARIMAX.jl|(1,1,1) drift",Origins,5,0,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|SARIMAX.jl|(1,1,1) drift",H,8,0,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|SARIMAX.jl|(1,1,1) drift",MAE,244.4437,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|SARIMAX.jl|(1,1,1) drift",RMSE,324.9236,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|SARIMAX.jl|(1,1,1) drift",sMAPE,1.2373,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|SARIMAX.jl|(1,1,1) drift",MASE,2.9728,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|SARIMAX.jl|(1,1,1) drift",s/fit,0.004,3,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|SARIMAX.jl|(1,1,1) drift",status,ok,,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,GDPC1|naive|naive,Protocol,rolling-origin,,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,GDPC1|naive|naive,Origins,5,0,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,GDPC1|naive|naive,H,8,0,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,GDPC1|naive|naive,MAE,424.4362,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,GDPC1|naive|naive,RMSE,498.1894,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,GDPC1|naive|naive,sMAPE,2.0499,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,GDPC1|naive|naive,MASE,4.9902,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,GDPC1|naive|naive,s/fit,--,,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,GDPC1|naive|naive,status,ok,,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|statsmodels|(1, 1, 1)",Protocol,rolling-origin,,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|statsmodels|(1, 1, 1)",Origins,5,0,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|statsmodels|(1, 1, 1)",H,8,0,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|statsmodels|(1, 1, 1)",MAE,244.0633,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|statsmodels|(1, 1, 1)",RMSE,324.5809,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|statsmodels|(1, 1, 1)",sMAPE,1.2366,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|statsmodels|(1, 1, 1)",MASE,2.9701,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|statsmodels|(1, 1, 1)",s/fit,0.027,3,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"GDPC1|statsmodels|(1, 1, 1)",status,ok,,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|R-forecast|(1,0,1)(1,0,1)_12",Protocol,rolling-origin,,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|R-forecast|(1,0,1)(1,0,1)_12",Origins,5,0,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|R-forecast|(1,0,1)(1,0,1)_12",H,12,0,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|R-forecast|(1,0,1)(1,0,1)_12",MAE,1.3256,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|R-forecast|(1,0,1)(1,0,1)_12",RMSE,1.5857,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|R-forecast|(1,0,1)(1,0,1)_12",sMAPE,7.4038,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|R-forecast|(1,0,1)(1,0,1)_12",MASE,1.3355,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|R-forecast|(1,0,1)(1,0,1)_12",s/fit,0.103,3,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|R-forecast|(1,0,1)(1,0,1)_12",status,ok,,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|SARIMAX.jl|(1,0,1)(1,0,1)_12",Protocol,rolling-origin,,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|SARIMAX.jl|(1,0,1)(1,0,1)_12",Origins,5,0,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|SARIMAX.jl|(1,0,1)(1,0,1)_12",H,12,0,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|SARIMAX.jl|(1,0,1)(1,0,1)_12",MAE,1.2757,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|SARIMAX.jl|(1,0,1)(1,0,1)_12",RMSE,1.5209,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|SARIMAX.jl|(1,0,1)(1,0,1)_12",sMAPE,7.1535,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|SARIMAX.jl|(1,0,1)(1,0,1)_12",MASE,1.2842,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|SARIMAX.jl|(1,0,1)(1,0,1)_12",s/fit,0.011,3,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|SARIMAX.jl|(1,0,1)(1,0,1)_12",status,ok,,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,airpassengers|seasonal-naive|snaive,Protocol,rolling-origin,,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,airpassengers|seasonal-naive|snaive,Origins,5,0,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,airpassengers|seasonal-naive|snaive,H,12,0,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,airpassengers|seasonal-naive|snaive,MAE,2.2138,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,airpassengers|seasonal-naive|snaive,RMSE,2.4985,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,airpassengers|seasonal-naive|snaive,sMAPE,12.8024,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,airpassengers|seasonal-naive|snaive,MASE,2.2194,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,airpassengers|seasonal-naive|snaive,s/fit,--,,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,airpassengers|seasonal-naive|snaive,status,ok,,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|statsmodels|(1, 0, 1)(1, 0, 1, 12)",Protocol,rolling-origin,,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|statsmodels|(1, 0, 1)(1, 0, 1, 12)",Origins,5,0,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|statsmodels|(1, 0, 1)(1, 0, 1, 12)",H,12,0,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|statsmodels|(1, 0, 1)(1, 0, 1, 12)",MAE,1.0868,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|statsmodels|(1, 0, 1)(1, 0, 1, 12)",RMSE,1.3048,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|statsmodels|(1, 0, 1)(1, 0, 1, 12)",sMAPE,6.0884,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|statsmodels|(1, 0, 1)(1, 0, 1, 12)",MASE,1.0884,4,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|statsmodels|(1, 0, 1)(1, 0, 1, 12)",s/fit,0.110,3,historical-tables/battery-2026-07/table_forecasting.csv
+battery.forecasting,"airpassengers|statsmodels|(1, 0, 1)(1, 0, 1, 12)",status,ok,,historical-tables/battery-2026-07/table_forecasting.csv
+battery.architecture,objective_swap|squared-error,Order,"(1,0,0)",,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,objective_swap|squared-error,CoefNorm,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,objective_swap|squared-error,RSS,603.97,2,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,objective_swap|squared-error,ResidMAE,0.9883,4,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,objective_swap|squared-error,IC(aicc),--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,objective_swap|squared-error,Admissible,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,objective_swap|squared-error,Detail,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,objective_swap|squared-error,runtime_s,7.671,3,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,objective_swap|squared-error,status,ok,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,objective_swap|absolute-error,Order,"(1,0,0)",,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,objective_swap|absolute-error,CoefNorm,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,objective_swap|absolute-error,RSS,616.35,2,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,objective_swap|absolute-error,ResidMAE,0.9732,4,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,objective_swap|absolute-error,IC(aicc),--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,objective_swap|absolute-error,Admissible,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,objective_swap|absolute-error,Detail,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,objective_swap|absolute-error,runtime_s,0.199,3,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,objective_swap|absolute-error,status,ok,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|unregularized,Order,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|unregularized,CoefNorm,1.9006,4,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|unregularized,RSS,283.34,2,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|unregularized,ResidMAE,0.7648,4,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|unregularized,IC(aicc),--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|unregularized,Admissible,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|unregularized,Detail,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|unregularized,runtime_s,0.256,3,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|unregularized,status,ok,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|ridge,Order,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|ridge,CoefNorm,1.7318,4,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|ridge,RSS,306.55,2,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|ridge,ResidMAE,0.7960,4,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|ridge,IC(aicc),--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|ridge,Admissible,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|ridge,Detail,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|ridge,runtime_s,2.764,3,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|ridge,status,ok,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|lasso,Order,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|lasso,CoefNorm,1.7741,4,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|lasso,RSS,306.55,2,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|lasso,ResidMAE,0.7964,4,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|lasso,IC(aicc),--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|lasso,Admissible,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|lasso,Detail,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|lasso,runtime_s,0.755,3,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|lasso,status,ok,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|elastic_net,Order,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|elastic_net,CoefNorm,1.7643,4,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|elastic_net,RSS,306.55,2,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|elastic_net,ResidMAE,0.7961,4,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|elastic_net,IC(aicc),--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|elastic_net,Admissible,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|elastic_net,Detail,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|elastic_net,runtime_s,1.365,3,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,regularization|elastic_net,status,ok,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"admissibility|fit! ARIMA(1,0,1) airpassengers",Order,"(1,0,1)(0,0,0)_1",,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"admissibility|fit! ARIMA(1,0,1) airpassengers",CoefNorm,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"admissibility|fit! ARIMA(1,0,1) airpassengers",RSS,789.38,2,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"admissibility|fit! ARIMA(1,0,1) airpassengers",ResidMAE,1.3894,4,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"admissibility|fit! ARIMA(1,0,1) airpassengers",IC(aicc),--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"admissibility|fit! ARIMA(1,0,1) airpassengers",Admissible,"stat=N,inv=Y",,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"admissibility|fit! ARIMA(1,0,1) airpassengers",Detail,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"admissibility|fit! ARIMA(1,0,1) airpassengers",runtime_s,0.276,3,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"admissibility|fit! ARIMA(1,0,1) airpassengers",status,ok,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"admissibility|fit! ARIMA(1,0,1) sim_arma",Order,"(1,0,1)(0,0,0)_1",,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"admissibility|fit! ARIMA(1,0,1) sim_arma",CoefNorm,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"admissibility|fit! ARIMA(1,0,1) sim_arma",RSS,306.99,2,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"admissibility|fit! ARIMA(1,0,1) sim_arma",ResidMAE,0.8052,4,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"admissibility|fit! ARIMA(1,0,1) sim_arma",IC(aicc),--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"admissibility|fit! ARIMA(1,0,1) sim_arma",Admissible,"stat=Y,inv=Y",,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"admissibility|fit! ARIMA(1,0,1) sim_arma",Detail,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"admissibility|fit! ARIMA(1,0,1) sim_arma",runtime_s,0.004,3,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"admissibility|fit! ARIMA(1,0,1) sim_arma",status,ok,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,admissibility|admissible-only (assert on),Order,"(1,1,1)(0,1,1)_12",,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,admissibility|admissible-only (assert on),CoefNorm,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,admissibility|admissible-only (assert on),RSS,162.45,2,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,admissibility|admissible-only (assert on),ResidMAE,0.6416,4,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,admissibility|admissible-only (assert on),IC(aicc),495.35,2,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,admissibility|admissible-only (assert on),Admissible,"stat=Y,inv=Y",,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,admissibility|admissible-only (assert on),Detail,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,admissibility|admissible-only (assert on),runtime_s,4.141,3,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,admissibility|admissible-only (assert on),status,ok,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,admissibility|unconstrained search (assert off),Order,"(1,1,1)(0,1,1)_12",,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,admissibility|unconstrained search (assert off),CoefNorm,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,admissibility|unconstrained search (assert off),RSS,162.45,2,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,admissibility|unconstrained search (assert off),ResidMAE,0.6416,4,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,admissibility|unconstrained search (assert off),IC(aicc),495.35,2,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,admissibility|unconstrained search (assert off),Admissible,"stat=Y,inv=Y",,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,admissibility|unconstrained search (assert off),Detail,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,admissibility|unconstrained search (assert off),runtime_s,0.129,3,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,admissibility|unconstrained search (assert off),status,ok,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"invertibility|fit! default (multiplicative, box bounds)",Order,"(0,1,1)(0,1,1)_12",,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"invertibility|fit! default (multiplicative, box bounds)",CoefNorm,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"invertibility|fit! default (multiplicative, box bounds)",RSS,166.46,2,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"invertibility|fit! default (multiplicative, box bounds)",ResidMAE,0.6573,4,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"invertibility|fit! default (multiplicative, box bounds)",IC(aicc),--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"invertibility|fit! default (multiplicative, box bounds)",Admissible,"stat=Y,inv=Y",,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"invertibility|fit! default (multiplicative, box bounds)",Detail,"theta=[-0.813], Theta=[-0.529]",,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"invertibility|fit! default (multiplicative, box bounds)",runtime_s,0.010,3,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,"invertibility|fit! default (multiplicative, box bounds)",status,ok,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,invertibility|fit! additive form (box bounds),Order,"(0,1,1)(0,1,1)_12",,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,invertibility|fit! additive form (box bounds),CoefNorm,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,invertibility|fit! additive form (box bounds),RSS,169.38,2,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,invertibility|fit! additive form (box bounds),ResidMAE,0.6387,4,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,invertibility|fit! additive form (box bounds),IC(aicc),--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,invertibility|fit! additive form (box bounds),Admissible,"stat=Y,inv=N",,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,invertibility|fit! additive form (box bounds),Detail,"theta=[-1.0], Theta=[-0.2]",,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,invertibility|fit! additive form (box bounds),runtime_s,0.043,3,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,invertibility|fit! additive form (box bounds),status,ok,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,invertibility|fit! invertible=true (rho=0.05),Order,"(0,1,1)(0,1,1)_12",,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,invertibility|fit! invertible=true (rho=0.05),CoefNorm,--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,invertibility|fit! invertible=true (rho=0.05),RSS,166.46,2,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,invertibility|fit! invertible=true (rho=0.05),ResidMAE,0.6573,4,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,invertibility|fit! invertible=true (rho=0.05),IC(aicc),--,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,invertibility|fit! invertible=true (rho=0.05),Admissible,"stat=Y,inv=Y",,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,invertibility|fit! invertible=true (rho=0.05),Detail,"theta=[-0.813], Theta=[-0.529]",,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,invertibility|fit! invertible=true (rho=0.05),runtime_s,0.031,3,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.architecture,invertibility|fit! invertible=true (rho=0.05),status,ok,,historical-tables/battery-2026-07/table_architecture_checks.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=10|SCIP|mse,Setting,"global, direct (no decomposition, raw model)",,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=10|SCIP|mse,ObjValue,8.5298,4,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=10|SCIP|mse,ObjSpread,--,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=10|SCIP|mse,Detail,gap=0.0000,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=10|SCIP|mse,Termination,OPTIMAL,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=10|SCIP|mse,runtime_s,1.27,2,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=10|SCIP|mse,status,ok,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=20|SCIP|mse,Setting,"global, direct (no decomposition, raw model)",,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=20|SCIP|mse,ObjValue,19.3240,4,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=20|SCIP|mse,ObjSpread,--,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=20|SCIP|mse,Detail,gap=0.0000,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=20|SCIP|mse,Termination,OPTIMAL,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=20|SCIP|mse,runtime_s,4.47,2,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=20|SCIP|mse,status,ok,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=40|Ipopt|--,Setting,"multistart x25 (random theta,c)",,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=40|Ipopt|--,ObjValue,34.8301,4,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=40|Ipopt|--,ObjSpread,0.0000,4,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=40|Ipopt|--,Detail,"25 conv, 1 optima",,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=40|Ipopt|--,Termination,locally_solved (optimum certified global by SCIP),,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=40|Ipopt|--,runtime_s,0.21,2,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=40|Ipopt|--,status,ok,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=40|SCIP|mse,Setting,"global, direct (no decomposition, raw model)",,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=40|SCIP|mse,ObjValue,34.8300,4,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=40|SCIP|mse,ObjSpread,--,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=40|SCIP|mse,Detail,gap=0.0000,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=40|SCIP|mse,Termination,OPTIMAL,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=40|SCIP|mse,runtime_s,14.83,2,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=40|SCIP|mse,status,ok,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=8|SCIP|mse,Setting,"global, direct (no decomposition, raw model)",,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=8|SCIP|mse,ObjValue,7.3685,4,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=8|SCIP|mse,ObjSpread,--,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=8|SCIP|mse,Detail,gap=0.0000,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=8|SCIP|mse,Termination,OPTIMAL,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=8|SCIP|mse,runtime_s,1.73,2,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,JuMP-direct|MA(1) T=8|SCIP|mse,status,ok,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|Alpine+HiGHS|mae",Setting,"warning check, config-level (no solve)",,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|Alpine+HiGHS|mae",ObjValue,--,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|Alpine+HiGHS|mae",ObjSpread,--,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|Alpine+HiGHS|mae",Detail,no warning,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|Alpine+HiGHS|mae",Termination,config-only,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|Alpine+HiGHS|mae",runtime_s,--,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|Alpine+HiGHS|mae",status,ok,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|Alpine+HiGHS|mse",Setting,"warning check, config-level (no solve)",,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|Alpine+HiGHS|mse",ObjValue,--,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|Alpine+HiGHS|mse",ObjSpread,--,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|Alpine+HiGHS|mse",Detail,warning emitted,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|Alpine+HiGHS|mse",Termination,config-only,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|Alpine+HiGHS|mse",runtime_s,--,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|Alpine+HiGHS|mse",status,ok,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|Ipopt|mse",Setting,local x3 (deterministic starts),,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|Ipopt|mse",ObjValue,19.3241,4,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|Ipopt|mse",ObjSpread,0.0000,4,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|Ipopt|mse",Detail,--,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|Ipopt|mse",Termination,locally_solved,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|Ipopt|mse",runtime_s,0.00,2,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|Ipopt|mse",status,ok,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|SCIP|mse",Setting,"global, direct (fit!)",,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|SCIP|mse",ObjValue,19.3240,4,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|SCIP|mse",ObjSpread,--,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|SCIP|mse",Detail,--,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|SCIP|mse",Termination,global optimum (matches certified JuMP-level solve),,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|SCIP|mse",runtime_s,6.78,2,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(0,0,1)|SCIP|mse",status,ok,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(1,0,1)|Ipopt|mse",Setting,local x3 (deterministic starts),,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(1,0,1)|Ipopt|mse",ObjValue,15.4668,4,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(1,0,1)|Ipopt|mse",ObjSpread,0.0000,4,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(1,0,1)|Ipopt|mse",Detail,--,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(1,0,1)|Ipopt|mse",Termination,locally_solved,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(1,0,1)|Ipopt|mse",runtime_s,0.00,2,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_comparison,"SARIMAX.jl(fit!)|ARIMA(1,0,1)|Ipopt|mse",status,ok,,historical-tables/battery-2026-07/table_solver_comparison.csv
+battery.solver_scaling,T=40,Termination,OPTIMAL,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=40,Certified,yes,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=40,RelGap,0,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=40,Time (s),15.4,1,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=40,Obj,34.8300,4,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=40,BruteForce,agree,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=60,Termination,OPTIMAL,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=60,Certified,yes,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=60,RelGap,0,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=60,Time (s),31.7,1,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=60,Obj,41.9892,4,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=60,BruteForce,agree,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=80,Termination,OPTIMAL,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=80,Certified,yes,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=80,RelGap,0,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=80,Time (s),68.0,1,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=80,Obj,73.6531,4,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=80,BruteForce,agree,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=100,Termination,OPTIMAL,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=100,Certified,yes,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=100,RelGap,0,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=100,Time (s),400.0,1,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=100,Obj,82.9035,4,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=100,BruteForce,agree,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=120,Termination,OPTIMAL,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=120,Certified,yes,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=120,RelGap,0,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=120,Time (s),297.0,1,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=120,Obj,132.9811,4,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=120,BruteForce,agree,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=150,Termination,TIME_LIMIT,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=150,Certified,no,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=150,RelGap,1.0e-05,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=150,Time (s),600.8,1,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=150,Obj,184.7940,4,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=150,BruteForce,--,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=200,Termination,TIME_LIMIT,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=200,Certified,no,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=200,RelGap,1.2e-05,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=200,Time (s),600.8,1,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=200,Obj,246.4618,4,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.solver_scaling,T=200,BruteForce,--,,historical-tables/battery-2026-07/table_solver_scaling.csv
+battery.global_value,"pjme_daily(scaled) ARMA(1,0,1) T=80|Ipopt",Certified,no,,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"pjme_daily(scaled) ARMA(1,0,1) T=80|Ipopt",Objective,246.3799,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"pjme_daily(scaled) ARMA(1,0,1) T=80|Ipopt",phi,0.1026,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"pjme_daily(scaled) ARMA(1,0,1) T=80|Ipopt",theta,0.7678,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"pjme_daily(scaled) ARMA(1,0,1) T=80|Ipopt",RMSE_oos,3.5962,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"pjme_daily(scaled) ARMA(1,0,1) T=80|Ipopt",MAE_oos,2.8467,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"pjme_daily(scaled) ARMA(1,0,1) T=80|Ipopt",Time (s),0.0,1,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"pjme_daily(scaled) ARMA(1,0,1) T=80|SCIP",Certified,yes,,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"pjme_daily(scaled) ARMA(1,0,1) T=80|SCIP",Objective,246.3796,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"pjme_daily(scaled) ARMA(1,0,1) T=80|SCIP",phi,0.1027,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"pjme_daily(scaled) ARMA(1,0,1) T=80|SCIP",theta,0.7678,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"pjme_daily(scaled) ARMA(1,0,1) T=80|SCIP",RMSE_oos,3.5962,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"pjme_daily(scaled) ARMA(1,0,1) T=80|SCIP",MAE_oos,2.8468,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"pjme_daily(scaled) ARMA(1,0,1) T=80|SCIP",Time (s),900.0,1,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"sim_arma ARMA(1,0,1) T=80|Ipopt",Certified,no,,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"sim_arma ARMA(1,0,1) T=80|Ipopt",Objective,60.5257,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"sim_arma ARMA(1,0,1) T=80|Ipopt",phi,0.5229,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"sim_arma ARMA(1,0,1) T=80|Ipopt",theta,0.5259,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"sim_arma ARMA(1,0,1) T=80|Ipopt",RMSE_oos,0.5499,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"sim_arma ARMA(1,0,1) T=80|Ipopt",MAE_oos,0.4464,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"sim_arma ARMA(1,0,1) T=80|Ipopt",Time (s),0.0,1,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"sim_arma ARMA(1,0,1) T=80|SCIP",Certified,yes,,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"sim_arma ARMA(1,0,1) T=80|SCIP",Objective,60.5256,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"sim_arma ARMA(1,0,1) T=80|SCIP",phi,0.5234,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"sim_arma ARMA(1,0,1) T=80|SCIP",theta,0.5251,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"sim_arma ARMA(1,0,1) T=80|SCIP",RMSE_oos,0.5499,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"sim_arma ARMA(1,0,1) T=80|SCIP",MAE_oos,0.4463,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,"sim_arma ARMA(1,0,1) T=80|SCIP",Time (s),385.4,1,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,sim_arma MA(1) T=80|Ipopt,Certified,no,,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,sim_arma MA(1) T=80|Ipopt,Objective,73.6533,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,sim_arma MA(1) T=80|Ipopt,phi,--,,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,sim_arma MA(1) T=80|Ipopt,theta,0.7433,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,sim_arma MA(1) T=80|Ipopt,RMSE_oos,0.5067,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,sim_arma MA(1) T=80|Ipopt,MAE_oos,0.4086,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,sim_arma MA(1) T=80|Ipopt,Time (s),0.6,1,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,sim_arma MA(1) T=80|SCIP,Certified,yes,,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,sim_arma MA(1) T=80|SCIP,Objective,73.6531,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,sim_arma MA(1) T=80|SCIP,phi,--,,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,sim_arma MA(1) T=80|SCIP,theta,0.7433,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,sim_arma MA(1) T=80|SCIP,RMSE_oos,0.5067,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,sim_arma MA(1) T=80|SCIP,MAE_oos,0.4086,4,historical-tables/battery-2026-07/table_global_value.csv
+battery.global_value,sim_arma MA(1) T=80|SCIP,Time (s),69.2,1,historical-tables/battery-2026-07/table_global_value.csv
+battery.energy,"PJME_daily|(1,1,1)(1,0,1)_7|R-forecast",RMSE,2837.04,2,historical-tables/battery-2026-07/table_energy_forecasting.csv
+battery.energy,"PJME_daily|(1,1,1)(1,0,1)_7|R-forecast",MAE,2354.89,2,historical-tables/battery-2026-07/table_energy_forecasting.csv
+battery.energy,"PJME_daily|(1,1,1)(1,0,1)_7|R-forecast",MASE,0.7427,4,historical-tables/battery-2026-07/table_energy_forecasting.csv
+battery.energy,"PJME_daily|(1,1,1)(1,0,1)_7|R-forecast",s/fit,0.069,3,historical-tables/battery-2026-07/table_energy_forecasting.csv
+battery.energy,"PJME_daily|(1,1,1)(1,0,1)_7|SARIMAX.jl",RMSE,2869.13,2,historical-tables/battery-2026-07/table_energy_forecasting.csv
+battery.energy,"PJME_daily|(1,1,1)(1,0,1)_7|SARIMAX.jl",MAE,2407.89,2,historical-tables/battery-2026-07/table_energy_forecasting.csv
+battery.energy,"PJME_daily|(1,1,1)(1,0,1)_7|SARIMAX.jl",MASE,0.7599,4,historical-tables/battery-2026-07/table_energy_forecasting.csv
+battery.energy,"PJME_daily|(1,1,1)(1,0,1)_7|SARIMAX.jl",s/fit,0.260,3,historical-tables/battery-2026-07/table_energy_forecasting.csv
+battery.energy,PJME_daily|snaive_s7|seasonal-naive,RMSE,3465.88,2,historical-tables/battery-2026-07/table_energy_forecasting.csv
+battery.energy,PJME_daily|snaive_s7|seasonal-naive,MAE,2852.99,2,historical-tables/battery-2026-07/table_energy_forecasting.csv
+battery.energy,PJME_daily|snaive_s7|seasonal-naive,MASE,0.8998,4,historical-tables/battery-2026-07/table_energy_forecasting.csv
+battery.energy,PJME_daily|snaive_s7|seasonal-naive,s/fit,--,,historical-tables/battery-2026-07/table_energy_forecasting.csv
+battery.energy,"PJME_daily|(1,1,1)(1,0,1)_7|statsmodels",RMSE,3177.50,2,historical-tables/battery-2026-07/table_energy_forecasting.csv
+battery.energy,"PJME_daily|(1,1,1)(1,0,1)_7|statsmodels",MAE,2672.09,2,historical-tables/battery-2026-07/table_energy_forecasting.csv
+battery.energy,"PJME_daily|(1,1,1)(1,0,1)_7|statsmodels",MASE,0.8420,4,historical-tables/battery-2026-07/table_energy_forecasting.csv
+battery.energy,"PJME_daily|(1,1,1)(1,0,1)_7|statsmodels",s/fit,0.080,3,historical-tables/battery-2026-07/table_energy_forecasting.csv

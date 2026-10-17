@@ -1,0 +1,63 @@
+# CVaR ("stable") objective against mse on the M4 weekly and yearly populations (manifest id
+# stable_weekly_yearly): three arms paired on the same series.
+#
+# Protocol: recreio campaign F, experiments/scripts/run_stable.jl (stableConfig), commit
+# 3d7f883. The stable_090 arm was missing from the runner after the run and was RESTORED by
+# the recreio authors (see the recreio REPRODUCE.md finding 1); its cvarLevel 0.9 is an
+# inference from the arm label and the default at that commit.
+
+id = "stable_weekly_yearly"
+kind = "m4"
+protocol_status = "archived"
+protocol_source = "origin/paper/replication-staging-recreio: experiments/scripts/run_stable.jl (campaign F)"
+frequencies = ["weekly", "yearly"]
+per_series_timeout_s = 3600.0
+max_failure_rate = 0.01
+
+[auto_defaults]
+initialization = "innovations"
+seasonalForm = "multiplicative"
+stationary = true
+stationarityMargin = 1e-6
+invertible = false
+invertibilityMargin = 1e-6
+assertStationarity = true
+assertInvertibility = true
+rootMargin = 1e-2
+constrainedRefit = false
+searchMethod = "stepwise"
+informationCriteria = "aicc"
+integrationTest = "kpssShort"
+seasonalIntegrationTest = "seas"
+d = -1
+D = -1
+maxd = 2
+maxD = 1
+maxp = 5
+maxq = 5
+maxP = 2
+maxQ = 2
+maxOrder = 5
+multistart = false
+warmStartFromBox = false
+maxTimeSeconds = "nothing"
+parallel = false
+outlierDetection = false
+requireTermsWhenOverDifferenced = false
+requireMAWhenDoublyDifferenced = false
+optimizer = "Ipopt"
+
+[[arms]]
+name = "mse"
+engine = "julia"
+auto = { objectiveFunction = "mse" }
+
+[[arms]]
+name = "stable_090"
+engine = "julia"
+auto = { objectiveFunction = "stable", cvarLevel = 0.9 }
+
+[[arms]]
+name = "stable_050"
+engine = "julia"
+auto = { objectiveFunction = "stable", cvarLevel = 0.5 }

@@ -1,0 +1,48 @@
+# July 2026 battery: does certified global optimality change the forecast? Ipopt against SCIP on
+# the same specification (manifest id battery_global_value, table battery.global_value =
+# tab:global_value).
+#
+# Protocol: artifacts/original-scripts/battery-2026-07/scripts/run_solver_global_value.jl with
+# setup/gen_sim_data.py and setup/gen_energy_data.py (= 74eb882^:experiments/scripts), whose
+# archived records were produced at commit 8ffc512. The port (deviations at its top and in
+# experiments/runners/battery/PORTING.md) adds SCIP's dual bound, relative gap, raw and primal
+# status and version to every record. No package estimation API is involved (direct JuMP model).
+#
+# Needs the PJME load file (third instance): ./reproduce.sh fetch pjme. The first step refuses to
+# continue without the verified file. Needs SCIP (SCIP.jl 0.11.6, SCIP 8.0.x): the SCIP solves
+# crash on Windows (upstream), so run this in the Linux container. The archived PJME SCIP solve
+# ended OPTIMAL at 899.96 s of its 900 s limit (an earlier run, ecc4878, hit TIME_LIMIT), so its
+# Certified / Time cells depend on the machine.
+
+id = "battery_global_value"
+kind = "script"
+title = "Battery 2026-07: local (Ipopt) vs certified global (SCIP) estimates of MA(1)/ARMA(1,1) on simulated and PJME series, and their out-of-sample errors"
+protocol_status = "archived"
+protocol_source = "artifacts/original-scripts/battery-2026-07/scripts/run_solver_global_value.jl, setup/gen_sim_data.py, setup/gen_energy_data.py (records of 8ffc512)"
+tables_group = "battery"
+tables = ["battery.global_value"]
+
+[[steps]]
+engine = "python"
+script = "experiments/runners/battery/check_pjme.py"
+args = []
+timeout_s = 300
+
+[[steps]]
+engine = "python"
+script = "experiments/runners/battery/setup/gen_sim_data.py"
+args = []
+timeout_s = 600
+
+[[steps]]
+engine = "python"
+script = "experiments/runners/battery/setup/gen_energy_data.py"
+args = []
+timeout_s = 900
+
+[[steps]]
+engine = "julia"
+script = "experiments/runners/battery/run_solver_global_value.jl"
+args = []
+# three SCIP solves capped at 900 s each (archived: 69 s, 385 s, 900 s) plus Ipopt
+timeout_s = 5400

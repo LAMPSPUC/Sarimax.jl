@@ -60,7 +60,10 @@ def run(paths: Paths, args) -> int:
     report = Report("tables", paths)
     detail_rows: list[list] = []
     inventory = dict((p, h) for h, p in artifact_inventory(paths))
-    m4 = paths.m4 if any(paths.m4.glob("*-test.csv")) else None
+    # Generators that can also check stored metrics against the M4 test values do so only when
+    # every M4 test file is present (`./reproduce.sh fetch m4`); the check is optional.
+    m4 = paths.m4 if all((paths.m4 / f"{s}-test.csv").exists() for s in
+                         ("Yearly", "Quarterly", "Monthly", "Weekly", "Daily", "Hourly")) else None
     only = set(getattr(args, "group", None) or [])
     input_failure = False
 

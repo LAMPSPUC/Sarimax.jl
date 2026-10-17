@@ -22,13 +22,14 @@ def load_manifest(paths: Paths) -> list[dict]:
 
 def list_experiments(paths: Paths) -> int:
     rows = load_manifest(paths)
-    print(f"{'experiment':<36} {'tables (Level B)':<18} {'full re-run (Level C)':<22} manuscript label")
-    print("-" * 110)
+    print(f"{'experiment':<34} {'tables (Level B)':<30} {'full re-run (Level C)':<34} manuscript label")
+    print("-" * 130)
     for r in rows:
         label = r["manuscript_label"] or "-"
-        if r["manuscript_label_status"] != "confirmed":
-            label += f" ({r['manuscript_label_status']})"
-        print(f"{r['experiment_id']:<36} {r['table_status']:<18} {r['full_status']:<22} {label}")
+        status = r["manuscript_label_status"].split(" (")[0]
+        if status != "confirmed":
+            label += f" [{status}]"
+        print(f"{r['experiment_id']:<34} {r['table_status']:<30} {r['full_status']:<34} {label}")
     print()
     print("Run one with:   ./reproduce.sh full --experiment <experiment> [--jobs N] [--resume] [--limit N]")
     print("Details per experiment: replication/ijf-2026/experiment_manifest.csv and REPRODUCIBILITY_STATUS.md")

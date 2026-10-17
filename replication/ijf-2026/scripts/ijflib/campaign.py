@@ -122,11 +122,29 @@ def worker_command(paths: Paths, config_path: Path, arm: dict) -> list[str]:
     raise ValueError(f"unknown engine {arm['engine']}")
 
 
-def read_done(path: Path) -> set[int]:
+def read_done(path: Path, events=None) -> set[int]:
+    """Series already in a task's checkpoint file.
+
+    A row cut short by an interruption (wrong number of fields, no status) is not a finished
+    series: the file is rewritten without it (the original is kept as *.bak) and the series
+    is fitted again.
+    """
     if not path.exists():
         return set()
     with open(path, newline="", encoding="utf-8") as f:
-        return {int(r["series"]) for r in csv.DictReader(f)}
+        rows = list(csv.reader(f))
+    if not rows or rows[0] != COLUMNS:
+        raise RuntimeError(f"{path} does not have the runner's header; refusing to resume into it")
+    good = [r for r in rows[1:] if len(r) == len(COLUMNS) and r[COLUMNS.index("status")]]
+    if len(good) != len(rows) - 1:
+        os.replace(path, path.with_suffix(".csv.bak"))
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f, lineterminator="\n")
+            w.writerow(COLUMNS)
+            w.writerows(good)
+        if events:
+            events("checkpoint_repaired", file=path.name, dropped_rows=len(rows) - 1 - len(good))
+    return {int(r[COLUMNS.index("series")]) for r in good}
 
 
 def run_task(paths: Paths, exp: dict, config_path: Path, arm: dict, freq: str, run_dir: Path,
@@ -134,7 +152,7 @@ def run_task(paths: Paths, exp: dict, config_path: Path, arm: dict, freq: str, r
              meta: dict) -> dict:
     """Fit `ids` with `jobs` workers; returns counts. Appends to <arm>__<freq>.csv."""
     out_csv = run_dir / f"{arm['name']}__{freq}.csv"
-    done = read_done(out_csv)
+    done = read_done(out_csv, events)
     pending = [i for i in ids if i not in done]
     counts = {"requested": len(ids), "already_done": len(ids) - len(pending), "ok": 0, "error": 0,
               "timeout": 0, "crash": 0}
@@ -200,8 +218,16 @@ def run_task(paths: Paths, exp: dict, config_path: Path, arm: dict, freq: str, r
         while queue_ids or any(w.job for w in workers.values()):
             for k, w in list(workers.items()):
                 if w.job is None and queue_ids:
-                    sid = queue_ids.pop(0)
-                    w.send({"series": sid, "y": train[sid - 1], "s": s, "H": H})
+                    sid = queue_ids[0]
+                    try:
+                        w.send({"series": sid, "y": train[sid - 1], "s": s, "H": H})
+                    except OSError:                  # the worker died while idle: replace it
+                        events("worker_died_idle", task=label, worker=k, exit=w.proc.poll())
+                        w.kill()
+                        restarts += 1
+                        workers[k] = spawn(k) or _fail(label, logs)
+                        continue
+                    queue_ids.pop(0)
             progressed = False
             for k, w in list(workers.items()):
                 if w.job is None:
@@ -294,6 +320,10 @@ def run(paths: Paths, exp: dict, config_path: Path, args, run_dir: Path, events:
             events("task_start", task=label, series=len(ids))
             counts = run_task(paths, exp, config_path, arm, freq, run_dir, ids, train, test,
                               args.jobs, timeout, events, meta)
+            out_csv = run_dir / f"{label}.csv"
+            if out_csv.exists():          # integrity record of the task's output as written
+                counts["rows_in_file"] = len(read_done(out_csv, events))
+                counts["sha256"] = sha256_file(out_csv)
             meta["tasks"][label] = counts
             events("task_end", task=label, **counts)
             meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")

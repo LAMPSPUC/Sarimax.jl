@@ -202,6 +202,25 @@ equations.
 - **MLJ**: `SARIMAForecaster` (deterministic wrapper; exogenous variables via
   MLJ not yet supported).
 
+## Reproducing the IJF paper
+
+The experiments of *SARIMAX.jl: Open-Source Optimization-Based SARIMAX Modeling in Julia*
+(International Journal of Forecasting) can be verified and re-run from this repository with
+Docker as the only requirement:
+
+```bash
+git clone https://github.com/LAMPSPUC/Sarimax.jl.git
+cd Sarimax.jl
+./reproduce.sh
+```
+
+This checks the containerized environment and the archived inputs, runs small reference
+computations and rebuilds the tables from the archived per-series results.
+`./reproduce.sh full --experiment <id>` re-runs an experiment from the original data. See
+[replication/ijf-2026/README.md](replication/ijf-2026/README.md) and the
+[artifact guide](replication/ijf-2026/ARTIFACT_GUIDE.md). None of this affects using the
+package: `Pkg.add` installs the library as usual.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). PRs are very welcome; for non-trivial

@@ -171,15 +171,18 @@ def latex_table(cols: list[str], rows: list[dict], caption: str, label: str, col
     return "\n".join(lines)
 
 
-def load(ctx: Context, block: str) -> list[dict]:
+def load(ctx: Context, block: str, strict: bool = True) -> list[dict]:
+    """Records of one block. Strict (the archive): exactly the archived set of files. Not
+    strict (a re-run of some tables): whichever of the archived file names the run wrote."""
     d = ctx.path(f"{RAW}/{block}")
     found = sorted(p.name for p in d.glob("*_results.jsonl"))
-    if found != sorted(FILES[block]):
+    if strict and found != sorted(FILES[block]):
         raise RuntimeError(f"{RAW}/{block}: *_results.jsonl files {found} differ from the "
                            f"archived set {sorted(FILES[block])}")
     records = []
     for name in sorted(FILES[block]):
-        records += read_jsonl(d / name)
+        if strict or (d / name).exists():
+            records += read_jsonl(d / name)
     return records
 
 
@@ -336,10 +339,25 @@ TABLES = [
 ]
 
 
-def generate(ctx: Context) -> list[Cell]:
-    rec = {block: load(ctx, block) for block in FILES}
+# Blocks whose records each table reads (used when only some tables are rebuilt).
+TABLE_BLOCKS = {"battery.validation": "validation", "battery.forecasting": "forecasting",
+                "battery.architecture": "architecture", "battery.solver_comparison": "solver",
+                "battery.solver_scaling": "solver", "battery.global_value": "solver",
+                "battery.energy": "energy"}
+
+
+def generate(ctx: Context, tables: list[str] | None = None) -> list[Cell]:
+    """All seven tables from the archive (tables=None, every archived file required), or only
+    `tables` from a re-run directory (only the blocks those tables read)."""
+    if tables is None:
+        rec = {block: load(ctx, block) for block in FILES}
+    else:
+        rec = {block: (load(ctx, block, strict=False) if block in {TABLE_BLOCKS[t] for t in tables} else [])
+               for block in FILES}
     cells: list[Cell] = []
     for table, build, stem, caption, label, colfmt in TABLES:
+        if tables is not None and table not in tables:
+            continue
         rows = build(rec)
         if not rows:                 # the original skipped the table; its cells stay unmatched
             continue

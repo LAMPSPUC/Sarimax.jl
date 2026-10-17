@@ -91,6 +91,7 @@ force_build=0
 no_build=0
 platform="linux/amd64"
 artifacts_dir="$REPL_DIR/artifacts"
+artifacts_explicit=0
 data_dir="$REPL_DIR/data/external"
 output_dir="$REPL_DIR/output"
 offline=0
@@ -104,7 +105,7 @@ while [[ $# -gt 0 ]]; do
         --build) force_build=1; shift ;;
         --no-build) no_build=1; shift ;;
         --platform) platform="${2:?--platform needs a value}"; shift 2 ;;
-        --artifacts) artifacts_dir="${2:?--artifacts needs a value}"; shift 2 ;;
+        --artifacts) artifacts_dir="${2:?--artifacts needs a value}"; artifacts_explicit=1; shift 2 ;;
         --data-dir) data_dir="${2:?--data-dir needs a value}"; shift 2 ;;
         --output) output_dir="${2:?--output needs a value}"; shift 2 ;;
         --offline) offline=1; shift ;;
@@ -332,8 +333,9 @@ main() {
         fetch) run_container "$ref" bridge 1 fetch "${passthrough[@]+"${passthrough[@]}"}" || rc=$? ;;
         shell) run_container "$ref" none 0 shell || rc=$? ;;
         quick)
-            # The archived artifacts are fetched (and verified) once if they are missing.
-            if [[ $offline -eq 0 && ! -f "$artifacts_dir/.complete" ]]; then
+            # The archived artifacts are fetched (and verified) once if they are missing; a
+            # directory given with --artifacts is used as it is (check verifies it).
+            if [[ $offline -eq 0 && $artifacts_explicit -eq 0 && ! -f "$artifacts_dir/.complete" ]]; then
                 run_container "$ref" bridge 1 fetch artifacts --if-available || rc=$?
                 [[ $rc -eq 0 ]] || warn "the artifact bundle could not be fetched; tables will report it as MISSING"
                 rc=0

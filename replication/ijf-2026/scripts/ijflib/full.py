@@ -173,7 +173,8 @@ def run_script_experiment(paths: Paths, config: dict, run_dir: Path, report: Rep
         from .tables import _close, load_expected
         mod = importlib.import_module(f"ijftables.{group}")
         ctx = Context(bundle=run_dir, out=run_dir / "tables", figures=run_dir / "figures")
-        cells = {(c.table, c.row, c.column): c for c in mod.generate(ctx)}
+        # Only the tables of this experiment, from this run's own records.
+        cells = {(c.table, c.row, c.column): c for c in mod.generate(ctx, tables=config.get("tables"))}
         expected = [e for e in load_expected(paths, group) if e["table"] in config.get("tables", [e["table"]])]
         agree = 0
         differ = []

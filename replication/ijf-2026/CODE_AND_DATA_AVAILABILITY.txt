@@ -1,0 +1,32 @@
+PROPOSED CODE AND DATA AVAILABILITY STATEMENT
+(for the authors to adapt; not inserted into the manuscript automatically)
+
+Bracketed items must be filled in at release time; do not submit the statement with them
+unresolved. Claims are limited to what the replication package has verified (see
+replication/ijf-2026/REPRODUCIBILITY_STATUS.md); revise the second paragraph if the final set
+of experiments or their status changes.
+
+-------------------------------------------------------------------------------------------
+
+Code and data availability
+
+SARIMAX.jl is open-source software released under the MIT licence and developed publicly at
+https://github.com/LAMPSPUC/Sarimax.jl. The results in this article were obtained with
+version 1.0.0 of the package. The release archived for this article [tag ijf-2026-v1;
+software DOI 10.5281/zenodo.XXXXXXX] contains the exact source code, the scripts and
+configuration files of every experiment, and a containerized computational environment
+(Julia, R, Python and the optimization solvers, with all versions pinned) published as
+[ghcr.io/lampspuc/sarimax-ijf-replication@sha256:...]. A single command (./reproduce.sh)
+verifies the environment and the archived inputs, runs small reference computations,
+regenerates the tables from the archived per-series results and compares them with the
+reported values; separate commands re-run each experiment from the original data.
+
+The archived experimental results (per-series forecasts, accuracy metrics and solver
+outcomes, and the scripts that produced them) are available at [data DOI
+10.5281/zenodo.YYYYYYY]. [The tables reported in Sections X–Y are regenerated from these
+records by the replication package.] [Re-execution of the full M4 campaigns, which requires
+several hundred CPU-hours, is supported but was not repeated for this archive.] The M4
+competition data are not redistributed; they are obtained from the organisers' repository
+(https://github.com/Mcompetitions/M4-methods) at a fixed revision and verified by checksum.
+[Note on SCIP: the SCIP binaries used through SCIP.jl 0.11 are distributed under the ZIB
+Academic License.]

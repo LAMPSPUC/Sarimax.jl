@@ -1,0 +1,49 @@
+# July 2026 battery, block 4: solver comparison and nonconvexity diagnostics on small
+# MA-containing instances (manifest id battery_solver_comparison, table
+# battery.solver_comparison = tab:solver_comparison).
+#
+# Protocol: artifacts/original-scripts/battery-2026-07/scripts/run_solver_diagnostics.jl,
+# run_solver_jump_diagnostics.jl, run_solver_scip_cert.jl and setup/gen_sim_data.py
+# (= 74eb882^:experiments/scripts), whose archived records were produced at commit 8ffc512 on
+# Sarimax v0.3.0 (3f68017). The runners are ports to the release API (deviations at their top
+# and in experiments/runners/battery/PORTING.md). Needs SCIP (SCIP.jl 0.11.6, SCIP 8.0.x): the
+# SCIP solves crash on Windows (upstream), so run this in the Linux container.
+#
+# The Termination column now holds what the solver returned: the archived table carried labels
+# hard-coded by the scripts ("locally_solved", "global optimum (matches certified JuMP-level
+# solve)", "locally_solved (optimum certified global by SCIP)"), so those cells differ by
+# construction. SCIP records also carry the dual bound, relative gap, raw and primal status and
+# the SCIP version, which the archived records lack.
+
+id = "battery_solver_comparison"
+kind = "script"
+title = "Battery 2026-07, block 4: Ipopt, SCIP (through fit! and directly) and randomized multistart on MA(1)/ARMA(1,1) instances, with brute-force audit"
+protocol_status = "archived"
+protocol_source = "artifacts/original-scripts/battery-2026-07/scripts/run_solver_diagnostics.jl, run_solver_jump_diagnostics.jl, run_solver_scip_cert.jl, setup/gen_sim_data.py (records of 8ffc512, Sarimax v0.3.0 = 3f68017)"
+tables_group = "battery"
+tables = ["battery.solver_comparison"]
+
+[[steps]]
+engine = "python"
+script = "experiments/runners/battery/setup/gen_sim_data.py"
+args = []
+timeout_s = 600
+
+[[steps]]
+engine = "julia"
+script = "experiments/runners/battery/run_solver_diagnostics.jl"
+args = []
+timeout_s = 3600
+
+[[steps]]
+engine = "julia"
+script = "experiments/runners/battery/run_solver_jump_diagnostics.jl"
+args = []
+timeout_s = 1800
+
+[[steps]]
+engine = "julia"
+script = "experiments/runners/battery/run_solver_scip_cert.jl"
+args = []
+# four SCIP solves capped at 300 s each, plus the brute-force audits
+timeout_s = 3600

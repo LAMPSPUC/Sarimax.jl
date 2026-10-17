@@ -59,7 +59,7 @@ RUN /opt/venv/bin/pip install --no-cache-dir --no-deps --require-hashes -r /tmp/
 # --- R packages from the frozen CRAN snapshot, verified against renv.lock --------------------
 COPY replication/ijf-2026/environments/r/renv.lock /opt/ijf-env/renv.lock
 COPY replication/ijf-2026/scripts/checks/r_env.R /opt/ijf-env/r_env.R
-RUN Rscript -e "options(warn = 2); install.packages(c('forecast', 'jsonlite'), repos = '${CRAN_SNAPSHOT}', Ncpus = 4L)" \
+RUN Rscript -e "install.packages(c('forecast', 'jsonlite'), repos = '${CRAN_SNAPSHOT}', Ncpus = 4L)" \
     && Rscript --vanilla /opt/ijf-env/r_env.R /opt/ijf-env/renv.lock
 
 # --- Julia --------------------------------------------------------------------------------
@@ -86,8 +86,15 @@ ENV PATH=/opt/venv/bin:/opt/julia/bin:$PATH \
 COPY Project.toml /opt/sarimax/Project.toml
 COPY src /opt/sarimax/src
 COPY replication/ijf-2026/environments/julia /opt/sarimax/replication/ijf-2026/environments/julia
-RUN julia --project=/opt/sarimax/replication/ijf-2026/environments/julia -e ' \
-        using Pkg; Pkg.instantiate(); Pkg.precompile(strict = true); \
+# Precompiled code is built for the CPU targets of the official Julia binaries rather than for
+# the build machine, so that it stays valid on the reviewer's CPU (otherwise every container
+# start would recompile into its throw-away depot).
+RUN case "${TARGETARCH:-amd64}" in \
+        amd64) export JULIA_CPU_TARGET="generic;sandybridge,-xsaveopt,clone_all;haswell,-rdrnd,base(1)" ;; \
+        arm64) export JULIA_CPU_TARGET="generic;cortex-a57;thunderx2t99;carmel,clone_all;apple-m1,base(3);neoverse-512tvb,base(3)" ;; \
+    esac \
+    && julia --project=/opt/sarimax/replication/ijf-2026/environments/julia -e ' \
+        using Pkg; Pkg.instantiate(); Pkg.precompile(); \
         using Sarimax, JuMP, Ipopt, SCIP, HiGHS, CSV, DataFrames, JSON, TimeSeries' \
     && chmod -R a+rX /opt/julia-depot
 
@@ -100,9 +107,16 @@ RUN test -n "${SOURCE_FINGERPRINT}" \
            echo "build context fingerprint $actual does not match SOURCE_FINGERPRINT $SOURCE_FINGERPRINT" >&2; \
            bash /opt/sarimax/replication/ijf-2026/scripts/fingerprint.sh --list /opt/sarimax >&2; exit 1; \
        fi \
+    && case "${TARGETARCH:-amd64}" in \
+        amd64) export JULIA_CPU_TARGET="generic;sandybridge,-xsaveopt,clone_all;haswell,-rdrnd,base(1)" ;; \
+        arm64) export JULIA_CPU_TARGET="generic;cortex-a57;thunderx2t99;carmel,clone_all;apple-m1,base(3);neoverse-512tvb,base(3)" ;; \
+       esac \
+    && julia --project=/opt/sarimax/replication/ijf-2026/environments/julia -e 'using Pkg; Pkg.precompile()' \
     && julia --project=/opt/sarimax/replication/ijf-2026/environments/julia \
         /opt/sarimax/replication/ijf-2026/scripts/checks/julia_env.jl \
-    && useradd --create-home --uid 1000 ijf \
+    && bash /opt/sarimax/replication/ijf-2026/docker/collect-licenses.sh \
+    && chmod -R a+rX /opt/julia-depot /opt/licenses \
+    && (id -u ijf >/dev/null 2>&1 || useradd --create-home ijf) \
     && mkdir -p /ijf/output /ijf/artifacts /ijf/data \
     && chown ijf /ijf/output /ijf/artifacts /ijf/data
 

@@ -9,7 +9,7 @@
 #   ./reproduce.sh full --experiment ID [--jobs N] [--resume] [--limit N]
 #   ./reproduce.sh full --all [--jobs N] [--resume]
 #   ./reproduce.sh list                 experiments and their replication readiness
-#   ./reproduce.sh fetch [artifacts|m4|all]   download and verify archived inputs
+#   ./reproduce.sh fetch [artifacts|m4|pjme|all]   download (or --from FILE) and verify inputs
 #   ./reproduce.sh build                build the container image from this checkout
 #   ./reproduce.sh help
 #
@@ -56,6 +56,8 @@ Options (all commands):
   --data-dir DIR     third-party input data, m4/ and pjme/ (default replication/ijf-2026/data/external)
   --output DIR       where generated outputs are written (default replication/ijf-2026/output)
   --offline          never download anything (missing inputs are reported, not fetched)
+  --from FILE        `fetch artifacts` (and the default run) take the bundle from this local
+                     tarball instead of downloading it; it is verified the same way
   --allow-unverified-image
                      run even if the image was not built from this checkout (results are
                      labelled UNVERIFIED in every report)
@@ -92,6 +94,7 @@ no_build=0
 platform="linux/amd64"
 artifacts_dir="$REPL_DIR/artifacts"
 artifacts_explicit=0
+from_file=""
 data_dir="$REPL_DIR/data/external"
 output_dir="$REPL_DIR/output"
 offline=0
@@ -112,7 +115,10 @@ while [[ $# -gt 0 ]]; do
         --allow-unverified-image) allow_unverified=1; shift ;;
         --native) native=1; shift ;;
         -h|--help) usage; exit "$EXIT_OK" ;;
-        --experiment|--jobs|--limit|--timeout|--run-id|--frequency|--arm|--group|--from)
+        --from)
+            [[ $# -ge 2 && -f "$2" ]] || die "$EXIT_INPUT" "--from needs an existing file (the artifact bundle tarball)"
+            from_file="$2"; shift 2 ;;
+        --experiment|--jobs|--limit|--timeout|--run-id|--frequency|--arm|--group)
             [[ $# -ge 2 ]] || die "$EXIT_USAGE" "$1 needs a value"
             passthrough+=("$1" "$2"); shift 2 ;;
         --all|--resume|--keep-going)
@@ -291,6 +297,10 @@ run_container() {  # run_container REF NETWORK(none|bridge) RW_INPUTS(0|1) ARGS.
         -v "$(abspath "$output_dir"):/ijf/output"
         -v "$(abspath "$artifacts_dir"):/ijf/artifacts$ro"
         -v "$(abspath "$data_dir"):/ijf/data$ro")
+    if [[ -n "$from_file" && "${1:-}" == "fetch" ]]; then   # a local bundle tarball, read-only, for `fetch --from`
+        args+=(-v "$(abspath "$(dirname "$from_file")")/$(basename "$from_file"):/ijf/import/$(basename "$from_file"):ro")
+        set -- "$@" --from "/ijf/import/$(basename "$from_file")"
+    fi
     if command -v id >/dev/null 2>&1 && [[ "$(uname -s)" == Linux ]]; then
         args+=(--user "$(id -u):$(id -g)")
     fi

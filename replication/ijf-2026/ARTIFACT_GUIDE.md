@@ -29,6 +29,8 @@ replication/ijf-2026/
   data/external_files.csv          pinned locations and SHA-256 of M4 and PJME
   data/fixtures/                   small committed inputs: smoke data, a 0.7 MB subset of the bundle
   results/expected/                reference cell values, parsed from the historical tables
+  results/manuscript/              every number printed in the manuscript, with its source
+  results/historical/              derived tables not in the bundle (with PROVENANCE.md)
   artifacts/   (not committed)     the extracted artifact bundle
   data/external/ (not committed)   fetched M4 and PJME files
   output/      (not committed)     everything a reproduction writes
@@ -124,6 +126,16 @@ removed and per-block sMAPE/MASE computed from them were added (definitions of r
 `make_table_m4.jl`). The `m4_benchmark` table group then regenerates recreio's table from
 the redacted files to the last printed digit, which also validates the transform.
 
+**Determinism.** The git sources are pinned to the commits bundle v1 was built from (the
+tips of the three `paper/replication-staging-*` branches on 2026-10-17, and `308461e`, the
+last commit that tracked the July 2026 battery); keep them reachable (tag them) before
+deleting those branches. The only computed content, the per-block metrics of the redacted
+recreio files, is summed left to right, because `sum()` became compensated in Python 3.12
+and would change last bits. Rebuilt on a second machine (macOS arm64, Python 3.14), the 299
+files whose sources are in git or in the Table 7 evidence matched `artifacts.sha256` byte for
+byte; the other 236 come from the ForecastTester and `sarimax-replication` workspaces of the
+maintainer host.
+
 `./reproduce.sh fetch artifacts` downloads the tarball from the location in
 `artifacts.lock`, checks its SHA-256, extracts it safely and verifies every file against
 `artifacts.sha256`; `--from FILE` uses a local tarball.
@@ -154,11 +166,21 @@ in the manifest, and regenerate `checksums.sha256`
 |---|---|---|
 | battery | the seven July 2026 battery tables (`tab:*`) | 583 |
 | m4_benchmark | recreio `table_m4` (M4 vs auto.arima, six frequencies x four blocks) | 192 |
+| m4_paired | paired differences and marginal distributions against auto.arima (manuscript Tables 4 and S8, Figure 2); reference values in `results/historical/m4-paired-2026-09/` | 420 |
 | m4_objectives | ICARAI Tables 1–2 and `tabelas_paper` sections A and B | 880 |
 | m4_objective_distributions | October 2026 Table 7 evidence: reproduction, 4a–4d, figures | 2,872 |
 | arms | recreio objective, multistart, isolation, axes and stable tables | 299 |
 | robust_cvar | contamination study (reference values transcribed from internal notes) | 19 |
 | scip_ipopt | SCIP vs Ipopt summaries of the July 2026 yearly study | 23 |
+
+**The manuscript.** `results/manuscript/manuscript_values.csv` lists the 672 numbers printed in
+the tables, figures and experimental sections of the 2026-10-16 revision, each with its LaTeX
+label and its source (a cell of a table group, a derived table in `results/historical/`, or
+none with the reason; `results/manuscript/README.md`). After the groups run, `tables`
+compares each one with its regenerated cell (`scripts/ijflib/manuscript.py`) and reports one
+row per manuscript item; `scripts/maintainers/check_manuscript_mapping.py` makes the same
+comparison against `results/expected/` without the bundle. When the manuscript changes, update
+the file and run that script.
 
 ## 7. Level C internals
 
@@ -201,7 +223,9 @@ its final results:
    expressed: the deprecated `"ridge"` objective or `mse` + `penalty = :elastic_net`,
    `alpha = 0`, `penaltyTarget = :dynamics` and its lambda), the frequencies, the time limits
    and the reference arms (`naive2`; `auto_arima` if reported). Set
-   `protocol_status = "final"`.
+   `protocol_status = "final"`; `full --all` leaves provisional protocols out, and includes
+   the experiment once it is final and carries the manuscript labels it supplies (moved from
+   the historical rows it replaces).
 2. **Code.** Run with the release commit of the paper (the image of this package), so that
    `source_fingerprint` and `config_sha256` in every row match the release.
 3. **Outputs.** Per-series files in the schema above, one per arm and frequency
@@ -219,34 +243,58 @@ its final results:
 
 ## 9. Release checklist (maintainers; every step needs the authors' approval)
 
-1. Confirm the manuscript mapping: fill `manuscript_label` for every retained experiment,
-   compare the manuscript's printed values with `results/expected/`, and drop or mark the
-   experiments the paper does not use.
+1. Resolve the manuscript findings (`LIMITATIONS.md`, item 1): the Table 7 Ipopt times, the
+   description of the monthly protocol behind Table 3, and the printed values that have no
+   archived source (archive their records, or remove the statements). If the manuscript
+   changes, update `results/manuscript/manuscript_values.csv` and run
+   `scripts/maintainers/check_manuscript_mapping.py`.
 2. Integrate `m4_objectives` (section 8), or record it as pending in the paper.
 3. Decide on SCIP's licence (section 3): keep SCIP.jl 0.11 and state the ZIB Academic
    License, or move the package to a SCIP release under Apache-2.0 before the release.
-4. Merge the replication branch into `master` after review.
-5. Build the final artifact bundle; upload it as a new Zenodo data record (test in the
-   Zenodo Sandbox first with `scripts/maintainers/zenodo_deposit.py --sandbox`); record its
-   version DOI, URL and SHA-256 in `artifacts.lock` (this does not change the fingerprint).
-6. Build and push the image with the manually triggered workflow `ijf-image-publish.yml`;
-   record the digest, fingerprint and revision in `image.lock`; archive the exported image
-   (`docker save | gzip`) in the Zenodo data record if its size and the SCIP licence allow.
-7. Tag the release commit (for example `ijf-2026-v1`; the package version stays 1.0.0
+4. Tag the commits of the `paper/replication-staging-*` branches that the bundle builder
+   pins (section 4) before those branches are deleted.
+5. Merge the replication branch into `master` after review.
+6. Build the final artifact bundle on the host that holds the ForecastTester and
+   `sarimax-replication` workspaces. If the paper keeps the GAVEA results (Section 5.5) or the
+   certification results (Section 5.6), add `brutos_gavea.zip` and the August 2026
+   certification batch as a new bundle version, with table groups for them. Upload the
+   bundle as a new Zenodo data record (test in the Zenodo Sandbox first with
+   `scripts/maintainers/zenodo_deposit.py --sandbox`); record its version DOI, URL and
+   SHA-256 in `artifacts.lock` (this does not change the fingerprint).
+7. Build and push the image with the manually triggered workflow `ijf-image-publish.yml`;
+   record the digest, fingerprint and revision in `image.lock`; make the GHCR package
+   public; archive the exported image (`docker save | gzip`) in the Zenodo data record if its
+   size and the SCIP licence allow.
+8. Tag the release commit (for example `ijf-2026-v1`; the package version stays 1.0.0
    because `src/` is unchanged) and publish the GitHub release; the Zenodo GitHub
    integration archives it and mints the software DOI (`.zenodo.json`).
-8. Link the records: software → `isSupplementedBy` data record; both → `isSupplementTo` the
+9. Link the records: software → `isSupplementedBy` data record; both → `isSupplementTo` the
    article DOI when assigned; update `CITATION.cff` and the availability statement.
 
 ## 10. Continuous integration
 
-`.github/workflows/ijf-replication.yml` (pull requests that touch the package or the
-replication files) builds the image from the checkout and runs: host-side checks
-(shellcheck, usage and missing-Docker exit codes, `checksums.sha256`, manifest
-consistency); `check` (expects the absent bundle to be reported with exit code 4); `smoke`;
-`tables` on the committed fixture subset of the bundle; a missing and a corrupted input
-(exit 4); an image built from different code (exit 3); `fetch m4` for the weekly files; and
-a two-series run of `m4_benchmark` on weekly data with every arm, then `--resume` to three
-series. Reports are uploaded as workflow artifacts. Full campaigns never run in CI.
-`ijf-image-publish.yml` builds and pushes the image to GHCR; it runs only when started by
-hand.
+`.github/workflows/ijf-replication.yml` runs on pull requests and pushes to `master` that
+touch the package or the replication files, and by hand. Full campaigns never run in CI.
+
+* **Host checks** (no Docker): shellcheck; the usage and missing-Docker exit codes;
+  `checksums.sha256` against the committed files and against a fresh regeneration;
+  `check_package.py` (manifest, table groups, manuscript mapping); and
+  `check_manuscript_mapping.py`, informational, so that a manuscript discrepancy is visible
+  without failing the package checks.
+* **Container**, on `linux/amd64` (the reference) and `linux/arm64` (experimental): the image
+  is built from the checkout with the same Dockerfile and build arguments as
+  `./reproduce.sh build` (buildx adds a layer cache), then: the default command without the
+  unpublished bundle (smoke must pass; the run must end with exit 4, never SUCCESS); the
+  battery, robust-CVaR and SCIP/Ipopt tables from the committed fixture subset; a missing and
+  a corrupted archived input (exit 4); an image refused because the checkout changed after it
+  was built (exit 3); `fetch m4` for the weekly files with SHA-256 verification; and
+  `m4_benchmark` on 2 weekly series per arm, then `--resume` to 3. Reports are uploaded as
+  workflow artifacts.
+
+`.github/workflows/ijf-image-publish.yml` builds and pushes the image to GHCR, pulls it back
+by digest on a clean runner, checks its fingerprint against the checkout, runs the smoke
+tests in it and prints the lines for `image.lock`. It runs only when started by hand.
+
+The Dockerfile declares the identity build arguments (`SOURCE_FINGERPRINT`,
+`SOURCE_REVISION`) just before the final layer: a build argument invalidates every later
+`RUN`, so an edit to a replication script rebuilds only that layer, not R, Python and Julia.

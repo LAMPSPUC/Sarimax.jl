@@ -6,13 +6,36 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
 
 ## The manuscript itself
 
-1. **The manuscript source was not available** when the package was assembled. The
-   reference values that `tables` checks are the values printed in the historical tables
-   that the experiment scripts generated (`historical-tables/` in the bundle), not values
-   read from the manuscript. LaTeX labels are given where the historical tables carried them
-   (the July 2026 draft); for the August–October 2026 experiments the corresponding
-   manuscript tables are unknown. Before publication, each manuscript table must be mapped
-   to a manifest row and its printed values compared with `results/expected/`.
+1. **Not every printed number has an archived source.** The 672 numbers printed in the
+   tables, figures and experimental sections of the 2026-10-16 revision are listed in
+   `results/manuscript/manuscript_values.csv` and checked by `tables`. Compared with the
+   historical tables, 599 agree, 2 differ, 2 are checked only against regenerated values, 23
+   agree with derived tables whose raw inputs are not archived, and 46 have no archived source:
+   * **Table 7 (`tab:local_global_forecasts`), Ipopt times.** The manuscript prints 0.04 s
+     (simulated ARMA(1,0,1)) and 0.02 s (PJME); the archived records
+     (`raw/battery-2026-07/solver/global_value_results.jsonl`) give 0.0018 s and 0.0020 s, and
+     the historical table printed 0.0. `tables` reports Table 7 as FAIL until the manuscript or
+     the archive is corrected; the "hundredths of a second" of Section 5.6 rests on these cells.
+   * **Table 3, monthly cell.** Section 5.1 and Table S3 describe the monthly comparison as
+     time-limited (120 s per fit) with stationarity checked after estimation; the archived
+     monthly cell (campaign A, 3d7f883) had no time cap and imposed stationarity through the
+     reflection parameterization. Either the text or the cell's source must change.
+   * **Table S4.** Its two weekly MSE values are the two archived experiments, 0.8977
+     (campaign A, aa68d57) and 0.9429 (ICARAI, 6a11698). The manifest records the settings in
+     which they differ: stationarity by reflection (A) or not (ICARAI), `warmStartFromBox`
+     (false, true), `requireTermsWhenOverDifferenced` (false, true), the commit and the Julia
+     version (1.9.4, 1.10.12).
+   * **No archived source** (46 values): Table S2 (exogenous-convention simulation), Table S5
+     and the certification numbers of Section 5.6 (seasonal-grid gaps, the near-cancellation
+     and the two certified instances), and the initialization (0.2076 → 0.0863; 47.4% → 0.2%;
+     −28%) and likelihood-ranking (1,099 fits; 21.6 → 3.3; 12.1% → 16.5%; +0.0097) numbers of
+     Section 5.5. Their runners, records and logs must be archived, or the statements
+     removed.
+   * **Derived tables only** (23 values): Tables S6 and S7 and Figure S1 agree with the
+     tables of the September 2026 revision analysis, whose simulation scripts are not
+     archived; the admissibility numbers of Section 5.5 (0.9094–0.9115; 0.9095 → 0.9038) agree
+     with the derived tables of 2026-10-17, whose raw archive is not in the bundle (item 7).
+   * Figure 1 is an analytic illustration; its plotting script is not archived.
 
 ## Provenance of the archived results
 
@@ -42,10 +65,14 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
    workspace; their package commits were not recorded. Their raw results and original
    scripts are archived, but their runners were not ported (`full` is unavailable for them).
 7. **The September 2026 GAVEA campaigns** (stable objective on hourly, quarterly, daily and
-   monthly; the 2x2x2x2 stationarity x invertibility x log-det census) are BLOCKED: their raw
-   files travelled in a separate archive that was not available, their environment ran
-   Julia 1.12.3 (outside the package's compat), and the census Manifest and one patch are
-   lost. Only their scripts and probe outputs are archived.
+   monthly; the 2x2x2x2 stationarity x invertibility x log-det census) are BLOCKED for
+   regeneration: their raw files are in a separate archive, `brutos_gavea.zip` (107,137,987
+   bytes, 177 files with their own SHA256SUMS, shared on 2026-10-16), that is not yet part of
+   the artifact bundle; their environment ran Julia 1.12.3 (outside the package's compat), and
+   the census Manifest and one patch are lost. The derived tables computed from that archive
+   on 2026-10-17 are kept in `results/historical/updated-2026-10-17/`; they found that the
+   stable campaigns of the hourly and quarterly frequencies stored MASE with the lag-1 naive
+   denominator and converted it exactly to the M4 seasonal denominator.
 
 ## Global optimization evidence
 
@@ -56,7 +83,9 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
    (899.958 s of a 900 s limit) between two commits without a log of the second run.
    These results can be stated as "SCIP reported OPTIMAL with relative gap 0" but cannot be
    re-verified from the archive. The July 2026 M4 yearly study ran SCIP with
-   `limits/gap = 0.01`: its "OPTIMAL" rows are certified only to a 1% relative gap.
+   `limits/gap = 0.01`: its "OPTIMAL" rows are certified only to a 1% relative gap. The
+   global-optimization grid of Table S5 and the certified instances of Section 5.6 (the
+   August 2026 certification batch) are not archived at all (item 1).
 9. The ported runners and the smoke test record the dual bound, relative gap, raw status,
    primal status and SCIP version, and the smoke test checks the certificate against an
    independent dense-grid optimum. A brute-force grid is an upper bound, not a proof; SCIP's
@@ -83,9 +112,15 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
 
 13. **The container image and the artifact bundle are not published yet.** Publishing (GHCR,
     Zenodo) is a maintainer action at release time. Until then the image is built locally
-    and the bundle must be supplied with `--from`/`--artifacts`.
-14. **`linux/arm64` has not been tested.** Every component exists for arm64 and the
-    Dockerfile handles both architectures, but only `linux/amd64` was built and run.
+    and the bundle must be supplied with `--from`/`--artifacts`. The bundle tarball exists on
+    the maintainer host that built it; 299 of its 535 files (everything sourced from git and
+    the Table 7 evidence) were rebuilt byte for byte on a second machine, the other 236 come
+    from workspaces that only that host holds.
+14. **`linux/arm64` is experimental.** The Dockerfile handles both architectures and CI builds
+    and exercises arm64 on an arm64 runner, but only `linux/amd64` is the reference platform
+    (see REPRODUCIBILITY_STATUS.md for the latest result). On Apple Silicon, Docker runs the
+    amd64 image under emulation, which is slow; `--platform linux/arm64 --build` builds a
+    native image.
 15. **Full re-execution of the M4 campaigns was not performed** while preparing the
     package (it costs hundreds of CPU-hours). The runner was exercised on subsets, which
     checks the execution path, checkpointing and resumption, not the scientific result.

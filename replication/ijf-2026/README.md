@@ -21,8 +21,9 @@ cd Sarimax.jl
    this exact checkout, and every input against its SHA-256;
 2. **smoke**: real fits in Julia (Ipopt, and a SCIP global solve with its dual bound), R
    (`forecast::Arima`) and Python (`statsmodels`), compared with archived and analytic values;
-3. **tables**: rebuilds the tables from the archived per-series results and compares every
-   cell with the historical value at the precision it was printed.
+3. **tables**: rebuilds the tables from the archived per-series results, compares every
+   cell with the historical value at the precision it was printed, and then compares every
+   number printed in the manuscript with the regenerated value it comes from.
 
 The report is in `replication/ijf-2026/output/reports/summary.md` (one Markdown, CSV and
 JSON report per stage next to it). The command exits with 0 only if everything passed.
@@ -41,7 +42,7 @@ On Windows, run the commands in Git Bash or WSL.
 | Level | Command | What it does | Time |
 |---|---|---|---|
 | A | `./reproduce.sh smoke` | Real computations on small problems with every engine and solver | 5–10 min |
-| B | `./reproduce.sh tables` | Every table rebuilt from archived per-series results, cell by cell | 2–5 min |
+| B | `./reproduce.sh tables` | Every archived table rebuilt from per-series results, cell by cell, and the manuscript's printed numbers checked against them | 2–5 min |
 | C | `./reproduce.sh full --experiment ID` | Re-runs an experiment from the original input data | minutes to hundreds of CPU-hours |
 
 The experiments and their status are listed by `./reproduce.sh list` and documented in
@@ -57,7 +58,7 @@ archived files, readiness) and [`REPRODUCIBILITY_STATUS.md`](REPRODUCIBILITY_STA
 ./reproduce.sh tables                # Level B
 ./reproduce.sh list                  # experiments and their readiness
 ./reproduce.sh full --experiment m4_benchmark --jobs 4 --resume
-./reproduce.sh full --all --jobs 4 --resume
+./reproduce.sh full --all --jobs 4 --resume   # every re-runnable experiment the manuscript reports
 ./reproduce.sh fetch artifacts|m4|pjme   # download and verify inputs
 ./reproduce.sh build                 # build the image from this checkout
 ```
@@ -81,9 +82,10 @@ this checkout); 4 an input is missing or corrupted.
 | CPU | any | as many cores as `--jobs` |
 | Network | to pull the image and fetch the artifacts once | to fetch M4 (and PJME) once |
 
-The reference platform is `linux/amd64`. On Apple Silicon Docker runs it under emulation,
-which works but is slow; a native `linux/arm64` build (`--platform linux/arm64 --build`) is
-possible but has not been tested.
+The reference platform is `linux/amd64`. On Apple Silicon, Docker runs the amd64 image under
+emulation, which is slow and has not been tested; a native `linux/arm64` image
+(`--platform linux/arm64 --build`) is built and exercised in CI as an experimental platform
+(results in `REPRODUCIBILITY_STATUS.md`).
 
 Computations run without network access (`--network none`); only `fetch` downloads, and
 every download is pinned to a version (a commit or a DOI record) and checked against its
@@ -107,8 +109,11 @@ writes only to its own run directory and compares itself with the archive afterw
 ## How to read the outcome
 
 * `reports/summary.md` gives the verdict of each stage.
-* `reports/tables.md` lists each table group with the number of cells that agree; the
-  cell-level comparison (Expected, Generated, Difference, Status) is in `tables_cells.csv`.
+* `reports/tables.md` lists each table group with the number of cells that agree, then each
+  manuscript table, figure and section with the number of printed values that agree with
+  their regenerated source; the cell-level comparisons are in `tables_cells.csv` and
+  `manuscript_cells.csv`. A printed value that can only be checked against a derived table,
+  or that has no archived source, is reported as such (WARN) and never counted as reproduced.
 * `reports/smoke.md` lists each measured quantity with its reference, tolerance and source.
 * A full run's report (`reports/full.md`) states how many series completed, how many ended
   in ERROR, TIMEOUT or CRASH (kept as rows, never dropped), and how many reproduce the
@@ -119,11 +124,12 @@ writes only to its own run directory and compares itself with the archive afterw
 What is verified, what is only executable and what is missing is listed per experiment in
 [`REPRODUCIBILITY_STATUS.md`](REPRODUCIBILITY_STATUS.md); known caveats are in
 [`LIMITATIONS.md`](LIMITATIONS.md). In short: every archived table regenerates from
-per-series data; the experiments' runners are re-executable on the release code; the
-controlled comparison of estimation objectives (`m4_objectives`) is still running and its
-final results are not part of this package yet; and the manuscript's own table values have
-not been checked against these outputs, because the manuscript source was not part of the
-material this package was assembled from.
+per-series data; the experiments' runners are re-executable on the release code; most of the
+numbers the manuscript prints are regenerated from archived per-series results, while some
+agree only with derived tables or have no archived source, and two printed timings differ from
+the archive (all listed in LIMITATIONS.md, item 1); and the controlled comparison of
+estimation objectives (`m4_objectives`) is still running, so its results are not part of this
+package yet.
 
 ## Software and archived artifacts
 

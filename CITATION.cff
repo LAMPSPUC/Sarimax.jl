@@ -1,11 +1,12 @@
 # Citation metadata for Sarimax.jl. GitHub shows it as "Cite this repository"; Zenodo's
 # GitHub integration reads .zenodo.json for the archived release.
 #
-# TO CONFIRM BEFORE THE RELEASE (maintainers): the author lists and affiliations of the
-# software and of the article (only the package author recorded in Project.toml is listed;
-# other contributors in the git history include Davi Michel Valladao, Luisa Millen Compasso
-# and Joao Quintella), ORCID identifiers, and the version DOIs of the software and data
-# records, which exist only once the Zenodo records are published.
+# TO CONFIRM BEFORE THE RELEASE (maintainers): the author list of the SOFTWARE (only the
+# package author recorded in Project.toml is listed; other contributors in the git history
+# include Davi Michel Valladao, Luisa Millen Compasso and Joao Quintella), ORCID identifiers,
+# and the version DOIs of the software and data records, which exist only once the Zenodo
+# records are published. The article's authors and affiliation are those of the manuscript
+# (revision of 2026-10-16).
 cff-version: 1.2.0
 message: >-
   If you use Sarimax.jl, please cite the software and the article below. To cite the exact
@@ -35,7 +36,7 @@ keywords:
 authors:
   - family-names: Duarte
     given-names: Luiz Fernando Cunha
-    affiliation: "LAMPS, Department of Electrical Engineering, Pontifical Catholic University of Rio de Janeiro (PUC-Rio)"
+    affiliation: "Industrial Engineering Department, Pontifical Catholic University of Rio de Janeiro (PUC-Rio)"
 preferred-citation:
   type: article
   title: "SARIMAX.jl: Open-Source Optimization-Based SARIMAX Modeling in Julia"
@@ -44,4 +45,11 @@ preferred-citation:
   notes: "Special issue: Advances in Open Source Forecasting Software"
   authors:
     - family-names: Duarte
-      given-names: Luiz Fernando Cunha
+      given-names: Luiz Fernando
+      affiliation: "Industrial Engineering Department, Pontifical Catholic University of Rio de Janeiro (PUC-Rio)"
+    - family-names: Valladão
+      given-names: Davi
+      affiliation: "Industrial Engineering Department, Pontifical Catholic University of Rio de Janeiro (PUC-Rio)"
+    - family-names: Street
+      given-names: Alexandre
+      affiliation: "Industrial Engineering Department, Pontifical Catholic University of Rio de Janeiro (PUC-Rio)"

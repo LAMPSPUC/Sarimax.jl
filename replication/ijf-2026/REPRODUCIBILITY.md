@@ -5,7 +5,7 @@
 | Class | Where | Mutable? |
 |---|---|---|
 | Original raw experimental results: per-series forecasts, metrics, orders, solver statuses, logs | artifact bundle, `raw/` | never |
-| Reference results: the archived inputs of the published tables (raw files and the derived per-series sets built from them) and the historical tables themselves | bundle `raw/`, `derived/`, `historical-tables/`; machine-readable reference values in `results/expected/` | never |
+| Reference results: the archived inputs of the published tables (raw files and the derived per-series sets built from them) and the historical tables themselves | bundle `raw/`, `derived/`, `historical-tables/`; derived tables not in the bundle in `results/historical/`; machine-readable reference values in `results/expected/`; the manuscript's printed values in `results/manuscript/` | never |
 | Regenerated outputs: tables and figures rebuilt by `./reproduce.sh tables` | `output/tables`, `output/figures` | rewritten by each run |
 | New executions: results of `./reproduce.sh full` | `output/runs/<experiment>/<run id>/` | appended until the run completes |
 
@@ -39,6 +39,16 @@ historical tables (`scripts/maintainers/extract_expected.py`), never computed by
 generators they check. A group whose inputs are missing or fail their checksum reports every
 one of its cells as MISSING; a crashing generator reports FAIL.
 
+**The manuscript.** After the table groups, `tables` takes every number printed in the
+manuscript (`results/manuscript/manuscript_values.csv`: tables, figures and the numbers of the
+experimental sections) and compares it with the regenerated cell it comes from, at the
+precision the manuscript prints. A difference fails the manuscript item; a value whose source
+group could not run is MISSING; a value that can only be compared with a derived table whose
+raw inputs are not archived is reported as consistent with that table, and a value without an
+archived source is listed with the reason. Neither of the last two is ever counted as
+reproduced: both are WARN in the report and are counted separately in the summary
+(`output/reports/manuscript_cells.csv` holds the cell-level comparison).
+
 Conventions that matter for the M4 tables (documented in `scripts/ijftables/common.py`):
 OWA is the **ratio of aggregated means**, `0.5·mean(MASE)/mean(MASE_Naive2) +
 0.5·mean(sMAPE)/mean(sMAPE_Naive2)` over one common set of series, never the mean of
@@ -49,7 +59,10 @@ horizon block.
 ## Level C — full re-execution
 
 `./reproduce.sh full` runs an experiment's protocol (its configuration in
-`experiments/configs/`) from the original inputs on the release code. Its report states,
+`experiments/configs/`) from the original inputs on the release code. `full --all` runs the
+re-runnable experiments behind the results the manuscript reports; experiments the manuscript
+does not report and protocols marked provisional are left out (and named), and can still be
+run one by one with `--experiment`. Its report states,
 per task, how many series completed and how many ended in ERROR, TIMEOUT or CRASH, and, where
 archived per-series results exist, how many series reproduce them (same order; same total
 sMAPE within a relative 1e-4). Because several archived campaigns ran on other commits or

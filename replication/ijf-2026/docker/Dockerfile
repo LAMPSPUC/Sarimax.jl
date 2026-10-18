@@ -57,7 +57,14 @@ RUN /opt/venv/bin/pip install --no-cache-dir --no-deps --require-hashes -r /tmp/
 # --- R packages from the frozen CRAN snapshot, verified against renv.lock --------------------
 COPY replication/ijf-2026/environments/r/renv.lock /opt/ijf-env/renv.lock
 COPY replication/ijf-2026/scripts/checks/r_env.R /opt/ijf-env/r_env.R
-RUN Rscript -e "install.packages(c('forecast', 'jsonlite'), repos = '${CRAN_SNAPSHOT}', Ncpus = 4L)" \
+# The snapshot serves Linux binaries for amd64 only; on arm64 the packages are compiled, and
+# the R package curl needs the libcurl headers to build.
+RUN if [ "${TARGETARCH:-amd64}" = "arm64" ]; then \
+        apt-get update \
+        && apt-get install -y --no-install-recommends libcurl4-openssl-dev \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi \
+    && Rscript -e "install.packages(c('forecast', 'jsonlite'), repos = '${CRAN_SNAPSHOT}', Ncpus = 4L)" \
     && Rscript --vanilla /opt/ijf-env/r_env.R /opt/ijf-env/renv.lock
 
 # --- Julia --------------------------------------------------------------------------------

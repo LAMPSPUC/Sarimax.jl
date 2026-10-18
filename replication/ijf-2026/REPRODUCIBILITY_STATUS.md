@@ -105,8 +105,9 @@ be combined with it.
 | Test | linux/amd64 | linux/arm64 (experimental) |
 |---|---|---|
 | Host-side checks (shellcheck, exit codes, checksums, consistency) | PASS | – |
-| First image build | FAIL at the R step: the renv.lock check compared `packageVersion()` ("2.1.1") with DESCRIPTION versions ("2.1-1"); fixed in `1c0d0f6` | not reached |
-| Image build, default run without the bundle, fixture tables, missing/corrupted inputs, foreign image, M4 fetch, 2→3-series run with `--resume` | in progress on the fixed commit | in progress |
+| First image build (`685ffa3`) | FAIL at the R step: the renv.lock check compared `packageVersion()` ("2.1.1") with DESCRIPTION versions ("2.1-1"); fixed in `1c0d0f6` | not reached |
+| Second image build (`1c0d0f6`) | R step PASS (binary packages from the snapshot, every version as locked) | FAIL at the R step: the snapshot has no arm64 binaries, packages compile, and the R package curl needs the libcurl headers; fixed by installing them on arm64 |
+| Image build, default run without the bundle, fixture tables, missing/corrupted inputs, foreign image, M4 fetch, 2→3-series run with `--resume` | see the latest run of pull request 34 | see the latest run of pull request 34 |
 
 ### Maintainer host that assembled the package (Windows, native, 2026-10-17)
 

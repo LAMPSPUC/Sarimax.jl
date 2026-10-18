@@ -40,10 +40,14 @@ from pathlib import Path
 BUNDLE = "sarimax-ijf-2026-artifacts"
 VERSION = "1"
 
-BATTERY = "74eb882^"                      # the July 2026 battery, last commit that tracked it
-ICARAI = "origin/paper/replication-staging-icarai"
-RECREIO = "origin/paper/replication-staging-recreio"
-GAVEA = "origin/paper/replication-staging-gavea"
+# Git sources, pinned to the commits bundle v1 was built from (the tips of the
+# paper/replication-staging-* branches on 2026-10-17); a moving branch name would let a
+# rebuild silently differ. Keep these commits reachable (tag them) before the staging
+# branches are deleted.
+BATTERY = "308461eef429b8557eece07c50d532ac45d50bea"   # 74eb882^: the last commit tracking the July 2026 battery
+ICARAI = "e523509b0038a3c8c30595cf280a3f6a46eb5db9"    # paper/replication-staging-icarai
+RECREIO = "052027aa4460ded9c63fd709bacb747715918bb6"   # paper/replication-staging-recreio
+GAVEA = "3dae274220183d77ca1c2af92c4dcd7a41768f91"     # paper/replication-staging-gavea
 
 # Horizon blocks of the M4 harness (ForecastTester src/ForecastTester.jl), shared by every
 # campaign and by the stored auto.arima/Naive2 baselines.
@@ -216,10 +220,20 @@ def block_metrics(freq: str, forecast: str, actual: str, den: str) -> list[str]:
             out += ["NaN", "NaN"]
             continue
         fs, as_ = f[lo - 1:hi], a[lo - 1:hi]
-        smape = sum(2 * abs(x - y) / (abs(x) + abs(y) + 1e-12) for x, y in zip(fs, as_)) / len(fs) * 100
-        mase = (sum(abs(x - y) for x, y in zip(fs, as_)) / len(fs)) / max(d, 1e-12)
+        smape = _sum_ltr(2 * abs(x - y) / (abs(x) + abs(y) + 1e-12) for x, y in zip(fs, as_)) / len(fs) * 100
+        mase = (_sum_ltr(abs(x - y) for x, y in zip(fs, as_)) / len(fs)) / max(d, 1e-12)
         out += [repr(smape), repr(mase)]
     return out
+
+
+def _sum_ltr(xs) -> float:
+    """Plain left-to-right float sum. The built-in sum() switched to compensated summation in
+    Python 3.12, which changes the last bit of some metrics; this loop gives the bytes of the
+    v1 bundle (built with Python 3.11) on every Python version."""
+    acc = 0.0
+    for x in xs:
+        acc += x
+    return acc
 
 
 def build(b: Builder) -> None:

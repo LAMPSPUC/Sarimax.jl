@@ -21,8 +21,6 @@
 FROM rocker/r-ver:4.4.1@sha256:78cb94ce2db23aaaf7b546450fcf70b5a3f2ace5a9b5fa1f87217da329211312
 
 ARG TARGETARCH
-ARG SOURCE_FINGERPRINT
-ARG SOURCE_REVISION=unknown
 
 ARG JULIA_VERSION=1.10.12
 ARG JULIA_SHA256_AMD64=b0c50dfe349d76ffc8580d24e0c0be623988a6d91ed57ad8b73c0137fd27bc0d
@@ -99,6 +97,11 @@ RUN case "${TARGETARCH:-amd64}" in \
     && chmod -R a+rX /opt/julia-depot
 
 # --- The rest of the checkout ----------------------------------------------------------------
+# The identity arguments are declared here, not at the top: a build argument invalidates the
+# cache of every RUN that follows it, and the fingerprint changes with any replication file.
+# Declared here, editing a script rebuilds only this last layer, not R, Python and Julia.
+ARG SOURCE_FINGERPRINT
+ARG SOURCE_REVISION=unknown
 COPY . /opt/sarimax
 RUN test -n "${SOURCE_FINGERPRINT}" \
         || { echo "SOURCE_FINGERPRINT build argument is required (use ./reproduce.sh build)" >&2; exit 1; } \

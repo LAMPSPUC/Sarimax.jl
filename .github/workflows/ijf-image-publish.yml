@@ -1,0 +1,123 @@
+# Publishes the IJF replication image to GitHub Container Registry.
+#
+# MANUAL ONLY: it never runs on push or pull request. Start it from the Actions tab on the
+# release commit (the tag cited by the paper), after the authors have approved publication.
+# It builds the image from that commit, pushes it, pulls it back by its immutable digest on a
+# clean runner, verifies its source fingerprint against the checkout and runs the smoke tests
+# in it. The digest to record in replication/ijf-2026/image.lock is printed in the run summary.
+#
+# Licence note (ARTIFACT_GUIDE.md, section 3): the image bundles SCIP 8.0.0 (ZIB Academic
+# License) through SCIP_jll; decide on its redistribution before making the package public.
+name: IJF replication image (publish)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag (e.g. ijf-2026-v1); the digest is what the replication package records"
+        required: true
+        default: "ijf-2026-v1"
+      platforms:
+        description: "Platforms (linux/amd64 is the reference; add linux/arm64 only once it has passed CI)"
+        required: true
+        default: "linux/amd64"
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/lampspuc/sarimax-ijf-replication
+  NO_COLOR: "1"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+      fingerprint: ${{ steps.fp.outputs.fingerprint }}
+      revision: ${{ steps.fp.outputs.revision }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL || true
+          df -h /
+
+      - name: Source fingerprint
+        id: fp
+        run: |
+          test -z "$(git status --porcelain)" || { echo "::error::the checkout is not clean"; exit 1; }
+          echo "fingerprint=$(bash replication/ijf-2026/scripts/fingerprint.sh .)" >> "$GITHUB_OUTPUT"
+          echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: replication/ijf-2026/docker/Dockerfile
+          platforms: ${{ inputs.platforms }}
+          build-args: |
+            SOURCE_FINGERPRINT=${{ steps.fp.outputs.fingerprint }}
+            SOURCE_REVISION=${{ steps.fp.outputs.revision }}
+          tags: ${{ env.IMAGE }}:${{ inputs.tag }}
+          push: true
+          provenance: false
+          cache-from: type=gha,scope=ijf-ubuntu-latest
+
+  verify:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL || true
+
+      - name: Pull by digest and verify the identity against this checkout
+        run: |
+          ref="${IMAGE}@${{ needs.publish.outputs.digest }}"
+          docker pull "$ref"
+          label="$(docker image inspect "$ref" --format '{{ index .Config.Labels "io.github.lampspuc.sarimax.ijf.fingerprint" }}')"
+          host="$(bash replication/ijf-2026/scripts/fingerprint.sh .)"
+          echo "image fingerprint $label; checkout fingerprint $host"
+          test "$label" = "$host"
+
+      - name: Smoke tests in the published image
+        run: ./reproduce.sh smoke --image "${IMAGE}@${{ needs.publish.outputs.digest }}" --no-build
+
+      - name: Lines for image.lock
+        run: |
+          {
+            echo "### Record in replication/ijf-2026/image.lock"
+            echo '```'
+            echo "IMAGE_REPOSITORY=${IMAGE}"
+            echo "IMAGE_TAG=${{ inputs.tag }}"
+            echo "IMAGE_DIGEST=${{ needs.publish.outputs.digest }}"
+            echo "SOURCE_FINGERPRINT=${{ needs.publish.outputs.fingerprint }}"
+            echo "SOURCE_REVISION=${{ needs.publish.outputs.revision }}"
+            echo '```'
+            echo "The GHCR package is private by default for an organization: make it public in its settings."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: published-image-smoke
+          path: replication/ijf-2026/output/reports

@@ -18,6 +18,7 @@
 set -Eeuo pipefail
 
 readonly EXIT_OK=0
+# shellcheck disable=SC2034  # returned by the in-container orchestrator; listed for reference
 readonly EXIT_FAIL=1        # a verification, smoke test, table comparison or run failed
 readonly EXIT_USAGE=2       # bad command line
 readonly EXIT_ENV=3         # Docker missing, daemon unreachable, image unavailable or not this checkout

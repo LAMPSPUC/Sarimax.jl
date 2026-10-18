@@ -8,8 +8,9 @@
 #              manuscript values against the historical tables (informational)
 #   container  image build, default quick run without the (unpublished) bundle, tables on the
 #              committed fixture subset, missing/corrupted inputs, an image from other code,
-#              M4 fetch with SHA-256 check, a 2-then-3-series run of m4_benchmark with --resume
-#              (linux/amd64 is the reference platform; linux/arm64 is experimental)
+#              M4 fetch with SHA-256 check, m4_benchmark on a random sample of 2 then (--resume)
+#              3 weekly series, the objective campaign on 2 weekly series and the battery's
+#              validation experiment (linux/amd64 is the reference; linux/arm64 is experimental)
 name: IJF replication
 
 on:
@@ -260,11 +261,11 @@ jobs:
       - name: Fetch the weekly M4 files (pinned commit, SHA-256 checked)
         run: ./reproduce.sh fetch m4 --frequency weekly --no-build --platform "$PLATFORM"
 
-      - name: Full-run entry point on a 2-series subset, then --resume to 3 series
+      - name: Full-run entry point on a random sample of series, then --resume to a larger one
         run: |
-          ./reproduce.sh full --experiment m4_benchmark --frequency weekly --limit 2 --jobs 2 \
+          ./reproduce.sh full --experiment m4_benchmark --frequency weekly --sample 2 --jobs 2 \
             --run-id ci --offline --no-build --platform "$PLATFORM"
-          ./reproduce.sh full --experiment m4_benchmark --frequency weekly --limit 3 --jobs 2 \
+          ./reproduce.sh full --experiment m4_benchmark --frequency weekly --sample 3 --jobs 2 \
             --run-id ci --resume --offline --no-build --platform "$PLATFORM"
           run=replication/ijf-2026/output/runs/m4_benchmark/ci
           ls -la "$run"
@@ -274,16 +275,27 @@ jobs:
           run = Path(sys.argv[1])
           meta = json.loads((run / "run.json").read_text())
           print(json.dumps(meta["tasks"], indent=1))
+          series = None
           for task in ("sarimax__weekly", "auto_arima__weekly", "naive2__weekly"):
               rows = list(csv.DictReader(open(run / f"{task}.csv")))
-              ids = [r["series"] for r in rows]
+              ids = sorted(r["series"] for r in rows)
               assert len(ids) == 3 and len(set(ids)) == 3, f"{task}: {ids}"
               assert all(r["status"] == "OK" for r in rows), f"{task}: {[r['status'] for r in rows]}"
+              assert series in (None, ids), f"arms fitted different series: {series} vs {ids}"
+              series = ids
           events = [json.loads(l) for l in open(run / "events.jsonl")]
           starts = [e for e in events if e.get("event") == "run_start"]
           assert len(starts) == 2 and starts[1].get("resume"), "the second invocation must be a resume"
-          print(f"{len(events)} events; 3 series per task; resumed run appended one series per task")
+          print(f"sampled series {series}; 3 per arm, all OK; the resumed run added one per arm")
           EOF
+          cat replication/ijf-2026/output/reports/full.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Other runners on samples (objective campaign, battery script experiment)
+        run: |
+          ./reproduce.sh full --experiment m4_objectives_icarai_innovations --frequency weekly --sample 2 \
+            --jobs 2 --run-id ci --offline --no-build --platform "$PLATFORM"
+          cat replication/ijf-2026/output/reports/full.md >> "$GITHUB_STEP_SUMMARY"
+          ./reproduce.sh full --experiment battery_validation --run-id ci --offline --no-build --platform "$PLATFORM"
           cat replication/ijf-2026/output/reports/full.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Outputs are written to the host and owned by the calling user
@@ -301,6 +313,6 @@ jobs:
           path: |
             replication/ijf-2026/output/reports
             replication/ijf-2026/output/smoke
-            replication/ijf-2026/output/runs/m4_benchmark/ci
+            replication/ijf-2026/output/runs/*/ci
             ${{ runner.temp }}/out-fixtures/reports
           if-no-files-found: warn

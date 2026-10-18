@@ -64,8 +64,9 @@ archived files, readiness) and [`REPRODUCIBILITY_STATUS.md`](REPRODUCIBILITY_STA
 ```
 
 Useful options: `--jobs N` (worker processes), `--resume` (continue an interrupted run from
-its checkpoints), `--limit N` (first N series per task: a check of the execution path, not a
-result), `--frequency F` and `--arm A` (part of an M4 experiment), `--timeout S`
+its checkpoints), `--sample N` (N series drawn at random per frequency, the same for every arm;
+a larger N extends a smaller one, so `--resume` can grow it) and `--limit N` (the first N series
+per task) — both check the execution path on a few series and are not results, `--frequency F` and `--arm A` (part of an M4 experiment), `--timeout S`
 (per-series limit), `--offline`, `--artifacts DIR`, `--data-dir DIR`, `--output DIR`,
 `--build`. `./reproduce.sh help` lists them all.
 

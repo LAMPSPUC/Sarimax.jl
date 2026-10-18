@@ -53,7 +53,7 @@
     {"engine": "julia", "test": "scip_global", "quantity": "ipopt_status", "expected": "LOCALLY_SOLVED", "compare": "equal", "source": "Ipopt must converge"},
     {"engine": "julia", "test": "scip_global", "quantity": "scip_not_above_ipopt", "expected": true, "compare": "equal", "source": "the certified optimum cannot exceed a local one"},
     {"engine": "julia", "test": "scip_global", "quantity": "package_scip_status", "expected": "OPTIMAL", "compare": "equal", "source": "Sarimax.fit! with SCIP"},
-    {"engine": "julia", "test": "scip_global", "quantity": "package_scip_theta", "expected": 0.675838, "compare": "abs", "tol": 1e-3, "source": "analytic: grid argmin"},
+    {"engine": "julia", "test": "scip_global", "quantity": "package_scip_theta", "expected": 0.675838, "compare": "abs", "tol": 1e-3, "source": "analytic: grid argmin of the same CSS objective (the package fit uses initialization = :warmup)"},
     {"engine": "julia", "test": "scip_global", "quantity": "package_scip_rss_not_above_ipopt", "expected": true, "compare": "equal", "source": "Sarimax.fit! with SCIP against Ipopt"},
 
     {"engine": "r", "test": "r_ar1_css", "quantity": "ar1", "expected": 0.7381, "compare": "abs", "tol": 5e-5, "source": "archived R forecast::Arima(method=CSS), 4 decimals"},

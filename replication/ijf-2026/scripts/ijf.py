@@ -7,7 +7,7 @@ reported as a success.
 
     python ijf.py quick              check + smoke + tables
     python ijf.py check | smoke | tables | list
-    python ijf.py full --experiment ID [--jobs N] [--resume] [--limit N] [--timeout S]
+    python ijf.py full --experiment ID [--jobs N] [--resume] [--limit N | --sample N] [--timeout S]
     python ijf.py fetch artifacts|m4|all [--if-available] [--if-needed] [--from FILE]
 """
 
@@ -40,6 +40,10 @@ def main(argv: list[str]) -> int:
     f.add_argument("--resume", action="store_true")
     f.add_argument("--limit", type=int, default=0,
                    help="first N series per task: an execution check, not a scientific result")
+    f.add_argument("--sample", type=int, default=0,
+                   help="N series drawn at random per frequency (same for every arm): an execution "
+                        "check on a spread of series, not a scientific result")
+    f.add_argument("--seed", type=int, default=20261018, help="seed of --sample")
     f.add_argument("--timeout", type=float, default=None)
     f.add_argument("--run-id", default=None)
     f.add_argument("--frequency", action="append", help="only these M4 frequencies (repeatable)")
@@ -57,7 +61,7 @@ def main(argv: list[str]) -> int:
     g.add_argument("--all", action="store_true")
     g.add_argument("--frequency", action="append", default=None)
     g.add_argument("--arm", action="append", default=None, help=argparse.SUPPRESS)
-    for name in ("--jobs", "--limit", "--timeout", "--run-id"):
+    for name in ("--jobs", "--limit", "--sample", "--seed", "--timeout", "--run-id"):
         g.add_argument(name, default=None, help=argparse.SUPPRESS)
     g.add_argument("--resume", action="store_true", help=argparse.SUPPRESS)
     g.add_argument("--keep-going", action="store_true", help=argparse.SUPPRESS)

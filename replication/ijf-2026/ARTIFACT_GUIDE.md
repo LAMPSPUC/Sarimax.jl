@@ -287,8 +287,10 @@ touch the package or the replication files, and by hand. Full campaigns never ru
   unpublished bundle (smoke must pass; the run must end with exit 4, never SUCCESS); the
   battery, robust-CVaR and SCIP/Ipopt tables from the committed fixture subset; a missing and
   a corrupted archived input (exit 4); an image refused because the checkout changed after it
-  was built (exit 3); `fetch m4` for the weekly files with SHA-256 verification; and
-  `m4_benchmark` on 2 weekly series per arm, then `--resume` to 3. Reports are uploaded as
+  was built (exit 3); `fetch m4` for the weekly files with SHA-256 verification;
+  `m4_benchmark` on a random sample of 2 weekly series per arm, then `--resume` to 3 (the
+  sample is nested); the ICARAI objective campaign on 2 weekly series per arm; and the
+  battery's validation experiment (Julia, Python and R steps). Reports are uploaded as
   workflow artifacts.
 
 `.github/workflows/ijf-image-publish.yml` builds and pushes the image to GHCR, pulls it back

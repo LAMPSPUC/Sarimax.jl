@@ -252,7 +252,13 @@ def run(paths: Paths, args) -> int:
                 continue
         run_dir = _run_dir(paths, exp_id, args.run_id, args.resume)
         events = campaign.Events(run_dir / "events.jsonl")
-        events("run_start", experiment=exp_id, limit=args.limit, jobs=args.jobs, resume=args.resume)
+        events("run_start", experiment=exp_id, limit=args.limit, sample=args.sample, seed=args.seed,
+               jobs=args.jobs, resume=args.resume)
+        if args.sample:
+            report.add("full", f"{exp_id}: sample", WARN,
+                       note=f"--sample {args.sample}: {args.sample} series drawn at random per frequency "
+                            f"(seed {args.seed}), the same for every arm. This checks the execution path "
+                            "on a spread of series; it is NOT a reproduction of the experiment.")
         if args.limit:
             report.add("full", f"{exp_id}: subset", WARN,
                        note=f"--limit {args.limit}: first {args.limit} series per task only. This checks "

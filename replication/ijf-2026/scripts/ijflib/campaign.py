@@ -27,6 +27,7 @@ import json
 import math
 import os
 import queue
+import random
 import subprocess
 import sys
 import threading
@@ -98,6 +99,21 @@ class Worker:
         except subprocess.TimeoutExpired:
             pass
         self.stderr.close()
+
+
+SAMPLE_SEED = 20261018
+
+
+def sample_ids(ids: list[int], n: int, freq: str, seed: int) -> list[int]:
+    """`--sample N`: N series of a frequency drawn at random, the same for every arm.
+
+    The draw is a fixed permutation of the series (seeded by the frequency and the seed, with
+    Python's string seeding, stable across platforms and versions) cut at N, so a larger N
+    extends a smaller one and `--resume` can grow a sampled run.
+    """
+    order = list(ids)
+    random.Random(f"{freq}|{seed}").shuffle(order)
+    return sorted(order[:n])
 
 
 class Events:
@@ -297,6 +313,7 @@ def run(paths: Paths, exp: dict, config_path: Path, args, run_dir: Path, events:
             "config_sha256": config_fingerprint(config_path), "source_fingerprint": source_fp,
             "image": os.environ.get("IJF_IMAGE_REF", "(native)"), "protocol_status": config.get("protocol_status"),
             "frequencies": freqs, "arms": [a["name"] for a in arms], "limit": args.limit,
+            "sample": getattr(args, "sample", 0), "seed": getattr(args, "seed", SAMPLE_SEED),
             "jobs": args.jobs, "per_series_timeout_s": timeout, "engines": {}, "tasks": {}}
     if meta_path.exists():
         old = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -314,6 +331,8 @@ def run(paths: Paths, exp: dict, config_path: Path, args, run_dir: Path, events:
         ids = list(range(1, len(train) + 1))
         if args.limit:
             ids = ids[:args.limit]
+        if getattr(args, "sample", 0):
+            ids = sample_ids(ids, args.sample, freq, getattr(args, "seed", SAMPLE_SEED))
         for arm in arms:
             label = f"{arm['name']}__{freq}"
             print(f"  task {label}: {len(ids)} series, {args.jobs} workers, limit {timeout:.0f}s/series", flush=True)

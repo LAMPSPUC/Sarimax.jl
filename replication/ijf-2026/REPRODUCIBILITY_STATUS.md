@@ -98,7 +98,9 @@ be combined with it.
 | Static checks | `check_package.py`, `check_manuscript_mapping.py`, shellcheck 0.11 | consistent; 599 agree, 2 differ; shellcheck clean |
 | Exit codes on the host | `./reproduce.sh` without the Docker daemon, without Docker, with bad usage, with a missing `--from` file | 3, 3, 2, 4 |
 | Smoke scripts outside the container | `smoke.R` (R 4.6.1, forecast 9.0.2) and `smoke_python.py` (statsmodels 0.15) | every compared quantity within its tolerance |
-| Container on this machine | – | not run: Docker Desktop's virtual disk is limited to 8 GiB here and the image needs more; the container is tested in CI |
+| SCIP smoke test after the fix | `smoke.jl scip_global`, Julia 1.12.6, SCIP.jl 0.11.14 (SCIP 8.0.0) | 11/11 checks pass; `Sarimax.fit!` with SCIP, `:warmup`: θ = 0.67573 against the grid's 0.67584 (`:zeroed` gives 0.77839, the optimum of its own objective, 0.77859) |
+| R runners outside the container | `m4_worker.R` (both methods, JSON protocol) and the battery's `run_validation_r.R` after `gen_sim_data.py`, R 4.6.1 + forecast 9.0.2 | the worker answers both methods; the battery R step reproduces the 11 archived records exactly (runtime excluded) |
+| Container on this machine | – | not run: Docker Desktop's virtual disk is limited to 8 GiB here and the image needs more; the container is tested in CI, or on a machine with more disk |
 
 ### Continuous integration (GitHub-hosted runners, container; pull request 34)
 
@@ -106,8 +108,11 @@ be combined with it.
 |---|---|---|
 | Host-side checks (shellcheck, exit codes, checksums, consistency) | PASS | – |
 | First image build (`685ffa3`) | FAIL at the R step: the renv.lock check compared `packageVersion()` ("2.1.1") with DESCRIPTION versions ("2.1-1"); fixed in `1c0d0f6` | not reached |
-| Second image build (`1c0d0f6`) | R step PASS (binary packages from the snapshot, every version as locked) | FAIL at the R step: the snapshot has no arm64 binaries, packages compile, and the R package curl needs the libcurl headers; fixed by installing them on arm64 |
-| Image build, default run without the bundle, fixture tables, missing/corrupted inputs, foreign image, M4 fetch, 2→3-series run with `--resume` | see the latest run of pull request 34 | see the latest run of pull request 34 |
+| Second image build (`1c0d0f6`) | R step PASS (binary packages from the snapshot, every version as locked) | FAIL at the R step: the snapshot has no arm64 binaries, packages compile, and the R package curl needs the libcurl headers; fixed by installing them on arm64 (`09f98a2`) |
+| Third run (`09f98a2`): image build | PASS | PASS |
+| `check` in the container | PASS: Python, Julia and R environments match their locks, Ipopt and SCIP load, image identity verified; the unpublished bundle is reported MISSING, as it must be | same |
+| `smoke` in the container | 60 of 61 compared quantities PASS (Julia/Ipopt, SCIP, R, Python). FAIL: `package_scip_theta`, a defect of the test: the package fit used `initialization = :zeroed` (which drops the first observation), the reference is the optimum of the objective that keeps it, `:warmup`. Fixed; checked on the second machine (11/11 SCIP checks pass) | same |
+| Fixture tables, missing/corrupted inputs, foreign image, M4 fetch, sampled full runs (m4_benchmark 2→3 series with `--resume`, the objective campaign, the battery validation experiment) | not reached in the third run (the job stops at the first failing step); see the latest run of pull request 34 | same |
 
 ### Maintainer host that assembled the package (Windows, native, 2026-10-17)
 

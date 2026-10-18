@@ -6,7 +6,7 @@
 #   ./reproduce.sh check                verify environment, image identity, inputs and checksums
 #   ./reproduce.sh smoke                small real computations (Julia/Ipopt/SCIP, R, Python)
 #   ./reproduce.sh tables               regenerate tables and figures from archived results
-#   ./reproduce.sh full --experiment ID [--jobs N] [--resume] [--limit N]
+#   ./reproduce.sh full --experiment ID [--jobs N] [--resume] [--limit N | --sample N]
 #   ./reproduce.sh full --all [--jobs N] [--resume]
 #   ./reproduce.sh list                 experiments and their replication readiness
 #   ./reproduce.sh fetch [artifacts|m4|pjme|all]   download (or --from FILE) and verify inputs
@@ -71,6 +71,8 @@ Options for `full`:
   --jobs N           parallel worker processes (default 1)
   --resume           continue an interrupted run from its checkpoints
   --limit N          run only the first N series per task (execution check, not science)
+  --sample N         run N series drawn at random per frequency, the same for every arm
+                     (execution check on a spread of series, not science); --seed S changes the draw
   --timeout S        per-series wall-clock limit in seconds (default: the experiment's own)
   --run-id NAME      name of the run directory (default: a timestamp)
   --frequency F      only this M4 frequency (repeatable)
@@ -119,7 +121,7 @@ while [[ $# -gt 0 ]]; do
         --from)
             [[ $# -ge 2 && -f "$2" ]] || die "$EXIT_INPUT" "--from needs an existing file (the artifact bundle tarball)"
             from_file="$2"; shift 2 ;;
-        --experiment|--jobs|--limit|--timeout|--run-id|--frequency|--arm|--group)
+        --experiment|--jobs|--limit|--sample|--seed|--timeout|--run-id|--frequency|--arm|--group)
             [[ $# -ge 2 ]] || die "$EXIT_USAGE" "$1 needs a value"
             passthrough+=("$1" "$2"); shift 2 ;;
         --all|--resume|--keep-going)

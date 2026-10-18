@@ -139,7 +139,10 @@ end
 # eps_0 = 0 the objective depends on theta alone, so a dense grid over [-1, 1] (independent
 # of any solver) locates the global minimum, which here is interior and unique
 # (theta* = 0.675838, f* = 15.2302802). SCIP must close the gap, its value must not exceed the
-# grid's or Ipopt's, and Sarimax's own fit! with SCIP must agree.
+# grid's or Ipopt's, and Sarimax's own fit! with SCIP must agree. The package fits use
+# `initialization = :warmup`, which is this objective (eps_0 = 0, every observation kept, as in
+# R's CSS); `:zeroed` would instead drop the first observation and fix eps_1 = 0, a different
+# problem whose optimum is theta = 0.7786.
 ma1Data() = (e = whitenoise(21); [e[t+1] + 0.5 * e[t] for t = 1:20])
 function ma1Model(y, optimizer)
     T = length(y)
@@ -187,9 +190,9 @@ runtest("scip_global") do
     emit("scip_global", "scip_not_above_ipopt", objective_value(jm) <= objective_value(ip) + 1e-6)
 
     mS = SARIMA(ta(y), 0, 0, 1; allowMean = false)
-    fit!(mS; optimizer = scip, initialization = :zeroed)
+    fit!(mS; optimizer = scip, initialization = :warmup)
     mI = SARIMA(ta(y), 0, 0, 1; allowMean = false)
-    fit!(mI; initialization = :zeroed)
+    fit!(mI; initialization = :warmup)
     emit("scip_global", "package_scip_status", mS.metadata["solverStatus"])
     emit("scip_global", "package_scip_theta", mS.θ[1])
     emit("scip_global", "package_scip_rss_not_above_ipopt",

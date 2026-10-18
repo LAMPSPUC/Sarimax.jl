@@ -24,9 +24,16 @@ r_now <- paste(R.version$major, R.version$minor, sep = ".")
 emit("R version vs renv.lock", if (identical(r_now, lock$R$Version)) "PASS" else "FAIL",
      expected = lock$R$Version, generated = r_now)
 
+# The DESCRIPTION Version field as written (e.g. "2.1-1"), which is what renv.lock records;
+# packageVersion() would print it as "2.1.1".
+installed_version <- function(name) {
+  v <- suppressWarnings(utils::packageDescription(name, fields = "Version"))
+  if (is.null(v) || is.na(v)) "not installed" else v
+}
+
 bad <- character(0)
 for (pkg in lock$Packages) {
-  have <- tryCatch(as.character(utils::packageVersion(pkg$Package)), error = function(e) "not installed")
+  have <- installed_version(pkg$Package)
   if (!identical(have, pkg$Version)) bad <- c(bad, sprintf("%s %s (locked %s)", pkg$Package, have, pkg$Version))
 }
 n <- length(lock$Packages)

@@ -38,6 +38,12 @@ DESCRIPTION = (
 )
 
 
+# The article's authors and affiliation (manuscript revision of 2026-10-16); TO CONFIRM by the
+# authors before publishing, together with the licence.
+AUTHORS = ["Duarte, Luiz Fernando", "Valladão, Davi", "Street, Alexandre"]
+AFFILIATION = "Industrial Engineering Department, Pontifical Catholic University of Rio de Janeiro (PUC-Rio)"
+
+
 def api(base: str, token: str, method: str, path: str, body=None, data: bytes | None = None,
         content_type: str = "application/json"):
     url = path if path.startswith("http") else f"{base}{path}"
@@ -88,8 +94,7 @@ def main() -> int:
         "upload_type": "dataset",
         "description": DESCRIPTION,
         "version": args.version,
-        "creators": [{"name": "Duarte, Luiz Fernando Cunha",
-                      "affiliation": "LAMPS, Department of Electrical Engineering, Pontifical Catholic University of Rio de Janeiro (PUC-Rio)"}],
+        "creators": [{"name": name, "affiliation": AFFILIATION} for name in AUTHORS],
         "keywords": ["M4 competition", "SARIMAX", "forecasting", "reproducibility", "optimization"],
         "license": "cc-by-4.0",
         "access_right": "open",
@@ -107,7 +112,9 @@ def main() -> int:
         return 0
     pub = api(base, token, "POST", f"/deposit/depositions/{dep['id']}/actions/publish")
     doi = pub.get("doi") or pub.get("metadata", {}).get("doi")
-    tar_url = next((f["links"]["self"] for f in pub.get("files", []) if f["filename"] == files[0].name), "")
+    record = pub.get("record_id") or pub.get("id") or dep["id"]
+    # the public download URL of the tarball, the form artifacts.lock records
+    tar_url = f"{base[:-len('/api')]}/records/{record}/files/{files[0].name}?download=1"
     print(f"published: DOI {doi}\n  tarball URL {tar_url}\n  record {pub['links']['html']}")
     print("Record doi, url and sha256 in replication/ijf-2026/artifacts.lock.")
     return 0

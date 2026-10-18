@@ -12,12 +12,14 @@ from __future__ import annotations
 
 import csv
 import importlib
+import json
 import math
 import sys
 import time
 import traceback
 from pathlib import Path
 
+from . import manuscript
 from .common import (EXIT_FAIL, EXIT_INPUT, EXIT_OK, FAIL, INFO, MISSING, PASS, SKIPPED, WARN,
                      Paths, Report, sha256_file)
 from .check import artifact_inventory
@@ -26,6 +28,7 @@ from .check import artifact_inventory
 GROUPS = [
     "battery",
     "m4_benchmark",
+    "m4_paired",
     "m4_objectives",
     "m4_objective_distributions",
     "arms",
@@ -66,6 +69,8 @@ def run(paths: Paths, args) -> int:
                          ("Yearly", "Quarterly", "Monthly", "Weekly", "Daily", "Hourly")) else None
     only = set(getattr(args, "group", None) or [])
     input_failure = False
+    generated_by_group: dict[str, dict] = {}
+    unavailable: set[str] = set()
 
     for group in GROUPS:
         if only and group not in only:
@@ -84,6 +89,7 @@ def run(paths: Paths, args) -> int:
                 problems.append(f"checksum mismatch {rel}")
         if problems:
             input_failure = True
+            unavailable.add(group)
             report.add(group, mod.TITLE, MISSING, expected=f"{len(expected)} cells",
                        generated="not computed", note="; ".join(problems[:5]) +
                        (f" (+{len(problems) - 5} more)" if len(problems) > 5 else ""))
@@ -102,9 +108,11 @@ def run(paths: Paths, args) -> int:
         except Exception as exc:  # a generator crash is a failure, never a skip
             report.add(group, mod.TITLE, FAIL, note=f"generator raised {type(exc).__name__}: {exc}")
             traceback.print_exc()
+            unavailable.add(group)
             continue
         secs = time.monotonic() - t0
         generated = {(c.table, c.row, c.column): c for c in cells}
+        generated_by_group[group] = generated
 
         # 3. compare
         n_pass = n_fail = 0
@@ -138,6 +146,8 @@ def run(paths: Paths, args) -> int:
                              + (f"; {unreferenced} further cells without a reference" if unreferenced else "")
                              + ("; first differences: " + " | ".join(failed[:3]) if failed else "")))
 
+    reconcile_manuscript(paths, report, generated_by_group, unavailable, only or None)
+
     detail = paths.reports / "tables_cells.csv"
     detail.parent.mkdir(parents=True, exist_ok=True)
     with open(detail, "w", newline="", encoding="utf-8") as f:
@@ -150,6 +160,28 @@ def run(paths: Paths, args) -> int:
     if input_failure:
         return EXIT_INPUT
     return EXIT_FAIL if report.failed else EXIT_OK
+
+
+def reconcile_manuscript(paths: Paths, report: Report, generated: dict, unavailable: set,
+                         only: set | None) -> None:
+    """Every number printed in the manuscript against the regenerated cell it comes from."""
+    print("== tables: manuscript — printed values against their sources")
+    rows = manuscript.reconcile(paths.repl, generated, unavailable, only)
+    manuscript.write_cells(paths.reports / "manuscript_cells.csv", rows)
+    totals: dict[str, int] = {}
+    for item, d in manuscript.summarize(rows).items():
+        counts = d["counts"]
+        for k, v in counts.items():
+            totals[k] = totals.get(k, 0) + v
+        n = sum(counts.values())
+        note = "; ".join(f"{k} {v}" for k, v in counts.items())
+        report.add("manuscript", f"{item} ({d['label'] or 'no label'})", manuscript.item_status(counts),
+                   expected=f"{n} printed values", generated=f"{counts.get(manuscript.MATCH, 0)} match",
+                   note=note)
+    with open(paths.reports / "manuscript.json", "w", encoding="utf-8") as f:
+        json.dump({"values": len(rows), "counts": totals}, f, indent=2)
+    print(f"manuscript: {len(rows)} printed values; " + ", ".join(f"{k} {v}" for k, v in totals.items())
+          + f" (cell-level: {paths.reports / 'manuscript_cells.csv'})")
 
 
 def _fmt(v, decimals) -> str:

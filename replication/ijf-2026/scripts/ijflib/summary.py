@@ -35,7 +35,19 @@ def write_summary(paths: Paths, codes: dict[str, int]) -> int:
             overall = code if overall == EXIT_OK else max(overall, code)
     verdict = "SUCCESS: every check, smoke test and table comparison passed" if overall == EXIT_OK else \
         "FAILURE: see the stage reports; a missing input or a failed check is never counted as a success"
-    lines += ["", f"**{verdict}.**", "",
+    lines += ["", f"**{verdict}.**"]
+    try:
+        ms = json.loads((paths.reports / "manuscript.json").read_text(encoding="utf-8"))
+        c = ms["counts"]
+        lines += ["", f"Manuscript coverage: of {ms['values']} printed values, {c.get('MATCH', 0)} were "
+                  f"regenerated from archived per-series results and agree, {c.get('DIFFER', 0)} differ, "
+                  f"{c.get('NOT REGENERATED', 0)} could not be regenerated (inputs missing), "
+                  f"{c.get('CONSISTENT (derived table only)', 0)} agree with a derived table whose raw inputs "
+                  f"are not archived, and {c.get('NO ARCHIVED SOURCE', 0)} have no archived source "
+                  "(reports/manuscript_cells.csv; LIMITATIONS.md)."]
+    except (OSError, KeyError, ValueError):
+        pass
+    lines += ["",
               "Full re-execution of the experiments is a separate command: `./reproduce.sh list`, then",
               "`./reproduce.sh full --experiment <id> --jobs N --resume`."]
     paths.reports.mkdir(parents=True, exist_ok=True)

@@ -163,9 +163,9 @@ def run(paths: Paths, args) -> int:
 
 def _targets(paths: Paths, args) -> list[str]:
     from .manifest import load_manifest
-    rows = load_manifest(paths)
     if getattr(args, "all", False):
-        return [r["experiment_id"] for r in rows if r["full_runner"] not in ("", "none")]
+        from .full import all_targets     # the same selection as `full --all`
+        return all_targets(paths, {r["experiment_id"]: r for r in load_manifest(paths)})[0]
     return list(getattr(args, "experiment", []) or [])
 
 

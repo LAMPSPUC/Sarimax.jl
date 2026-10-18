@@ -1,0 +1,16 @@
+\begin{tabular}{llrrrrrrr}
+\toprule
+ & & & \multicolumn{4}{c}{MASE, $\Delta$ vs MSE, guard off} & \multicolumn{2}{c}{sMAPE, $\Delta$ vs MSE, guard off} \\
+\cmidrule(lr){4-7}\cmidrule(lr){8-9}
+Freq. & Method & $N$ & Median & $q_{05}$ & $q_{95}$ & \% lower & Median & \% lower \\
+\midrule
+Hourly & MSE, guard on & 411 & 0.000 & -0.000 & 0.000 & 0.0 & 0.000 & 0.0 \\
+ & auto.arima & 411 & -0.002 & -0.319 & 0.247 & 54.5 & -0.001 & 50.6 \\
+\addlinespace
+Quarterly & MSE, guard on & 24{,}000 & -0.000 & -0.000 & 0.000 & 0.2 & 0.000 & 0.2 \\
+ & auto.arima & 24{,}000 & -0.000 & -0.322 & 0.265 & 35.1 & -0.000 & 36.7 \\
+\addlinespace
+Daily & MSE, guard on & 4{,}227 & 0.000 & 0.000 & 0.000 & 1.2 & 0.000 & 1.2 \\
+ & auto.arima & 4{,}227 & -0.000 & -0.245 & 0.161 & 30.9 & -0.000 & 30.5 \\
+\bottomrule
+\end{tabular}

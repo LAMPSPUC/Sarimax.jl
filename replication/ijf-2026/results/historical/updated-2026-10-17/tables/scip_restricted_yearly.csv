@@ -1,0 +1,3 @@
+Parameterization,Series,SCIP status OPTIMAL,same objective (rel. < 1e-6),SCIP objective lower (> 0.01%),largest reduction (%),sMAPE SCIP,sMAPE Ipopt,mean time SCIP (s),mean time Ipopt (s)
+box only (direct coefficients),100,97,94,6,25.82,10.869759401851866,10.825604191267775,22.660700000000002,0.008399999999999998
+stationary and invertible by construction,95,94,92,3,4.01,11.164627872117071,11.118089988848467,13.38336842105263,0.008210526315789474

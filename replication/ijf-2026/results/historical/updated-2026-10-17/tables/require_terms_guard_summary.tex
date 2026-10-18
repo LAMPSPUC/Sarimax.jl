@@ -1,0 +1,16 @@
+\begin{tabular}{llrrrrr}
+\toprule
+Freq. & Arm & $N$ & sMAPE & MASE & OWA & $\Delta$OWA vs MSE, guard off \\
+\midrule
+Hourly & MSE, guard off & 411 & 14.402 & 0.963 & 0.5910 & -- \\
+ & MSE, guard on & 411 & 14.402 & 0.963 & 0.5910 & -0.0000 \\
+\addlinespace
+Quarterly & MSE, guard off & 24{,}000 & 10.516 & 1.174 & 0.9054 & -- \\
+ & MSE, guard on & 24{,}000 & 10.514 & 1.174 & 0.9053 & -0.0002 \\
+\addlinespace
+Daily & MSE, guard off & 4{,}227 & 3.167 & 3.359 & 1.0324 & -- \\
+ & MSE, guard on & 4{,}227 & 3.223 & 3.449 & 1.0552 & +0.0228 \\
+\midrule
+\multicolumn{7}{l}{\footnotesize auto.arima OWA on the same series: hourly 0.5757; quarterly 0.8976; daily 1.0413} \\
+\bottomrule
+\end{tabular}

@@ -1,0 +1,30 @@
+\begin{tabular}{llrrrrr}
+\toprule
+Freq. & Arm & $N$ & sMAPE & MASE & OWA & $\Delta$OWA vs MSE \\
+\midrule
+Yearly & MSE & 23{,}000 & 15.244 & 3.407 & 0.8950 & -- \\
+ & stable $\alpha=0.5$ & 23{,}000 & 15.084 & 3.379 & 0.8866 & -0.0084 \\
+ & stable $\alpha=0.9$ & 23{,}000 & 15.779 & 3.531 & 0.9270 & +0.0321 \\
+\addlinespace
+Quarterly & MSE & 23{,}945 & 10.523 & 1.173 & 0.9057 & -- \\
+ & stable $\alpha=0.5$ & 23{,}945 & 10.520 & 1.178 & 0.9072 & +0.0015 \\
+\addlinespace
+Monthly & MSE & 4{,}997 & 13.299 & 0.922 & 0.8913 & -- \\
+ & stable $\alpha=0.9$ & 4{,}997 & 14.413 & 0.967 & 0.9511 & +0.0597 \\
+\addlinespace
+Monthly (alpha=0.5 subset) & MSE & 923 & 12.085 & 0.762 & 0.9084 & -- \\
+ & stable $\alpha=0.5$ & 923 & 12.352 & 0.759 & 0.9170 & +0.0086 \\
+\addlinespace
+Weekly & MSE & 359 & 8.398 & 2.440 & 0.8977 & -- \\
+ & stable $\alpha=0.5$ & 359 & 8.490 & 2.635 & 0.9378 & +0.0401 \\
+ & stable $\alpha=0.9$ & 359 & 9.162 & 2.640 & 0.9753 & +0.0776 \\
+\addlinespace
+Daily & MSE & 3{,}979 & 3.154 & 3.337 & 1.0347 & -- \\
+ & stable $\alpha=0.5$ & 3{,}979 & 3.161 & 3.334 & 1.0354 & +0.0007 \\
+\addlinespace
+Hourly & MSE & 411 & 14.402 & 0.963 & 0.5910 & -- \\
+ & stable $\alpha=0.5$ & 411 & 14.499 & 0.973 & 0.5957 & +0.0047 \\
+\midrule
+\multicolumn{7}{l}{\footnotesize auto.arima OWA on the same series: yearly 0.8913; quarterly 0.8978; monthly 0.8928; monthly (alpha=0.5 subset) 0.9231; weekly 0.9266; daily 1.0441; hourly 0.5757} \\
+\bottomrule
+\end{tabular}

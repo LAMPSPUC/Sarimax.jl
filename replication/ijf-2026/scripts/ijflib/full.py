@@ -194,10 +194,33 @@ def run_script_experiment(paths: Paths, config: dict, run_dir: Path, report: Rep
 
 
 # ---------------------------------------------------------------------------------------------
+def all_targets(paths: Paths, manifest: dict) -> tuple[list[str], list[tuple[str, str]]]:
+    """`full --all`: the re-runnable experiments behind the manuscript's reported results.
+
+    Experiments the manuscript does not report (historical or superseded campaigns) and
+    experiments whose protocol is still provisional are left out; each can still be run with
+    --experiment.
+    """
+    targets, left_out = [], []
+    for exp_id, e in manifest.items():
+        if e["full_runner"] in ("", "none"):
+            continue
+        status = tomllib.loads((paths.repl / e["full_runner"]).read_text(encoding="utf-8")).get("protocol_status")
+        if status == "provisional":
+            left_out.append((exp_id, "its protocol is provisional"))
+        elif not e["manuscript_label"]:
+            left_out.append((exp_id, "not reported in the manuscript"))
+        else:
+            targets.append(exp_id)
+    return targets, left_out
+
+
 def run(paths: Paths, args) -> int:
     manifest = {e["experiment_id"]: e for e in load_manifest(paths)}
     if args.all:
-        targets = [k for k, e in manifest.items() if e["full_runner"] not in ("", "none")]
+        targets, left_out = all_targets(paths, manifest)
+        for exp_id, why in left_out:
+            print(f"--all leaves out {exp_id}: {why} (run it with --experiment {exp_id})")
     else:
         targets = args.experiment
     if not targets:

@@ -124,8 +124,10 @@ The container was given 12 CPU threads and 31 GB of memory.
 **The image.** It was built with `./reproduce.sh build` from the checkout, under Git Bash.
 * Building every layer took 10.5 min; rebuilding the last layer took 3–5 min.
 * The build ran `julia_env.jl` and passed: 148 pinned packages, Ipopt 3.14.19, SCIP 8.0.0.
-* The tested image has fingerprint `a3c290ac…`, the fingerprint of commit `a873ab9` (the
-  documentation is not fingerprinted).
+* The tests below ran on the image of commit `a873ab9` (fingerprint `a3c290ac…`).
+* After the wording-only changes that followed (fingerprint `80db5fee…`), `check`, `smoke` and
+  `tables` were repeated, plus a sampled full run of `m4_objectives` (weekly and yearly, 5 series
+  per objective, all reproducing the archive), with the same results.
 
 **The bundle.** It was built in two parts and checked against both inventories.
 * Part 1: 446 of its 535 files were rebuilt from their sources by the part-1 builder's code.

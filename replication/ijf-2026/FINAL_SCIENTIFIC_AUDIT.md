@@ -20,7 +20,8 @@ output was altered, and SCIP stays at 8.0.0.
 | A7 | **Replacement tables mapped to `m4_objectives`** | template for Tables 5, 6, S9, S10, Figure 3, Section 5.4 pointing at `m4_objectives_controlled` cells (printed values left to be transcribed); `controlled.paired` added for S9/S10 (760 of 760 cells agree with the campaign's independent scorer) | `results/manuscript/pending/`, `reports/manuscript_traceability.md` |
 | A8 | **Supplementary provenance (Tables S6, S7, Figure S1, AR(3) figure)** | the simulation script and its outputs recovered and archived; CI recomputes the derived tables from them | `results/historical/revision-2026-09/recovered/`, `check_recovered_2026_09.py`; commits `ade8916`, `eafbddd` |
 | A9 | **Table S2 and the Section 5.5 initialization numbers** | sources identified: the descriptions of pull requests LAMPSPUC/Sarimax.jl#18 and #20 (all printed values appear there); no records exist, so they stay "no evidence" | `reports/provenance_gaps.md` items 4-5 |
-| A10 | **CI** | documentation build (unresolved `@ref` to the new helpers) fixed in `5c4d76d`; a stale checksum list fixed in `8dc4290`; the manuscript check no longer fails on documented errata. The intermittent Windows failure of `test/objective_functions.jl:278` (elastic net, Ipopt `OTHER_ERROR`) predates this work (same value on 2026-09-10 and 2026-10-18) and is left to a separate task | section F |
+| A10 | **CI** | documentation build (unresolved `@ref` to the new helpers) fixed in `5c4d76d`; a stale checksum list fixed in `8dc4290`; the manuscript check no longer fails on documented errata | section F |
+| A11 | **Intermittent Windows CI failure** of `test/objective_functions.jl:278` (elastic net at `lambda = 0`, Ipopt `OTHER_ERROR`; seen on 2026-09-10, 2026-10-18 and twice on 2026-10-20, always 0.0349) | root cause: the auxiliary variables of the L1 term have no upper bound and, with an L1 weight of zero, nothing in the objective holding them down, so the barrier problem has no minimizer in them and the outcome depended on the CPU's BLAS kernel (reproduced locally: `lambda = 10, alpha = 0` ends `OTHER_ERROR` on every kernel tried; `lambda = 0` changes status with the kernel). Fixed in `src/penalty.jl` by creating the auxiliaries only for coefficients with a positive L1 weight; uniform `lambda > 0, alpha > 0` builds the same model as before; the `"ridge"` objective, used by the M4 campaigns, has its own penalty and is unaffected | `test/objective_functions.jl` (new testset: passes with the fix on five BLAS kernels, fails on 1.0.0); CHANGELOG "Unreleased" |
 
 ## B. Pending external evidence
 
@@ -69,7 +70,8 @@ correction to the wording of the 2026-10-19 revision.
 |---|---|---|---|
 | exact likelihood of models with regressors | `src/exact_likelihood.jl` (`fittedExogMatrix`, `armaxRegressionPath`), one metadata key in `src/models/sarima.jl` | unchanged | AIC/AICc/BIC, `auto`'s orders and its forecasts change for models with regressors; univariate models and fixed-order fits unchanged (except under `multistart = true`) |
 | dataset alias | `src/datasets.jl` | adds `ANTIDIABETIC_DRUG_SALES` | none (same data) |
-| tests | `test/exog_likelihood.jl` (new, 21 checks), `test/datasets.jl` (+11) | | |
+| elastic net with an L1 weight of zero | `src/penalty.jl` (`elasticNetPenalty!`) | unchanged | fits with `alpha = 0`, `lambda = 0` or zero entries of a heterogeneous `lambda` become well posed (they could end on a solver error); every other fit builds the same model. Affects no M4 table. Two archived experiments used such weights, so their re-runs may differ from their archived outputs: the battery architecture table's "ridge" row (`elastic_net` with `alpha = 0`; not reported in the manuscript) and part F of the recovered Figure S1 experiment (zero entries of `lambda`) |
+| tests | `test/exog_likelihood.jl` (new, 21 checks), `test/datasets.jl` (+11), `test/objective_functions.jl` (+1 testset, 4 checks) | | |
 | documentation | README, `docs/src/tutorial.md`, `docs/src/reference.md`, CHANGELOG "Unreleased" | | |
 | replication package | release check with errata and release gate; `controlled.paired`; the certificate inventory builder; the recovered-output check; evidence and reports | | no historical output changed |
 
@@ -92,5 +94,19 @@ first.
 
 ## F. Test evidence
 
-See `REPRODUCIBILITY_STATUS.md`, section "Final scientific audit (2026-10-20)", for commands,
-platforms and results.
+Commands, platforms and full results: `REPRODUCIBILITY_STATUS.md`, section "Final scientific
+audit (2026-10-20)". In short:
+
+* package suite with both `src/` fixes: 1,443 pass, 0 fail, 0 error, 5 pre-existing broken;
+* `test/exog_likelihood.jl` 21/21 (6/21 on v1.0.0); the new elastic-net testset passes on five
+  OpenBLAS kernels (its first check fails on v1.0.0); `test/datasets.jl` 40/40;
+* image rebuilt for the changed `src/` (commit `8dc4290`): smoke SUCCESS; tables 4,204 of 4,204
+  cells in 9 groups (exit 4 only because the local bundle lacks inputs of the tenth group);
+* **univariate M4 under the fixed code:** the controlled campaign re-run on every weekly series
+  reproduces the archive on 359/359 series for each objective (same orders, sMAPE within
+  1.0e-11, forecasts within 6.4e-13 relative, the same bit-identical counts as with v1.0.0),
+  and 20/20 sampled quarterly and yearly series for each objective;
+* release check: pull-request mode passes with the 2 registered errata; release mode fails on
+  them, as designed;
+* CI at `8dc4290`: IJF replication (host, manuscript check, container amd64 and arm64) and
+  documentation PASS; package CI PASS except the Windows job, whose elastic-net failure is A11.

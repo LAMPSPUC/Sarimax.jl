@@ -329,7 +329,8 @@ The controlled comparison of objectives was produced by a separate workstream (2
    the GHCR package public. If its size and the SCIP licence allow, archive the exported image
    (`docker save | gzip`) in the Zenodo data record.
 7. **Tag the release.** `src/` now differs from v1.0.0 (the information-criterion fix for models
-   with regressors and the dataset alias, CHANGELOG "Unreleased"), so release the package as
+   with regressors, the elastic-net fix for L1 weights of zero and the dataset alias, CHANGELOG
+   "Unreleased"), so release the package as
    1.0.1 first, then tag the replication release commit (for example `ijf-2026-v1`) and publish
    the GitHub release. The Zenodo GitHub
    integration archives it and mints the software DOI (`.zenodo.json`).

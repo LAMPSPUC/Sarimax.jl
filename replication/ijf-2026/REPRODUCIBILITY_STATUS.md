@@ -13,6 +13,14 @@ tables from archived results (Level B) and re-execution from the original data (
 
 ## The manuscript, number by number
 
+**Canonical revision not transcribed.** The canonical manuscript is the revision of 2026-10-19
+(controlled objective comparison), which is not available here; the values below are those of
+the 2026-10-16 revision. The release check reports this as missing evidence, maps the items the
+2026-10-19 revision takes from the controlled campaign to `m4_objectives` in a template
+awaiting transcription, and sorts every value into five categories (raw-reproduced 603,
+derived-only 19, differing 2, no evidence 46, 2 checked at run time only; 13 textual claims to
+verify). See `reports/manuscript_traceability.md` and `FINAL_SCIENTIFIC_AUDIT.md`.
+
 `results/manuscript/manuscript_values.csv` lists the 672 numbers printed in the tables,
 figures and experimental sections of the 2026-10-16 revision. The table compares each number
 in two ways:
@@ -32,13 +40,13 @@ in two ways:
 | Table 4 | `tab:m4_paired_quantiles` | 84 | 84 agree | 84 agree | 56 agree | m4_benchmark (m4_paired) |
 | Table 5 | `tab:m4_objectives` | 44 | 44 agree | 20 agree (`m4_objectives`); 24 need part-1 inputs not rebuildable from the repository | 44 agree | m4_objectives_icarai_innovations, m4_objective_distributions |
 | Table 6 | `tab:objective_paired_quantiles` | 60 | 60 agree | needs part-1 inputs not rebuildable from the repository | 60 agree | m4_objective_distributions |
-| Table 7 | `tab:local_global_forecasts` | 40 | 38 agree, **2 differ** | 38 agree, **2 differ** | 38 agree, **2 differ** | battery_global_value |
-| Table S2 | `tab:exog_validation` | 9 | no archived source | – | – | exog_convention_simulation (BLOCKED) |
+| Table 7 | `tab:local_global_forecasts` | 40 | 38 agree, **2 differ** (registered errata) | 38 agree, **2 differ** | 38 agree, **2 differ** | battery_global_value |
+| Table S2 | `tab:exog_validation` | 9 | no archived source (the values appear only in the description of LAMPSPUC/Sarimax.jl#18) | – | – | exog_convention_simulation (BLOCKED) |
 | Table S3 | `tab:m4_baseline` | 2 | configuration, see LIMITATIONS item 1 | – | – | – |
 | Table S4 | (added on 2026-10-16) | 2 | 2 agree | 1 agree | 2 agree | m4_benchmark, m4_objective_distributions |
 | Table S5 | `tab:global_experiment` | 12 | no archived source | – | – | global_optimization_grid (BLOCKED) |
-| Table S6 | `tab:quantile_demo` | 9 | agree with a derived table only | – | – | quantile_demo (PARTIAL) |
-| Table S7 | `tab:multistart` | 10 | agree with a derived table only | – | – | multistart_kstart (PARTIAL) |
+| Table S6 | `tab:quantile_demo` | 9 | agree with a derived table, recomputed in CI from the recovered outputs | – | – | quantile_demo |
+| Table S7 | `tab:multistart` | 10 | agree with a derived table, recomputed in CI from the recovered per-start records | – | – | multistart_kstart |
 | Table S8 | `tab:supp_m4_marginal` | 115 | 115 agree | 115 agree | 75 agree | m4_benchmark (m4_paired) |
 | Table S9 | `tab:supp_obj_mase` | 84 | 84 agree | needs part-1 inputs not rebuildable from the repository | 84 agree | m4_objective_distributions |
 | Table S10 | `tab:supp_obj_smape` | 84 | 84 agree | needs part-1 inputs not rebuildable from the repository | 84 agree | m4_objective_distributions |
@@ -46,7 +54,7 @@ in two ways:
 | Figure 3 | `fig:objective_ecdf` | 12 | 12 agree | needs part-1 inputs not rebuildable from the repository | 12 agree | m4_objective_distributions |
 | Section 5.3 | `sec:m4_validation` | 4 | 2 agree, 2 checked at run time only | 4 agree (the 41–78% range needs all six frequencies) | 2 agree | m4_benchmark (m4_paired) |
 | Section 5.4 | `sec:m4_objectives` | 4 | 4 agree | needs part-1 inputs not rebuildable from the repository | 4 agree | m4_objective_distributions |
-| Section 5.5 | `sec:estimation_sensitivity` | 15 | 4 agree (admissibility); 11 no archived source | 4 agree (regenerated from the raw archive) | – | stable_admissibility_gavea; initialization_experiment, ranking_likelihood_diagnostic (BLOCKED) |
+| Section 5.5 | `sec:estimation_sensitivity` | 15 | 4 agree (admissibility); 11 no archived source (the 5 initialization values appear only in the description of LAMPSPUC/Sarimax.jl#20) | 4 agree (regenerated from the raw archive) | – | stable_admissibility_gavea; initialization_experiment, ranking_likelihood_diagnostic (BLOCKED) |
 | Section 5.6 | `sec:global_diagnostics` | 14 | 2 agree; 12 no archived source | 2 agree | 2 agree | battery_solver_comparison; global_optimization_grid (BLOCKED) |
 | Figure 1, Figure S1 | `fig:ar3_cross_sections`, `fig:weighted_demo` | – | figures without printed numbers; Figure S1's data agree with a derived table | – | – | ar3_stationarity_figure, weighted_regularization_demo (PARTIAL) |
 
@@ -65,19 +73,21 @@ runs: 605 values, of which 603 agree and 2 differ. Details, and what each gap ne
 `LIMITATIONS.md`, item 1.
 
 **The replacement objective tables.** Tables 5, 6, S9 and S10, Figure 3 and Section 5.4 print
-the historical objective campaigns. The controlled experiment `m4_objectives` regenerates its
-replacement tables from its own archived records (544 cells, all agree); the replacements are
-proposed in `derived/m4-objectives-controlled-2026-10/manuscript_update_proposal.md`. When the
-manuscript adopts them, `manuscript_values.csv` is to point at the `m4_objectives_controlled`
-cells.
+the historical objective campaigns in the 2026-10-16 revision. The controlled experiment
+`m4_objectives` regenerates its replacement tables from its own archived records (760 cells,
+including `controlled.paired` for S9 and S10, all agree); the replacements are proposed in
+`derived/m4-objectives-controlled-2026-10/manuscript_update_proposal.md`, and
+`results/manuscript/pending/manuscript_values_2026-10-19_controlled.csv` points every value of
+those items at its `m4_objectives_controlled` cell, awaiting the printed values of the
+2026-10-19 revision.
 
 ## Experiments
 
 | Experiment | Manuscript | Tables (B) | Full re-run (C) | Notes |
 |---|---|---|---|---|
 | battery_validation | Table 2 | VERIFIED | EXECUTABLE | re-run (Julia, Python): 100/119 non-timing cells agree; AIC/BIC now exact-likelihood by definition |
-| battery_global_value | Table 7 | VERIFIED | EXECUTABLE | Ipopt rows 18/18 re-run; needs `fetch pjme`; two printed times differ from the archive |
-| battery_solver_comparison | Section 5.6 | VERIFIED | EXECUTABLE | Ipopt rows 27/30 re-run (labels replaced by solver statuses) |
+| battery_global_value | Table 7 | VERIFIED | EXECUTABLE | Ipopt rows 18/18 re-run; needs `fetch pjme`; two printed times differ from the archive (registered errata). Re-run 2026-10-20 with dual bounds and logs (`results/reruns/`): MA(1) certified, both ARMA(1,1) instances at the 900 s limit; PJME certificate classified as insufficient evidence (`reports/global_certification_audit.md`) |
+| battery_solver_comparison | Section 5.6 | VERIFIED | EXECUTABLE | Ipopt rows 27/30 re-run (labels replaced by solver statuses); the MA(1) certificates T = 8-40 re-run with dual bounds (certified, 6.2-61.2 s) |
 | battery_forecasting, battery_architecture, battery_solver_scaling, battery_energy | not reported | VERIFIED | EXECUTABLE | July 2026 battery; kept for the record |
 | m4_benchmark | Tables 3, 4, S8, S4; Figure 2; Section 5.3 | VERIFIED | EXECUTABLE | subset re-runs reproduce archived series; Section 5.1 describes another monthly protocol |
 | **m4_objectives** (controlled) | proposed replacement for Tables 5, 6, S9, S10, Figure 3, Section 5.4 | **VERIFIED** (544 cells) | **EXECUTABLE** | complete archived run with the release: 381,436 fits, every series under every objective, none failed (bundle part 2); the package's runner re-runs it and compares series by series: every weekly series (359/359 per objective) and samples of quarterly (40), yearly (40) and monthly (12) reproduce the archive in the image; included in `full --all` |
@@ -93,9 +103,9 @@ cells.
 | admissibility_margins, initialization_order_search | not reported | PARTIAL | PARTIAL | raw results only |
 | exog_convention_simulation | Table S2 | BLOCKED | BLOCKED | no runner, outputs or table archived |
 | global_optimization_grid | Table S5; Section 5.6 certificates | BLOCKED | BLOCKED | August 2026 certification batch not archived |
-| quantile_demo, multistart_kstart, weighted_regularization_demo | Tables S6, S7; Figure S1 | PARTIAL | BLOCKED | derived tables archived; simulation scripts not |
-| initialization_experiment, ranking_likelihood_diagnostic | Section 5.5 | BLOCKED | BLOCKED | records not identified |
-| ar3_stationarity_figure | Figure 1 | PARTIAL | NOT APPLICABLE | analytic figure; plotting script not archived |
+| quantile_demo, multistart_kstart, weighted_regularization_demo | Tables S6, S7; Figure S1 | VERIFIED (recovered outputs) | PARTIAL | script and outputs recovered (`results/historical/revision-2026-09/recovered/`); CI recomputes the derived tables from them; re-running the script is a new execution |
+| initialization_experiment, ranking_likelihood_diagnostic | Section 5.5 | BLOCKED | BLOCKED | records not identified; the initialization values appear in the description of LAMPSPUC/Sarimax.jl#20, the ranking values nowhere |
+| ar3_stationarity_figure | Figure 1 | PARTIAL | NOT APPLICABLE | analytic figure; its script recovered with the others |
 
 **Level B in total:** 6,860 reference cells in ten table groups.
 
@@ -104,6 +114,7 @@ cells.
 | bundle assembly, the full part 1 | 2026-10-17 | 7 then present | 4,868 of 4,868 |
 | native macOS arm64 | 2026-10-18 | every group whose inputs could be rebuilt there | 4,796 |
 | container (linux/amd64) | 2026-10-20 | 9 of the 10 groups | 3,988 of 3,988 |
+| container (linux/amd64), final audit, commit `8dc4290` | 2026-10-20 | 9 of the 10 groups | 4,204 of 4,204 (m4_objectives_controlled now 760) |
 
 In the container run, `m4_objective_distributions` needed part-1 inputs that cannot be rebuilt from the
 repository (the published part 1 supplies them).
@@ -116,6 +127,25 @@ from the archive, but they are superseded by `m4_objectives` and must not be com
 report and the superseded historical campaign.
 
 ## What was tested
+
+### Final scientific audit (2026-10-20; this pull request)
+
+| Test | Command / where | Result |
+|---|---|---|
+| Package test suite, both fixes (`src/exact_likelihood.jl`, `src/penalty.jl`) | `test/runtests.jl`, Julia 1.10.12 on Windows, the replication Manifest plus Aqua 0.8.16 | 1,443 pass, 0 fail, 0 error, 5 broken (pre-existing `@test_broken`), 6 min |
+| Information criteria with regressors | `test/exog_likelihood.jl` against an independent dense likelihood | 21/21; 6/21 on v1.0.0 (`reports/exog_likelihood.md`) |
+| Effects of that fix on `auto` | `reports/exog_likelihood/effects_exog.jl`, v1.0.0 and fixed, 160 searches | orders change in 140; true order 0/60 -> 37/60 where the semantics and `d` are right |
+| Elastic net with an L1 weight of zero | `test/objective_functions.jl`, new testset, OpenBLAS kernels default, Haswell, Zen, Sandybridge, Prescott | every fit LOCALLY_SOLVED, `lambda = 0` equal to least squares; before the fix `lambda = 10, alpha = 0` ended OTHER_ERROR on every kernel |
+| Dataset identity | `test/datasets.jl` | 40/40 (11 new checks of `fpp2::a10`) |
+| Image rebuilt for the changed `src/` | `./reproduce.sh build`, commit `8dc4290` (fingerprint `429b13e3…`) | 445 s; build checks pass (Ipopt 3.14.19, SCIP 8.0.0, 148 packages) |
+| Smoke | `./reproduce.sh smoke --no-build`, clean worktree at `8dc4290` | SUCCESS, 3 min |
+| Tables | `./reproduce.sh tables --no-build --artifacts <local bundle>` | 9 groups PASS, 4,204 of 4,204 cells (m4_objectives_controlled 760); m4_objective_distributions MISSING with the local bundle, exit 4 as before; manuscript: 2 DIFFER (the registered errata), the rest as in the table above |
+| **M4 univariate results under the fixed code** | `full --experiment m4_objectives --frequency weekly --jobs 10` | 5 x 359 series OK in 22 min; every objective reproduces the archive on 359/359 series (same order; total sMAPE within 1.0e-11 MSE, 1.1e-12 MAE, 5.3e-12 Huber, 1.7e-13 Ridge; forecasts bit-identical for 230/222/230/286 series and otherwise within 6.4e-13 relative), the same as with v1.0.0; OWA MSE 0.9002, MAE 1.2735, Huber 1.0840, Ridge 0.9436 |
+| Samples of quarterly and yearly | `full ... --frequency quarterly --frequency yearly --sample 20` | every objective reproduces the archive on 20/20 series of each frequency |
+| Global-certificate inventory | `build_global_certificates.py --bundle <local bundle> --pjme-daily <re-run data>` | 255 rows; 22 certified, 190 feasible with open gap, 8 improved feasible without certification, 35 insufficient evidence |
+| Recovered outputs | `check_recovered_2026_09.py` | 14 files verified; Tables S6 (30 values), S7 (96 values, recomputed from 360 per-start records) and the Figure S1 table (60 values) agree |
+| Release check | `check_manuscript_mapping.py` / `--release` | pull-request mode PASS (2 registered errata, 0 unregistered, 0 stale); release mode FAIL on the 2 errata, as designed; a changed printed value and a stale erratum each make it fail |
+| CI at `8dc4290` | GitHub Actions | IJF replication: host, manuscript release check, container amd64 and arm64 all PASS; Documentation PASS; package CI PASS on ubuntu (Julia 1, 1.10) and macOS, FAIL on Windows in the elastic-net test fixed by the `src/penalty.jl` change |
 
 ### Container run (linux/amd64, Docker Desktop 27.2.0 on Windows 10, 2026-10-20; this pull request)
 
@@ -211,18 +241,23 @@ Two items of the previous list were resolved on 2026-10-20:
 
 What remains:
 
-1. **Records behind printed values with no archived source:**
-   * the exogenous-convention simulation (Table S2);
+0. **The canonical manuscript** (2026-10-19 revision: PDF, supplement and source zip).
+1. **Records behind printed values with no archived source** (`reports/provenance_gaps.md`):
+   * the exogenous-convention simulation (Table S2; the values appear only in a pull-request
+     description);
    * the global-optimization grid and the certified instances of Section 5.6 (the August 2026
-     certification batch: instances, SCIP logs, primal and dual bounds, tolerances);
-   * the initialization and likelihood-ranking diagnostics of Section 5.5.
+     certification batch: instances, SCIP logs, primal and dual bounds, tolerances;
+     `reports/missing_global_artifacts.md`);
+   * the initialization (pull-request description only) and likelihood-ranking (nothing found)
+     diagnostics of Section 5.5.
 2. **The census Manifest and the `fator=1` patch** behind its normalization-off cells
    (lost), needed to re-execute those arms.
-3. **The simulation scripts of the September 2026 revision analysis** (`efg_julia_experiments.jl`,
-   `efg_figures.py`, the `a_` stationarity figure script) and their outputs, for Tables S6 and
-   S7 and Figures 1 and S1.
-4. **SCIP evidence:** the dual bounds, gaps, tolerances and SCIP logs of every archived SCIP
-   run, and the log of the OPTIMAL re-run of the PJME global-value instance.
+3. ~~The simulation scripts of the September 2026 revision analysis and their outputs~~:
+   recovered on 2026-10-20 (`results/historical/revision-2026-09/recovered/`).
+4. **SCIP evidence:** the tolerances and SCIP logs of the archived SCIP runs, and the log of the
+   OPTIMAL re-run of the PJME global-value instance (not recoverable). Dual bounds and logs now
+   exist for a new identified re-run of the Table 7 and MA(1) certificate experiments
+   (`results/reruns/full-all-limit1-2026-10-20/`).
 5. **Package commits** behind the contamination/CVaR, admissibility, initialization and
    order-search studies, and runners for them that do not need the ForecastTester harness.
 6. **The ForecastTester harness** repository state used by campaigns B–E, and the

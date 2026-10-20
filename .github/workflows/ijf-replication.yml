@@ -105,8 +105,11 @@ jobs:
   manuscript:
     name: Manuscript release check
     # Separate from `host` so that a printed value that differs from its source fails this check
-    # without stopping the container tests. Required: a numerical mismatch is an error, not a
-    # warning. Missing evidence is reported (annotations and the step summary), not failed.
+    # without stopping the container tests. A numerical mismatch is an error unless it has been
+    # established as an error of the manuscript and registered, with the proposed correction, in
+    # results/manuscript/errata.csv; a register entry that no longer differs is an error too.
+    # The release gate (registered errata fail as well) is enforced by ijf-image-publish.yml and
+    # shown here for information. Missing evidence is reported, not failed.
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -121,6 +124,12 @@ jobs:
           python replication/ijf-2026/scripts/maintainers/check_manuscript_mapping.py \
             --report manuscript_mapping.csv --markdown manuscript_traceability.md
 
+      - name: Release gate (enforced when the image is published; informational here)
+        continue-on-error: true
+        run: |
+          python replication/ijf-2026/scripts/maintainers/check_manuscript_mapping.py --release \
+            --markdown manuscript_release_gate.md
+
       - name: Traceability report
         if: always()
         run: cat manuscript_traceability.md >> "$GITHUB_STEP_SUMMARY"
@@ -132,6 +141,7 @@ jobs:
           path: |
             manuscript_mapping.csv
             manuscript_traceability.md
+            manuscript_release_gate.md
           if-no-files-found: ignore
 
   container:

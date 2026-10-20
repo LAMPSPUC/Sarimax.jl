@@ -19,9 +19,19 @@ and states, as missing evidence, which manuscript revision is transcribed and wh
 canonical one (results/manuscript/REVISION.toml). The template for the canonical revision
 (pending/...) is checked too: its rows with printed values are compared like any other.
 
-Usage: python check_manuscript_mapping.py [--report FILE] [--markdown FILE]
-Exit codes: 0 no printed value differs from its source; 1 otherwise. Missing evidence is
-reported, never a failure.
+Two modes. A differing value is an error of the manuscript or of the mapping. When it has been
+established as an error of the manuscript, it is entered in results/manuscript/errata.csv with
+the archived value, the report that documents it and the proposed correction:
+
+  default    (pull requests) fails on every differing value that is NOT in errata.csv, and on
+             every errata.csv entry that no longer differs (a stale register); registered errata
+             are reported as warnings
+  --release  (release gates: tags, image publication) fails on EVERY differing value, registered
+             or not: a release needs the manuscript corrected
+
+Usage: python check_manuscript_mapping.py [--release] [--report FILE] [--markdown FILE]
+Exit codes: 0 the check passes in its mode; 1 otherwise. Missing evidence is reported, never a
+failure.
 """
 
 from __future__ import annotations
@@ -67,6 +77,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--report", type=Path, help="write the cell-level comparison to this CSV")
     ap.add_argument("--markdown", type=Path, help="write the traceability report to this file")
+    ap.add_argument("--release", action="store_true",
+                    help="release gate: registered errata fail too")
     args = ap.parse_args()
     expected: dict[str, dict] = {}
     for f in sorted((REPL / "results" / "expected").glob("*.csv")):
@@ -81,6 +93,8 @@ def main() -> int:
     pending = check(expected, tables, pending_path) if (REPL / pending_path).exists() else []
     with open(REPL / "results" / "manuscript" / "textual_claims.csv", newline="", encoding="utf-8") as f:
         claims = list(csv.DictReader(f))
+    with open(REPL / "results" / "manuscript" / "errata.csv", newline="", encoding="utf-8") as f:
+        errata = {(e["item"], e["row"], e["column"], e["printed"]): e for e in csv.DictReader(f)}
     if args.report:
         manuscript.write_cells(args.report, rows + pending)
 
@@ -119,16 +133,36 @@ def main() -> int:
         say("| **total** | | " + " | ".join(f"**{counts[c]}**" for c in ORDER) + " |")
         say("")
         print(f"{label}: " + ", ".join(f"{c} {counts[c]}" for c in ORDER))
-    bad = [r for r in rows + pending if r["status"] in (manuscript.DIFFER, manuscript.DERIVED_DIFFER)]
-    if bad:
-        say("## Differing values (the check fails)")
+    differing = [r for r in rows + pending if r["status"] in (manuscript.DIFFER, manuscript.DERIVED_DIFFER)]
+    key = lambda r: (r["item"], r["row"], r["column"], r["printed"])
+    known = [r for r in differing if key(r) in errata]
+    new = [r for r in differing if key(r) not in errata]
+    stale = [e for k, e in errata.items() if k not in {key(r) for r in differing}]
+    bad = differing if args.release else new
+    mode = "release" if args.release else "pull request"
+    if differing or stale:
+        say(f"## Differing values ({mode} mode)")
         say("")
-        for r in bad:
+        for r in differing:
+            e = errata.get(key(r))
             line = (f"{r['item']} ({r['label']}) {r['row']} / {r['column']}: printed {r['printed']}, "
                     f"reference {r['source_value'] or '(cell not found)'} ({r['difference']})")
-            say(f"* {line}")
-            print("DIFFER " + line)
-            annotate("error", "manuscript value differs from its source: " + line)
+            if e is None:
+                say(f"* **NOT REGISTERED** {line}")
+                print("DIFFER " + line)
+                annotate("error", "manuscript value differs from its source: " + line)
+            else:
+                tag = "fails the release gate" if args.release else "known manuscript erratum"
+                say(f"* {tag}: {line}. Archived value {e['archived']}; correction proposed: "
+                    f"{e['proposed_correction']} ({e['report']})")
+                print(f"ERRATUM {line}")
+                annotate("error" if args.release else "warning",
+                         f"known manuscript erratum, correction pending: {line}")
+        for e in stale:
+            line = f"{e['item']} {e['row']} / {e['column']} printed {e['printed']}"
+            say(f"* **STALE ERRATUM** (no longer differs; remove it from errata.csv): {line}")
+            print("STALE " + line)
+            annotate("error", "errata.csv entry no longer differs: " + line)
         say("")
     none = [r for r in rows if cat(r) == "no evidence"]
     if none:
@@ -156,8 +190,10 @@ def main() -> int:
     print(f"textual claims: {len(claims)} listed, {len(open_claims)} need verification")
     if args.markdown:
         args.markdown.write_text("\n".join(out) + "\n", encoding="utf-8")
-    print(f"{len(bad)} differing values" + ("" if bad else "; the release check passes"))
-    return 1 if bad else 0
+    failed = bool(bad or stale)
+    print(f"{mode} mode: {len(differing)} differing values ({len(known)} registered errata, "
+          f"{len(new)} not registered), {len(stale)} stale errata: " + ("FAIL" if failed else "PASS"))
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

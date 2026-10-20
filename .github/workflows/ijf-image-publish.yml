@@ -5,6 +5,8 @@
 # It builds the image from that commit, pushes it, pulls it back by its immutable digest on a
 # clean runner, verifies its source fingerprint against the checkout and runs the smoke tests
 # in it. The digest to record in replication/ijf-2026/image.lock is printed in the run summary.
+# It starts with the manuscript release gate: publication stops while any number the manuscript
+# prints differs from its archived source, including the registered errata.
 #
 # Licence note (ARTIFACT_GUIDE.md, section 3): the image bundles SCIP 8.0.0 (ZIB Academic
 # License) through SCIP_jll; decide on its redistribution before making the package public.
@@ -31,7 +33,27 @@ env:
   NO_COLOR: "1"
 
 jobs:
+  manuscript-gate:
+    # Release gate: the image cited by the paper is published only when every number the
+    # manuscript prints agrees with its archived source, registered errata included.
+    name: Manuscript release gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Every printed value agrees with its source (registered errata fail)
+        run: |
+          python replication/ijf-2026/scripts/maintainers/check_manuscript_mapping.py --release \
+            --markdown manuscript_release_gate.md
+      - name: Report
+        if: always()
+        run: cat manuscript_release_gate.md >> "$GITHUB_STEP_SUMMARY"
+
   publish:
+    needs: manuscript-gate
     runs-on: ubuntu-latest
     timeout-minutes: 240
     outputs:

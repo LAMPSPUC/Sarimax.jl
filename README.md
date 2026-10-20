@@ -33,7 +33,7 @@ Pkg.add(url = "https://github.com/LAMPSPUC/Sarimax.jl")
 ```julia
 using Sarimax
 
-airp = load_dataset(AIR_PASSENGERS)          # monthly TimeArray, 204 obs
+airp = load_dataset(AIR_PASSENGERS)          # monthly TimeArray, 204 obs (fpp2's a10, see Datasets)
 
 model = auto(airp; seasonality = 12)         # Hyndman-Khandakar stepwise search
 print(model)
@@ -134,7 +134,8 @@ should know before comparing outputs:
    (R-compatible) are also available.
 
 **Verified against R** (`arima(log(y), order, seasonal, method = "CSS")`, this
-repository's AirPassengers data, `initialization = :warmup` — pinned in CI):
+repository's `AIR_PASSENGERS` data, which is fpp2's `a10` series rather than the
+Box-Jenkins airline series, `initialization = :warmup` — pinned in CI):
 
 | Specification | Coefficient | Sarimax.jl | R |
 |---|---|---|---|

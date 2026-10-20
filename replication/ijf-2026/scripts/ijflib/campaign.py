@@ -219,10 +219,22 @@ def run_task(paths: Paths, exp: dict, config_path: Path, arm: dict, freq: str, r
         key = "ok" if st == "OK" else "timeout" if st == "TIMEOUT" else "crash" if st.startswith("CRASH") else "error"
         counts[key] += 1
 
+    # Start every worker process at once (each spends about a minute loading and warming up
+    # the package), then collect them as they become ready; a worker that fails to start is
+    # retried on its own by spawn().
     workers: dict[int, Worker] = {}
-    for k in range(max(1, min(jobs, len(pending)))):
-        w = spawn(k)
+    starting = {k: Worker(cmd, paths.repl, logs / f"{arm['name']}__{freq}__worker{k}.log", events, label)
+                for k in range(max(1, min(jobs, len(pending))))}
+    for k, w in starting.items():
+        if w.wait_ready(timeout=900):
+            events("worker_ready", task=label, worker=k, info=w.info)
+        else:
+            events("worker_failed_to_start", task=label, worker=k, attempt=1)
+            w.kill()
+            w = spawn(k)
         if w is None:
+            for other in list(workers.values()) + [v for j, v in starting.items() if j > k]:
+                other.kill()
             fh.close()
             raise RuntimeError(f"{label}: worker could not start (see {logs})")
         workers[k] = w

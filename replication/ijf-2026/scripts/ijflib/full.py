@@ -197,17 +197,20 @@ def run_script_experiment(paths: Paths, config: dict, run_dir: Path, report: Rep
 def all_targets(paths: Paths, manifest: dict) -> tuple[list[str], list[tuple[str, str]]]:
     """`full --all`: the re-runnable experiments behind the manuscript's reported results.
 
-    Experiments the manuscript does not report (historical or superseded campaigns) and
-    experiments whose protocol is still provisional are left out; each can still be run with
-    --experiment.
+    Experiments the manuscript does not report, historical campaigns superseded by another
+    experiment (`superseded_by` in their configuration) and experiments whose protocol is still
+    provisional are left out; each can still be run with --experiment.
     """
     targets, left_out = [], []
     for exp_id, e in manifest.items():
         if e["full_runner"] in ("", "none"):
             continue
-        status = tomllib.loads((paths.repl / e["full_runner"]).read_text(encoding="utf-8")).get("protocol_status")
+        cfg = tomllib.loads((paths.repl / e["full_runner"]).read_text(encoding="utf-8"))
+        status = cfg.get("protocol_status")
         if status == "provisional":
             left_out.append((exp_id, "its protocol is provisional"))
+        elif cfg.get("superseded_by"):
+            left_out.append((exp_id, f"superseded by {cfg['superseded_by']}"))
         elif not e["manuscript_label"]:
             left_out.append((exp_id, "not reported in the manuscript"))
         else:

@@ -9,7 +9,8 @@
 #   container  image build, default quick run without the (unpublished) bundle, tables on the
 #              committed fixture subset, missing/corrupted inputs, an image from other code,
 #              M4 fetch with SHA-256 check, m4_benchmark on a random sample of 2 then (--resume)
-#              3 weekly series, the objective campaign on 2 weekly series and the battery's
+#              3 weekly series, the controlled objective campaign on 3 weekly series (compared
+#              series by series with its archive) and the battery's
 #              validation experiment (linux/amd64 is the reference; linux/arm64 is experimental)
 name: IJF replication
 
@@ -290,11 +291,28 @@ jobs:
           EOF
           cat replication/ijf-2026/output/reports/full.md >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Other runners on samples (objective campaign, battery script experiment)
+      - name: Other runners on samples (controlled objective campaign vs its archive, battery script experiment)
         run: |
-          ./reproduce.sh full --experiment m4_objectives_icarai_innovations --frequency weekly --sample 2 \
-            --jobs 2 --run-id ci --offline --no-build --platform "$PLATFORM"
+          # The controlled campaign's weekly per-series files are in the fixture subset, so the
+          # re-run is compared series by series with the archived run (bundle part 2).
+          ./reproduce.sh full --experiment m4_objectives --frequency weekly --sample 3 --jobs 2 \
+            --run-id ci --offline --no-build --platform "$PLATFORM" \
+            --artifacts replication/ijf-2026/data/fixtures/bundle-subset
           cat replication/ijf-2026/output/reports/full.md >> "$GITHUB_STEP_SUMMARY"
+          python3 - replication/ijf-2026/output <<'EOF'
+          import csv, sys
+          from pathlib import Path
+          out = Path(sys.argv[1])
+          run = out / "runs" / "m4_objectives" / "ci"
+          for arm in ("mse", "mae", "huber", "ridge", "naive2"):
+              rows = list(csv.DictReader(open(run / f"{arm}__weekly.csv")))
+              assert len(rows) == 3 and all(r["status"] == "OK" for r in rows), f"{arm}: {[r['status'] for r in rows]}"
+          report = list(csv.DictReader(open(out / "reports" / "full.csv")))
+          cmp = [r for r in report if "vs archived per-series results" in r["artifact"]]
+          for r in cmp:
+              print(r["artifact"], r["status"], r["generated"], r["note"])
+          assert len(cmp) == 4, f"expected a comparison with the archive for each objective, got {len(cmp)}"
+          EOF
           ./reproduce.sh full --experiment battery_validation --run-id ci --offline --no-build --platform "$PLATFORM"
           cat replication/ijf-2026/output/reports/full.md >> "$GITHUB_STEP_SUMMARY"
 

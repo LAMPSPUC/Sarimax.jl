@@ -13,6 +13,8 @@
 id = "m4_objectives_icarai_innovations"
 kind = "m4"
 protocol_status = "archived"
+# The controlled campaign (m4_objectives) replaces these cells; `full --all` runs that one.
+superseded_by = "m4_objectives"
 protocol_source = "origin/paper/replication-staging-icarai: experiments/scripts/cell_worker.jl (b3e7c7a/e523509)"
 frequencies = ["monthly", "quarterly", "yearly", "weekly"]
 per_series_timeout_s = 3600.0

@@ -1,21 +1,35 @@
 # Controlled comparison of estimation objectives on M4 (manifest id m4_objectives).
 #
-# PROVISIONAL. This experiment is being run by a separate workstream to replace the
-# historically inconsistent objective tables of August 2026 (see m4_objectives_icarai_*).
-# Its protocol is not frozen yet. The arms below are the release's (v1.0.0, 14dd581) own
-# `auto` defaults written out explicitly, varying only the objective; they are a placeholder
-# that lets the runner be exercised end to end. Before any number from this experiment is
-# reported, this file must be replaced by the frozen protocol of the controlled experiment
-# (see ARTIFACT_GUIDE.md, "Integration contract for m4_objectives"), and the archived results
-# must be the ones produced with exactly this file and the release commit.
+# FINAL. The frozen protocol of the controlled campaign run on 2026-10-17/19 (host RECREIO;
+# archived in bundle part 2 under raw/m4-objectives-controlled-2026-10/, with the protocol file
+# itself as protocol/experiment_protocol.toml, SHA-256 de6d0bee...391821). Every keyword below is
+# the value that protocol passed to `Sarimax.auto`; only the objective varies between arms. The
+# protocol is the manuscript's Section 5.1 convention ("P2"): AR and MA estimated in their
+# boxes, stationarity and invertibility checked after estimation with a 1e-2 root margin, no
+# over-differencing requirement, `:innovations`, no per-fit time cap.
+#
+# Package: Sarimax.jl v1.0.0 (14dd581), the release cited by the paper. The archived run used
+# the campaign's own runner (original-scripts/m4-objectives-controlled-2026-10/runner) with the
+# Julia environment that this image's environment is built on (identical package versions
+# except CompilerSupportLibraries_jll and the added HiGHS/MathOptIIS), on Windows; a re-run
+# in the image executes the same computation on Linux, and `full` compares it series by
+# series with the archived results.
+#
+# Reference: the archived run took auto.arima and Naive2 from the stored July 2026 baselines
+# (raw/m4-baselines-r-2026-07); the `naive2` arm below recomputes Naive2 so that a re-run can
+# report OWA on its own. The archived Table 5 never re-ran auto.arima, so it is not an arm here
+# (m4_benchmark re-runs it).
 
 id = "m4_objectives"
 kind = "m4"
-protocol_status = "provisional"
-protocol_note = "arms are placeholders (release defaults, objective varied); replace with the frozen protocol of the controlled experiment"
-protocol_source = "release v1.0.0 (14dd581) defaults of Sarimax.auto"
+protocol_status = "final"
+protocol_source = "raw/m4-objectives-controlled-2026-10/protocol/experiment_protocol.toml (frozen 2026-10-17, before the first fit)"
 frequencies = ["monthly", "quarterly", "yearly", "weekly"]
-per_series_timeout_s = 3600.0
+# The protocol's orchestration safety limit (6 h wall per series and objective). In the
+# archived run one fit exceeded it (M36044, huber, 28,313 s) and was NOT censored, because that
+# runner could not interrupt a fit inside the solver (reconciliation_report.md, 3.1); this runner
+# kills the worker process, so a re-run on a machine as slow would record that fit as TIMEOUT.
+per_series_timeout_s = 21600.0
 max_failure_rate = 0.01
 
 [auto_defaults]
@@ -25,7 +39,7 @@ exogDynamics = "armax"
 penaltyTarget = "all"
 penalty = "none"
 presampleBurnIn = 12
-stationary = true
+stationary = false
 stationarityMargin = 1e-6
 invertible = false
 invertibilityMargin = 1e-6
@@ -51,8 +65,13 @@ allowDrift = "nothing"
 multistart = false
 warmStartFromBox = false
 maxTimeSeconds = "nothing"
+cvarLevel = "nothing"
+quantileLevel = "nothing"
+lambda = "nothing"
+alpha = "nothing"
 parallel = false
 outlierDetection = false
+showLogs = false
 requireTermsWhenOverDifferenced = false
 requireMAWhenDoublyDifferenced = false
 optimizer = "Ipopt"
@@ -70,14 +89,16 @@ auto = { objectiveFunction = "mae" }
 [[arms]]
 name = "huber"
 engine = "julia"
+# auto fits mse, then warm-starts the Huber fit from it (delta = 1.345 on the y / std(diff(y))
+# scale); if Huber does not converge the mse fit is returned and recorded (fallback = 1).
 auto = { objectiveFunction = "huber" }
 
 [[arms]]
 name = "ridge"
 engine = "julia"
-# Deprecated spelling in the release (a warning is printed once); equivalent to
-# objectiveFunction = "mse", penalty = :elastic_net, alpha = 0, penaltyTarget = :dynamics with
-# lambda = 2 * ridgeLambda. The controlled experiment must state which form it uses.
+# The package's dedicated (deprecated) ridge objective: S_innov + lambda * sum(psi_j^2) over the
+# AR/MA coefficients, lambda = sqrt(T - d - D*s), no MA normalization factor; a warning is
+# printed once. It is NOT re-expressed as an elastic-net specification.
 auto = { objectiveFunction = "ridge" }
 
 [[arms]]
@@ -85,7 +106,28 @@ name = "naive2"
 engine = "r"
 method = "naive2"
 
-[[arms]]
-name = "auto_arima"
-engine = "r"
-method = "auto_arima"
+# Archived per-series results of the controlled campaign (bundle part 2), compared series by
+# series with a re-run: same selected order and total sMAPE within the relative tolerance.
+[archived.mse]
+file = "raw/m4-objectives-controlled-2026-10/per_series/mse__{freq}.csv.gz"
+order_columns = ["p", "d", "q", "P", "D", "Q"]
+smape_column = "smape_total"
+provenance = "controlled campaign m4obj-6957c71f60f1, RECREIO, 14dd581, 2026-10-17/19"
+
+[archived.mae]
+file = "raw/m4-objectives-controlled-2026-10/per_series/mae__{freq}.csv.gz"
+order_columns = ["p", "d", "q", "P", "D", "Q"]
+smape_column = "smape_total"
+provenance = "controlled campaign m4obj-6957c71f60f1, RECREIO, 14dd581, 2026-10-17/19"
+
+[archived.huber]
+file = "raw/m4-objectives-controlled-2026-10/per_series/huber__{freq}.csv.gz"
+order_columns = ["p", "d", "q", "P", "D", "Q"]
+smape_column = "smape_total"
+provenance = "controlled campaign m4obj-6957c71f60f1, RECREIO, 14dd581, 2026-10-17/19"
+
+[archived.ridge]
+file = "raw/m4-objectives-controlled-2026-10/per_series/ridge__{freq}.csv.gz"
+order_columns = ["p", "d", "q", "P", "D", "Q"]
+smape_column = "smape_total"
+provenance = "controlled campaign m4obj-6957c71f60f1, RECREIO, 14dd581, 2026-10-17/19"

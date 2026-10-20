@@ -3,7 +3,7 @@ The Datasets Enum is used to identify the dataset used in the `load_dataset` fun
 
 The Datasets Enum is defined as follows:
 
-- `AIR_PASSENGERS = 1`
+- `AIR_PASSENGERS = 1` (also available as `ANTIDIABETIC_DRUG_SALES`; see below)
 - `GDPC1 = 2`
 - `NROU = 3`
 
@@ -16,7 +16,16 @@ The `load_dataset` function uses this Enum to determine the dataset to be loaded
 end
 
 @doc("
-The AirPassengers dataset, it contains the classic Box-Jenkins airline data.
+Monthly anti-diabetic drug sales in Australia: total monthly scripts for products under
+ATC code A10, in millions of AUD, July 1991 to June 2008 (204 observations). This is the
+series `a10` of the R package `fpp2` (Hyndman, *Forecasting: Principles and Practice*,
+2nd ed.; data from the Australian Health Insurance Commission); the file
+`datasets/airpassengers.csv` agrees with it value for value.
+
+Despite its name, `AIR_PASSENGERS` is NOT the Box-Jenkins airline series (`AirPassengers`
+in R: 144 monthly totals of international airline passengers, 1949-1960). The name is kept
+so that existing code keeps loading the same data; `ANTIDIABETIC_DRUG_SALES` is the
+same dataset under a name that describes it.
 ", AIR_PASSENGERS)
 
 @doc("
@@ -31,7 +40,16 @@ The NROU dataset: the U.S. Noncyclical Rate of Unemployment (FRED series NROU), 
 const AIR_PASSENGERS = instances(Datasets)[1]
 const GDPC1 = instances(Datasets)[2]
 const NROU = instances(Datasets)[3]
-export AIR_PASSENGERS, GDPC1, NROU
+
+"""
+    ANTIDIABETIC_DRUG_SALES
+
+The dataset loaded by `load_dataset(AIR_PASSENGERS)`, under a name that describes it: monthly
+anti-diabetic drug sales in Australia, July 1991 to June 2008 (`fpp2::a10`). The two names
+are the same `Datasets` value; see `AIR_PASSENGERS`.
+"""
+const ANTIDIABETIC_DRUG_SALES = AIR_PASSENGERS
+export AIR_PASSENGERS, ANTIDIABETIC_DRUG_SALES, GDPC1, NROU
 
 datasetsPaths = [
     joinpath(dirname(@__DIR__()), "datasets", "airpassengers.csv"),

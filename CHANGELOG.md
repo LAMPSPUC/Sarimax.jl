@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`ANTIDIABETIC_DRUG_SALES`**, the dataset `load_dataset(AIR_PASSENGERS)` returns, under a
+  name that describes it. `datasets/airpassengers.csv` is `fpp2::a10` (monthly anti-diabetic
+  drug sales in Australia, July 1991 to June 2008, 204 observations), not the Box-Jenkins
+  airline series (144 observations, 1949-1960) its name and its documentation suggested. The
+  data are unchanged and `AIR_PASSENGERS` keeps loading them; the documentation, README and
+  tutorial now say what the series is, and `test/datasets.jl` pins its length, calendar and
+  values.
+
 ### Fixed
 - **The exact likelihood behind `aic`, `aicc`, `bic` and every `auto` search now scores the
   model `fit!` estimated when there are regressors.** Three defects of `exactLoglike`, each

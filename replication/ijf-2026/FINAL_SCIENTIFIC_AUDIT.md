@@ -27,15 +27,20 @@ output was altered, and SCIP stays at 8.0.0.
 
 | item | what is missing | who holds it | status |
 |---|---|---|---|
-| B1 | the 2026-10-19 manuscript: `SARIMAX_jl_IJF_revision_20261019_controlled.pdf`, `..._supplement.pdf`, `..._source.zip` | authors | AWAITING EVIDENCE: the inventory stays the 2026-10-16 transcription (not relabelled); the template for the controlled items waits for its printed values |
-| B2 | the August 2026 certification batch (Table S5; Section 5.6 seasonal grid, near-cancellation and certified instances: 24 values) | the batch's author (offered to repackage it on 2026-10-16) | AWAITING EVIDENCE; wording if it stays missing in `reports/missing_global_artifacts.md` G1 |
-| B3 | the likelihood-ranking diagnostic of Section 5.5 (6 values) | authors (nothing found in the repository, pull requests, issues or workspaces) | AWAITING EVIDENCE, or qualify |
-| B4 | records, seeds and scripts behind Table S2 and the Section 5.5 initialization numbers | authors of LAMPSPUC/Sarimax.jl#18 and #20 | AWAITING EVIDENCE; the values are documented only in those descriptions |
-| B5 | a log of the 900 s PJME solve that reported `OPTIMAL` (commit `8ffc512`) | not recoverable | WORDING (B2-style alternative in `missing_global_artifacts.md` G2) |
+| B1 | the 2026-10-19 manuscript: `SARIMAX_jl_IJF_revision_20261019_controlled.pdf`, `..._supplement.pdf`, `..._source.zip` | whoever maintains the manuscript (it is the paper itself, not experimental data; even the 2026-10-16 PDF and the 2026-10-11 source used for the transcription are not on this machine) | AWAITING EVIDENCE: the inventory stays the 2026-10-16 transcription (not relabelled); the template for the controlled items waits for its printed values |
+| B2 | the August 2026 certification batch (Table S5; Section 5.6 seasonal grid, near-cancellation and certified instances: 24 values) | the batch's author, who described it in the coordination e-mail of 2026-08-21 and offered to repackage its files on 2026-10-16 | AWAITING EVIDENCE; the package cannot regenerate it (the bilinear harness is external and not archived), so nothing but those files closes it. Wording in `reports/missing_global_artifacts.md` G1 |
+| B3 | the likelihood-ranking diagnostic of Section 5.5 (6 values) | not established. Only lead: LAMPSPUC/Sarimax.jl#17 defers its M4 monthly numbers to an unarchived "measurement report"; its stated OWA direction differs from the manuscript's, so it may be another measurement | AWAITING EVIDENCE, or qualify |
+| B4 | records, seeds and scripts behind Table S2 (9 values) and the Section 5.5 initialization numbers (5 values) | the author of LAMPSPUC/Sarimax.jl#18 and #20, where every printed value appears; the same author opened #12, #16, #17 and the batch of B2 | AWAITING EVIDENCE; the designs are stated, so a new identified run could replace them on approval |
+| B5 | a log of the 900 s PJME solve that reported `OPTIMAL` (commit `8ffc512`) | nobody: the July 2026 battery never wrote one, and the logged re-run of 2026-10-20 did not reproduce the certificate | WORDING (alternative in `missing_global_artifacts.md` G2) |
 | B6 | decision on SCIP 8.0.0's ZIB Academic License for a public image | maintainers | DECISION (`reports/scip_licence.md`) |
 
 Not counted as defects: the Zenodo records, the image digest, the DOIs and the GitHub release,
 which are not published yet by design.
+
+Of the 46 printed values without evidence, 44 belong to B2, B3 and B4, that is to one
+collaborator's work (certainly the 38 of B2 and B4, probably the 6 of B3); the other 2 are the
+configuration rows of Table S3, which are a wording correction, not missing data. B1 is the
+manuscript document, B5 is not recoverable from anyone and B6 is a decision.
 
 ## C. Manuscript corrections
 

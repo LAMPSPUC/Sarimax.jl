@@ -77,6 +77,8 @@ using LinearAlgebra
 
     include("exog_penalty_position.jl")
 
+    include("exog_likelihood.jl")
+
     include("multistart.jl")
 
     include("aqua.jl")

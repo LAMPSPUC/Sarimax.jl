@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **The exact likelihood behind `aic`, `aicc`, `bic` and every `auto` search now scores the
+  model `fit!` estimated when there are regressors.** Three defects of `exactLoglike`, each
+  pinned in `test/exog_likelihood.jl` against an independent dense-likelihood reference:
+  * under the default `exogDynamics = :armax` the regressors were removed as in regression
+    with ARMA errors (`y - X*b`), which is not the fitted equation whenever the model has AR
+    terms. They now enter through the filtered path `phi*(B) mu_t = X_t'b`, started at its
+    steady state (the convention that already turns the constant into `c / phi*(1)`);
+  * the regressors were differenced with the series' `d` and `D` before being removed, while
+    `fit!` and `predict!` use them as supplied (or as `automaticExogDifferentiation`
+    transforms them). The likelihood now uses the regressors exactly as the fit did, and
+    future rows supplied for forecasting no longer make it skip the regressors;
+  * a single regressor given as a one-dimensional `TimeArray` raised a `MethodError` that
+    was caught and turned into "likelihood unavailable", so the criteria fell back to the CSS
+    plug-in without saying why. It is now scored.
+  Univariate models are unaffected (the changed code runs only with regressors). With
+  regressors, information criteria and `auto`'s selected orders change, and with them the
+  forecasts of `auto` models. Fixed-order fits, their coefficients and forecasts do not
+  change, except under `multistart = true` (not the default), whose choice between its two
+  starts is made by AICc. Example: the battery's ARX(1) model with two regressors had AIC 1025.87 (the
+  regression-with-errors likelihood of a different model) and now has 861.19; the CSS,
+  `statsmodels` and `forecast::Arima` fits of the same model, conditional on the first
+  observation, give 855.12. `fit!` now records `metadata["automaticExogDifferentiation"]`.
+
 ## [1.0.0] - 2026-09-12
 
 First stable release. It accompanies the paper describing the package and freezes

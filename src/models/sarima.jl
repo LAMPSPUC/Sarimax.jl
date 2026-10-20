@@ -1639,6 +1639,8 @@ function fit!(
     isnothing(alpha) || (model.alpha = alpha)
     model.metadata["seasonalForm"] = String(seasonalForm)
     model.metadata["exogDynamics"] = String(exogDynamics)
+    # Read back by `exactLoglike`, which must score the regressors this fit used.
+    model.metadata["automaticExogDifferentiation"] = automaticExogDifferentiation
     model.metadata["initialization"] = String(initialization)
     # Recorded because the PARAMETER COUNT depends on the objective that actually fitted
     # the model, not on `lambda`/`alpha` being set — see `get_hyperparameters_number`.

@@ -30,8 +30,13 @@ replication/ijf-2026/
   data/external_files.csv          pinned locations and SHA-256 of M4 and PJME
   data/fixtures/                   small committed inputs: smoke data, a 1 MB subset of the bundle
   results/expected/                reference cell values, parsed from the historical tables
-  results/manuscript/              every number printed in the manuscript, with its source
-  results/historical/              derived tables not in the bundle (with PROVENANCE.md)
+  results/manuscript/              every number printed in the manuscript, with its source;
+                                   errata.csv, textual_claims.csv, REVISION.toml, pending/
+  results/historical/              derived tables not in the bundle (with PROVENANCE.md), the
+                                   ecc4878 solver records, the recovered 2026-09 scripts/outputs
+  results/reruns/                  identified re-runs kept as evidence (with RUN.md)
+  reports/                         audit reports (index in reports/README.md)
+  FINAL_SCIENTIFIC_AUDIT.md        summary of the final scientific audit
   artifacts/   (not committed)     the extracted artifact bundle
   data/external/ (not committed)   fetched M4 and PJME files
   output/      (not committed)     everything a reproduction writes
@@ -291,19 +296,22 @@ The controlled comparison of objectives was produced by a separate workstream (2
 
 ## 9. Release checklist (maintainers; every step needs the authors' approval)
 
-1. **Resolve the manuscript findings** (`LIMITATIONS.md`, item 1):
-   * the Table 7 Ipopt times;
-   * the description of the monthly protocol behind Table 3;
-   * the printed values that have no archived source (archive their records, or remove the
-     statements);
-   * the replacement of Tables 5, 6, S9, S10, Figure 3 and Section 5.4 by the controlled
-     results (`derived/m4-objectives-controlled-2026-10/manuscript_update_proposal.md`).
+1. **Resolve the manuscript findings** (`LIMITATIONS.md`, item 1; corrections with exact text
+   in `FINAL_SCIENTIFIC_AUDIT.md`, section C):
+   * transcribe the canonical 2026-10-19 revision (`reports/manuscript_traceability.md`):
+     fill the pending template of the controlled items and re-check every other row;
+   * the Table 7 Ipopt times and the PJME certificate (registered errata, release gate);
+   * the description of the monthly protocol behind Table 3 (`reports/monthly_protocol.md`);
+   * the printed values that have no archived source (`reports/provenance_gaps.md`: archive
+     their records, or qualify the statements);
+   * the name of the package's `AIR_PASSENGERS` series (`reports/airpassengers_dataset.md`).
 
-   When the manuscript changes, update `results/manuscript/manuscript_values.csv` (point the
-   new values at `m4_objectives_controlled/...` cells) and run
-   `scripts/maintainers/check_manuscript_mapping.py`.
-2. **Decide on SCIP's licence** (section 3): keep SCIP.jl 0.11 and state the ZIB Academic
-   License, or move the package to a SCIP release under Apache-2.0 before the release.
+   Then run `scripts/maintainers/check_manuscript_mapping.py --release`: it must pass (every
+   registered erratum corrected and removed from `errata.csv`). `ijf-image-publish.yml` runs
+   the same gate before it publishes anything.
+2. **Decide on SCIP's licence** (section 3, `reports/scip_licence.md`): keep SCIP 8.0.0 and
+   settle its redistribution, or move to SCIP 8.0.3 or later (Apache 2.0) and re-run the SCIP
+   evidence as new identified runs.
 3. **Tag the pinned commits.** Tag the commits of the `paper/replication-staging-*` branches
    that the bundle builder pins (section 4) before those branches are deleted.
 4. **Merge** the replication branch into `master` after review.
@@ -320,8 +328,10 @@ The controlled comparison of objectives was produced by a separate workstream (2
    `ijf-image-publish.yml`; record the digest, fingerprint and revision in `image.lock`; make
    the GHCR package public. If its size and the SCIP licence allow, archive the exported image
    (`docker save | gzip`) in the Zenodo data record.
-7. **Tag the release.** Tag the release commit (for example `ijf-2026-v1`; the package version
-   stays 1.0.0 because `src/` is unchanged) and publish the GitHub release. The Zenodo GitHub
+7. **Tag the release.** `src/` now differs from v1.0.0 (the information-criterion fix for models
+   with regressors and the dataset alias, CHANGELOG "Unreleased"), so release the package as
+   1.0.1 first, then tag the replication release commit (for example `ijf-2026-v1`) and publish
+   the GitHub release. The Zenodo GitHub
    integration archives it and mints the software DOI (`.zenodo.json`).
 8. **Link the records.** Software → `isSupplementedBy` the data record; both → `isSupplementTo`
    the article DOI once assigned. Then update `CITATION.cff` and the availability statement.
@@ -334,8 +344,14 @@ touch the package or the replication files, and by hand. Full campaigns never ru
 * **Host checks** (no Docker): shellcheck; the usage and missing-Docker exit codes;
   `checksums.sha256` against the committed files and against a fresh regeneration;
   `check_package.py` (manifest, table groups, manuscript mapping); and
-  `check_manuscript_mapping.py`, informational, so that a manuscript discrepancy is visible
-  without failing the package checks.
+  `check_recovered_2026_09.py` (the derived tables of Tables S6 and S7 and Figure S1 against
+  the recovered outputs).
+* **Manuscript release check** (its own job, so that it does not stop the container tests):
+  `check_manuscript_mapping.py` fails on any printed value that differs from its source and is
+  not a registered erratum, and on a registered erratum that no longer differs; it reports the
+  five categories, the untranscribed canonical revision and the textual claims in the step
+  summary. The release gate (`--release`, registered errata fail too) is shown for information
+  and enforced by `ijf-image-publish.yml`.
 * **Container**, on `linux/amd64` (the reference) and `linux/arm64` (experimental): the image
   is built from the checkout with the same Dockerfile and build arguments as
   `./reproduce.sh build` (buildx adds a layer cache), then: the default command without the

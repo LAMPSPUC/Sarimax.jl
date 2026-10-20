@@ -9,12 +9,13 @@ listed below). Nothing here is regenerated from raw data unless a table group sa
 | Folder | Origin | Used for |
 |---|---|---|
 | `m4-paired-2026-09/` | `Sarimax_revisao_resultados` (Google Drive folder of the September 2026 revision analysis; export of 2026-10-10, zip SHA-256 `bdc072b6a71dbac3…`), written 2026-09-28 by `b_m4_distributional.py` | reference values of the `m4_paired` table group (manuscript Tables 4 and S8, Figure 2), which REGENERATES them from the bundle's per-series files |
-| `revision-2026-09/` | same export, written by `efg_figures.py` from `efg_julia_experiments.jl` (cases E, F, G) | consistency check of manuscript Table S6, Figure S1 and Table S7; the simulation scripts and their outputs are not archived, so these tables cannot be regenerated |
+| `revision-2026-09/` | same export, written by `efg_figures.py` from `efg_julia_experiments.jl` (cases E, F, G) | consistency check of manuscript Table S6, Figure S1 and Table S7. The simulation script and its outputs were recovered on 2026-10-20 and are in `revision-2026-09/recovered/` (its `PROVENANCE.md`); `check_recovered_2026_09.py` recomputes the three tables from them |
+| `battery-2026-07-ecc4878/` | the July 2026 battery's solver records at commit `ecc4878`, copied byte for byte from the repository history (its `PROVENANCE.md`) | the records the archived solver logs show; compared with the bundle's `8ffc512` records in `reports/global_certification_audit.md` |
 | `updated-2026-10-17/` | `resultados_atualizados_20261017.zip` (65,560 bytes, SHA-256 `44075fadd0a8965f…`): the tables, table scripts and reports of the update of 2026-10-17 | the stable-objective, admissibility-grid and guard tables, which the `stable_admissibility_gavea` table group REGENERATES from the raw archive in bundle part 2 (its reference values are parsed from the copies of these tables archived there) |
 
 The 2026-10-17 tables were computed from `brutos_gavea.zip` (107,137,987 bytes, 177 files
-verified against its own SHA256SUMS, shared on 2026-10-16), the raw campaign archive of the
-GAVEA host, together with recreio campaign F and the stored auto.arima/Naive2 baselines. That
+verified against its own SHA256SUMS, shared on 2026-10-16), the raw archive of the September 2026
+stable and admissibility campaigns, together with campaign F and the stored auto.arima/Naive2 baselines. That
 raw archive is in bundle part 2 (`raw/stable-admissibility-gavea-2026-09/brutos_gavea/`), and
 the `stable_admissibility_gavea` table group rebuilds these tables from it (1,028 cells; see
 `experiment_manifest.csv`). Two facts recorded in

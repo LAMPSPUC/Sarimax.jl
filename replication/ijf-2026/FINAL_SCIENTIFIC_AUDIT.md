@@ -1,0 +1,96 @@
+# Final scientific audit of the replication package (October 2026)
+
+Scope: the scientific and reproducibility corrections requested for pull request
+LAMPSPUC/Sarimax.jl#34, branch `feature/ijf-replication`. Canonical manuscript: the revision of
+2026-10-19 (controlled M4 objective comparison), which was **not available** (section B). Every
+finding below cites its evidence; the detailed reports are in `reports/` (index in
+`reports/README.md`). Nothing was published, no campaign was re-run in full, no historical
+output was altered, and SCIP stays at 8.0.0.
+
+## A. Resolved issues
+
+| # | issue | resolution | evidence |
+|---|---|---|---|
+| A1 | **AIC/AICc/BIC of models with regressors** (`exogDynamics = :armax` scored as regression with errors; regressors differenced although `fit!` does not difference them; future regressor rows skipped; a single one-dimensional regressor sent to the CSS fallback) | confirmed against an independent dense likelihood; fixed in `src/exact_likelihood.jl` (regressors as `fit!` used them, filtered ARMAX path with a steady-state start); univariate models untouched | `reports/exog_likelihood.md`; `test/exog_likelihood.jl` 21/21 (6/21 on v1.0.0); commit `1e431ef` |
+| A2 | **`AIR_PASSENGERS` is not the Box-Jenkins series** | identified as `fpp2::a10` value for value; documentation corrected, `ANTIDIABETIC_DRUG_SALES` alias, identity test; data unchanged | `reports/airpassengers_dataset.md`; commit `1400ee0` |
+| A3 | **Global-optimization certificates** | every SCIP record inventoried and classified (certified / feasible with open gap / improved feasible without certification / insufficient evidence), with an identified re-run that records dual bounds and logs; lifting and innovation bounds shown to be added outside the package | `reports/global_certification_audit.md`, `reports/global_certificate_inventory.csv`, `results/reruns/full-all-limit1-2026-10-20/`; commit `8243edd` |
+| A4 | **Table 7 Ipopt times** (0.04 s, 0.02 s printed; 0.0018 s, 0.0020 s archived) | what is timed (`@elapsed optimize!`, the first solve including compilation) and where the printed values come from (the July 2026 experiment report, no record) established; correction proposed and registered as erratum | `reports/table7_timing_reconciliation.md`, `results/manuscript/errata.csv` |
+| A5 | **Table 3 / Section 5.1 protocol** | archived settings determined from the runner (no per-fit cap, `stationary = true`, post-fit root checks at 1e-2); the 120 s limit belongs to another campaign; minimal text correction proposed | `reports/monthly_protocol.md` |
+| A6 | **Manuscript reconciliation as a release check** | the check fails on any unregistered numerical mismatch and on a stale erratum, reports five categories and the untranscribed canonical revision; the release gate (registered errata fail too) runs before the image can be published | `scripts/maintainers/check_manuscript_mapping.py`, CI job "Manuscript release check", `ijf-image-publish.yml`; commits `bd8839e`, `2134161` |
+| A7 | **Replacement tables mapped to `m4_objectives`** | template for Tables 5, 6, S9, S10, Figure 3, Section 5.4 pointing at `m4_objectives_controlled` cells (printed values left to be transcribed); `controlled.paired` added for S9/S10 (760 of 760 cells agree with the campaign's independent scorer) | `results/manuscript/pending/`, `reports/manuscript_traceability.md` |
+| A8 | **Supplementary provenance (Tables S6, S7, Figure S1, AR(3) figure)** | the simulation script and its outputs recovered and archived; CI recomputes the derived tables from them | `results/historical/revision-2026-09/recovered/`, `check_recovered_2026_09.py`; commits `ade8916`, `eafbddd` |
+| A9 | **Table S2 and the Section 5.5 initialization numbers** | sources identified: the descriptions of pull requests LAMPSPUC/Sarimax.jl#18 and #20 (all printed values appear there); no records exist, so they stay "no evidence" | `reports/provenance_gaps.md` items 4-5 |
+| A10 | **CI** | documentation build (unresolved `@ref` to the new helpers) fixed in `5c4d76d`; a stale checksum list fixed in `8dc4290`; the manuscript check no longer fails on documented errata. The intermittent Windows failure of `test/objective_functions.jl:278` (elastic net, Ipopt `OTHER_ERROR`) predates this work (same value on 2026-09-10 and 2026-10-18) and is left to a separate task | section F |
+
+## B. Pending external evidence
+
+| item | what is missing | who holds it | status |
+|---|---|---|---|
+| B1 | the 2026-10-19 manuscript: `SARIMAX_jl_IJF_revision_20261019_controlled.pdf`, `..._supplement.pdf`, `..._source.zip` | authors | AWAITING EVIDENCE: the inventory stays the 2026-10-16 transcription (not relabelled); the template for the controlled items waits for its printed values |
+| B2 | the August 2026 certification batch (Table S5; Section 5.6 seasonal grid, near-cancellation and certified instances: 24 values) | the batch's author (offered to repackage it on 2026-10-16) | AWAITING EVIDENCE; wording if it stays missing in `reports/missing_global_artifacts.md` G1 |
+| B3 | the likelihood-ranking diagnostic of Section 5.5 (6 values) | authors (nothing found in the repository, pull requests, issues or workspaces) | AWAITING EVIDENCE, or qualify |
+| B4 | records, seeds and scripts behind Table S2 and the Section 5.5 initialization numbers | authors of LAMPSPUC/Sarimax.jl#18 and #20 | AWAITING EVIDENCE; the values are documented only in those descriptions |
+| B5 | a log of the 900 s PJME solve that reported `OPTIMAL` (commit `8ffc512`) | not recoverable | WORDING (B2-style alternative in `missing_global_artifacts.md` G2) |
+| B6 | decision on SCIP 8.0.0's ZIB Academic License for a public image | maintainers | DECISION (`reports/scip_licence.md`) |
+
+Not counted as defects: the Zenodo records, the image digest, the DOIs and the GitHub release,
+which are not published yet by design.
+
+## C. Manuscript corrections
+
+The 2026-10-19 text was not available; "current" quotes the 2026-10-16 revision as recorded in
+`results/manuscript/` and the earlier verification reports. The authors should apply each
+correction to the wording of the 2026-10-19 revision.
+
+| location | current | proposed | evidence |
+|---|---|---|---|
+| Table 7, Sim. ARMA(1,0,1), Ipopt, Time (s) | 0.04 | 0.0018 | `table7_timing_reconciliation.md` |
+| Table 7, PJME ARMA(1,0,1), Ipopt, Time (s) | 0.02 | 0.0020 | same |
+| Table 7, Sim. MA(1), Ipopt, Time (s) | 0.6 | 0.59, with the note "first solve of the process, including compilation" | same |
+| Table 7 caption | (times not qualified) | add: "Times are wall-clock times of a single solve on the archived machine (macOS arm64); the first Ipopt time includes compilation. Whether SCIP closes the gap within 900 s depends on the hardware." | same; `global_certification_audit.md` §5.2 |
+| Section 5.6 | "is obtained locally in hundredths of a second" | "is obtained locally in about two milliseconds" | same |
+| Table 7, PJME ARMA(1,0,1), SCIP, Certified | yes | "no (relative gap 3.4×10⁻⁵ at the 900 s limit)"; footnote: "an earlier run reported optimality at 899.96 s, without a log" | `global_certification_audit.md` §4.1 |
+| Table 7, Obj. column (or caption) | SCIP objectives printed below Ipopt's | add: "The SCIP objectives are below Ipopt's only within SCIP's feasibility tolerance; evaluated at SCIP's coefficients the objective is not lower. SCIP's dual bounds place the local solutions within 2.3×10⁻⁶, 7.1×10⁻⁶ and 3.5×10⁻⁵ (relative) of the global optimum." | §5.1 of the same report |
+| Table S5 and the Section 5.6 seasonal, near-cancellation and certified-instance numbers | printed as results | only if the August 2026 records are archived; otherwise: "On non-seasonal MA(1) least-squares problems, SCIP 8.0.0 closed the gap within 600 s up to T = 120 and stopped at the time limit with relative gaps of about 10⁻⁵ at T = 150 and T = 200; multiplicative seasonal instances were not certified in the archived runs." | `missing_global_artifacts.md` G1 |
+| Table S3, "Per-series time limit" | 120 | none | `monthly_protocol.md` |
+| Table S3, "Admissibility" | post-fit root checks, margin 1e-2 | "AR stationarity imposed by the reflection parameterization (margin 10⁻⁶), MA coefficients in their box; post-fit root checks of both polynomials, margin 10⁻²" | same |
+| Section 5.1, stationarity sentence | "In this experiment, stationarity and invertibility are checked after estimation using a root margin of 10⁻² rather than imposed through the reflection-coordinate parameterization." | the two-protocol sentence quoted in `monthly_protocol.md` (Tables 3-4: imposed by reflection; Tables 5-6, Figure 3: checked after estimation; root check at 10⁻² in both), and no 120 s limit for the Table 3 runs | same |
+| every mention of the package's "AirPassengers" series; Table S7 case "Airline, log AirPassengers" | AirPassengers / Box-Jenkins airline data | "the monthly series of Australian anti-diabetic drug sales (`a10` in the R package fpp2, July 1991 to June 2008, 204 observations), shipped with the package as `AIR_PASSENGERS`"; Table S7: "Airline model, log a10" | `airpassengers_dataset.md` |
+| Sections 3.6, 5.4, Huber threshold | "expressed on the standardized residual scale" | "on the scale of the series divided by the standard deviation of its differenced values" | `textual_claims.csv` T15 |
+| Section 5.5, initialization diagnostic | printed as an archived result | keep the numbers only with the source: "measured during the development of the `:innovations` mode (10 simulated seeds; a paired 1,500-series sample); the records are not part of the replication package" | `provenance_gaps.md` item 4 |
+| Section 5.5, likelihood-ranking diagnostic (1,099 fits ...) | printed as an archived result | remove the numbers, or archive the measurement | item 3 |
+| Table S2 | printed as an archived result | caption: "reported with the change that introduced `exogDynamics` (pull request 18); per-replication records are not archived" | item 5 |
+| Section 4.2 (information criteria) | criteria ranked by the exact likelihood | add: "for estimators other than Gaussian ML the AICc computed this way is a ranking heuristic"; and, if the paper describes AIC/BIC with regressors, "from Sarimax.jl 1.0.1, which scores models with regressors by the likelihood of the fitted ARMAX or regression-with-errors model" | `exog_likelihood.md` |
+| Tables 5, 6, S9, S10, Figure 3, Section 5.4 | historical objective campaigns (2026-10-16) | the controlled campaign, as in the 2026-10-19 revision; then fill `results/manuscript/pending/` | `manuscript_traceability.md` |
+
+## D. Software changes
+
+| change | files | API | effect |
+|---|---|---|---|
+| exact likelihood of models with regressors | `src/exact_likelihood.jl` (`fittedExogMatrix`, `armaxRegressionPath`), one metadata key in `src/models/sarima.jl` | unchanged | AIC/AICc/BIC, `auto`'s orders and its forecasts change for models with regressors; univariate models and fixed-order fits unchanged (except under `multistart = true`) |
+| dataset alias | `src/datasets.jl` | adds `ANTIDIABETIC_DRUG_SALES` | none (same data) |
+| tests | `test/exog_likelihood.jl` (new, 21 checks), `test/datasets.jl` (+11) | | |
+| documentation | README, `docs/src/tutorial.md`, `docs/src/reference.md`, CHANGELOG "Unreleased" | | |
+| replication package | release check with errata and release gate; `controlled.paired`; the certificate inventory builder; the recovered-output check; evidence and reports | | no historical output changed |
+
+`src/` now differs from v1.0.0: the package should be released as 1.0.1 before the replication
+release is tagged (`ARTIFACT_GUIDE.md` §9).
+
+## E. Readiness
+
+| area | state |
+|---|---|
+| package fixes (A1, A2) | ready for review |
+| reproducibility of archived tables | ready: every table group regenerates from archived records on every cell its inputs allow |
+| manuscript traceability | **blocked** on B1 (canonical revision); the release gate fails on the two registered errata until the manuscript is corrected |
+| global-optimization claims | Table 7 and the MA(1) certificates are documented record by record; Table S5 and Section 5.6's seasonal claims **blocked** on B2 |
+| Section 5.5 diagnostics, Table S2 | **blocked** on B3-B4, or qualify |
+| publication (Zenodo, GHCR, release) | not started by design; needs the authors' approval and B6 |
+
+The package is not ready for release: B1, B2 and the manuscript corrections of section C come
+first.
+
+## F. Test evidence
+
+See `REPRODUCIBILITY_STATUS.md`, section "Final scientific audit (2026-10-20)", for commands,
+platforms and results.

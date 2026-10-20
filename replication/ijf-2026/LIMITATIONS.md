@@ -6,11 +6,15 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
 
 ## The manuscript itself
 
-1. **Not every printed number has an archived source.** The 672 numbers printed in the
-   tables, figures and experimental sections of the 2026-10-16 revision are listed in
-   `results/manuscript/manuscript_values.csv` and checked by `tables`. Compared with the
-   historical tables, 603 agree, 2 differ, 2 are checked only against regenerated values, 19
-   agree with derived tables whose raw inputs are not archived, and 46 have no archived source:
+1. **Not every printed number has an archived source, and the canonical revision is not
+   transcribed.** The canonical manuscript is the revision of 2026-10-19 (controlled objective
+   comparison); its PDF, supplement and source are not available here
+   (`reports/manuscript_traceability.md`). The 672 numbers printed in the tables, figures and
+   experimental sections of the 2026-10-16 revision are listed in
+   `results/manuscript/manuscript_values.csv` and checked by `tables` and by the release check.
+   By category: 603 raw-reproduced, 19 derived-only, 2 differing (registered errata), 46 without
+   evidence, 2 checked only against regenerated values; 13 textual claims need verification
+   (`results/manuscript/textual_claims.csv`). In detail:
    * **Tables 5, 6, S9, S10, Figure 3 and Section 5.4 print the historical objective
      campaigns** (`m4_objectives_icarai_innovations`, feature-branch commits, guard on). The
      controlled experiment `m4_objectives` (one frozen protocol, the release, every series under
@@ -22,12 +26,17 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
    * **Table 7 (`tab:local_global_forecasts`), Ipopt times.** The manuscript prints 0.04 s
      (simulated ARMA(1,0,1)) and 0.02 s (PJME); the archived records
      (`raw/battery-2026-07/solver/global_value_results.jsonl`) give 0.0018 s and 0.0020 s, and
-     the historical table printed 0.0. `tables` reports Table 7 as FAIL until the manuscript or
-     the archive is corrected; the "hundredths of a second" of Section 5.6 rests on these cells.
+     the historical table printed 0.0. The printed values come from the July 2026 experiment
+     report, not from any record (`reports/table7_timing_reconciliation.md`). They are registered
+     in `results/manuscript/errata.csv` with the proposed correction: the pull-request check
+     reports them as known errata, `tables` reports Table 7 as FAIL, and the release gate fails
+     until the manuscript is corrected. The "hundredths of a second" of Section 5.6 rests on
+     these cells.
    * **Table 3, monthly cell.** Section 5.1 and Table S3 describe the monthly comparison as
      time-limited (120 s per fit) with stationarity checked after estimation; the archived
      monthly cell (campaign A, 3d7f883) had no time cap and imposed stationarity through the
-     reflection parameterization. Either the text or the cell's source must change.
+     reflection parameterization (the 120 s limit belongs to campaign B). Either the text or the
+     cell's source must change; the minimal text correction is in `reports/monthly_protocol.md`.
    * **Table S4.** Its two weekly MSE values are the two archived experiments, 0.8977
      (campaign A, aa68d57) and 0.9429 (August 2026 objective campaign, 6a11698). The manifest records the settings in
      which they differ: stationarity by reflection (A) or not (the August 2026 cell), `warmStartFromBox`
@@ -36,16 +45,26 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
      environment, the Table 3 protocol gives 0.8977 again (359/359 series identical to
      campaign A) and the Section 5.1 protocol gives 0.9002; the 0.9429 cell differs from 0.9002
      only through the over-differencing guard (+0.0428, all 26 changed series have d + D >= 2).
-   * **No archived source** (46 values): Table S2 (exogenous-convention simulation), Table S5
-     and the certification numbers of Section 5.6 (seasonal-grid gaps, the near-cancellation
-     and the two certified instances), and the initialization (0.2076 → 0.0863; 47.4% → 0.2%;
-     −28%) and likelihood-ranking (1,099 fits; 21.6 → 3.3; 12.1% → 16.5%; +0.0097) numbers of
-     Section 5.5. Their runners, records and logs must be archived, or the statements
-     removed.
-   * **Derived tables only** (23 values): Tables S6 and S7 and Figure S1 agree with the
-     tables of the September 2026 revision analysis, whose simulation scripts are not
-     archived. (The admissibility numbers of Section 5.5, 0.9094–0.9115 and 0.9095 → 0.9038,
-     are now regenerated from the raw archive in bundle part 2: item 7.)
+   * **No archived source** (46 values; `reports/provenance_gaps.md`): Table S5 and the
+     certification numbers of Section 5.6 (the August 2026 certification batch: seasonal-grid
+     gaps, the near-cancellation and the two certified instances); the likelihood-ranking
+     numbers of Section 5.5 (1,099 fits; 21.6 → 3.3; 12.1% → 16.5%; +0.0097), for which nothing
+     was found; Table S2 (exogenous-convention simulation) and the initialization numbers of
+     Section 5.5 (0.2076 → 0.0863; 47.4% → 0.2%; −28%), which appear only in the descriptions of
+     pull requests LAMPSPUC/Sarimax.jl#18 and #20, without records; and the two configuration
+     rows of Table S3 (the Table 3 item above). Their records must be supplied, or the
+     statements qualified.
+   * **Derived tables only** (19 values): Tables S6 and S7 (and the coefficients of Figure S1)
+     agree with the tables of the September 2026 revision analysis. Their simulation script and
+     its outputs were recovered on 2026-10-20 (`results/historical/revision-2026-09/recovered/`),
+     and CI recomputes the tables from them; the per-replication values of Table S6 and the run
+     environment were not recorded. (The admissibility numbers of Section 5.5, 0.9094–0.9115 and
+     0.9095 → 0.9038, are regenerated from the raw archive in bundle part 2: item 7.)
+   * **Wording that the archive contradicts** (`results/manuscript/textual_claims.csv`): the
+     package's "AirPassengers" series is `fpp2::a10` (item 12); the Huber threshold 1.345 is
+     applied to the series divided by the standard deviation of its differenced values, not to
+     residuals standardized to unit variance; Table 7's objective column shows differences
+     within SCIP's feasibility tolerance (item 8).
    * Figure 1 is an analytic illustration; its plotting script is not archived.
 
 ## Provenance of the archived results
@@ -94,12 +113,19 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
    termination status and `relative_gap()`, but not the dual bound, tolerances or a SCIP log;
    two status strings in its solver table are hard-coded in the scripts rather than read
    from the solver; and the PJME instance's record changed from TIME_LIMIT to OPTIMAL
-   (899.958 s of a 900 s limit) between two commits without a log of the second run.
-   These results can be stated as "SCIP reported OPTIMAL with relative gap 0" but cannot be
-   re-verified from the archive. The July 2026 M4 yearly study ran SCIP with
-   `limits/gap = 0.01`: its "OPTIMAL" rows are certified only to a 1% relative gap. The
-   global-optimization grid of Table S5 and the certified instances of Section 5.6 (the
-   August 2026 certification batch) are not archived at all (item 1).
+   (899.958 s of a 900 s limit) between two commits without a log of the second run. The
+   re-run of 2026-10-20 (`results/reruns/full-all-limit1-2026-10-20/`, a new identified run
+   with dual bounds and logs) certified the MA(1) instances again but stopped at the 900 s
+   limit on both ARMA(1,1) instances of Table 7 (relative gaps 5.3e-6 and 3.4e-5): the PJME
+   certificate is classified as insufficient evidence, and whether a certificate closes
+   within the limit depends on the platform. SCIP's reported objectives are sums of squares of
+   residual variables that satisfy the model only to its feasibility tolerance; at SCIP's own
+   coefficients the exact objective is not below Ipopt's in any Table 7 instance. The July
+   2026 M4 yearly study ran SCIP with `limits/gap = 0.01`: its "OPTIMAL" rows are certified
+   only to a 1% relative gap. The global-optimization grid of Table S5 and the certified
+   instances of Section 5.6 (the August 2026 certification batch) are not archived at all.
+   Per record: `reports/global_certificate_inventory.csv`; analysis:
+   `reports/global_certification_audit.md`.
 9. The ported runners and the smoke test record the dual bound, relative gap, raw status,
    primal status and SCIP version, and the smoke test checks the certificate against an
    independent dense-grid optimum. A brute-force grid is an upper bound, not a proof; SCIP's
@@ -114,13 +140,13 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
     after their per-block metrics were computed from them.
 11. **PJME** (PJM hourly load, Kaggle copy): licence not established; fetched from this
     repository's history at commit 308461e and verified, not redistributed.
-12. **`datasets/airpassengers.csv` is not the Box-Jenkins airline series.** The package
-    documentation (`src/datasets.jl`) calls it the classic Box-Jenkins airline data, but the
-    file holds 204 monthly observations from 1991-07 to 2008-06 (values 2.81 to 29.67), the
-    shape of fpp2's `a10` series (Australian antidiabetic drug sales); the airline series has
-    144 observations from 1949 to 1960. The validation and forecasting tables label this
-    file "airpassengers"; the label should be corrected in the manuscript and the package
-    documentation.
+12. **`datasets/airpassengers.csv` is not the Box-Jenkins airline series.** It is fpp2's `a10`
+    (Australian anti-diabetic drug sales, 204 monthly observations, 1991-07 to 2008-06), equal
+    value for value; the airline series has 144 observations from 1949 to 1960. The package now
+    documents it, exports `ANTIDIABETIC_DRUG_SALES` as the same dataset and pins its identity in
+    a test, without changing the data (`reports/airpassengers_dataset.md`). The validation,
+    forecasting and multistart experiments label it "airpassengers" or "AirPassengers"; the
+    manuscript wording should change.
 
 ## This package
 
@@ -176,11 +202,17 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
 
 ## Found while re-running the battery on the release (to be assessed by the authors)
 
-18. **AIC/BIC of models with regressors.** The release scores information criteria with the
-    exact Gaussian likelihood, which removes `X*beta` from `y` as for regression with ARMA
-    errors. That is not the ARMAX model `fit!` estimates by default (`exogDynamics = :armax`):
-    for the battery's ARX row it gives AIC 1025.87, where CSS, statsmodels and R all give
-    855.12. If confirmed, this affects `auto`'s order selection whenever regressors are used.
+18. **AIC/BIC of models with regressors (fixed after v1.0.0).** v1.0.0 scored information
+    criteria with a likelihood that removed differenced `X*beta` from `y`, as for regression
+    with ARMA errors: not the ARMAX model `fit!` estimates by default, nor the regressors it
+    uses when `d + D > 0`; a single one-dimensional regressor fell back to CSS. Confirmed
+    against an independent dense likelihood and fixed in `src/exact_likelihood.jl` (commit
+    `1e431ef`, CHANGELOG "Unreleased"); the battery's ARX row goes from AIC 1025.87 to 861.19
+    (CSS, statsmodels and R: 855.12, conditional on the first observation). Univariate models,
+    and so every M4 result, are unaffected. With regressors, `auto`'s orders and forecasts change
+    (`reports/exog_likelihood.md`). The replication image runs the checkout, so it now runs the
+    fixed code; `fit!`'s use of undifferenced regressors in a differenced equation is
+    unchanged and recorded there for the authors.
 19. **The archived PJME SARIMAX.jl numbers came from worse local optima.** On 3 of the 6
     rolling origins the v0.3.0 solve stopped at a higher sum of squares; re-solving the
     unscaled v0.3.0 problem reproduces the archived MAE/RMSE exactly, while the release's

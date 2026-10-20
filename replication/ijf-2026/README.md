@@ -137,7 +137,10 @@ What is verified, what is only executable and what is missing is listed per expe
   prints.
 * **Printed numbers.** Most of the numbers the manuscript prints are regenerated from archived
   per-series results. Some agree only with derived tables, some have no archived source, and
-  two printed timings differ from the archive; all are listed in LIMITATIONS.md, item 1.
+  two printed timings differ from the archive; all are listed in LIMITATIONS.md, item 1. The
+  transcription is that of the 2026-10-16 revision; the canonical 2026-10-19 revision is not
+  available here. The audit behind these statements is summarized in
+  [`FINAL_SCIENTIFIC_AUDIT.md`](FINAL_SCIENTIFIC_AUDIT.md), with its reports in `reports/`.
 
 ## Software and archived artifacts
 

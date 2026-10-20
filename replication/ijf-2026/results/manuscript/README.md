@@ -13,6 +13,28 @@ transcribed table row was checked to appear in the text of the 2026-10-16 PDF; T
 the panel percentages of Figure 2, which are not in that source, were read from the
 2026-10-16 PDF. When the manuscript changes, this file must be updated with it.
 
+**The canonical revision is 2026-10-19** (controlled M4 objective comparison), whose PDF,
+supplement and source are not available here. `REVISION.toml` records both revisions, and the
+release check reports the difference as missing evidence. For the items that revision takes
+from the controlled campaign (Tables 5, 6, S9, S10, Figure 3, Section 5.4),
+`pending/manuscript_values_2026-10-19_controlled.csv` points every value at its
+`m4_objectives_controlled` cell with the printed value empty, to be transcribed from the source
+(`scripts/maintainers/make_controlled_mapping_template.py`; procedure in
+`reports/manuscript_traceability.md`).
+
+Other files:
+
+| file | content |
+|---|---|
+| `errata.csv` | printed values established as errors of the manuscript, with the archived value, the report and the proposed correction. The pull-request check fails on any differing value not listed here, and on a listed value that no longer differs; the release gate (`--release`) fails on listed values too |
+| `textual_claims.csv` | statements of the text checked against the archive, with their status (supported, differs, no evidence, needs verification) |
+| `REVISION.toml` | transcribed and canonical revisions, and the missing inputs |
+| `pending/` | the transcription template for the canonical revision |
+
+The release check (`scripts/maintainers/check_manuscript_mapping.py`, CI job "Manuscript release
+check") reports every value as raw-reproduced, derived-only, differing or no evidence, and the
+textual claims to verify.
+
 | Column | Meaning |
 |---|---|
 | `item`, `label` | where the value is printed (e.g. Table 3, `tab:m4_forecasting`) |

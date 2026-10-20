@@ -1,8 +1,9 @@
 """`fetch`: download and verify the archived artifact bundle and the third-party data.
 
-* artifacts - the Zenodo data record (location and SHA-256 in artifacts.lock); `--from FILE`
-              uses a local copy of the tarball instead. Every extracted file is verified
-              against artifacts.sha256 before the bundle is marked complete.
+* artifacts - the Zenodo data record: one tarball per bundle part (location and SHA-256 of
+              each in artifacts.lock); `--from FILE` (repeatable) uses local copies instead.
+              Every extracted file is verified against its part's inventory (artifacts.sha256,
+              artifacts-part2.sha256) before the part is marked complete.
 * m4        - the official M4 files at a pinned commit of Mcompetitions/M4-methods
               (data/external_files.csv). M4 carries no licence, so it is fetched rather than
               redistributed; the SHA-256 proves the content is the official one.
@@ -25,8 +26,8 @@ import tomllib
 import urllib.request
 from pathlib import Path
 
-from .check import artifact_inventory
-from .common import EXIT_FAIL, EXIT_INPUT, EXIT_OK, Paths, sha256_file
+from .check import part_inventory
+from .common import EXIT_FAIL, EXIT_INPUT, EXIT_OK, BundlePart, Paths, bundle_parts, sha256_file
 
 USER_AGENT = "sarimax-ijf-replication/1 (+https://github.com/LAMPSPUC/Sarimax.jl)"
 
@@ -93,37 +94,45 @@ def _safe_extract(tar: tarfile.TarFile, dest: Path) -> int:
     return n
 
 
-def fetch_artifacts(paths: Paths, source: str | None, if_available: bool, offline: bool) -> int:
-    lock = tomllib.loads((paths.repl / "artifacts.lock").read_text(encoding="utf-8"))["bundle"]
-    marker = paths.artifacts / ".complete"
-    inventory = artifact_inventory(paths)
-    if marker.exists() and marker.read_text().strip() == lock.get("inventory_sha256", ""):
-        print("  artifact bundle already present and verified")
+def _part_for(tarball: Path, parts: list[BundlePart]) -> BundlePart | None:
+    """The bundle part a local tarball is: by its SHA-256 when recorded, else by its file name."""
+    digest = sha256_file(tarball)
+    for p in parts:
+        if p.sha256 and digest == p.sha256:
+            return p
+    for p in parts:
+        if not p.sha256 and tarball.name == p.file:
+            return p
+    return None
+
+
+def fetch_part(paths: Paths, part: BundlePart, tarball: Path | None, if_available: bool, offline: bool) -> int:
+    """Obtain one bundle part (from `tarball`, else from its recorded URL), extract it and verify
+    every file of its inventory. A part whose marker matches its inventory is left as it is."""
+    marker = paths.artifacts / part.marker
+    inventory = part_inventory(paths, part)
+    label = f"{part.name}-v{part.version}"
+    if tarball is None and marker.exists() and marker.read_text().strip() == part.inventory_sha256:
+        print(f"  {label}: already present and verified")
         return EXIT_OK
     with tempfile.TemporaryDirectory() as td:
-        if source:
-            tarball = Path(source)
-            if not tarball.exists():
-                print(f"  ERROR: {tarball} does not exist")
-                return EXIT_INPUT
-        else:
-            if not lock.get("url"):
-                msg = ("  the artifact bundle has no published location yet (artifacts.lock: url is "
-                       "empty; the Zenodo record is created at release time). Provide a local copy with "
-                       "`./reproduce.sh fetch artifacts --from FILE` or `--artifacts DIR`.")
-                print(msg)
+        if tarball is None:
+            if not part.url:
+                print(f"  {label}: no published location yet (artifacts.lock: url is empty; the Zenodo "
+                      f"record is created at release time). Provide a local copy with "
+                      f"`./reproduce.sh fetch artifacts --from {part.file}` or `--artifacts DIR`.")
                 return EXIT_OK if if_available else EXIT_INPUT
             if offline:
-                print("  artifact bundle missing (offline: not downloaded)")
+                print(f"  {label}: missing (offline: not downloaded)")
                 return EXIT_INPUT
-            tarball = Path(td) / "bundle.tar.gz"
+            tarball = Path(td) / part.file
             try:
-                _download(lock["url"], tarball, lock.get("sha256") or None)
+                _download(part.url, tarball, part.sha256 or None)
             except (OSError, ValueError) as exc:
-                print(f"  ERROR: {exc}")
+                print(f"  ERROR {label}: {exc}")
                 return EXIT_INPUT
-        if lock.get("sha256") and sha256_file(tarball) != lock["sha256"]:
-            print(f"  ERROR: {tarball} does not match the SHA-256 recorded in artifacts.lock")
+        if part.sha256 and sha256_file(tarball) != part.sha256:
+            print(f"  ERROR: {tarball} does not match the SHA-256 recorded in artifacts.lock for {label}")
             return EXIT_INPUT
         print(f"  extracting {tarball.name} into {paths.artifacts}", flush=True)
         paths.artifacts.mkdir(parents=True, exist_ok=True)
@@ -132,11 +141,37 @@ def fetch_artifacts(paths: Paths, source: str | None, if_available: bool, offlin
     bad = [rel for digest, rel in inventory
            if not (paths.artifacts / rel).exists() or sha256_file(paths.artifacts / rel) != digest]
     if bad:
-        print(f"  ERROR: {len(bad)} of {len(inventory)} files missing or corrupted after extraction, e.g. {bad[:3]}")
+        print(f"  ERROR {label}: {len(bad)} of {len(inventory)} files missing or corrupted after extraction, "
+              f"e.g. {bad[:3]}")
         return EXIT_INPUT
-    marker.write_text(lock.get("inventory_sha256", "") + "\n")
-    print(f"  artifact bundle verified: {n} files, all {len(inventory)} inventory checksums match")
+    marker.write_text(part.inventory_sha256 + "\n")
+    print(f"  {label} verified: {n} files, all {len(inventory)} inventory checksums match ({part.inventory})")
     return EXIT_OK
+
+
+def fetch_artifacts(paths: Paths, sources: list[str] | None, if_available: bool, offline: bool) -> int:
+    parts = bundle_parts(paths.repl)
+    given: dict[str, Path] = {}
+    for s in sources or []:
+        tarball = Path(s)
+        if not tarball.exists():
+            print(f"  ERROR: {tarball} does not exist")
+            return EXIT_INPUT
+        part = _part_for(tarball, parts)
+        if part is None:
+            print(f"  ERROR: {tarball.name} is none of the bundle parts recorded in artifacts.lock "
+                  f"({', '.join(p.file for p in parts)}): unknown name or SHA-256")
+            return EXIT_INPUT
+        given[part.name] = tarball
+    codes = [fetch_part(paths, p, given.get(p.name), if_available, offline) for p in parts]
+    # One marker for the whole bundle, which reproduce.sh checks before deciding to fetch.
+    all_marker = paths.artifacts / ".complete-all"
+    if all((paths.artifacts / p.marker).exists() and
+           (paths.artifacts / p.marker).read_text().strip() == p.inventory_sha256 for p in parts):
+        all_marker.write_text("".join(f"{p.name} {p.inventory_sha256}\n" for p in parts))
+    elif all_marker.exists():
+        all_marker.unlink()
+    return max(codes)
 
 
 def run(paths: Paths, args) -> int:

@@ -17,8 +17,8 @@ from importlib import metadata
 from pathlib import Path
 
 from .common import (EXIT_FAIL, EXIT_INPUT, EXIT_OK, FAIL, INFO, MISSING, PASS, SKIPPED, WARN,
-                     Paths, Report, julia_cmd, read_sha256_list, run_logged, sha256_file, tail,
-                     which)
+                     BundlePart, Paths, Report, bundle_parts, julia_cmd, read_sha256_list, run_logged,
+                     sha256_file, tail, which)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -165,37 +165,46 @@ def check_committed(paths: Paths, report: Report) -> bool:
     return True
 
 
-def artifact_inventory(paths: Paths) -> list[tuple[str, str]]:
-    lst = paths.repl / "artifacts.sha256"
+def part_inventory(paths: Paths, part: BundlePart) -> list[tuple[str, str]]:
+    lst = paths.repl / part.inventory
     return read_sha256_list(lst) if lst.exists() else []
 
 
+def artifact_inventory(paths: Paths) -> list[tuple[str, str]]:
+    """Every file of every bundle part (artifacts.lock), with its SHA-256."""
+    return [pair for part in bundle_parts(paths.repl) for pair in part_inventory(paths, part)]
+
+
 def check_artifacts(paths: Paths, report: Report, required: bool = True) -> bool:
-    inventory = artifact_inventory(paths)
-    if not inventory:
-        report.add("inputs", "artifact inventory (artifacts.sha256)", MISSING)
-        return False
-    missing, corrupt = [], []
-    for digest, rel in inventory:
-        f = paths.artifacts / rel
-        if not f.exists():
-            missing.append(rel)
-        elif sha256_file(f) != digest:
-            corrupt.append(rel)
-    if corrupt:
-        report.add("inputs", "archived artifact bundle", FAIL, expected=f"{len(inventory)} files",
-                   generated=f"{len(corrupt)} corrupted", note="; ".join(corrupt[:20]))
-    if missing:
-        status = MISSING if required else SKIPPED
-        report.add("inputs", "archived artifact bundle", status, expected=f"{len(inventory)} files",
-                   generated=f"{len(inventory) - len(missing)} present",
-                   note=("missing: " + "; ".join(missing[:10]) + (" ..." if len(missing) > 10 else "")
-                         + " — run ./reproduce.sh fetch artifacts, or pass --artifacts DIR"))
-    if not missing and not corrupt:
-        report.add("inputs", "archived artifact bundle", PASS,
-                   generated=f"{len(inventory)} files verified against artifacts.sha256")
-        return True
-    return False
+    ok = True
+    for part in bundle_parts(paths.repl):
+        label = f"archived artifact bundle: {part.name}-v{part.version}"
+        inventory = part_inventory(paths, part)
+        if not inventory:
+            report.add("inputs", f"artifact inventory ({part.inventory})", MISSING)
+            ok = False
+            continue
+        missing, corrupt = [], []
+        for digest, rel in inventory:
+            f = paths.artifacts / rel
+            if not f.exists():
+                missing.append(rel)
+            elif sha256_file(f) != digest:
+                corrupt.append(rel)
+        if corrupt:
+            report.add("inputs", label, FAIL, expected=f"{len(inventory)} files",
+                       generated=f"{len(corrupt)} corrupted", note="; ".join(corrupt[:20]))
+        if missing:
+            status = MISSING if required else SKIPPED
+            report.add("inputs", label, status, expected=f"{len(inventory)} files",
+                       generated=f"{len(inventory) - len(missing)} present",
+                       note=("missing: " + "; ".join(missing[:10]) + (" ..." if len(missing) > 10 else "")
+                             + " — run ./reproduce.sh fetch artifacts, or pass --artifacts DIR"))
+        if not missing and not corrupt:
+            report.add("inputs", label, PASS, generated=f"{len(inventory)} files verified against {part.inventory}")
+        else:
+            ok = False
+    return ok
 
 
 def m4_inventory(paths: Paths) -> list[dict]:

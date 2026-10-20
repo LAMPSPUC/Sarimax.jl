@@ -36,6 +36,7 @@ paths=(
     replication/ijf-2026/results
     replication/ijf-2026/experiment_manifest.csv
     replication/ijf-2026/artifacts.sha256
+    replication/ijf-2026/artifacts-part2.sha256
     replication/ijf-2026/checksums.sha256
 )
 

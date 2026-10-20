@@ -57,8 +57,9 @@ Options (all commands):
   --data-dir DIR     third-party input data, m4/ and pjme/ (default replication/ijf-2026/data/external)
   --output DIR       where generated outputs are written (default replication/ijf-2026/output)
   --offline          never download anything (missing inputs are reported, not fetched)
-  --from FILE        `fetch artifacts` (and the default run) take the bundle from this local
-                     tarball instead of downloading it; it is verified the same way
+  --from FILE        `fetch artifacts` (and the default run) take a bundle part from this local
+                     tarball instead of downloading it; it is verified the same way (repeatable:
+                     one --from per part)
   --allow-unverified-image
                      run even if the image was not built from this checkout (results are
                      labelled UNVERIFIED in every report)
@@ -97,7 +98,7 @@ no_build=0
 platform="linux/amd64"
 artifacts_dir="$REPL_DIR/artifacts"
 artifacts_explicit=0
-from_file=""
+from_files=()
 data_dir="$REPL_DIR/data/external"
 output_dir="$REPL_DIR/output"
 offline=0
@@ -119,8 +120,8 @@ while [[ $# -gt 0 ]]; do
         --native) native=1; shift ;;
         -h|--help) usage; exit "$EXIT_OK" ;;
         --from)
-            [[ $# -ge 2 && -f "$2" ]] || die "$EXIT_INPUT" "--from needs an existing file (the artifact bundle tarball)"
-            from_file="$2"; shift 2 ;;
+            [[ $# -ge 2 && -f "$2" ]] || die "$EXIT_INPUT" "--from needs an existing file (an artifact bundle tarball)"
+            from_files+=("$2"); shift 2 ;;
         --experiment|--jobs|--limit|--sample|--seed|--timeout|--run-id|--frequency|--arm|--group)
             [[ $# -ge 2 ]] || die "$EXIT_USAGE" "$1 needs a value"
             passthrough+=("$1" "$2"); shift 2 ;;
@@ -300,9 +301,12 @@ run_container() {  # run_container REF NETWORK(none|bridge) RW_INPUTS(0|1) ARGS.
         -v "$(abspath "$output_dir"):/ijf/output"
         -v "$(abspath "$artifacts_dir"):/ijf/artifacts$ro"
         -v "$(abspath "$data_dir"):/ijf/data$ro")
-    if [[ -n "$from_file" && "${1:-}" == "fetch" ]]; then   # a local bundle tarball, read-only, for `fetch --from`
-        args+=(-v "$(abspath "$(dirname "$from_file")")/$(basename "$from_file"):/ijf/import/$(basename "$from_file"):ro")
-        set -- "$@" --from "/ijf/import/$(basename "$from_file")"
+    if [[ ${#from_files[@]} -gt 0 && "${1:-}" == "fetch" ]]; then   # local bundle tarballs, read-only, for `fetch --from`
+        local from_file
+        for from_file in "${from_files[@]}"; do
+            args+=(-v "$(abspath "$(dirname "$from_file")")/$(basename "$from_file"):/ijf/import/$(basename "$from_file"):ro")
+            set -- "$@" --from "/ijf/import/$(basename "$from_file")"
+        done
     fi
     if command -v id >/dev/null 2>&1 && [[ "$(uname -s)" == Linux ]]; then
         args+=(--user "$(id -u):$(id -g)")
@@ -323,6 +327,11 @@ main() {
             quick)
                 run_native quick "${passthrough[@]+"${passthrough[@]}"}" || rc=$? ;;
             build|shell) die "$EXIT_USAGE" "$command_name is not available with --native" ;;
+            fetch)
+                local -a native_from=()
+                local f
+                for f in "${from_files[@]+"${from_files[@]}"}"; do native_from+=(--from "$(abspath "$f")"); done
+                run_native fetch "${passthrough[@]+"${passthrough[@]}"}" "${native_from[@]+"${native_from[@]}"}" || rc=$? ;;
             *)  run_native "$command_name" "${passthrough[@]+"${passthrough[@]}"}" || rc=$? ;;
         esac
         exit "$rc"
@@ -348,7 +357,8 @@ main() {
         quick)
             # The archived artifacts are fetched (and verified) once if they are missing; a
             # directory given with --artifacts is used as it is (check verifies it).
-            if [[ $offline -eq 0 && $artifacts_explicit -eq 0 && ! -f "$artifacts_dir/.complete" ]]; then
+            # .complete-all is written once every bundle part (artifacts.lock) has been verified.
+            if [[ $offline -eq 0 && $artifacts_explicit -eq 0 && ! -f "$artifacts_dir/.complete-all" ]]; then
                 run_container "$ref" bridge 1 fetch artifacts --if-available || rc=$?
                 [[ $rc -eq 0 ]] || warn "the artifact bundle could not be fetched; tables will report it as MISSING"
                 rc=0

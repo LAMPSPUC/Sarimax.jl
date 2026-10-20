@@ -66,6 +66,35 @@ class Paths:
         return self.repl / "environments" / "julia"
 
 
+@dataclass(frozen=True)
+class BundlePart:
+    """One tarball of the archived artifact bundle (artifacts.lock). Every part extracts into
+    the same directory; its files are listed, with their SHA-256, in its own inventory."""
+    name: str
+    version: str
+    file: str                 # tarball name
+    sha256: str               # SHA-256 of the tarball
+    inventory: str            # inventory file in replication/ijf-2026, one line per file
+    inventory_sha256: str     # SHA-256 of that inventory file (written into the marker)
+    url: str
+    doi: str
+    marker: str               # file in the artifact directory written once the part verified
+
+
+def bundle_parts(repl: Path) -> list[BundlePart]:
+    """Part 1 is [bundle] (sarimax-ijf-2026-artifacts-v1, inventory artifacts.sha256); further
+    parts are [[parts]] entries. The parts' files never overlap."""
+    import tomllib
+    lock = tomllib.loads((repl / "artifacts.lock").read_text(encoding="utf-8"))
+    out = []
+    for i, p in enumerate([lock["bundle"]] + list(lock.get("parts", []))):
+        out.append(BundlePart(name=p["name"], version=str(p.get("version", "")), file=p["file"],
+                              sha256=p.get("sha256", ""), inventory=p.get("inventory", "artifacts.sha256"),
+                              inventory_sha256=p.get("inventory_sha256", ""), url=p.get("url", ""),
+                              doi=p.get("doi", ""), marker=".complete" if i == 0 else f".complete-{p['name']}"))
+    return out
+
+
 def detect_paths() -> Paths:
     here = Path(__file__).resolve()
     repl = here.parents[2]                      # .../replication/ijf-2026

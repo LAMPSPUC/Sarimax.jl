@@ -55,8 +55,8 @@ def main(argv: list[str]) -> int:
                    help="do nothing (successfully) when no download location is recorded yet")
     g.add_argument("--if-needed", action="store_true",
                    help="only what the selected experiments need")
-    g.add_argument("--from", dest="source", default=None,
-                   help="use a local copy of the bundle tarball instead of downloading it")
+    g.add_argument("--from", dest="source", action="append", default=None,
+                   help="use a local copy of a bundle part tarball instead of downloading it (repeatable)")
     g.add_argument("--experiment", action="append", default=[])
     g.add_argument("--all", action="store_true")
     g.add_argument("--frequency", action="append", default=None)

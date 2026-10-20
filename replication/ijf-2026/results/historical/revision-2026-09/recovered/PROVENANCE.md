@@ -5,7 +5,10 @@ The derived tables one directory up (`quantile_controlled_example.csv`, `weighte
 script and its outputs are not archived". Both were found in the analysis workspace of the
 September 2026 revision (`paper_results_revision/scripts/` and `paper_results_revision/data/`,
 written on 2026-09-11 between 18:17 and 18:38 local time) and are copied here byte for byte
-(they were already LF text; `SHA256SUMS` lists every file).
+(`SHA256SUMS` lists every file). Two had CRLF line endings and are kept with LF, as every
+text file of this package: `outputs/_log_part_a.txt` (original SHA-256 `35e6936e…7ae7`) and
+`outputs/ar_stationarity_validation.json` (original `e553536c…f718`); the others are
+unchanged bytes.
 
 | file | what it is |
 |---|---|

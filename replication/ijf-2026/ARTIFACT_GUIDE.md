@@ -68,7 +68,7 @@ report is labelled NATIVE).
 | Python | CPython 3.12.14 (python-build-standalone 20260901) | release tarball SHA-256 |
 | Python packages | numpy 2.4.6, pandas 2.3.3, scipy 1.16.3, statsmodels 0.14.6, matplotlib 3.11.2 + dependencies | wheel hashes in `requirements.lock` |
 
-The Julia environment is the one the August 2026 ICARAI objective campaigns and the October
+The Julia environment is the one the August 2026 objective campaigns and the October
 2026 controlled objective campaign ran with (their Manifests are identical package by
 package), plus HiGHS, HiGHS_jll and MathOptIIS (used by one battery runner) and the
 Sarimax.jl checkout; adding HiGHS_jll moved CompilerSupportLibraries_jll from 1.1.1 to 1.1.2,
@@ -115,13 +115,14 @@ release, its DOI and URL).
 
 | Part | Tarball | Built by | Inventory |
 |---|---|---|---|
-| 1 | `sarimax-ijf-2026-artifacts-v1.tar.gz` (296 MB, 535 files) | `scripts/maintainers/build_artifact_bundle.py`, on the maintainer host | `artifacts.sha256` |
-| 2 | `sarimax-ijf-2026-artifacts-part2-v1.tar.gz` (299 MB, 368 files) | `scripts/maintainers/build_artifact_part2.py`, on host RECREIO | `artifacts-part2.sha256` |
+| 1 | `sarimax-ijf-2026-artifacts-v1.tar.gz` (296 MB, 535 files) | `scripts/maintainers/build_artifact_bundle.py`, from the experiment workspaces | `artifacts.sha256` |
+| 2 | `sarimax-ijf-2026-artifacts-part2-v1.tar.gz` (299 MB, 368 files) | `scripts/maintainers/build_artifact_part2.py`, from the controlled campaign and the September 2026 raw archive | `artifacts-part2.sha256` |
 
 Part 1 comes from the repository history, the three `paper/replication-staging-*` branches,
 the ForecastTester experiment workspace and the `sarimax-replication` folder (the paths are
-arguments). Part 2 holds what was produced or received on host RECREIO after part 1 was
-frozen: the controlled objective campaign and the GAVEA raw archive. Part 2 does not modify
+arguments). Part 2 holds what was produced or received after part 1 was frozen: the
+controlled objective campaign and the raw archive of the September 2026 stable and admissibility
+campaigns. Part 2 does not modify
 part 1, so part 1's recorded SHA-256 stays valid. Both builds are deterministic: gzip and tar
 carry no timestamps or owners.
 
@@ -130,22 +131,22 @@ carry no timestamps or owners.
 | `raw/battery-2026-07/` | 1 | July 2026 battery: validation, forecasting, architecture, solver and energy records (jsonl), logs, simulated inputs; PJME data omitted |
 | `raw/m4-objectives-icarai-2026-08/` | 1 | 37 objective campaigns (cel_*, obj_*, req_*, censo_*, smoke_*), auto.arima/Naive2 baselines for M/Q/Y/W, campaign index, validity and probe files |
 | `raw/m4-objectives-rerun-a1ebc0d-2026-08/` | 1 | re-run of the huber and ridge cells at a1ebc0d, with logs |
-| `raw/m4-recreio-2026-08/` | 1 | recreio campaigns A–F (`actual` redacted, per-block metrics added) and verification files |
+| `raw/m4-recreio-2026-08/` | 1 | campaigns A–F (`actual` redacted, per-block metrics added) and verification files |
 | `raw/m4-baselines-r-2026-07/` | 1 | auto.arima and Naive2 per-series metrics, all six M4 frequencies, four horizon blocks |
 | `raw/robust-cvar-monthly-2026-08/`, `raw/admissibility-2026-08/`, `raw/initialization-order-search-2026-08/`, `raw/scip-ipopt-yearly-2026-07/`, `raw/stable-admissibility-gavea-2026-09/tables/` | 1 | the smaller studies (see the manifest) |
 | `derived/m4-objective-distributions-2026-10/` | 1 | the per-series sets of the October 2026 Table 7 evidence |
 | `historical-tables/` | 1 | the tables as generated at the time (source of `results/expected/`) |
 | `raw/m4-objectives-controlled-2026-10/` | 2 | the controlled objective campaign: frozen protocol and environment; every per-series record of the 16 cells and of the weekly Table 3 protocol run (`test` redacted, per-block metrics added); ledgers, audits, event logs, orchestrator logs; the same results in the per-series schema of `full` |
 | `derived/m4-objectives-controlled-2026-10/` | 2 | the independent scorer's tables, reconciliation and validity files, the reconciliation report and the manuscript update proposal (source of `results/expected/m4_objectives_controlled.csv`) |
-| `raw/stable-admissibility-gavea-2026-09/brutos_gavea/` | 2 | the GAVEA raw archive as received, with the M4 test column `a` removed from the forecast files |
+| `raw/stable-admissibility-gavea-2026-09/brutos_gavea/` | 2 | the raw archive of the September 2026 campaigns as received, with the M4 test column `a` removed from the forecast files |
 | `derived/stable-admissibility-gavea-2026-09/` | 2 | lag-1/seasonal MASE denominator ratios (hourly, quarterly) and the tables of 2026-10-17 (source of `results/expected/stable_admissibility_gavea.csv`) |
 | `original-scripts/` | 1, 2 | verbatim runners, table scripts, environment files and notes of each campaign |
 | `PROVENANCE.csv`, `part2/PROVENANCE.csv` | 1, 2 | for each file: origin (git object or workspace file), original SHA-256, transform |
 
 Every transform that changes content is recorded in the PROVENANCE files:
 
-* **M4 test values are removed** wherever an archived file carried them: recreio `actual`, controlled-campaign `test` and GAVEA `a`. Before removal, the per-block sMAPE and MASE are computed from them:
-  * recreio uses the definitions of `make_table_m4.jl`;
+* **M4 test values are removed** wherever an archived file carried them: campaign A–F `actual`, controlled-campaign `test` and the September 2026 archive's `a`. Before removal, the per-block sMAPE and MASE are computed from them:
+  * campaigns A–F use the definitions of campaign A's `make_table_m4.jl`;
   * the controlled campaign uses `ijflib.m4data`, checked against the runner's own totals to 1e-9 for all 381,795 records.
 * **Part 2 adds derived files:** the per-series files in the `full` schema and the MASE denominator ratios.
 
@@ -154,13 +155,13 @@ The `m4_benchmark` and `m4_objectives_controlled` table groups regenerate the hi
 **Determinism.**
 
 * **Part 1 sources are pinned.** Its git sources are pinned to the commits bundle v1 was built from: the tips of the three `paper/replication-staging-*` branches on 2026-10-17, and `308461e`, the last commit that tracked the July 2026 battery. Keep these commits reachable (tag them) before deleting those branches.
-* **Summation order is fixed.** The per-block metrics of the redacted recreio files are summed left to right, because `sum()` became compensated in Python 3.12 and would change last bits.
-* **Part 1 was rebuilt on two other machines:**
+* **Summation order is fixed.** The per-block metrics of the redacted campaign A–F files are summed left to right, because `sum()` became compensated in Python 3.12 and would change last bits.
+* **Part 1 was rebuilt in two other environments:**
   * macOS arm64 (Python 3.14): 299 of its files matched byte for byte;
-  * host RECREIO (Windows, Python 3.12): 446 matched. There, 11 original scripts of the admissibility and contamination studies differ (later local edits) and 10 sources are missing.
+  * Windows (Python 3.12), in the environment that ran the controlled campaign: 446 matched. There, 11 original scripts of the admissibility and contamination studies differ (later local edits) and 10 sources are missing.
 
-  The remaining files come from workspaces that only the maintainer host holds.
-* **Part 2 was built twice** on RECREIO, with the same tarball SHA-256 both times.
+  The remaining files come from experiment workspaces that are not in the repository.
+* **Part 2 was built twice**, with the same tarball SHA-256 both times.
 
 **Fetching.** `./reproduce.sh fetch artifacts` downloads each part from the location in `artifacts.lock`, checks its SHA-256, extracts it safely and verifies every file against its inventory. `--from FILE` (once per part) uses local tarballs instead. Completion markers:
 
@@ -192,11 +193,11 @@ in the manifest, and regenerate `checksums.sha256`
 | Group | Rebuilds | Cells |
 |---|---|---|
 | battery | the seven July 2026 battery tables (`tab:*`) | 583 |
-| m4_benchmark | recreio `table_m4` (M4 vs auto.arima, six frequencies x four blocks) | 192 |
+| m4_benchmark | campaign A's `table_m4` (M4 vs auto.arima, six frequencies x four blocks) | 192 |
 | m4_paired | paired differences and marginal distributions against auto.arima (manuscript Tables 4 and S8, Figure 2); reference values in `results/historical/m4-paired-2026-09/` | 420 |
-| m4_objectives | ICARAI Tables 1–2 and `tabelas_paper` sections A and B | 880 |
+| m4_objectives | Tables 1–2 of the August 2026 objective campaigns and `tabelas_paper` sections A and B | 880 |
 | m4_objective_distributions | October 2026 Table 7 evidence: reproduction, 4a–4d, figures | 2,872 |
-| arms | recreio objective, multistart, isolation, axes and stable tables | 299 |
+| arms | the campaign B–F objective, multistart, isolation, axes and stable tables | 299 |
 | robust_cvar | contamination study (reference values transcribed from internal notes) | 19 |
 | scip_ipopt | SCIP vs Ipopt summaries of the July 2026 yearly study | 23 |
 
@@ -251,8 +252,7 @@ never retried or dropped silently.
 
 ## 8. Integration of `m4_objectives` (done 2026-10-20)
 
-The controlled comparison of objectives was produced by a separate workstream on host RECREIO
-(2026-10-17/19). Each point of the integration contract was handled as follows.
+The controlled comparison of objectives was produced by a separate workstream (2026-10-17/19). Each point of the integration contract was handled as follows.
 
 1. **Protocol.** `experiments/configs/m4_objectives.toml` holds the frozen protocol, with
    `protocol_status = "final"`. Every keyword the campaign passed to `auto` is written out

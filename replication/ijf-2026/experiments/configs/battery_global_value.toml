@@ -12,7 +12,7 @@
 # continue without the verified file. Needs SCIP (SCIP.jl 0.11.6, SCIP 8.0.x): the SCIP solves
 # crash on Windows (upstream), so run this in the Linux container. The archived PJME SCIP solve
 # ended OPTIMAL at 899.96 s of its 900 s limit (an earlier run, ecc4878, hit TIME_LIMIT), so its
-# Certified / Time cells depend on the machine.
+# Certified / Time cells depend on the hardware.
 
 id = "battery_global_value"
 kind = "script"

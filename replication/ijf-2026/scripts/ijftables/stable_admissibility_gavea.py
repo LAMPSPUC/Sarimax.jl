@@ -1,5 +1,5 @@
-"""GAVEA campaigns of September 2026 (raw archive brutos_gavea.zip, bundle part 2), with the
-yearly/weekly stable runs of RECREIO campaign F (part 1): the three comparisons tabulated on
+"""Stable and admissibility campaigns of September 2026 (raw archive brutos_gavea.zip, bundle
+part 2), with the yearly/weekly stable runs of campaign F (part 1): the three comparisons tabulated on
 2026-10-17 (`y_updated_results.py`, results/historical/updated-2026-10-17/):
 
 * `gavea.stable_objective`: MSE against the `stable` (CVaR) objective, alpha 0.5 and/or 0.9,
@@ -34,7 +34,7 @@ from pathlib import Path
 
 from .common import Cell, Context, fmean, owa, read_csv, write_csv
 
-TITLE = "GAVEA stable (CVaR), 2x2x2x2 admissibility and guard campaigns, Sep 2026 (tables of 2026-10-17)"
+TITLE = "Stable (CVaR), 2x2x2x2 admissibility and guard campaigns, Sep 2026 (tables of 2026-10-17)"
 GV = "raw/stable-admissibility-gavea-2026-09/brutos_gavea"
 GVD = "derived/stable-admissibility-gavea-2026-09"
 F_FILE = "raw/m4-recreio-2026-08/stable_weekly_yearly.csv.gz"
@@ -67,12 +67,12 @@ def _stem(rel: str) -> str:
 
 
 def load(ctx: Context, pattern: str) -> list[dict]:
-    """Rows of every GAVEA file whose name (inside the archive) matches `pattern`, in file-name
+    """Rows of every archive file whose name (inside the archive) matches `pattern`, in file-name
     order, as the 2026-10-17 script read them (glob of the original names, then sorted)."""
     rx = re.compile(pattern + r"$")
     files = sorted((r for r in GAVEA_FILES if rx.match(_stem(r))), key=_stem)
     if not files:
-        raise ValueError(f"no GAVEA file matches {pattern}")
+        raise ValueError(f"no archive file matches {pattern}")
     rows = []
     for rel in files:
         rows += read_csv(ctx.path(rel))

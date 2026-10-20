@@ -1,4 +1,4 @@
-"""Expected cells of the `arms` group, parsed from the seven paired-arm tables that recreio
+"""Expected cells of the `arms` group, parsed from the seven paired-arm tables that campaigns B-F
 `tables/make_table_arms.jl` printed (historical-tables/m4-recreio-2026-08/, committed as
 experiments/tables/generated/ on paper/replication-staging-recreio):
 

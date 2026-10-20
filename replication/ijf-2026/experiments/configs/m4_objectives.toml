@@ -1,7 +1,6 @@
 # Controlled comparison of estimation objectives on M4 (manifest id m4_objectives).
 #
-# FINAL. The frozen protocol of the controlled campaign run on 2026-10-17/19 (host RECREIO;
-# archived in bundle part 2 under raw/m4-objectives-controlled-2026-10/, with the protocol file
+# FINAL. The frozen protocol of the controlled campaign run on 2026-10-17/19 (archived in bundle part 2 under raw/m4-objectives-controlled-2026-10/, with the protocol file
 # itself as protocol/experiment_protocol.toml, SHA-256 de6d0bee...391821). Every keyword below is
 # the value that protocol passed to `Sarimax.auto`; only the objective varies between arms. The
 # protocol is the manuscript's Section 5.1 convention ("P2"): AR and MA estimated in their
@@ -28,7 +27,7 @@ frequencies = ["monthly", "quarterly", "yearly", "weekly"]
 # The protocol's orchestration safety limit (6 h wall per series and objective). In the
 # archived run one fit exceeded it (M36044, huber, 28,313 s) and was NOT censored, because that
 # runner could not interrupt a fit inside the solver (reconciliation_report.md, 3.1); this runner
-# kills the worker process, so a re-run on a machine as slow would record that fit as TIMEOUT.
+# kills the worker process, so an equally slow re-run would record that fit as TIMEOUT.
 per_series_timeout_s = 21600.0
 max_failure_rate = 0.01
 
@@ -112,22 +111,22 @@ method = "naive2"
 file = "raw/m4-objectives-controlled-2026-10/per_series/mse__{freq}.csv.gz"
 order_columns = ["p", "d", "q", "P", "D", "Q"]
 smape_column = "smape_total"
-provenance = "controlled campaign m4obj-6957c71f60f1, RECREIO, 14dd581, 2026-10-17/19"
+provenance = "controlled campaign m4obj-6957c71f60f1, 14dd581, 2026-10-17/19"
 
 [archived.mae]
 file = "raw/m4-objectives-controlled-2026-10/per_series/mae__{freq}.csv.gz"
 order_columns = ["p", "d", "q", "P", "D", "Q"]
 smape_column = "smape_total"
-provenance = "controlled campaign m4obj-6957c71f60f1, RECREIO, 14dd581, 2026-10-17/19"
+provenance = "controlled campaign m4obj-6957c71f60f1, 14dd581, 2026-10-17/19"
 
 [archived.huber]
 file = "raw/m4-objectives-controlled-2026-10/per_series/huber__{freq}.csv.gz"
 order_columns = ["p", "d", "q", "P", "D", "Q"]
 smape_column = "smape_total"
-provenance = "controlled campaign m4obj-6957c71f60f1, RECREIO, 14dd581, 2026-10-17/19"
+provenance = "controlled campaign m4obj-6957c71f60f1, 14dd581, 2026-10-17/19"
 
 [archived.ridge]
 file = "raw/m4-objectives-controlled-2026-10/per_series/ridge__{freq}.csv.gz"
 order_columns = ["p", "d", "q", "P", "D", "Q"]
 smape_column = "smape_total"
-provenance = "controlled campaign m4obj-6957c71f60f1, RECREIO, 14dd581, 2026-10-17/19"
+provenance = "controlled campaign m4obj-6957c71f60f1, 14dd581, 2026-10-17/19"

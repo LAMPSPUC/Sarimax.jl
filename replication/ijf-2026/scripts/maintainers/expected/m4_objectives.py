@@ -1,7 +1,7 @@
 """Expected cells of the `m4_objectives` group, parsed from:
 
 * historical-tables/m4-objectives-icarai-2026-08/table1_horizon_total.txt and
-  table2_owa_by_block.txt (ICARAI make_tables.py, 2026-08-28);
+  table2_owa_by_block.txt (make_tables.py of the August 2026 objective campaigns, 2026-08-28);
 * historical-tables/forecasttester-2026-08/tabelas_paper.txt (tabelas_paper.py, 2026-08-26).
 """
 

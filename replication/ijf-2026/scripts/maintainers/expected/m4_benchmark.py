@@ -1,5 +1,5 @@
 """Expected cells of the `m4_benchmark` group, parsed from
-historical-tables/m4-recreio-2026-08/table_m4.txt (recreio make_table_m4.jl, 2026-08-28)."""
+historical-tables/m4-recreio-2026-08/table_m4.txt (campaign A's make_table_m4.jl, 2026-08-28)."""
 
 from __future__ import annotations
 

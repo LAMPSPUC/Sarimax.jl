@@ -75,19 +75,19 @@ method = "naive2"
 file = "raw/m4-objectives-icarai-2026-08/campaigns/cel_mse_zeroed_{freq}.csv.gz"
 order_columns = ["p", "d", "q", "P", "D", "Q"]
 smape_column = "smape_total"
-provenance = "ICARAI, commit 87f7bfb"
+provenance = "August 2026 objective campaigns, commit 87f7bfb"
 
 [archived.huber]
 file = "raw/m4-objectives-icarai-2026-08/campaigns/cel_huber_zeroed_{freq}.csv.gz"
 order_columns = ["p", "d", "q", "P", "D", "Q"]
 smape_column = "smape_total"
-provenance = "ICARAI, commit 87f7bfb"
+provenance = "August 2026 objective campaigns, commit 87f7bfb"
 
 [archived.mae]
 file = "raw/m4-objectives-icarai-2026-08/campaigns/cel_mae_zeroed_{freq}.csv.gz"
 order_columns = ["p", "d", "q", "P", "D", "Q"]
 smape_column = "smape_total"
-provenance = "ICARAI, commit 87f7bfb"
+provenance = "August 2026 objective campaigns, commit 87f7bfb"
 
 [archived.naive2]
 file = "raw/m4-baselines-r-2026-07/{freq}/Naive/total.csv.gz"

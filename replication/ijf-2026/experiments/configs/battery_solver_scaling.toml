@@ -12,7 +12,7 @@
 #
 # Needs SCIP (SCIP.jl 0.11.6, SCIP 8.0.x): the SCIP solves crash on Windows (upstream), so run
 # this in the Linux container. Wall time: up to about 1.5 h of SCIP time on the archived machine;
-# whether T = 100..150 certify within 600 s depends on the machine, so the Termination /
+# whether T = 100..150 certify within 600 s depends on the hardware, so the Termination /
 # Certified / RelGap cells near the frontier may legitimately differ.
 
 id = "battery_solver_scaling"

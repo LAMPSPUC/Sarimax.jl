@@ -1,10 +1,10 @@
-"""M4 estimation-objective campaigns of August 2026 (host ICARAI): mse, huber, mae, ridge
+"""M4 estimation-objective campaigns of August 2026: mse, huber, mae, ridge
 under `initialization = :zeroed` (600 s cap) and `:innovations` (no cap), on the monthly,
 quarterly, yearly and weekly M4 series.
 
 Rebuilds, from the per-series campaign files and the stored auto.arima/Naive2 baselines:
 
-* `icarai.table1` / `icarai.table2`: Tables 1 and 2 of the ICARAI replication package
+* `icarai.table1` / `icarai.table2`: Tables 1 and 2 of these campaigns' replication package
   (`make_tables.py`): total-horizon MASE/sMAPE/OWA and OWA by horizon block, over the series
   common to all eight cells and both baselines;
 * `forecasttester.A` / `forecasttester.B`: the same campaigns as tabulated by
@@ -74,7 +74,7 @@ def generate(ctx: Context) -> list[Cell]:
         rb = {b: read_baseline(ctx, freq, "autoarima_R", b) for b in BLOCK_NAMES}
         nb = {b: read_baseline(ctx, freq, "Naive", b) for b in BLOCK_NAMES}
 
-        # ---- ICARAI Tables 1 and 2: one common set across all eight cells -----------------
+        # ---- Tables 1 and 2 of the campaigns' package: one common set across all eight cells -----------------
         ids = set(rb["total"]) & set(nb["total"])
         for d in (d for fm in fam.values() for d in fm.values() if d is not None):
             ids &= set(d)

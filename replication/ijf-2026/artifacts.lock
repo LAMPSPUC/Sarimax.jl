@@ -1,9 +1,9 @@
 # Location of the archived artifact bundle (the Zenodo data record of the IJF paper).
 #
 # The bundle has two parts, two tarballs of the same Zenodo record that extract into the same
-# directory: part 1 (build_artifact_bundle.py, the maintainer host and the staging branches)
-# and part 2 (build_artifact_part2.py, host RECREIO: the controlled m4_objectives campaign and
-# the GAVEA raw archive). The CONTENT of each part is pinned by its inventory (artifacts.sha256,
+# directory: part 1 (build_artifact_bundle.py, the experiment workspaces and the staging branches)
+# and part 2 (build_artifact_part2.py: the controlled m4_objectives campaign and
+# the raw archive of the September 2026 campaigns). The CONTENT of each part is pinned by its inventory (artifacts.sha256,
 # artifacts-part2.sha256: one SHA-256 per file), which is part of the image fingerprint. This
 # file only says where to download the tarballs from; it is filled in when the Zenodo record is
 # published, after the image is built, and is deliberately outside the fingerprint. Until
@@ -27,9 +27,9 @@ url = ""          # direct download URL of the tarball in that record, once publ
 name = "sarimax-ijf-2026-artifacts-part2"
 version = "1"
 file = "sarimax-ijf-2026-artifacts-part2-v1.tar.gz"
-sha256 = "1714e162dd3c011f4d3a72718c7f2cb6b53c87d6fbacf6cbe94af422d6e27084"
-bytes = 298933451
+sha256 = "7da2dbeda488bcb051aec3ccfad2baa1df417f7f82377d3785943078388794f2"
+bytes = 298933470
 inventory = "artifacts-part2.sha256"
-inventory_sha256 = "dd93fc9e9f18a09e1bb6b191d706ca69bd14c4a4a4fb86b8ac742f3a674daa3e"
+inventory_sha256 = "f82c39c0b2c9915c1172da0a6221c1fe321ee8214909f2b7b21dad0b1756cbc9"
 doi = ""          # the same Zenodo record as part 1, once published
 url = ""

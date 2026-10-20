@@ -12,8 +12,8 @@ the sentence on regenerated results may only list tables and figures whose print
   numbers of Section 5.5, which have no archived source;
 - the results that agree only with derived tables (Tables S6 and S7, Figure S1) until their
   records are archived.
-The admissibility numbers of Section 5.5 are regenerated from the GAVEA raw archive (bundle
-part 2).
+The admissibility numbers of Section 5.5 are regenerated from the raw archive of the
+September 2026 campaigns (bundle part 2).
 
 The second paragraph has two versions. Use version (A) if the manuscript adopts the controlled
 comparison of estimation objectives (derived/m4-objectives-controlled-2026-10/

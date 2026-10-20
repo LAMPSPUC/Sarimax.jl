@@ -2,7 +2,7 @@
 forecast::auto.arima and the marginal distributions of both methods (manuscript Table 4,
 Table S8 and Figure 2; the paired shares quoted in Section 5.3).
 
-Same archived inputs as `m4_benchmark` (recreio campaign A, `mse`, `:innovations`, no time
+Same archived inputs as `m4_benchmark` (campaign A, `mse`, `:innovations`, no time
 cap, and the stored auto.arima per-series metrics), at the total horizon. The original analysis
 is `b_m4_distributional.py` of the September 2026 revision workspace; its tables are archived
 in `results/historical/m4-paired-2026-09/` and its definitions are the ones below:
@@ -32,7 +32,7 @@ import numpy as np
 
 from .common import Cell, Context, read_csv, status_ok, write_csv
 
-TITLE = "M4 paired differences and marginal distributions against auto.arima (recreio campaign A)"
+TITLE = "M4 paired differences and marginal distributions against auto.arima (campaign A)"
 RAW = "raw/m4-recreio-2026-08"
 BASE = "raw/m4-baselines-r-2026-07"
 FREQS = ["yearly", "quarterly", "monthly", "weekly", "daily", "hourly"]   # manuscript order

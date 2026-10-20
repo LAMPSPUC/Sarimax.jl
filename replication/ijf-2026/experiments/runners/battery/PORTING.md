@@ -60,7 +60,7 @@ their output (`ijftables/battery.py` replaces `combine_results.py`).
 
 ## What differs, and why (Windows check, October 2026)
 
-Measured by running the Julia and Python steps natively (R and SCIP unavailable on that machine)
+Measured by running the Julia and Python steps natively (R and SCIP unavailable in that environment)
 and rebuilding the tables. The regenerated simulated inputs and PJME-derived files were
 byte-identical to the archived ones.
 

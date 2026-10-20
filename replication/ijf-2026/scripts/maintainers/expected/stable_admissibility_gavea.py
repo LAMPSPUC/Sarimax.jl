@@ -1,5 +1,5 @@
 """Expected cells of the `stable_admissibility_gavea` group, parsed from the tables written on
-2026-10-17 by y_updated_results.py (pandas, from the GAVEA raw archive and campaign F), archived
+2026-10-17 by y_updated_results.py (pandas, from the raw archive and campaign F), archived
 in bundle part 2 under derived/stable-admissibility-gavea-2026-09/tables-2026-10-17/:
 <stem>_summary.csv and <stem>_paired_differences.csv for the stable objective, the 2x2x2x2
 admissibility census and the over-differencing guard. The CSVs carry full precision; the cells

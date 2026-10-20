@@ -1,15 +1,15 @@
 """Assemble PART 2 of the archived artifact bundle (maintainers only).
 
 Part 1 (`build_artifact_bundle.py`, sarimax-ijf-2026-artifacts-v1) holds the material that
-lives on the maintainer host and in the repository's staging branches. Part 2 holds the
-material produced or received on host RECREIO after part 1 was frozen:
+lives in the experiment workspaces and in the repository's staging branches. Part 2 holds the
+material produced or received after part 1 was frozen:
 
   * the controlled comparison of estimation objectives (experiment `m4_objectives`,
     2026-10-17/19): the frozen protocol, the environment, every per-series record of the
     16 (frequency, objective) cells and of the single authorized extra run (weekly MSE under
     the Table 3 protocol), ledgers, completeness audits, event logs, the runner and the
     independent scorer, and the tables that scorer produced;
-  * the GAVEA raw archive `brutos_gavea.zip` (Davi Valladao, shared 2026-10-16): the stable
+  * the raw archive `brutos_gavea.zip` (Davi Valladao, shared 2026-10-16): the stable
     (CVaR), over-differencing-guard and 2x2x2x2 admissibility campaigns behind the derived
     tables of 2026-10-17.
 
@@ -24,13 +24,13 @@ bytes):
     computes the per-block sMAPE/MASE from `forecast` and `test` (ijflib.m4data, the
     definitions of every M4 runner of this package), stores them as smape_<block> /
     mase_<block>, checks that the runner's own total sMAPE and MASE agree (relative 1e-9),
-    and drops `test`. The GAVEA forecast files (`*_prev.csv`) carry them in the column `a`,
+    and drops `test`. The forecast files of that archive (`*_prev.csv`) carry them in the column `a`,
     which is dropped.
   * Per-series files in the schema of `./reproduce.sh full` (ARTIFACT_GUIDE.md section 7),
     one per (objective, frequency), are derived from the records, so that a new run is
     compared with the archive series by series.
   * Two derived files hold, per series, the ratio between the lag-1 and the seasonal
-    in-sample naive MAE of the M4 hourly and quarterly training series: the GAVEA stable
+    in-sample naive MAE of the M4 hourly and quarterly training series: the stable
     campaigns of those frequencies wrote MASE with the lag-1 denominator, and this ratio
     converts it exactly to the M4 definition (reports of 2026-10-17, gavea_archive_audit.md).
 
@@ -256,7 +256,7 @@ def build(b: Part2) -> None:
     for name in DERIVED:
         b.add_file(dl / name, f"{CCD}/{name}")
 
-    # ---- GAVEA raw archive -------------------------------------------------------------------
+    # ---- raw archive of the September 2026 campaigns -------------------------------------------------------------------
     sums = {}
     for line in (b.gv / "SHA256SUMS").read_text(encoding="utf-8").splitlines():
         if line.strip():
@@ -267,11 +267,11 @@ def build(b: Part2) -> None:
         rel = f.relative_to(b.gv).as_posix()
         data = f.read_bytes()
         if rel != "SHA256SUMS" and sums.get(rel) not in (None, sha256(data)):
-            raise SystemExit(f"GAVEA {rel}: SHA-256 differs from the archive's SHA256SUMS")
+            raise SystemExit(f"archive file {rel}: SHA-256 differs from the archive's SHA256SUMS")
         if rel.endswith("_prev.csv"):
             rows = list(csv.reader(io.StringIO(data.decode("utf-8"))))
             if rows[0] != ["sid", "h", "f", "a"]:
-                raise SystemExit(f"GAVEA {rel}: unexpected header {rows[0]}")
+                raise SystemExit(f"archive file {rel}: unexpected header {rows[0]}")
             out = io.StringIO()
             cw = csv.writer(out, lineterminator="\n")
             cw.writerows([r[:3] for r in rows])

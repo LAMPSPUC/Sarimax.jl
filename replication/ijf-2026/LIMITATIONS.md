@@ -29,8 +29,8 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
      monthly cell (campaign A, 3d7f883) had no time cap and imposed stationarity through the
      reflection parameterization. Either the text or the cell's source must change.
    * **Table S4.** Its two weekly MSE values are the two archived experiments, 0.8977
-     (campaign A, aa68d57) and 0.9429 (ICARAI, 6a11698). The manifest records the settings in
-     which they differ: stationarity by reflection (A) or not (ICARAI), `warmStartFromBox`
+     (campaign A, aa68d57) and 0.9429 (August 2026 objective campaign, 6a11698). The manifest records the settings in
+     which they differ: stationarity by reflection (A) or not (the August 2026 cell), `warmStartFromBox`
      (false, true), `requireTermsWhenOverDifferenced` (false, true), the commit and the Julia
      version (1.9.4, 1.10.12). The controlled experiment settles it: under the release and one
      environment, the Table 3 protocol gives 0.8977 again (359/359 series identical to
@@ -45,7 +45,7 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
    * **Derived tables only** (23 values): Tables S6 and S7 and Figure S1 agree with the
      tables of the September 2026 revision analysis, whose simulation scripts are not
      archived. (The admissibility numbers of Section 5.5, 0.9094–0.9115 and 0.9095 → 0.9038,
-     are now regenerated from the GAVEA raw archive in bundle part 2: item 7.)
+     are now regenerated from the raw archive in bundle part 2: item 7.)
    * Figure 1 is an analytic illustration; its plotting script is not archived.
 
 ## Provenance of the archived results
@@ -58,10 +58,10 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
    estimators changed before the release (huber's warm-start scale, ridge's determinant
    factor: the a1ebc0d re-run moved ridge's weekly OWA by +0.1431). These campaigns are
    superseded by the controlled `m4_objectives` experiment.
-3. **The headline M4 campaign** (`m4_benchmark`, recreio campaign A) ran at two commits
+3. **The headline M4 campaign** (`m4_benchmark`, campaign A) ran at two commits
    (aa68d57 for five frequencies, 3d7f883 for monthly), both ancestors of the release, on
    Julia 1.9.4 with two MathOptInterface versions that were reconstructed, not recorded.
-4. **The auto.arima and Naive2 baselines** were computed in July 2026 on another host via
+4. **The auto.arima and Naive2 baselines** were computed in July 2026 in a separate R environment via
    RCall. The R version (4.4.1) and forecast version (8.23.0) are inferred from logs and
    scripts of the same workspace, not recorded with the results. The replication image uses
    exactly R 4.4.1 and forecast 8.23.0.
@@ -75,14 +75,14 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
    search, multistart, isolation, axes) ran from un-versioned scripts in the ForecastTester
    workspace; their package commits were not recorded. Their raw results and original
    scripts are archived, but their runners were not ported (`full` is unavailable for them).
-7. **The September 2026 GAVEA campaigns** (stable objective on hourly, quarterly, daily and
+7. **The September 2026 stable and admissibility campaigns** (stable objective on hourly, quarterly, daily and
    monthly; the 2x2x2x2 stationarity x invertibility x log-det census; the over-differencing
    guard) regenerate from their raw archive, `brutos_gavea.zip` (107,137,987 bytes, 177 files,
    its own SHA256SUMS verified on receipt, shared on 2026-10-16), which is in bundle part 2
    (the M4 test values in its `*_prev.csv` forecast files removed). The table group
    `stable_admissibility_gavea` rebuilds the tables of 2026-10-17 from it (1,028 cells). They
    cannot be re-executed: the campaigns ran on several commits (fc2c482+PR26, a1ebc0d, aa68d57,
-   4e8cf11) on macOS with Julia 1.12.3 (outside the package's compat) through the GAVEA
+   4e8cf11) on macOS with Julia 1.12.3 (outside the package's compat) through their own
    harness, and the census Manifest and the patch behind its normalization-off cells are lost.
    The stable campaigns of hourly and quarterly stored MASE with the lag-1 naive denominator;
    the per-series ratio that converts it exactly to the M4 seasonal denominator is archived
@@ -110,7 +110,7 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
 
 10. **M4** has no stated licence, so it is not redistributed. `fetch m4` downloads the
     official files at commit b8f01984 of Mcompetitions/M4-methods and verifies them; the
-    archived recreio files had the M4 test values (`actual`) removed for the same reason,
+    archived campaign A–F files had the M4 test values (`actual`) removed for the same reason,
     after their per-block metrics were computed from them.
 11. **PJME** (PJM hourly load, Kaggle copy): licence not established; fetched from this
     repository's history at commit 308461e and verified, not redistributed.
@@ -127,11 +127,11 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
 13. **The container image and the artifact bundle are not published yet.** Publishing (GHCR,
     Zenodo) is a maintainer action at release time. Until then the image is built locally
     and the bundle must be supplied with `--from`/`--artifacts`. The bundle has two parts.
-    Part 1 (535 files) exists on the maintainer host that built it; 299 of its files were
-    rebuilt byte for byte on a macOS machine and 446 on host RECREIO (Windows), the rest come
-    from workspaces that only the maintainer host holds (the a1ebc0d re-run and the derived
-    objective distributions). Part 2 (368 files: the controlled objective campaign and the GAVEA
-    raw archive) was built on RECREIO; two independent builds gave the same tarball byte for
+    Part 1 (535 files) has been built once, where all its sources are; 299 of its files were
+    rebuilt byte for byte natively on macOS and 446 on Windows, the rest come from experiment
+    workspaces that are not in the repository (the a1ebc0d re-run and the derived objective
+    distributions). Part 2 (368 files: the controlled objective campaign and the raw archive of
+    the September 2026 campaigns) was built twice, giving the same tarball byte for
     byte. Both tarballs go into the same Zenodo record.
 14. **`linux/arm64` is experimental.** The Dockerfile handles both architectures and CI builds
     and exercises arm64 on an arm64 runner, but only `linux/amd64` is the reference platform
@@ -140,7 +140,7 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
     native image.
 15. **Full re-execution of the M4 campaigns with this package's runner was not performed**
     while preparing the package (it costs hundreds of CPU-hours; the controlled objective
-    campaign alone took about 31 h on 10 workers of an i7-5820K). The runner was exercised on
+    campaign alone took about 31 h on 10 workers). The runner was exercised on
     subsets, which checks the execution path, checkpointing and resumption, and, where an
     archived run exists, the agreement with it series by series; it is not a substitute for the
     complete run. The controlled objective campaign's archive is itself a complete execution
@@ -151,7 +151,7 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
     series of M4 monthly, quarterly, yearly and weekly under MSE, MAE, Huber and Ridge; 381,436
     fits, none failed), and its tables regenerate from its archived records (544 cells). Its
     caveats:
-    * It ran with its own runner on Windows (host RECREIO), not with this package's image. The
+    * It ran with its own runner on Windows, not with this package's image. The
       image's Julia environment equals the campaign's except `CompilerSupportLibraries_jll`,
       but a re-run in the image runs on Linux. Re-running every weekly series in the image
       reproduced the archive on 359/359 series for each objective: same selected order, total

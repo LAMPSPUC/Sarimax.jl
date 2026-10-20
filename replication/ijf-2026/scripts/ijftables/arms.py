@@ -1,4 +1,4 @@
-"""RECREIO paired-arm campaigns of August 2026 (campaigns B-F of the recreio REPRODUCE.md),
+"""Paired-arm campaigns of August 2026 (campaigns B-F of their REPRODUCE.md),
 as tabulated by `tables/make_table_arms.jl` (original-scripts/m4-recreio-2026-08).
 
 Rebuilds, from the per-series result files of raw/m4-recreio-2026-08/, the seven arm tables of
@@ -50,7 +50,7 @@ dropped_pct, reference) or `<freq>|<arm>` (sMAPE, MASE, vs_ref, wins_pct, errors
 ge_120s, delta.mean, delta.median, delta.p05, delta.p95; the reference arm has no vs_ref,
 wins_pct or delta cells, which the table prints as `-`).
 
-HISTORICAL caveats (recreio REPRODUCE.md): campaigns B and C ran under a 120 s wall-clock cap
+HISTORICAL caveats (REPRODUCE.md of campaigns A-F): campaigns B and C ran under a 120 s wall-clock cap
 and are reproducible only at fixed machine load (finding 6); the `_pen` cells of campaign B
 measured `initialization = :free`, not `:penalized` (finding 2); the production arm of campaign
 D (`v0_6`) ran an uncommitted wrapper (finding 3); campaigns B and C have no recorded commit.
@@ -66,7 +66,7 @@ from pathlib import Path
 
 from .common import Cell, Context, write_text
 
-TITLE = "RECREIO paired-arm tables, Aug 2026 (campaigns B-F, make_table_arms.jl)"
+TITLE = "Paired-arm tables, Aug 2026 (campaigns B-F, make_table_arms.jl)"
 RAW = "raw/m4-recreio-2026-08"
 
 # (table name, raw file stem); the historical table of each is table_<name>.txt

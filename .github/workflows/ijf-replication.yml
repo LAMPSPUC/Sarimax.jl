@@ -313,7 +313,7 @@ jobs:
               print(r["artifact"], r["status"], r["generated"], r["note"])
           assert len(cmp) == 4, f"expected a comparison with the archive for each objective, got {len(cmp)}"
           # On the reference platform the image reproduces the archived campaign series by series
-          # (every weekly series did on host RECREIO); arm64 is experimental and only reported.
+          # (every weekly series did in a complete local run); arm64 is experimental and only reported.
           if os.environ.get("PLATFORM") == "linux/amd64":
               assert all(r["status"] == "PASS" for r in cmp), "a sampled series does not reproduce the archive"
           EOF

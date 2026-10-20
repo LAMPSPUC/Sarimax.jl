@@ -4,15 +4,15 @@ The bundle is the Zenodo data record that `./reproduce.sh tables` reads. It is a
 from the places where the experimental material actually lives:
 
   * this repository's history (the July 2026 battery, removed from master by 74eb882) and
-    the three `paper/replication-staging-*` branches (icarai, recreio, gavea);
+    the three `paper/replication-staging-*` branches;
   * the experiment workspace of the ForecastTester checkout (raw campaign files, the
     auto.arima/Naive2 baselines, the October 2026 Table 7 evidence, the SCIP/Ipopt runs);
   * the `sarimax-replication` folder (the v1.0.0 = a1ebc0d re-run of the huber/ridge cells).
 
-Nothing is recomputed except in one documented transform: the recreio campaign files carry
+Nothing is recomputed except in one documented transform: the campaign A-F files carry
 the M4 test values (`actual`), whose redistribution rights are not established. For those
 files the builder computes the per-block sMAPE/MASE from `forecast` and `actual` with the
-campaign's own definitions (recreio `make_table_m4.jl`), stores them as new columns, and
+campaign's own definitions (campaign A's `make_table_m4.jl`), stores them as new columns, and
 drops `actual`. Every file's origin, the SHA-256 of the original bytes and the transform
 applied are recorded in PROVENANCE.csv, and every file of the bundle in artifacts.sha256.
 
@@ -250,7 +250,7 @@ def build(b: Builder) -> None:
         b.add_git(BATTERY, p, "original-scripts/battery-2026-07/" + p[len("experiments/"):])
     b.add_git(BATTERY, "WORKLOG.md", "original-scripts/battery-2026-07/WORKLOG.md")
 
-    # 2. ICARAI M4 objective campaigns (August 2026) ------------------------------------------
+    # 2. M4 objective campaigns (August 2026) ------------------------------------------
     pre = "experiments/"
     b.add_git_tree(ICARAI, pre + "results/raw", "raw/m4-objectives-icarai-2026-08/campaigns")
     b.add_git_tree(ICARAI, pre + "results/baselines", "raw/m4-objectives-icarai-2026-08/baselines")
@@ -271,7 +271,7 @@ def build(b: Builder) -> None:
     for name in ("run_all.sh", "compare_rerun.py"):
         b.add_file(rr / name, f"original-scripts/m4-objectives-rerun-a1ebc0d-2026-08/{name}")
 
-    # 4. RECREIO campaigns (August 2026): headline M4 table and the arm experiments ----------
+    # 4. Campaigns A-F (August 2026): headline M4 table and the arm experiments ----------
     raw_dir = pre + "results/raw/"
     for p in b.git_files(RECREIO, raw_dir):
         name = p[len(raw_dir):]
@@ -354,7 +354,7 @@ def build(b: Builder) -> None:
         elif f.suffix == ".jl":
             b.add_file(f, f"original-scripts/scip-ipopt-yearly-2026-07/{f.name}")
 
-    # 12. GAVEA stable/CVaR and admissibility campaigns (September 2026): scripts and probes
+    # 12. Stable/CVaR and admissibility campaigns (September 2026): scripts and probes
     #     only; the raw campaign files travelled in a separate archive not available here.
     for p in b.git_files(GAVEA, "tables"):
         b.add_git(GAVEA, p, f"raw/stable-admissibility-gavea-2026-09/{p}")

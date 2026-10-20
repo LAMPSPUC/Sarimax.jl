@@ -18,7 +18,7 @@ auto.arima/Naive2 baselines (part 1):
   cell (same order and |delta sMAPE| <= 1e-3).
 
 and writes the rebuilt tables (CSV and LaTeX) and the ECDF figure of the per-series MASE
-differences (the replacement Figure 4).
+differences (the replacement for `fig:objective_ecdf`, Figure 3 of the 2026-10-16 revision).
 
 Definitions (those of the campaign's protocol, [evaluation]): a series counts for an objective
 when the fit returned a finite forecast (status OK, any solver status); the joint set is the
@@ -40,7 +40,7 @@ import math
 
 from .common import BLOCK_NAMES, Cell, Context, fmean, owa, read_csv, write_csv, write_text
 
-TITLE = "M4 objectives, controlled campaign Oct 2026: replacement Tables 5-6 and Figure 4"
+TITLE = "M4 objectives, controlled campaign Oct 2026: replacement Tables 5-6 and objective ECDF figure"
 RAW = "raw/m4-objectives-controlled-2026-10"
 BASE = "raw/m4-baselines-r-2026-07"
 FREQS = [("monthly", 48000), ("quarterly", 24000), ("yearly", 23000), ("weekly", 359)]

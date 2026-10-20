@@ -7,7 +7,7 @@
 # ran on feature-branch commits 87f7bfb, 6a11698 and 5b2ec6b, which are not part of a
 # release. This configuration re-runs the SAME protocol on the release code; differences
 # from the archived per-series results are expected (huber's warm-start scale and ridge's
-# determinant factor changed before the release, see the ICARAI REPRODUCE.md section 7), so
+# determinant factor changed before the release, see section 7 of these campaigns' REPRODUCE.md), so
 # a re-run is an execution of the historical protocol, not a reproduction of its numbers.
 
 id = "m4_objectives_icarai_innovations"
@@ -88,25 +88,25 @@ file = "raw/m4-objectives-icarai-2026-08/campaigns/req_true_{freq}.csv.gz"
 by_frequency = { weekly = "raw/m4-objectives-icarai-2026-08/campaigns/obj_mse_innov_weekly.csv.gz" }
 order_columns = ["p", "d", "q", "P", "D", "Q"]
 smape_column = "smape_total"
-provenance = "ICARAI, commits 87f7bfb/5b2ec6b (weekly: obj_mse_innov_weekly at 6a11698)"
+provenance = "August 2026 objective campaigns, commits 87f7bfb/5b2ec6b (weekly: obj_mse_innov_weekly at 6a11698)"
 
 [archived.huber]
 file = "raw/m4-objectives-icarai-2026-08/campaigns/obj_huber_innov_{freq}.csv.gz"
 order_columns = ["p", "d", "q", "P", "D", "Q"]
 smape_column = "smape_total"
-provenance = "ICARAI, commits 5b2ec6b/6a11698"
+provenance = "August 2026 objective campaigns, commits 5b2ec6b/6a11698"
 
 [archived.mae]
 file = "raw/m4-objectives-icarai-2026-08/campaigns/obj_mae_innov_{freq}.csv.gz"
 order_columns = ["p", "d", "q", "P", "D", "Q"]
 smape_column = "smape_total"
-provenance = "ICARAI, commits 5b2ec6b/6a11698"
+provenance = "August 2026 objective campaigns, commits 5b2ec6b/6a11698"
 
 [archived.ridge]
 file = "raw/m4-objectives-icarai-2026-08/campaigns/obj_ridge_innov_{freq}.csv.gz"
 order_columns = ["p", "d", "q", "P", "D", "Q"]
 smape_column = "smape_total"
-provenance = "ICARAI, commits 5b2ec6b/6a11698"
+provenance = "August 2026 objective campaigns, commits 5b2ec6b/6a11698"
 
 [archived.naive2]
 file = "raw/m4-baselines-r-2026-07/{freq}/Naive/total.csv.gz"

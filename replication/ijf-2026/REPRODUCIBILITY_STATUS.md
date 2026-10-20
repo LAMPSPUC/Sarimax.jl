@@ -19,20 +19,19 @@ in two ways:
 
 * **Historical**: against the archived historical table it comes from. This is done by
   `check_manuscript_mapping.py`, which needs only the repository.
-* **Regenerated**: against the value rebuilt from archived per-series results, on two
-  machines.
-  * Host RECREIO: Windows, in the linux/amd64 container, 2026-10-20, with 446 of the 535
-    part-1 files rebuilt there and all of part 2.
-  * A macOS arm64 machine: native, 2026-10-18, with the inputs described under "What was
+* **Regenerated**: against the value rebuilt from archived per-series results, in two runs.
+  * The container run of 2026-10-20 (linux/amd64, Docker Desktop on Windows 10), with 446 of
+    the 535 part-1 files rebuilt from their sources and all of part 2.
+  * A native macOS arm64 run of 2026-10-18, with the inputs described under "What was
     tested".
 
-| Item | Label | Values | Historical | Regenerated (RECREIO, container) | Regenerated (macOS) | Source |
+| Item | Label | Values | Historical | Regenerated (container, 2026-10-20) | Regenerated (native macOS, 2026-10-18) | Source |
 |---|---|---|---|---|---|---|
 | Table 2 | `tab:matched_validation` | 20 | 20 agree | 20 agree | 20 agree | battery_validation |
 | Table 3 | `tab:m4_forecasting` | 12 | 12 agree | 12 agree (all six frequencies) | 8 agree | m4_benchmark |
 | Table 4 | `tab:m4_paired_quantiles` | 84 | 84 agree | 84 agree | 56 agree | m4_benchmark (m4_paired) |
-| Table 5 | `tab:m4_objectives` | 44 | 44 agree | 20 agree (`m4_objectives`); 24 need the maintainer host's inputs | 44 agree | m4_objectives_icarai_innovations, m4_objective_distributions |
-| Table 6 | `tab:objective_paired_quantiles` | 60 | 60 agree | maintainer host's inputs needed | 60 agree | m4_objective_distributions |
+| Table 5 | `tab:m4_objectives` | 44 | 44 agree | 20 agree (`m4_objectives`); 24 need part-1 inputs not rebuildable from the repository | 44 agree | m4_objectives_icarai_innovations, m4_objective_distributions |
+| Table 6 | `tab:objective_paired_quantiles` | 60 | 60 agree | needs part-1 inputs not rebuildable from the repository | 60 agree | m4_objective_distributions |
 | Table 7 | `tab:local_global_forecasts` | 40 | 38 agree, **2 differ** | 38 agree, **2 differ** | 38 agree, **2 differ** | battery_global_value |
 | Table S2 | `tab:exog_validation` | 9 | no archived source | – | – | exog_convention_simulation (BLOCKED) |
 | Table S3 | `tab:m4_baseline` | 2 | configuration, see LIMITATIONS item 1 | – | – | – |
@@ -41,13 +40,13 @@ in two ways:
 | Table S6 | `tab:quantile_demo` | 9 | agree with a derived table only | – | – | quantile_demo (PARTIAL) |
 | Table S7 | `tab:multistart` | 10 | agree with a derived table only | – | – | multistart_kstart (PARTIAL) |
 | Table S8 | `tab:supp_m4_marginal` | 115 | 115 agree | 115 agree | 75 agree | m4_benchmark (m4_paired) |
-| Table S9 | `tab:supp_obj_mase` | 84 | 84 agree | maintainer host's inputs needed | 84 agree | m4_objective_distributions |
-| Table S10 | `tab:supp_obj_smape` | 84 | 84 agree | maintainer host's inputs needed | 84 agree | m4_objective_distributions |
+| Table S9 | `tab:supp_obj_mase` | 84 | 84 agree | needs part-1 inputs not rebuildable from the repository | 84 agree | m4_objective_distributions |
+| Table S10 | `tab:supp_obj_smape` | 84 | 84 agree | needs part-1 inputs not rebuildable from the repository | 84 agree | m4_objective_distributions |
 | Figure 2 | `fig:m4_pair_ecdf` | 36 | 36 agree | 36 agree | 24 agree | m4_benchmark (m4_paired) |
-| Figure 3 | `fig:objective_ecdf` | 12 | 12 agree | maintainer host's inputs needed | 12 agree | m4_objective_distributions |
+| Figure 3 | `fig:objective_ecdf` | 12 | 12 agree | needs part-1 inputs not rebuildable from the repository | 12 agree | m4_objective_distributions |
 | Section 5.3 | `sec:m4_validation` | 4 | 2 agree, 2 checked at run time only | 4 agree (the 41–78% range needs all six frequencies) | 2 agree | m4_benchmark (m4_paired) |
-| Section 5.4 | `sec:m4_objectives` | 4 | 4 agree | maintainer host's inputs needed | 4 agree | m4_objective_distributions |
-| Section 5.5 | `sec:estimation_sensitivity` | 15 | 4 agree (admissibility); 11 no archived source | 4 agree (regenerated from the GAVEA raw archive) | – | stable_admissibility_gavea; initialization_experiment, ranking_likelihood_diagnostic (BLOCKED) |
+| Section 5.4 | `sec:m4_objectives` | 4 | 4 agree | needs part-1 inputs not rebuildable from the repository | 4 agree | m4_objective_distributions |
+| Section 5.5 | `sec:estimation_sensitivity` | 15 | 4 agree (admissibility); 11 no archived source | 4 agree (regenerated from the raw archive) | – | stable_admissibility_gavea; initialization_experiment, ranking_likelihood_diagnostic (BLOCKED) |
 | Section 5.6 | `sec:global_diagnostics` | 14 | 2 agree; 12 no archived source | 2 agree | 2 agree | battery_solver_comparison; global_optimization_grid (BLOCKED) |
 | Figure 1, Figure S1 | `fig:ar3_cross_sections`, `fig:weighted_demo` | – | figures without printed numbers; Figure S1's data agree with a derived table | – | – | ar3_stationarity_figure, weighted_regularization_demo (PARTIAL) |
 
@@ -61,8 +60,8 @@ In all, against the historical tables:
 | agree only with derived tables whose raw inputs are not archived | 19 |
 | no archived source | 46 |
 
-Every printed value that has a regenerable source was regenerated on at least one of the two
-machines: 605 values, of which 603 agree and 2 differ. Details, and what each gap needs, are in
+Every printed value that has a regenerable source was regenerated in at least one of the two
+runs: 605 values, of which 603 agree and 2 differ. Details, and what each gap needs, are in
 `LIMITATIONS.md`, item 1.
 
 **The replacement objective tables.** Tables 5, 6, S9 and S10, Figure 3 and Section 5.4 print
@@ -100,13 +99,14 @@ cells.
 
 **Level B in total:** 6,860 reference cells in ten table groups.
 
-| Host | Date | Groups | Cells that agree |
+| Run | Date | Groups | Cells that agree |
 |---|---|---|---|
-| maintainer host, the full part 1 | 2026-10-17 | 7 then present | 4,868 of 4,868 |
-| macOS machine | 2026-10-18 | every group whose inputs could be rebuilt there | 4,796 |
-| RECREIO, in the container | 2026-10-20 | 9 of the 10 groups | 3,988 of 3,988 |
+| bundle assembly, the full part 1 | 2026-10-17 | 7 then present | 4,868 of 4,868 |
+| native macOS arm64 | 2026-10-18 | every group whose inputs could be rebuilt there | 4,796 |
+| container (linux/amd64) | 2026-10-20 | 9 of the 10 groups | 3,988 of 3,988 |
 
-On RECREIO, `m4_objective_distributions` needs inputs that only the maintainer host holds.
+In the container run, `m4_objective_distributions` needed part-1 inputs that cannot be rebuilt from the
+repository (the published part 1 supplies them).
 
 The historical objective campaigns ran on feature-branch commits. Their tables are verified
 from the archive, but they are superseded by `m4_objectives` and must not be combined with it.
@@ -117,10 +117,9 @@ report and the superseded historical campaign.
 
 ## What was tested
 
-### Host RECREIO (Windows 10, Docker Desktop 27.2.0, container linux/amd64, 2026-10-20; this pull request)
+### Container run (linux/amd64, Docker Desktop 27.2.0 on Windows 10, 2026-10-20; this pull request)
 
-RECREIO is the host of the controlled objective campaign. It has an i7-5820K (12 threads) and
-64 GB of RAM, and the container was given 31 GB.
+The container was given 12 CPU threads and 31 GB of memory.
 
 **The image.** It was built with `./reproduce.sh build` from the checkout, under Git Bash.
 * Building every layer took 10.5 min; rebuilding the last layer took 3–5 min.
@@ -129,16 +128,16 @@ RECREIO is the host of the controlled objective campaign. It has an i7-5820K (12
   documentation is not fingerprinted).
 
 **The bundle.** It was built in two parts and checked against both inventories.
-* Part 1: 446 of its 535 files were rebuilt on this host by the part-1 builder's code. Each
-  matched `artifacts.sha256` byte for byte before use. The other 89 files exist only on the
-  maintainer host.
+* Part 1: 446 of its 535 files were rebuilt from their sources by the part-1 builder's code.
+  Each matched `artifacts.sha256` byte for byte before use. The other 89 come from workspaces
+  that are not in the repository; the published part 1 holds them.
 * Part 2: built twice, with byte-identical tarballs.
 
 | Test | Command | Result |
 |---|---|---|
 | Environment, identity, inputs | `./reproduce.sh check --artifacts <local bundle>` | exit 4, as required (part 1 incomplete). Python 17/17, Julia 148/148 and R 39/39 locked packages match; forecast 8.23.0; image content and checkout fingerprints match; 176 committed files intact; part 2 368/368 verified; part 1 MISSING (446/535 present) |
 | Smoke (Level A) | `./reproduce.sh smoke` | PASS: 61 of 61 compared quantities (Julia/Ipopt fits, non-default objectives, admissibility, SCIP global solve with dual bound, R `forecast`, Python `statsmodels`), 2 min 50 s |
-| Tables (Level B), every group | `./reproduce.sh tables --artifacts <local bundle>` | 9 groups PASS, 3,988 of 3,988 cells (battery 583, m4_benchmark 192, m4_paired 420, m4_objectives 880, m4_objectives_controlled 544, arms 299, robust_cvar 19, scip_ipopt 23, stable_admissibility_gavea 1,028); m4_objective_distributions MISSING (maintainer-host inputs), so exit 4, as required |
+| Tables (Level B), every group | `./reproduce.sh tables --artifacts <local bundle>` | 9 groups PASS, 3,988 of 3,988 cells (battery 583, m4_benchmark 192, m4_paired 420, m4_objectives 880, m4_objectives_controlled 544, arms 299, robust_cvar 19, scip_ipopt 23, stable_admissibility_gavea 1,028); m4_objective_distributions MISSING (part-1 inputs not rebuildable from the repository), so exit 4, as required |
 | The two new groups | `... tables --group m4_objectives_controlled --group stable_admissibility_gavea` | exit 0: 544/544 and 1,028/1,028 |
 | Manuscript values | (part of `tables`) | see "The manuscript, number by number": Tables 2, 3, 4, S8, Figure 2, Section 5.3 complete; Section 5.5's admissibility values regenerated; Table 7's two Ipopt times differ |
 | Fetch a bundle part from a local tarball | `./reproduce.sh fetch artifacts --from sarimax-ijf-2026-artifacts-part2-v1.tar.gz --artifacts <empty dir>` | part 2 extracted, 368/368 verified, its marker written; part 1 has no location yet, so exit 4 |
@@ -152,21 +151,21 @@ RECREIO is the host of the controlled objective campaign. It has an i7-5820K (12
 | `full --all`, one series per task | `./reproduce.sh full --all --limit 1 --jobs 4` (fetches the M4 daily/hourly files and PJME first) | overall PASS in 73 min. It ran `battery_validation`, `battery_solver_comparison` and `battery_global_value` (every Julia, R and Python step; the three SCIP global solves took about 40 min). Their rebuilt tables against the historical ones: 177/224, 58/70 and 27/42 cells agree. That includes timing cells and the definition changes from v0.3.0 to the release listed in `experiments/runners/battery/PORTING.md`; reported as WARN, as designed. It then ran `m4_benchmark` (6 frequencies × Sarimax.jl, auto.arima and Naive2: every series reproduces the archive, the R baselines included) and `m4_objectives` (4 frequencies × 4 objectives: every series reproduces the archive) |
 | Worker start-up | events of the runs above | the 10 workers of a task were ready 1 min 50 s after it started (each loads the package for about a minute); before this change they started one after another, 11 min per task |
 
-### Second machine (macOS arm64, native, 2026-10-18; this pull request)
+### Native run on macOS arm64 (2026-10-18; this pull request)
 
 | Test | How | Result |
 |---|---|---|
-| Bundle rebuilt from its sources | `build_artifact_bundle.py` logic for every section whose source exists outside the maintainer host (git: battery, ICARAI, recreio, GAVEA; files: the Table 7 evidence), Python 3.14 | 299 of 535 files byte-identical to `artifacts.sha256` (after making the redaction sum independent of the Python version; before: 291, the 8 redacted recreio files differed in last bits) |
+| Bundle rebuilt from its sources | `build_artifact_bundle.py` logic for every section whose source is in git (the battery and the three staging branches) or in the Table 7 evidence, Python 3.14 | 299 of 535 files byte-identical to `artifacts.sha256` (after making the redaction sum independent of the Python version; before: 291, the 8 redacted campaign A–F files differed in last bits) |
 | Table groups on the rebuilt files | `./reproduce.sh tables --native --artifacts <partial bundle>` | battery 583, m4_objectives 880, arms 299, robust_cvar 19, scip_ipopt 23 cells: all agree; groups with missing inputs reported MISSING, exit 4 |
-| m4_objective_distributions | generator on the rebuilt per-series and raw files, `archived` set (the published totals taken from `results/expected/` because `tabelas_paper.txt` comes from the maintainer host) | 2,584/2,584 cells agree |
-| m4_benchmark, m4_paired (new) | generators on the rebuilt campaign A files, monthly/quarterly/yearly/weekly, with icarai's copy of the stored auto.arima/Naive2 values (same values, another format) | 128/128 and 280/280 cells agree |
+| m4_objective_distributions | generator on the rebuilt per-series and raw files, `archived` set (the published totals taken from `results/expected/` because `tabelas_paper.txt` is not in git) | 2,584/2,584 cells agree |
+| m4_benchmark, m4_paired (new) | generators on the rebuilt campaign A files, monthly/quarterly/yearly/weekly, with the August 2026 objective campaigns' copy of the stored auto.arima/Naive2 values (same values, another format) | 128/128 and 280/280 cells agree |
 | Manuscript reconciliation | all of the above, then `manuscript.reconcile` | 515 printed values regenerated and agree; 2 differ (Table 7 times); see the table above |
 | Static checks | `check_package.py`, `check_manuscript_mapping.py`, shellcheck 0.11 | consistent; 599 agree, 2 differ; shellcheck clean |
-| Exit codes on the host | `./reproduce.sh` without the Docker daemon, without Docker, with bad usage, with a missing `--from` file | 3, 3, 2, 4 |
+| Exit codes outside the container | `./reproduce.sh` without the Docker daemon, without Docker, with bad usage, with a missing `--from` file | 3, 3, 2, 4 |
 | Smoke scripts outside the container | `smoke.R` (R 4.6.1, forecast 9.0.2) and `smoke_python.py` (statsmodels 0.15) | every compared quantity within its tolerance |
 | SCIP smoke test after the fix | `smoke.jl scip_global`, Julia 1.12.6, SCIP.jl 0.11.14 (SCIP 8.0.0) | 11/11 checks pass; `Sarimax.fit!` with SCIP, `:warmup`: θ = 0.67573 against the grid's 0.67584 (`:zeroed` gives 0.77839, the optimum of its own objective, 0.77859) |
 | R runners outside the container | `m4_worker.R` (both methods, JSON protocol) and the battery's `run_validation_r.R` after `gen_sim_data.py`, R 4.6.1 + forecast 9.0.2 | the worker answers both methods; the battery R step reproduces the 11 archived records exactly (runtime excluded) |
-| Container on this machine | – | not run: Docker Desktop's virtual disk is limited to 8 GiB here and the image needs more; the container is tested in CI, or on a machine with more disk |
+| Container | – | not run natively: Docker Desktop's virtual disk was limited to 8 GiB and the image needs more; the container is tested in CI and in the container run above |
 
 ### Continuous integration (GitHub-hosted runners, container; pull request 34)
 
@@ -177,13 +176,13 @@ RECREIO is the host of the controlled objective campaign. It has an i7-5820K (12
 | Second image build (`1c0d0f6`) | R step PASS (binary packages from the snapshot, every version as locked) | FAIL at the R step: the snapshot has no arm64 binaries, packages compile, and the R package curl needs the libcurl headers; fixed by installing them on arm64 (`09f98a2`) |
 | Third run (`09f98a2`): image build | PASS | PASS |
 | `check` in the container | PASS: Python, Julia and R environments match their locks, Ipopt and SCIP load, image identity verified; the unpublished bundle is reported MISSING, as it must be | same |
-| `smoke` in the container | 60 of 61 compared quantities PASS (Julia/Ipopt, SCIP, R, Python). FAIL: `package_scip_theta`, a defect of the test: the package fit used `initialization = :zeroed` (which drops the first observation), the reference is the optimum of the objective that keeps it, `:warmup`. Fixed; checked on the second machine (11/11 SCIP checks pass) | same |
+| `smoke` in the container | 60 of 61 compared quantities PASS (Julia/Ipopt, SCIP, R, Python). FAIL: `package_scip_theta`, a defect of the test: the package fit used `initialization = :zeroed` (which drops the first observation), the reference is the optimum of the objective that keeps it, `:warmup`. Fixed; checked in the native macOS run (11/11 SCIP checks pass) | same |
 | Fixture tables, missing/corrupted inputs, foreign image, M4 fetch, sampled full runs (m4_benchmark 2→3 series with `--resume`, the objective campaign, the battery validation experiment) | not reached in the third run (the job stops at the first failing step); see the latest run of pull request 34 | same |
 | Fourth run (`f415b60`): every step | PASS (fixture tables, missing/corrupted inputs, foreign image, M4 fetch, sampled full runs) | PASS |
 | Fifth run (`a873ab9`, this update: rebased Julia environment, two-part bundle, final `m4_objectives`, parallel worker start-up): every step, including the controlled objective campaign on 3 weekly series per arm compared with its archive | PASS (job 13 min) | PASS (job 15 min) |
 | Package CI (`ci.yml`) at `a873ab9` | Julia 1 and 1.10 on ubuntu, Julia 1 on windows and macos: PASS (the windows job had failed at `f415b60`, a commit that changes no package file; it passed at `a873ab9`, so that failure is not reproducible; its log needs a GitHub sign-in) | – |
 
-### Maintainer host that assembled the package (Windows, native, 2026-10-17)
+### Native run on Windows that assembled bundle part 1 (2026-10-17)
 
 | Test | How | Result |
 |---|---|---|
@@ -206,7 +205,7 @@ Two items of the previous list were resolved on 2026-10-20:
 
 * the final results and frozen protocol of the controlled `m4_objectives` experiment, now in
   bundle part 2;
-* the raw GAVEA archive, also in bundle part 2.
+* the raw archive of the September 2026 stable and admissibility campaigns, also in bundle part 2.
 
 What remains:
 
@@ -215,7 +214,7 @@ What remains:
    * the global-optimization grid and the certified instances of Section 5.6 (the August 2026
      certification batch: instances, SCIP logs, primal and dual bounds, tolerances);
    * the initialization and likelihood-ranking diagnostics of Section 5.5.
-2. **The GAVEA census Manifest and the `fator=1` patch** behind its normalization-off cells
+2. **The census Manifest and the `fator=1` patch** behind its normalization-off cells
    (lost), needed to re-execute those arms.
 3. **The simulation scripts of the September 2026 revision analysis** (`efg_julia_experiments.jl`,
    `efg_figures.py`, the `a_` stationarity figure script) and their outputs, for Tables S6 and
@@ -224,18 +223,18 @@ What remains:
    run, and the log of the OPTIMAL re-run of the PJME global-value instance.
 5. **Package commits** behind the contamination/CVaR, admissibility, initialization and
    order-search studies, and runners for them that do not need the ForecastTester harness.
-6. **The ForecastTester harness** repository state used by the recreio campaigns B–E, and the
+6. **The ForecastTester harness** repository state used by campaigns B–E, and the
    committed source of the v0_6 production wrapper.
 7. **The R/forecast version** of the July 2026 auto.arima/Naive2 baselines, which was not
    recorded (inferred from logs: R 4.4.1, forecast 8.23.0).
 8. **Licences and redistribution:**
    * confirmation for M4 and PJME, which are currently fetched, not redistributed;
    * a decision on redistributing SCIP 8.0.0 (ZIB Academic License) in the public image;
-   * the GAVEA authors' agreement to publish `brutos_gavea.zip` in the data record.
+   * its authors' agreement to publish the raw archive `brutos_gavea.zip` in the data record.
 9. **Publication identifiers:** the published bundle (Zenodo, both parts), the image (GHCR),
    and the DOIs and digest that go into `artifacts.lock`, `image.lock`, `CITATION.cff` and the
    availability statement.
-10. **Part-1 inputs on the maintainer host only:** a re-run of the `m4_objective_distributions`
-    group outside the maintainer host needs the part-1 files that only that host can rebuild
+10. **Part-1 inputs not rebuildable from the repository:** a run of the `m4_objective_distributions`
+    group needs part-1 files that cannot be rebuilt from the repository
     (the a1ebc0d re-run and the derived objective distributions). The published part 1
     supplies them.

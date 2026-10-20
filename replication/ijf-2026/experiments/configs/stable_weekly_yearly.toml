@@ -1,9 +1,9 @@
 # CVaR ("stable") objective against mse on the M4 weekly and yearly populations (manifest id
 # stable_weekly_yearly): three arms paired on the same series.
 #
-# Protocol: recreio campaign F, experiments/scripts/run_stable.jl (stableConfig), commit
+# Protocol: campaign F, experiments/scripts/run_stable.jl (stableConfig), commit
 # 3d7f883. The stable_090 arm was missing from the runner after the run and was RESTORED by
-# the recreio authors (see the recreio REPRODUCE.md finding 1); its cvarLevel 0.9 is an
+# the authors of campaigns A-F (see their REPRODUCE.md, finding 1); its cvarLevel 0.9 is an
 # inference from the arm label and the default at that commit.
 
 id = "stable_weekly_yearly"

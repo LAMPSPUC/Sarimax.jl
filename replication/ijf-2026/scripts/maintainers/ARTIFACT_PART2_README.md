@@ -10,10 +10,10 @@ both and verifies every file against `artifacts.sha256` in the repository.
 
 `raw/m4-objectives-controlled-2026-10/`: the controlled comparison of estimation objectives
 (MSE, MAE, Huber, Ridge) on M4 monthly (48,000), quarterly (24,000), yearly (23,000) and weekly
-(359) series, run 2026-10-17 to 2026-10-19 on host RECREIO with Sarimax.jl v1.0.0 (`14dd581`).
+(359) series, run 2026-10-17 to 2026-10-19 with Sarimax.jl v1.0.0 (`14dd581`).
 
 * `protocol/`: the frozen protocol (`experiment_protocol.toml`, frozen before the first fit),
-  the Julia environment (`env/Project.toml`, `env/Manifest.toml`) and the recorded machine and
+  the Julia environment (`env/Project.toml`, `env/Manifest.toml`) and the recorded system and
   package versions (`environment_manifest.json`);
 * `runs/m4obj-6957c71f60f1/<frequency>/<objective>/`: one JSON record per series and attempt
   (order, coefficients, criterion values, solver status and iterations, timings, forecast,
@@ -31,7 +31,7 @@ independent scorer (`scoring/`) exactly as executed.
 the independent scorer produced on 2026-10-19 (the reference values of the table group
 `m4_objectives_controlled`).
 
-`raw/stable-admissibility-gavea-2026-09/brutos_gavea/`: the GAVEA raw archive
+`raw/stable-admissibility-gavea-2026-09/brutos_gavea/`: the raw archive of the September 2026 stable and admissibility campaigns
 (`brutos_gavea.zip`, shared by Davi Valladao on 2026-10-16): stable (CVaR) campaigns, the
 over-differencing-guard campaign, the 2x2x2x2 admissibility census and diagnostics, with their
 own `REPRODUCE.md`; `SHA256SUMS.original` lists the checksums of the files as received.
@@ -47,9 +47,9 @@ Every file's origin, the SHA-256 of the original bytes and the transform applied
 * M4 test values are not redistributed here (their licence is not established). The
   controlled-campaign records stored them in the field `test`; before removal, the builder
   computed the per-block sMAPE and MASE from `forecast` and `test` and checked that the
-  runner's own total sMAPE and MASE agree with them (relative tolerance 1e-9). The GAVEA
+  runner's own total sMAPE and MASE agree with them (relative tolerance 1e-9). The
   forecast files (`*_prev.csv`) stored them in the column `a`, which was removed.
-* The GAVEA stable campaigns of hourly and quarterly wrote MASE with the lag-1 in-sample naive
+* The stable campaigns of hourly and quarterly wrote MASE with the lag-1 in-sample naive
   denominator; multiplying by `ratio_lag1_to_seasonal` gives the M4 (seasonal) MASE exactly.
 
 The official M4 data are obtained with `./reproduce.sh fetch m4` (a pinned commit of

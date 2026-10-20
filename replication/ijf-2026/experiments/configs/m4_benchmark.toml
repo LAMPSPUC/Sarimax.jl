@@ -2,7 +2,7 @@
 # SARIMAX.jl with the mse objective and :innovations initialization against
 # forecast::auto.arima, with Naive2 as the OWA reference, on all six M4 frequencies.
 #
-# Protocol: recreio campaign A, experiments/scripts/run_m4.jl, function m4Config, run at
+# Protocol: campaign A, experiments/scripts/run_m4.jl, function m4Config, run at
 # commits aa68d57 (yearly, quarterly, weekly, hourly, daily) and 3d7f883 (monthly). Every
 # keyword below is the value that runner passed, written out explicitly.
 
@@ -73,7 +73,7 @@ method = "naive2"
 file = "raw/m4-recreio-2026-08/m4_innovations_{freq}.csv.gz"
 order_columns = ["p", "d", "q", "P", "D", "Q"]
 smape_column = "smape_total"
-provenance = "recreio campaign A (commits aa68d57/3d7f883, Julia 1.9.4, Windows)"
+provenance = "campaign A (commits aa68d57/3d7f883, Julia 1.9.4, Windows)"
 
 [archived.auto_arima]
 file = "raw/m4-baselines-r-2026-07/{freq}/autoarima_R/total.csv.gz"

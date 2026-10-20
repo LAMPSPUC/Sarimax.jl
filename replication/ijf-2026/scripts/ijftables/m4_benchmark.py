@@ -1,8 +1,8 @@
-"""Headline M4 comparison (host RECREIO, campaign A, August 2026): SARIMAX.jl with
+"""Headline M4 comparison (campaign A, August 2026): SARIMAX.jl with
 objective `mse`, `initialization = :innovations`, `stationary = true`, no time cap, on all six
 M4 frequencies, against forecast::auto.arima, with Naive2 as the OWA reference.
 
-Port of recreio `tables/make_table_m4.jl`: per frequency and horizon block, the mean sMAPE and
+Port of campaign A's `tables/make_table_m4.jl`: per frequency and horizon block, the mean sMAPE and
 MASE of both methods over the series common to the campaign and both baselines, and the OWA
 as a ratio of means. The archived campaign files stored the forecast and actual vectors; the
 artifact bundle replaces `actual` (M4 data, not redistributed) by the per-block metrics
@@ -18,7 +18,7 @@ import math
 
 from .common import BLOCK_NAMES, Cell, Context, fmean, read_csv, status_ok, write_text
 
-TITLE = "M4 headline comparison against auto.arima (recreio campaign A)"
+TITLE = "M4 headline comparison against auto.arima (campaign A)"
 RAW = "raw/m4-recreio-2026-08"
 BASE = "raw/m4-baselines-r-2026-07"
 FREQS = ["daily", "hourly", "monthly", "quarterly", "weekly", "yearly"]   # make_table_m4 order

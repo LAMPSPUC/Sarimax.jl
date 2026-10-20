@@ -298,6 +298,31 @@
         @test sum(abs2, values(residuals(empty))) ≈ sum(abs2, values(residuals(plain))) atol = 1e-8
     end
 
+    @testset "elastic net: an L1 term of weight zero builds no unbounded auxiliary" begin
+        # The auxiliaries that linearize |psi_j| are bounded only from below; with weight
+        # alpha * lambda_j = 0 nothing in the objective holds them down, the barrier drives
+        # them to infinity and the solve ended on OTHER_ERROR (lambda = 10, alpha = 0, on
+        # every BLAS kernel tried) or, at lambda = 0, on a status that depended on the CPU's
+        # BLAS kernel (the intermittent Windows CI failures of the lambda = 0 check above).
+        # Each fit below must now converge, and lambda = 0 must be least squares.
+        airpLog = log.(load_dataset(AIR_PASSENGERS))
+        mk() = SARIMA(airpLog, 2, 1, 1; seasonality = 12, P = 0, D = 1, Q = 1,
+                      allowMean = false)
+        coefsOf(m) = vcat([m.ϕ...], [m.θ...])
+        function fitEN(; kwargs...)
+            m = mk()
+            fit!(m; objectiveFunction = "elastic_net", initialization = :zeroed, kwargs...)
+            m
+        end
+        baseline = mk()
+        fit!(baseline; objectiveFunction = "mse", initialization = :zeroed)
+        for kw in ((lambda = 10.0, alpha = 0.0), (lambda = 0.0, alpha = 0.5),
+                   (lambda = (ar = [0.0, 5.0], ma = 5.0, sma = 5.0), alpha = 1.0))
+            @test fitEN(; kw...).metadata["solverStatus"] == "LOCALLY_SOLVED"
+        end
+        @test maximum(abs.(coefsOf(fitEN(lambda = 0.0, alpha = 0.5)) .- coefsOf(baseline))) < 1e-8
+    end
+
     @testset "penaltyTarget selects which blocks are shrunk" begin
         # The penalty must be able to target coefficient blocks separately: shrinking the
         # regressors while leaving the dynamics free is the usual choice when the point of

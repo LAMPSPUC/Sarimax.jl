@@ -16,6 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   values.
 
 ### Fixed
+- **Elastic net with an L1 weight of zero no longer builds unbounded auxiliary variables.**
+  The variables that linearize `|psi_j|` are bounded only from below; when `alpha * lambda_j = 0`
+  (`alpha = 0`, `lambda = 0`, or a zero entry of a heterogeneous `lambda`) nothing in the
+  objective held them down, the interior-point barrier drove them to infinity and Ipopt ended
+  on `OTHER_ERROR` (`lambda = 10, alpha = 0` on the monthly airline model, with every BLAS
+  kernel tried) or, at `lambda = 0`, on a status that depended on the CPU: the cause of the
+  intermittent Windows CI failure of `test/objective_functions.jl`. They are now created only
+  for coefficients with a positive L1 weight; the problem in the coefficients is the same, and a
+  uniform `lambda > 0` with `alpha > 0` builds exactly the model it built before. The
+  `"ridge"` objective has its own penalty and is unaffected.
 - **The exact likelihood behind `aic`, `aicc`, `bic` and every `auto` search now scores the
   model `fit!` estimated when there are regressors.** Three defects of `exactLoglike`, each
   pinned in `test/exog_likelihood.jl` against an independent dense-likelihood reference:

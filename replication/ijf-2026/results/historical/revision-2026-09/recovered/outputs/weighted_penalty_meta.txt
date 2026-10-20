@@ -1,0 +1,3 @@
+L_star = 27.594593229224287  (smallest grid value zeroing all null coefficients under the scalar lasso)
+penaltyCoefficientNames = ["exog:x1", "exog:x2", "exog:x3", "exog:x4", "exog:x5", "exog:x6"]
+phi_hat (unpenalized) = 0.5216331677470465

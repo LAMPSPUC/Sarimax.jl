@@ -1,0 +1,20 @@
+
+******************************************************************************
+This program contains Ipopt, a library for large-scale nonlinear optimization.
+ Ipopt is released as open source code under the Eclipse Public License (EPL).
+         For more information visit https://github.com/coin-or/Ipopt
+******************************************************************************
+
+E done: ordering held in 200 / 200 replications
+G: AR(2), easy / zeroed done
+G: AR(2), easy / innovations done
+G: ARMA(1,1), mixed / zeroed done
+G: ARMA(1,1), mixed / innovations done
+G: ARMA(2,1), mixed / zeroed done
+G: ARMA(2,1), mixed / innovations done
+G: ARMA(1,1) on white noise / zeroed done
+G: ARMA(1,1) on white noise / innovations done
+G: ARMA(2,2), near-cancelling / zeroed done
+G: ARMA(2,2), near-cancelling / innovations done
+G: Airline, log AirPassengers / zeroed done
+G: Airline, log AirPassengers / innovations done

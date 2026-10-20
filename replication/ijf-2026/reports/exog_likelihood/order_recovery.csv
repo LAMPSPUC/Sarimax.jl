@@ -1,0 +1,7 @@
+subset,code,cases,true_order_selected,d_selected_equals_true,median_rmse12,mean_rmse12
+semantics = DGP,v1.0.0,80,0,60,4.5176,12.5902
+semantics = DGP,fixed,80,37,60,5.2706,14.8010
+semantics = DGP and d selected = d of the DGP,v1.0.0,60,0,60,3.1553,6.8345
+semantics = DGP and d selected = d of the DGP,fixed,60,37,60,2.9203,5.4571
+all cases,v1.0.0,160,15,120,4.5124,12.3008
+all cases,fixed,160,40,120,4.9232,14.9406

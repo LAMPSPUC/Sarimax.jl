@@ -32,10 +32,11 @@ On Windows, run the commands in Git Bash or WSL.
 
 > **Before the release.** The container image and the archived artifacts are published at
 > release time (see [Status](#status)). Until then `./reproduce.sh` builds the image from
-> the checkout (20 to 40 minutes, once). Pass the artifact bundle explicitly with
-> `./reproduce.sh fetch artifacts --from sarimax-ijf-2026-artifacts-v1.tar.gz`, or point to
-> an extracted copy with `--artifacts DIR`. Without the bundle, `check` and `tables` report
-> it as MISSING and the run fails, as it should.
+> the checkout (10 to 40 minutes, once). The artifact bundle has two parts (two tarballs of
+> one Zenodo record); pass them explicitly with
+> `./reproduce.sh fetch artifacts --from sarimax-ijf-2026-artifacts-v1.tar.gz --from sarimax-ijf-2026-artifacts-part2-v1.tar.gz`,
+> or point to an extracted copy of both with `--artifacts DIR`. Without the bundle, `check`
+> and `tables` report it as MISSING and the run fails, as it should.
 
 ## What this reproduces
 
@@ -78,7 +79,7 @@ this checkout); 4 an input is missing or corrupted.
 
 | | Quick reproduction (A + B) | Full re-execution (C) |
 |---|---|---|
-| Disk | about 8 GB (image about 6 GB, artifacts 0.6 GB) | plus a few GB of run outputs and 0.3 GB of M4 data |
+| Disk | about 8 GB (image 4.3–6 GB, artifact bundle 0.6 GB compressed and about 0.7 GB extracted) | plus a few GB of run outputs and 0.3 GB of M4 data |
 | Memory | 4 GB available to Docker | about 2 GB per worker |
 | CPU | any | as many cores as `--jobs` |
 | Network | to pull the image and fetch the artifacts once | to fetch M4 (and PJME) once |
@@ -124,13 +125,19 @@ writes only to its own run directory and compares itself with the archive afterw
 
 What is verified, what is only executable and what is missing is listed per experiment in
 [`REPRODUCIBILITY_STATUS.md`](REPRODUCIBILITY_STATUS.md); known caveats are in
-[`LIMITATIONS.md`](LIMITATIONS.md). In short: every archived table regenerates from
-per-series data; the experiments' runners are re-executable on the release code; most of the
-numbers the manuscript prints are regenerated from archived per-series results, while some
-agree only with derived tables or have no archived source, and two printed timings differ from
-the archive (all listed in LIMITATIONS.md, item 1); and the controlled comparison of
-estimation objectives (`m4_objectives`) is still running, so its results are not part of this
-package yet.
+[`LIMITATIONS.md`](LIMITATIONS.md). In short:
+
+* **Archived tables.** Every archived table regenerates from per-series data.
+* **Runners.** The experiments' runners are re-executable on the release code.
+* **Controlled comparison of estimation objectives** (`m4_objectives`). It ran in full with the
+  release: every M4 monthly, quarterly, yearly and weekly series under MSE, MAE, Huber and
+  Ridge, under one frozen protocol. Its records are archived (bundle part 2), its tables
+  regenerate from them, and a re-run is compared series by series with the archive. It is
+  meant to replace the historical objective tables, which the 2026-10-16 manuscript still
+  prints.
+* **Printed numbers.** Most of the numbers the manuscript prints are regenerated from archived
+  per-series results. Some agree only with derived tables, some have no archived source, and
+  two printed timings differ from the archive; all are listed in LIMITATIONS.md, item 1.
 
 ## Software and archived artifacts
 

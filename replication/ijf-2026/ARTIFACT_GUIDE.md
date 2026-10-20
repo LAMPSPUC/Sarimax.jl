@@ -12,8 +12,9 @@ replication/ijf-2026/
   CODE_AND_DATA_AVAILABILITY.txt   proposed statement for the manuscript
   experiment_manifest.csv          one row per experiment family: protocol, revision, status
   image.lock                       published image: repository, tag, digest (set at release)
-  artifacts.lock                   artifact bundle: file, SHA-256, DOI/URL (set at release)
-  artifacts.sha256                 SHA-256 of every file inside the artifact bundle
+  artifacts.lock                   artifact bundle parts: file, SHA-256, DOI/URL (set at release)
+  artifacts.sha256                 SHA-256 of every file inside bundle part 1
+  artifacts-part2.sha256           SHA-256 of every file inside bundle part 2
   checksums.sha256                 SHA-256 of every committed file a computation reads
   compose.yaml                     Docker Compose equivalent of reproduce.sh
   docker/Dockerfile                the single replication image
@@ -27,7 +28,7 @@ replication/ijf-2026/
   scripts/maintainers/             bundle builder, expected-value extraction, lock generators
   scripts/fingerprint.sh           source fingerprint (host and image)
   data/external_files.csv          pinned locations and SHA-256 of M4 and PJME
-  data/fixtures/                   small committed inputs: smoke data, a 0.7 MB subset of the bundle
+  data/fixtures/                   small committed inputs: smoke data, a 1 MB subset of the bundle
   results/expected/                reference cell values, parsed from the historical tables
   results/manuscript/              every number printed in the manuscript, with its source
   results/historical/              derived tables not in the bundle (with PROVENANCE.md)
@@ -63,19 +64,24 @@ report is labelled NATIVE).
 | R | 4.4.1; CRAN frozen at the Posit Package Manager snapshot of 2024-10-30 | base image; packages checked against `renv.lock` at build time |
 | forecast | 8.23.0 (the version of the archived auto.arima baselines) | snapshot + `renv.lock` |
 | Julia | 1.10.12 | official tarball SHA-256 |
-| Julia packages | Sarimax.jl from the checkout; JuMP 1.31.1, MathOptInterface 1.52.0, Ipopt.jl 1.15.0 (Ipopt 3.14, MUMPS 5.9.1), SCIP.jl 0.11.6 (SCIP 8.0.0), HiGHS 1.26.0, … | `environments/julia/Manifest.toml` (170 packages) |
+| Julia packages | Sarimax.jl from the checkout; JuMP 1.31.1, MathOptInterface 1.52.0, Ipopt.jl 1.15.0 (Ipopt 3.14.19, MUMPS 5.9.0), SCIP.jl 0.11.6 (SCIP 8.0.0), HiGHS 1.26.0, … | `environments/julia/Manifest.toml` (148 versioned packages) |
 | Python | CPython 3.12.14 (python-build-standalone 20260901) | release tarball SHA-256 |
 | Python packages | numpy 2.4.6, pandas 2.3.3, scipy 1.16.3, statsmodels 0.14.6, matplotlib 3.11.2 + dependencies | wheel hashes in `requirements.lock` |
 
-The Julia versions of JuMP, MathOptInterface and Ipopt.jl equal those recorded by the
-August 2026 ICARAI campaigns. The build verifies the R library against `renv.lock`, the
+The Julia environment is the one the August 2026 ICARAI objective campaigns and the October
+2026 controlled objective campaign ran with (their Manifests are identical package by
+package), plus HiGHS, HiGHS_jll and MathOptIIS (used by one battery runner) and the
+Sarimax.jl checkout; adding HiGHS_jll moved CompilerSupportLibraries_jll from 1.1.1 to 1.1.2,
+the only version that differs. A re-run of those campaigns in the image therefore uses the
+same JuMP, MathOptInterface, Ipopt and MUMPS builds as the archived runs (on Linux instead
+of Windows). The build verifies the R library against `renv.lock`, the
 Julia environment against its Manifest, and the copied source against the fingerprint
 passed as a build argument; any mismatch fails the build.
 
 **Identity.** `scripts/fingerprint.sh` hashes (carriage returns stripped) `Project.toml`,
 `src/`, and `docker/`, `environments/`, `experiments/`, `scripts/`, `data/` (without
-`data/external/`), `results/`, `experiment_manifest.csv`, `artifacts.sha256` and
-`checksums.sha256` of this directory, excluding Markdown. The image stores it as the label
+`data/external/`), `results/`, `experiment_manifest.csv`, `artifacts.sha256`,
+`artifacts-part2.sha256` and `checksums.sha256` of this directory, excluding Markdown. The image stores it as the label
 `io.github.lampspuc.sarimax.ijf.fingerprint` and as `IJF_IMAGE_FINGERPRINT`; the commit it
 was built from is the label `org.opencontainers.image.revision`. `image.lock` and
 `artifacts.lock` are outside the fingerprint, so recording a published digest or DOI does
@@ -102,43 +108,64 @@ checklist below.
 
 ## 4. The artifact bundle
 
-Built by `scripts/maintainers/build_artifact_bundle.py` from the repository history, the
-three `paper/replication-staging-*` branches, the ForecastTester experiment workspace and the
-`sarimax-replication` folder (paths are arguments). The output is deterministic (gzip and
-tar without timestamps or owners): `sarimax-ijf-2026-artifacts-v1.tar.gz` (296 MB), with
-`artifacts.sha256` (535 files) and `bundle.json`.
+The bundle is the Zenodo data record of the paper. It has **two parts**: two tarballs of the
+same record that extract into the same directory. Each part's files are listed with their
+SHA-256 in its own inventory, and `artifacts.lock` records each tarball's SHA-256 (and, at
+release, its DOI and URL).
 
-| Directory | Content |
-|---|---|
-| `raw/battery-2026-07/` | July 2026 battery: validation, forecasting, architecture, solver and energy records (jsonl), logs, simulated inputs; PJME data omitted |
-| `raw/m4-objectives-icarai-2026-08/` | 37 objective campaigns (cel_*, obj_*, req_*, censo_*, smoke_*), auto.arima/Naive2 baselines for M/Q/Y/W, campaign index, validity and probe files |
-| `raw/m4-objectives-rerun-a1ebc0d-2026-08/` | re-run of the huber and ridge cells at a1ebc0d, with logs |
-| `raw/m4-recreio-2026-08/` | recreio campaigns A–F (`actual` redacted, per-block metrics added) and verification files |
-| `raw/m4-baselines-r-2026-07/` | auto.arima and Naive2 per-series metrics, all six M4 frequencies, four horizon blocks |
-| `raw/robust-cvar-monthly-2026-08/`, `raw/admissibility-2026-08/`, `raw/initialization-order-search-2026-08/`, `raw/scip-ipopt-yearly-2026-07/`, `raw/stable-admissibility-gavea-2026-09/` | the smaller studies (see the manifest) |
-| `derived/m4-objective-distributions-2026-10/` | the per-series sets of the October 2026 Table 7 evidence |
-| `historical-tables/` | the tables as generated at the time (source of `results/expected/`) |
-| `original-scripts/` | verbatim runners, table scripts, environment files and notes of each campaign |
-| `PROVENANCE.csv` | for each file: origin (git object or workspace file), original SHA-256, transform |
+| Part | Tarball | Built by | Inventory |
+|---|---|---|---|
+| 1 | `sarimax-ijf-2026-artifacts-v1.tar.gz` (296 MB, 535 files) | `scripts/maintainers/build_artifact_bundle.py`, on the maintainer host | `artifacts.sha256` |
+| 2 | `sarimax-ijf-2026-artifacts-part2-v1.tar.gz` (299 MB, 368 files) | `scripts/maintainers/build_artifact_part2.py`, on host RECREIO | `artifacts-part2.sha256` |
 
-Only one transform changes content: in the recreio files, the M4 test values (`actual`) were
-removed and per-block sMAPE/MASE computed from them were added (definitions of recreio
-`make_table_m4.jl`). The `m4_benchmark` table group then regenerates recreio's table from
-the redacted files to the last printed digit, which also validates the transform.
+Part 1 comes from the repository history, the three `paper/replication-staging-*` branches,
+the ForecastTester experiment workspace and the `sarimax-replication` folder (the paths are
+arguments). Part 2 holds what was produced or received on host RECREIO after part 1 was
+frozen: the controlled objective campaign and the GAVEA raw archive. Part 2 does not modify
+part 1, so part 1's recorded SHA-256 stays valid. Both builds are deterministic: gzip and tar
+carry no timestamps or owners.
 
-**Determinism.** The git sources are pinned to the commits bundle v1 was built from (the
-tips of the three `paper/replication-staging-*` branches on 2026-10-17, and `308461e`, the
-last commit that tracked the July 2026 battery); keep them reachable (tag them) before
-deleting those branches. The only computed content, the per-block metrics of the redacted
-recreio files, is summed left to right, because `sum()` became compensated in Python 3.12
-and would change last bits. Rebuilt on a second machine (macOS arm64, Python 3.14), the 299
-files whose sources are in git or in the Table 7 evidence matched `artifacts.sha256` byte for
-byte; the other 236 come from the ForecastTester and `sarimax-replication` workspaces of the
-maintainer host.
+| Directory | Part | Content |
+|---|---|---|
+| `raw/battery-2026-07/` | 1 | July 2026 battery: validation, forecasting, architecture, solver and energy records (jsonl), logs, simulated inputs; PJME data omitted |
+| `raw/m4-objectives-icarai-2026-08/` | 1 | 37 objective campaigns (cel_*, obj_*, req_*, censo_*, smoke_*), auto.arima/Naive2 baselines for M/Q/Y/W, campaign index, validity and probe files |
+| `raw/m4-objectives-rerun-a1ebc0d-2026-08/` | 1 | re-run of the huber and ridge cells at a1ebc0d, with logs |
+| `raw/m4-recreio-2026-08/` | 1 | recreio campaigns A–F (`actual` redacted, per-block metrics added) and verification files |
+| `raw/m4-baselines-r-2026-07/` | 1 | auto.arima and Naive2 per-series metrics, all six M4 frequencies, four horizon blocks |
+| `raw/robust-cvar-monthly-2026-08/`, `raw/admissibility-2026-08/`, `raw/initialization-order-search-2026-08/`, `raw/scip-ipopt-yearly-2026-07/`, `raw/stable-admissibility-gavea-2026-09/tables/` | 1 | the smaller studies (see the manifest) |
+| `derived/m4-objective-distributions-2026-10/` | 1 | the per-series sets of the October 2026 Table 7 evidence |
+| `historical-tables/` | 1 | the tables as generated at the time (source of `results/expected/`) |
+| `raw/m4-objectives-controlled-2026-10/` | 2 | the controlled objective campaign: frozen protocol and environment; every per-series record of the 16 cells and of the weekly Table 3 protocol run (`test` redacted, per-block metrics added); ledgers, audits, event logs, orchestrator logs; the same results in the per-series schema of `full` |
+| `derived/m4-objectives-controlled-2026-10/` | 2 | the independent scorer's tables, reconciliation and validity files, the reconciliation report and the manuscript update proposal (source of `results/expected/m4_objectives_controlled.csv`) |
+| `raw/stable-admissibility-gavea-2026-09/brutos_gavea/` | 2 | the GAVEA raw archive as received, with the M4 test column `a` removed from the forecast files |
+| `derived/stable-admissibility-gavea-2026-09/` | 2 | lag-1/seasonal MASE denominator ratios (hourly, quarterly) and the tables of 2026-10-17 (source of `results/expected/stable_admissibility_gavea.csv`) |
+| `original-scripts/` | 1, 2 | verbatim runners, table scripts, environment files and notes of each campaign |
+| `PROVENANCE.csv`, `part2/PROVENANCE.csv` | 1, 2 | for each file: origin (git object or workspace file), original SHA-256, transform |
 
-`./reproduce.sh fetch artifacts` downloads the tarball from the location in
-`artifacts.lock`, checks its SHA-256, extracts it safely and verifies every file against
-`artifacts.sha256`; `--from FILE` uses a local tarball.
+Every transform that changes content is recorded in the PROVENANCE files:
+
+* **M4 test values are removed** wherever an archived file carried them: recreio `actual`, controlled-campaign `test` and GAVEA `a`. Before removal, the per-block sMAPE and MASE are computed from them:
+  * recreio uses the definitions of `make_table_m4.jl`;
+  * the controlled campaign uses `ijflib.m4data`, checked against the runner's own totals to 1e-9 for all 381,795 records.
+* **Part 2 adds derived files:** the per-series files in the `full` schema and the MASE denominator ratios.
+
+The `m4_benchmark` and `m4_objectives_controlled` table groups regenerate the historical tables from the redacted files to the last printed digit. That also validates the transforms.
+
+**Determinism.**
+
+* **Part 1 sources are pinned.** Its git sources are pinned to the commits bundle v1 was built from: the tips of the three `paper/replication-staging-*` branches on 2026-10-17, and `308461e`, the last commit that tracked the July 2026 battery. Keep these commits reachable (tag them) before deleting those branches.
+* **Summation order is fixed.** The per-block metrics of the redacted recreio files are summed left to right, because `sum()` became compensated in Python 3.12 and would change last bits.
+* **Part 1 was rebuilt on two other machines:**
+  * macOS arm64 (Python 3.14): 299 of its files matched byte for byte;
+  * host RECREIO (Windows, Python 3.12): 446 matched. There, 11 original scripts of the admissibility and contamination studies differ (later local edits) and 10 sources are missing.
+
+  The remaining files come from workspaces that only the maintainer host holds.
+* **Part 2 was built twice** on RECREIO, with the same tarball SHA-256 both times.
+
+**Fetching.** `./reproduce.sh fetch artifacts` downloads each part from the location in `artifacts.lock`, checks its SHA-256, extracts it safely and verifies every file against its inventory. `--from FILE` (once per part) uses local tarballs instead. Completion markers:
+
+* a part is marked complete (`.complete`, `.complete-<part name>`) only after every one of its files has been verified;
+* the whole bundle is marked complete (`.complete-all`) only when every part is.
 
 ## 5. Third-party data
 
@@ -192,6 +219,15 @@ optional `[archived.<arm>]` tables point at archived per-series files for the
 series-by-series comparison. `kind = "script"`: `[[steps]]` (engine, script, args,
 timeout_s), `tables_group` and `tables`; the steps write records into the run directory with
 the bundle's layout, and the group's generator then rebuilds the tables from the new records.
+Every configuration states `protocol_status`: `final` (a frozen protocol whose results are
+archived), `archived` (the protocol of an archived historical campaign) or `provisional`;
+`superseded_by = "<id>"` marks a historical campaign that another experiment replaces.
+`full --all` runs the experiments that carry a manuscript label, leaving out provisional and
+superseded ones (each can still be run with `--experiment`).
+
+**Worker start-up.** All workers of a task are started at once and collected as they report
+ready (each spends about a minute loading and warming up the package); a worker that fails to
+start is retried on its own, up to three times.
 
 **Worker protocol.** One JSON object per line: the orchestrator sends
 `{"series", "y", "s", "H"}`; the worker answers `{"series", "status", "forecast", "p", "d",
@@ -213,63 +249,82 @@ worker killed and replaced; an exception is recorded as `ERROR:<message>`; a dea
 `CRASH`. A task with more than `max_failure_rate` failures is reported FAIL; failures are
 never retried or dropped silently.
 
-## 8. Integration contract for `m4_objectives`
+## 8. Integration of `m4_objectives` (done 2026-10-20)
 
-The controlled comparison of objectives is produced by a separate workstream. To integrate
-its final results:
+The controlled comparison of objectives was produced by a separate workstream on host RECREIO
+(2026-10-17/19). Each point of the integration contract was handled as follows.
 
-1. **Protocol.** Replace `experiments/configs/m4_objectives.toml` by the frozen protocol in
-   the format of section 7: every keyword of `auto` for every arm (including how ridge is
-   expressed: the deprecated `"ridge"` objective or `mse` + `penalty = :elastic_net`,
-   `alpha = 0`, `penaltyTarget = :dynamics` and its lambda), the frequencies, the time limits
-   and the reference arms (`naive2`; `auto_arima` if reported). Set
-   `protocol_status = "final"`; `full --all` leaves provisional protocols out, and includes
-   the experiment once it is final and carries the manuscript labels it supplies (moved from
-   the historical rows it replaces).
-2. **Code.** Run with the release commit of the paper (the image of this package), so that
-   `source_fingerprint` and `config_sha256` in every row match the release.
-3. **Outputs.** Per-series files in the schema above, one per arm and frequency
-   (`<arm>__<frequency>.csv`), all series of each frequency, with their `run.json` and
-   `events.jsonl`. Runs produced with `./reproduce.sh full --experiment m4_objectives` have
-   this form by construction.
-4. **Archive.** Add them to a new version of the artifact bundle under
-   `raw/m4-objectives-controlled-<date>/` (rebuild with `build_artifact_bundle.py`, update
-   `artifacts.sha256` and `artifacts.lock`), add `[archived.<arm>]` entries to the
-   configuration, write the table group (`scripts/ijftables/m4_objectives_controlled.py`) and
-   the expected values parsed from the table as printed in the manuscript, and update the
-   manifest row (`table_status`, `expected_values`, `archived_results`).
-5. **Never mix.** The historical campaigns stay under their own ids
-   (`m4_objectives_icarai_*`); no table may combine them with the controlled experiment.
+1. **Protocol.** `experiments/configs/m4_objectives.toml` holds the frozen protocol, with
+   `protocol_status = "final"`. Every keyword the campaign passed to `auto` is written out
+   (copied from the archived `protocol/experiment_protocol.toml`, frozen before the first fit).
+   * Ridge is the package's dedicated `"ridge"` objective, not an elastic-net re-expression.
+   * The orchestration safety limit is the protocol's 21,600 s.
+   * The reference arm is `naive2`. The archived Table 5 took auto.arima from the stored
+     baselines and never re-ran it.
+2. **Code.** Every fit ran at `14dd581` (v1.0.0) from a clean worktree, but with the campaign's
+   own runner on Windows, not with this package's image. Two consequences follow.
+   * The archived rows carry the campaign's fingerprint and protocol SHA-256, not this
+     package's `source_fingerprint`.
+   * The image's Julia environment was rebased on the campaign's Manifest (section 3), so a
+     re-run differs from the archived run only by platform and orchestration.
+   * `full --experiment m4_objectives` compares such a re-run series by series with the
+     archive.
+3. **Outputs.** The archive keeps the campaign's own records: one JSON line per series and
+   attempt, with coefficients, criterion values, solver statuses and timings. The builder
+   derives from them per-series files in the schema of section 7, one per objective and
+   frequency (`per_series/<objective>__<frequency>.csv.gz`). They contain every series of
+   every frequency.
+4. **Archive.** The results are in bundle part 2 under `raw/m4-objectives-controlled-2026-10/`
+   (section 4), rather than in a rebuilt part 1, so part 1's published checksum is unaffected.
+   The integration also added:
+   * the `[archived.<arm>]` entries in the configuration;
+   * the table group `scripts/ijftables/m4_objectives_controlled.py` (Tables 5 and 6, marginal
+     quantiles, the weekly reconciliation and the ECDF figure);
+   * the manifest row.
+
+   The expected values are parsed from the tables written by the campaign's independent
+   scorer, because the manuscript does not print the controlled values yet. They are its
+   proposed replacements.
+5. **Never mix.** The historical campaigns keep their own ids (`m4_objectives_icarai_*`) and
+   table groups. `m4_objectives_icarai_innovations` is marked `superseded_by = "m4_objectives"`,
+   so `full --all` runs the controlled experiment only. No table combines the two.
 
 ## 9. Release checklist (maintainers; every step needs the authors' approval)
 
-1. Resolve the manuscript findings (`LIMITATIONS.md`, item 1): the Table 7 Ipopt times, the
-   description of the monthly protocol behind Table 3, and the printed values that have no
-   archived source (archive their records, or remove the statements). If the manuscript
-   changes, update `results/manuscript/manuscript_values.csv` and run
+1. **Resolve the manuscript findings** (`LIMITATIONS.md`, item 1):
+   * the Table 7 Ipopt times;
+   * the description of the monthly protocol behind Table 3;
+   * the printed values that have no archived source (archive their records, or remove the
+     statements);
+   * the replacement of Tables 5, 6, S9, S10, Figure 3 and Section 5.4 by the controlled
+     results (`derived/m4-objectives-controlled-2026-10/manuscript_update_proposal.md`).
+
+   When the manuscript changes, update `results/manuscript/manuscript_values.csv` (point the
+   new values at `m4_objectives_controlled/...` cells) and run
    `scripts/maintainers/check_manuscript_mapping.py`.
-2. Integrate `m4_objectives` (section 8), or record it as pending in the paper.
-3. Decide on SCIP's licence (section 3): keep SCIP.jl 0.11 and state the ZIB Academic
+2. **Decide on SCIP's licence** (section 3): keep SCIP.jl 0.11 and state the ZIB Academic
    License, or move the package to a SCIP release under Apache-2.0 before the release.
-4. Tag the commits of the `paper/replication-staging-*` branches that the bundle builder
-   pins (section 4) before those branches are deleted.
-5. Merge the replication branch into `master` after review.
-6. Build the final artifact bundle on the host that holds the ForecastTester and
-   `sarimax-replication` workspaces. If the paper keeps the GAVEA results (Section 5.5) or the
-   certification results (Section 5.6), add `brutos_gavea.zip` and the August 2026
-   certification batch as a new bundle version, with table groups for them. Upload the
-   bundle as a new Zenodo data record (test in the Zenodo Sandbox first with
-   `scripts/maintainers/zenodo_deposit.py --sandbox`); record its version DOI, URL and
-   SHA-256 in `artifacts.lock` (this does not change the fingerprint).
-7. Build and push the image with the manually triggered workflow `ijf-image-publish.yml`;
-   record the digest, fingerprint and revision in `image.lock`; make the GHCR package
-   public; archive the exported image (`docker save | gzip`) in the Zenodo data record if its
-   size and the SCIP licence allow.
-8. Tag the release commit (for example `ijf-2026-v1`; the package version stays 1.0.0
-   because `src/` is unchanged) and publish the GitHub release; the Zenodo GitHub
+3. **Tag the pinned commits.** Tag the commits of the `paper/replication-staging-*` branches
+   that the bundle builder pins (section 4) before those branches are deleted.
+4. **Merge** the replication branch into `master` after review.
+5. **Archive the bundle.**
+   * Part 1 already exists (its SHA-256 is in `artifacts.lock`); part 2 is rebuilt identically
+     with `build_artifact_part2.py`.
+   * If the paper keeps the certification results of Section 5.6, the August 2026
+     certification batch has to be found and archived as a further part, with a table group.
+   * Upload both tarballs and their inventories to one Zenodo data record. Test in the Zenodo
+     Sandbox first: `scripts/maintainers/zenodo_deposit.py --bundle-dir DIR1 --part2-dir DIR2`.
+   * Record the version DOI and each tarball's URL in `artifacts.lock`. This does not change
+     the fingerprint.
+6. **Publish the image.** Build and push it with the manually triggered workflow
+   `ijf-image-publish.yml`; record the digest, fingerprint and revision in `image.lock`; make
+   the GHCR package public. If its size and the SCIP licence allow, archive the exported image
+   (`docker save | gzip`) in the Zenodo data record.
+7. **Tag the release.** Tag the release commit (for example `ijf-2026-v1`; the package version
+   stays 1.0.0 because `src/` is unchanged) and publish the GitHub release. The Zenodo GitHub
    integration archives it and mints the software DOI (`.zenodo.json`).
-9. Link the records: software → `isSupplementedBy` data record; both → `isSupplementTo` the
-   article DOI when assigned; update `CITATION.cff` and the availability statement.
+8. **Link the records.** Software → `isSupplementedBy` the data record; both → `isSupplementTo`
+   the article DOI once assigned. Then update `CITATION.cff` and the availability statement.
 
 ## 10. Continuous integration
 
@@ -289,9 +344,10 @@ touch the package or the replication files, and by hand. Full campaigns never ru
   a corrupted archived input (exit 4); an image refused because the checkout changed after it
   was built (exit 3); `fetch m4` for the weekly files with SHA-256 verification;
   `m4_benchmark` on a random sample of 2 weekly series per arm, then `--resume` to 3 (the
-  sample is nested); the ICARAI objective campaign on 2 weekly series per arm; and the
-  battery's validation experiment (Julia, Python and R steps). Reports are uploaded as
-  workflow artifacts.
+  sample is nested); the controlled objective campaign (`m4_objectives`) on 3 weekly series
+  per arm, compared series by series with its archived run (the weekly per-series files of
+  bundle part 2 are in the fixture subset); and the battery's validation experiment (Julia,
+  Python and R steps). Reports are uploaded as workflow artifacts.
 
 `.github/workflows/ijf-image-publish.yml` builds and pushes the image to GHCR, pulls it back
 by digest on a clean runner, checks its fingerprint against the checkout, runs the smoke

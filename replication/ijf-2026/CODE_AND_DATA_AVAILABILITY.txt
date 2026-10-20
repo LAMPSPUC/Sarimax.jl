@@ -5,11 +5,20 @@ Bracketed items must be resolved at release time; do not submit the statement wi
 unresolved. Claims are limited to what the replication package has verified (see
 replication/ijf-2026/REPRODUCIBILITY_STATUS.md and LIMITATIONS.md, item 1). In particular,
 the sentence on regenerated results may only list tables and figures whose printed values
-`./reproduce.sh tables` reports as matching; as of the 2026-10-16 revision this excludes
-Table 7 (two Ipopt times differ from the archive), Tables S2 and S5, the certification and
-diagnostic numbers of Sections 5.5 and 5.6 that have no archived source, and the results
-that agree only with derived tables (Tables S6 and S7, Figure S1, the admissibility numbers
-of Section 5.5) until their records are archived.
+`./reproduce.sh tables` reports as matching. As of the 2026-10-16 revision this excludes:
+- Table 7, whose two Ipopt times differ from the archive;
+- Tables S2 and S5;
+- the certification numbers of Section 5.6 and the initialization and likelihood-ranking
+  numbers of Section 5.5, which have no archived source;
+- the results that agree only with derived tables (Tables S6 and S7, Figure S1) until their
+  records are archived.
+The admissibility numbers of Section 5.5 are regenerated from the GAVEA raw archive (bundle
+part 2).
+
+The second paragraph has two versions. Use version (A) if the manuscript adopts the controlled
+comparison of estimation objectives (derived/m4-objectives-controlled-2026-10/
+manuscript_update_proposal.md in bundle part 2) for Tables 5, 6, S9 and S10, Figure 3 and
+Section 5.4. Use version (B) if it keeps the historical values.
 
 -------------------------------------------------------------------------------------------
 
@@ -19,21 +28,35 @@ SARIMAX.jl is open-source software released under the MIT licence and developed 
 https://github.com/LAMPSPUC/Sarimax.jl. The release archived for this article [tag
 ijf-2026-v1; software DOI 10.5281/zenodo.XXXXXXX] contains the package source (version
 1.0.0), the scripts and configuration files of the experiments, and a containerized
-computational environment (Julia, R, Python and the optimization solvers, with all versions
-pinned) [published as ghcr.io/lampspuc/sarimax-ijf-replication@sha256:...]. A single command
-(./reproduce.sh) verifies the environment and the archived inputs, runs small reference
-computations, regenerates the tables from the archived per-series results and compares the
-values reported in this article with them; separate commands re-run the experiments from the
-original data.
+computational environment with Julia, R, Python and the optimization solvers, all versions
+pinned [published as ghcr.io/lampspuc/sarimax-ijf-replication@sha256:...]. A single command,
+./reproduce.sh, does four things: it verifies the environment and the archived inputs, runs
+small reference computations, regenerates the tables from the archived per-series results,
+and compares the values reported in this article with them. Separate commands re-run the
+experiments from the original data.
 
-The archived experimental results (per-series forecasts, accuracy metrics and solver
-outcomes, and the scripts that produced them) are available at [data DOI
-10.5281/zenodo.YYYYYYY]. [Tables 2-6 and S8-S10 and Figures 2 and 3 are regenerated from these
-records.] Several experiments were run with development revisions of the package that
-preceded the release; the replication materials record the revision and configuration of each
-result. Re-execution of the full M4 campaigns, which requires several hundred CPU-hours, is
-supported but was not repeated for this archive. The M4 competition data are not
-redistributed; they are obtained from the organisers' repository
-(https://github.com/Mcompetitions/M4-methods) at a fixed revision and verified by checksum.
-[Note on SCIP: the SCIP binaries used through SCIP.jl 0.11 are distributed under the ZIB
-Academic License.]
+(A) The archived experimental results are available at [data DOI 10.5281/zenodo.YYYYYYY]: the
+per-series forecasts, accuracy metrics and solver outcomes, and the scripts that produced
+them. [Tables 2-6 and S8-S10, Figures 2 and 3, and the admissibility results of Section 5.5
+are regenerated from these records.] The comparison of estimation objectives (Tables 5 and 6)
+was executed in full with the released version under a single frozen protocol: every M4
+monthly, quarterly, yearly and weekly series under every objective. Several other experiments
+were run with development revisions of the package that preceded the release; the replication
+materials record the revision and configuration of each result. Re-execution of the M4
+campaigns, which requires several hundred CPU-hours, is supported but was not repeated for this
+archive.
+
+(B) The archived experimental results are available at [data DOI 10.5281/zenodo.YYYYYYY]: the
+per-series forecasts, accuracy metrics and solver outcomes, and the scripts that produced
+them. [Tables 2-6 and S8-S10, Figures 2 and 3, and the admissibility results of Section 5.5
+are regenerated from these records.] Several experiments, including the comparison of
+estimation objectives, were run with development revisions of the package that preceded the
+release; the replication materials record the revision and configuration of each result, and
+include a controlled re-run of that comparison with the released version. Re-execution of the
+M4 campaigns, which requires several hundred CPU-hours, is supported but was not repeated for
+this archive.
+
+The M4 competition data are not redistributed. They are obtained from the organisers'
+repository (https://github.com/Mcompetitions/M4-methods) at a fixed revision and verified by
+checksum. [Note on SCIP: the SCIP binaries used through SCIP.jl 0.11 are distributed under the
+ZIB Academic License.]

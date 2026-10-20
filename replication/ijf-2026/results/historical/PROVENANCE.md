@@ -10,14 +10,14 @@ listed below). Nothing here is regenerated from raw data unless a table group sa
 |---|---|---|
 | `m4-paired-2026-09/` | `Sarimax_revisao_resultados` (Google Drive folder of the September 2026 revision analysis; export of 2026-10-10, zip SHA-256 `bdc072b6a71dbac3…`), written 2026-09-28 by `b_m4_distributional.py` | reference values of the `m4_paired` table group (manuscript Tables 4 and S8, Figure 2), which REGENERATES them from the bundle's per-series files |
 | `revision-2026-09/` | same export, written by `efg_figures.py` from `efg_julia_experiments.jl` (cases E, F, G) | consistency check of manuscript Table S6, Figure S1 and Table S7; the simulation scripts and their outputs are not archived, so these tables cannot be regenerated |
-| `updated-2026-10-17/` | `resultados_atualizados_20261017.zip` (65,560 bytes, SHA-256 `44075fadd0a8965f…`): the tables, table scripts and reports of the update of 2026-10-17 | consistency check of the Section 5.5 admissibility numbers; reference for the stable-objective, admissibility-grid and guard tables of a later revision |
+| `updated-2026-10-17/` | `resultados_atualizados_20261017.zip` (65,560 bytes, SHA-256 `44075fadd0a8965f…`): the tables, table scripts and reports of the update of 2026-10-17 | the stable-objective, admissibility-grid and guard tables, which the `stable_admissibility_gavea` table group REGENERATES from the raw archive in bundle part 2 (its reference values are parsed from the copies of these tables archived there) |
 
 The 2026-10-17 tables were computed from `brutos_gavea.zip` (107,137,987 bytes, 177 files
 verified against its own SHA256SUMS, shared on 2026-10-16), the raw campaign archive of the
 GAVEA host, together with recreio campaign F and the stored auto.arima/Naive2 baselines. That
-raw archive is not part of this package or of bundle v1: until it is added to a new version of
-the artifact bundle, these tables are reference values only (status BLOCKED for regeneration;
-see `experiment_manifest.csv`, `stable_admissibility_gavea`). Two facts recorded in
+raw archive is in bundle part 2 (`raw/stable-admissibility-gavea-2026-09/brutos_gavea/`), and
+the `stable_admissibility_gavea` table group rebuilds these tables from it (1,028 cells; see
+`experiment_manifest.csv`). Two facts recorded in
 `updated-2026-10-17/gavea_archive_audit.md` matter when reading them: the stable campaigns of
 the hourly and quarterly frequencies stored MASE with the lag-1 naive denominator, which the
 tables convert exactly to the M4 seasonal denominator; and the arms of different frequencies

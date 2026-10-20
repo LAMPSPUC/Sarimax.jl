@@ -300,7 +300,7 @@ jobs:
             --artifacts replication/ijf-2026/data/fixtures/bundle-subset
           cat replication/ijf-2026/output/reports/full.md >> "$GITHUB_STEP_SUMMARY"
           python3 - replication/ijf-2026/output <<'EOF'
-          import csv, sys
+          import csv, os, sys
           from pathlib import Path
           out = Path(sys.argv[1])
           run = out / "runs" / "m4_objectives" / "ci"
@@ -312,6 +312,10 @@ jobs:
           for r in cmp:
               print(r["artifact"], r["status"], r["generated"], r["note"])
           assert len(cmp) == 4, f"expected a comparison with the archive for each objective, got {len(cmp)}"
+          # On the reference platform the image reproduces the archived campaign series by series
+          # (every weekly series did on host RECREIO); arm64 is experimental and only reported.
+          if os.environ.get("PLATFORM") == "linux/amd64":
+              assert all(r["status"] == "PASS" for r in cmp), "a sampled series does not reproduce the archive"
           EOF
           ./reproduce.sh full --experiment battery_validation --run-id ci --offline --no-build --platform "$PLATFORM"
           cat replication/ijf-2026/output/reports/full.md >> "$GITHUB_STEP_SUMMARY"

@@ -9,8 +9,16 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
 1. **Not every printed number has an archived source.** The 672 numbers printed in the
    tables, figures and experimental sections of the 2026-10-16 revision are listed in
    `results/manuscript/manuscript_values.csv` and checked by `tables`. Compared with the
-   historical tables, 599 agree, 2 differ, 2 are checked only against regenerated values, 23
+   historical tables, 603 agree, 2 differ, 2 are checked only against regenerated values, 19
    agree with derived tables whose raw inputs are not archived, and 46 have no archived source:
+   * **Tables 5, 6, S9, S10, Figure 3 and Section 5.4 print the historical objective
+     campaigns** (`m4_objectives_icarai_innovations`, feature-branch commits, guard on). The
+     controlled experiment `m4_objectives` (one frozen protocol, the release, every series under
+     every objective) supersedes them; its replacement tables and the sentences that change
+     are in `derived/m4-objectives-controlled-2026-10/manuscript_update_proposal.md` (bundle
+     part 2). Until the manuscript adopts them, `tables` checks the printed values against the
+     historical sources, and regenerates the controlled tables separately
+     (`m4_objectives_controlled`); the two are never combined.
    * **Table 7 (`tab:local_global_forecasts`), Ipopt times.** The manuscript prints 0.04 s
      (simulated ARMA(1,0,1)) and 0.02 s (PJME); the archived records
      (`raw/battery-2026-07/solver/global_value_results.jsonl`) give 0.0018 s and 0.0020 s, and
@@ -24,7 +32,10 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
      (campaign A, aa68d57) and 0.9429 (ICARAI, 6a11698). The manifest records the settings in
      which they differ: stationarity by reflection (A) or not (ICARAI), `warmStartFromBox`
      (false, true), `requireTermsWhenOverDifferenced` (false, true), the commit and the Julia
-     version (1.9.4, 1.10.12).
+     version (1.9.4, 1.10.12). The controlled experiment settles it: under the release and one
+     environment, the Table 3 protocol gives 0.8977 again (359/359 series identical to
+     campaign A) and the Section 5.1 protocol gives 0.9002; the 0.9429 cell differs from 0.9002
+     only through the over-differencing guard (+0.0428, all 26 changed series have d + D >= 2).
    * **No archived source** (46 values): Table S2 (exogenous-convention simulation), Table S5
      and the certification numbers of Section 5.6 (seasonal-grid gaps, the near-cancellation
      and the two certified instances), and the initialization (0.2076 → 0.0863; 47.4% → 0.2%;
@@ -33,8 +44,8 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
      removed.
    * **Derived tables only** (23 values): Tables S6 and S7 and Figure S1 agree with the
      tables of the September 2026 revision analysis, whose simulation scripts are not
-     archived; the admissibility numbers of Section 5.5 (0.9094–0.9115; 0.9095 → 0.9038) agree
-     with the derived tables of 2026-10-17, whose raw archive is not in the bundle (item 7).
+     archived. (The admissibility numbers of Section 5.5, 0.9094–0.9115 and 0.9095 → 0.9038,
+     are now regenerated from the GAVEA raw archive in bundle part 2: item 7.)
    * Figure 1 is an analytic illustration; its plotting script is not archived.
 
 ## Provenance of the archived results
@@ -65,14 +76,17 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
    workspace; their package commits were not recorded. Their raw results and original
    scripts are archived, but their runners were not ported (`full` is unavailable for them).
 7. **The September 2026 GAVEA campaigns** (stable objective on hourly, quarterly, daily and
-   monthly; the 2x2x2x2 stationarity x invertibility x log-det census) are BLOCKED for
-   regeneration: their raw files are in a separate archive, `brutos_gavea.zip` (107,137,987
-   bytes, 177 files with their own SHA256SUMS, shared on 2026-10-16), that is not yet part of
-   the artifact bundle; their environment ran Julia 1.12.3 (outside the package's compat), and
-   the census Manifest and one patch are lost. The derived tables computed from that archive
-   on 2026-10-17 are kept in `results/historical/updated-2026-10-17/`; they found that the
-   stable campaigns of the hourly and quarterly frequencies stored MASE with the lag-1 naive
-   denominator and converted it exactly to the M4 seasonal denominator.
+   monthly; the 2x2x2x2 stationarity x invertibility x log-det census; the over-differencing
+   guard) regenerate from their raw archive, `brutos_gavea.zip` (107,137,987 bytes, 177 files,
+   its own SHA256SUMS verified on receipt, shared on 2026-10-16), which is in bundle part 2
+   (the M4 test values in its `*_prev.csv` forecast files removed). The table group
+   `stable_admissibility_gavea` rebuilds the tables of 2026-10-17 from it (1,028 cells). They
+   cannot be re-executed: the campaigns ran on several commits (fc2c482+PR26, a1ebc0d, aa68d57,
+   4e8cf11) on macOS with Julia 1.12.3 (outside the package's compat) through the GAVEA
+   harness, and the census Manifest and the patch behind its normalization-off cells are lost.
+   The stable campaigns of hourly and quarterly stored MASE with the lag-1 naive denominator;
+   the per-series ratio that converts it exactly to the M4 seasonal denominator is archived
+   in part 2 (computed from the official training series).
 
 ## Global optimization evidence
 
@@ -112,23 +126,53 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
 
 13. **The container image and the artifact bundle are not published yet.** Publishing (GHCR,
     Zenodo) is a maintainer action at release time. Until then the image is built locally
-    and the bundle must be supplied with `--from`/`--artifacts`. The bundle tarball exists on
-    the maintainer host that built it; 299 of its 535 files (everything sourced from git and
-    the Table 7 evidence) were rebuilt byte for byte on a second machine, the other 236 come
-    from workspaces that only that host holds.
+    and the bundle must be supplied with `--from`/`--artifacts`. The bundle has two parts.
+    Part 1 (535 files) exists on the maintainer host that built it; 299 of its files were
+    rebuilt byte for byte on a macOS machine and 446 on host RECREIO (Windows), the rest come
+    from workspaces that only the maintainer host holds (the a1ebc0d re-run and the derived
+    objective distributions). Part 2 (368 files: the controlled objective campaign and the GAVEA
+    raw archive) was built on RECREIO; two independent builds gave the same tarball byte for
+    byte. Both tarballs go into the same Zenodo record.
 14. **`linux/arm64` is experimental.** The Dockerfile handles both architectures and CI builds
     and exercises arm64 on an arm64 runner, but only `linux/amd64` is the reference platform
     (see REPRODUCIBILITY_STATUS.md for the latest result). On Apple Silicon, Docker runs the
     amd64 image under emulation, which is slow; `--platform linux/arm64 --build` builds a
     native image.
-15. **Full re-execution of the M4 campaigns was not performed** while preparing the
-    package (it costs hundreds of CPU-hours). The runner was exercised on subsets, which
-    checks the execution path, checkpointing and resumption, not the scientific result.
+15. **Full re-execution of the M4 campaigns with this package's runner was not performed**
+    while preparing the package (it costs hundreds of CPU-hours; the controlled objective
+    campaign alone took about 31 h on 10 workers of an i7-5820K). The runner was exercised on
+    subsets, which checks the execution path, checkpointing and resumption, and, where an
+    archived run exists, the agreement with it series by series; it is not a substitute for the
+    complete run. The controlled objective campaign's archive is itself a complete execution
+    with the release, made by that campaign's own runner (item 17).
 16. **Timing columns** of a re-run measure your machine and its load; they are not
     expected to match the archived ones.
-17. **The controlled objective experiment (`m4_objectives`) is pending.** Its configuration
-    is a placeholder (release defaults with the objective varied); its table generator and
-    expected values will be added with its final outputs (see ARTIFACT_GUIDE.md).
+17. **The controlled objective experiment (`m4_objectives`)** ran in full with the release (every
+    series of M4 monthly, quarterly, yearly and weekly under MSE, MAE, Huber and Ridge; 381,436
+    fits, none failed), and its tables regenerate from its archived records (544 cells). Its
+    caveats:
+    * It ran with its own runner on Windows (host RECREIO), not with this package's image. The
+      image's Julia environment equals the campaign's except `CompilerSupportLibraries_jll`,
+      but a re-run in the image runs on Linux. Re-running every weekly series in the image
+      reproduced the archive on 359/359 series for each objective: same selected order, total
+      sMAPE within 1.1e-11, forecasts within 6.4e-13 relative. Random samples of the other
+      frequencies did too: quarterly 40/40, yearly 40/40, monthly 12/12, for each objective.
+      Agreement on the complete monthly, quarterly and yearly sets is therefore expected but
+      not demonstrated.
+    * The protocol declared a 6 h orchestration safety limit per fit. One monthly Huber fit
+      (M36044, T = 2,726) ran 7.9 h and was not censored: that runner could not interrupt a
+      fit inside the solver. Treating it as censored changes no Table 5 value by more than
+      1e-6. This package's runner kills the worker, so a re-run as slow would record a TIMEOUT.
+    * In 10 of 48,000 monthly series the Huber fit did not converge, and the package returned
+      the MSE fit, as declared (flagged per series). Removing them changes no Table 5 value at
+      the fourth decimal.
+    * The measured release has three properties of its search and ranking code that affect all
+      objectives:
+      * C1, the stepwise neighbourhood is not re-centred after a rejected start. Its main
+        trigger, the over-differencing guard, is off in this protocol.
+      * C2, the drift level in the exact ranking likelihood.
+      * C4, the rule capping the seasonal orders.
+    * auto.arima and Naive2 are the stored July 2026 baselines (item 4).
 
 ## Found while re-running the battery on the release (to be assessed by the authors)
 

@@ -7,6 +7,8 @@ derived/m4-objectives-controlled-2026-10/:
   sMAPE/MASE, kept here to 6 decimals);
 * table6_controlled.tex (N, mean, q05, median, q95 of the MASE difference, 3 printed decimals)
   and objective_paired_differences.csv (shares lower / tied / higher and same order, 2 decimals);
+* objective_paired_differences.csv, again, for the mean and quantiles of the paired MASE and
+  sMAPE differences against MSE (6 decimals);
 * objective_distribution_quantiles.csv (mean and quantiles of MASE and sMAPE per method, 6 decimals);
 * table3_weekly_reconciliation.csv (weekly MSE: the controlled cell and the Table 3 protocol run).
 
@@ -77,6 +79,23 @@ def table6(bundle: Path) -> list[dict]:
     return rows
 
 
+def paired(bundle: Path) -> list[dict]:
+    src = f"{D}/objective_paired_differences.csv"
+    rows = []
+    with open(bundle / src, newline="", encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            if r["baseline"] != "MSE" or r["objective"] not in LABELS:
+                continue
+            for metric in ("MASE", "sMAPE"):
+                rk = f"{r['frequency']}|{r['objective']}|{metric}"
+                rows.append(cell("controlled.paired", rk, "N", r["N"], 0, src))
+                rows.append(cell("controlled.paired", rk, "mean", f"{float(r[f'{metric}_mean_diff']):.6f}", 6, src))
+                for q in ("q01", "q05", "q25", "q75", "q95", "q99"):
+                    rows.append(cell("controlled.paired", rk, q, f"{float(r[f'{metric}_{q}']):.6f}", 6, src))
+                rows.append(cell("controlled.paired", rk, "q50", f"{float(r[f'{metric}_median_diff']):.6f}", 6, src))
+    return rows
+
+
 def quantiles(bundle: Path) -> list[dict]:
     src = f"{D}/objective_distribution_quantiles.csv"
     rows = []
@@ -108,4 +127,4 @@ def weekly(bundle: Path) -> list[dict]:
 
 
 def extract(bundle: Path) -> list[dict]:
-    return table5(bundle) + table6(bundle) + quantiles(bundle) + weekly(bundle)
+    return table5(bundle) + table6(bundle) + paired(bundle) + quantiles(bundle) + weekly(bundle)

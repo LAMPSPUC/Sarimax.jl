@@ -11,6 +11,10 @@ auto.arima/Naive2 baselines (part 1):
 * `controlled.table6`: N, mean, q05, median and q95 of MASE(objective) - MASE(MSE) (the
   replacement Table 6), and the shares of series with a lower, tied (|d| <= 1e-4) or higher
   MASE and sMAPE than MSE, and with the same selected order;
+* `controlled.paired`: N, mean and quantiles (q01 ... q99) of the paired differences
+  MASE(objective) - MASE(MSE) and sMAPE(objective) - sMAPE(MSE) (the controlled counterpart of
+  the supplementary paired-quantile tables, S9 for MASE and S10 for sMAPE in the 2026-10-16
+  revision);
 * `controlled.quantiles`: mean and quantiles (q01 ... q99) of MASE and sMAPE of each method on
   the joint set (the controlled counterpart of the supplementary distribution tables);
 * `controlled.weekly`: the weekly MSE reconciliation: the controlled cell and the single extra
@@ -40,7 +44,7 @@ import math
 
 from .common import BLOCK_NAMES, Cell, Context, fmean, owa, read_csv, write_csv, write_text
 
-TITLE = "M4 objectives, controlled campaign Oct 2026: replacement Tables 5-6 and objective ECDF figure"
+TITLE = "M4 objectives, controlled campaign Oct 2026: replacement Tables 5, 6, S9, S10 and objective ECDF figure"
 RAW = "raw/m4-objectives-controlled-2026-10"
 BASE = "raw/m4-baselines-r-2026-07"
 FREQS = [("monthly", 48000), ("quarterly", 24000), ("yearly", 23000), ("weekly", 359)]
@@ -97,7 +101,7 @@ def pct(n: int, total: int) -> float:
 
 def generate(ctx: Context) -> list[Cell]:
     cells: list[Cell] = []
-    t5_rows, t6_rows, deltas = [], [], {}
+    t5_rows, t6_rows, paired_rows, deltas = [], [], [], {}
     for freq, expected in FREQS:
         cell = {o: read_cell(ctx, f"{RAW}/per_series/{o}__{freq}.csv.gz", expected) for o, _ in OBJECTIVES}
         nv, ar = read_reference(ctx, freq, "Naive"), read_reference(ctx, freq, "autoarima_R")
@@ -145,6 +149,12 @@ def generate(ctx: Context) -> list[Cell]:
             cells += [Cell("controlled.table6", rk, "N", len(ids), 0)]
             cells += [Cell("controlled.table6", rk, k, st[k], 3) for k in ("Mean", "q05", "Median", "q95")]
             for metric, d in (("MASE", dm), ("sMAPE", ds)):
+                pk = f"{rk}|{metric}"
+                paired_rows.append([freq, label, metric, len(d), fmean(d)] + [quantile(d, q) for q in QUANTILES])
+                cells += [Cell("controlled.paired", pk, "N", len(d), 0),
+                          Cell("controlled.paired", pk, "mean", fmean(d), 6)]
+                cells += [Cell("controlled.paired", pk, f"q{int(round(q * 100)):02d}", quantile(d, q), 6)
+                          for q in QUANTILES]
                 cells += [Cell("controlled.table6", rk, f"{metric}.pct_lower", pct(sum(x < -TIE for x in d), len(d)), 2),
                           Cell("controlled.table6", rk, f"{metric}.pct_tie", pct(sum(abs(x) <= TIE for x in d), len(d)), 2),
                           Cell("controlled.table6", rk, f"{metric}.pct_higher", pct(sum(x > TIE for x in d), len(d)), 2)]
@@ -191,6 +201,9 @@ def generate(ctx: Context) -> list[Cell]:
         last = r["frequency"]
     tex6 += [r"\bottomrule", r"\end{tabular}"]
     write_text(ctx.out / "table6_controlled.tex", "\n".join(tex6))
+    write_csv(ctx.out / "paired_controlled.csv",
+              ["frequency", "objective", "metric", "N", "mean"] + [f"q{int(round(q * 100)):02d}" for q in QUANTILES],
+              paired_rows)
     write_text(ctx.out / "weekly_reconciliation.txt", "\n".join(weekly_lines))
     figure(ctx, deltas, [f for f, _ in FREQS])
     return cells

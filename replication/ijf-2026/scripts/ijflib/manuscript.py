@@ -30,12 +30,31 @@ CONSISTENT = "CONSISTENT (derived table only)"
 DERIVED_DIFFER = "DIFFER (derived table)"
 NO_SOURCE = "NO ARCHIVED SOURCE"
 NOT_SELECTED = "NOT SELECTED"
+AWAITING = "AWAITING TRANSCRIPTION"
 
 VALUES = Path("results") / "manuscript" / "manuscript_values.csv"
 
+# The five categories of the traceability report, from the cell statuses. A value is
+# "raw-reproduced" only when a table group regenerated it from archived raw records and it
+# agrees at the printed precision; a value checked against a derived table is "derived-only"
+# however well it agrees.
+CATEGORIES = {
+    MATCH: "raw-reproduced",
+    CONSISTENT: "derived-only",
+    DIFFER: "differing",
+    DERIVED_DIFFER: "differing",
+    NO_SOURCE: "no evidence",
+    NOT_REGENERATED: "no evidence",
+    AWAITING: "no evidence",
+}
 
-def load(repl: Path) -> list[dict]:
-    with open(repl / VALUES, newline="", encoding="utf-8") as f:
+
+def category(status: str) -> str:
+    return CATEGORIES.get(status, "not checked")
+
+
+def load(repl: Path, values: Path = VALUES) -> list[dict]:
+    with open(repl / values, newline="", encoding="utf-8") as f:
         return list(csv.DictReader(f))
 
 
@@ -67,7 +86,7 @@ def _derived_value(repl: Path, source: str, selector: str, column: str) -> str |
 
 
 def reconcile(repl: Path, generated: dict[str, dict], unavailable: set[str],
-              selected: set[str] | None = None) -> list[dict]:
+              selected: set[str] | None = None, values: Path = VALUES) -> list[dict]:
     """Compare every manuscript value with its source.
 
     `generated` maps a group name to its regenerated cells {(table, row, column): Cell};
@@ -75,8 +94,13 @@ def reconcile(repl: Path, generated: dict[str, dict], unavailable: set[str],
     generator); `selected`, when given, the groups the run was restricted to.
     """
     out = []
-    for m in load(repl):
+    for m in load(repl, values):
         kind, value, diff = m["source_kind"], "", ""
+        if m["printed"] == "":
+            # a row of a transcription template whose printed value is not entered yet
+            out.append({**m, "source_value": "", "difference": "printed value not transcribed",
+                        "status": AWAITING})
+            continue
         if kind == "regenerated":
             group, _, table = m["source"].partition("/")
             cells = generated.get(group)
@@ -111,7 +135,7 @@ def item_status(counts: dict[str, int]) -> str:
     """Report status of a manuscript item: a difference fails, an unverifiable cell warns."""
     if counts.get(DIFFER) or counts.get(DERIVED_DIFFER):
         return "FAIL"
-    if counts.get(NOT_REGENERATED):
+    if counts.get(NOT_REGENERATED) or counts.get(AWAITING):
         return "MISSING"
     if counts.get(NO_SOURCE) or counts.get(CONSISTENT):
         return "WARN"

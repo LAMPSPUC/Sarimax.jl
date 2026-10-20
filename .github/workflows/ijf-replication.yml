@@ -5,7 +5,10 @@
 # full M4 campaigns never run here. The image is not pushed anywhere (see ijf-image-publish.yml).
 #
 #   host       shellcheck, usage/missing-Docker exit codes, checksums, manifest consistency,
-#              manuscript values against the historical tables (informational)
+#              the recovered outputs of the September 2026 revision analysis
+#   manuscript release check: every printed manuscript value against its source (fails on a
+#              numerical mismatch; reports missing evidence, the untranscribed canonical
+#              revision and the textual claims to verify)
 #   container  image build, default quick run without the (unpublished) bundle, tables on the
 #              committed fixture subset, missing/corrupted inputs, an image from other code,
 #              M4 fetch with SHA-256 check, m4_benchmark on a random sample of 2 then (--resume)
@@ -96,17 +99,39 @@ jobs:
       - name: Manifest, table groups and manuscript mapping are consistent
         run: python replication/ijf-2026/scripts/maintainers/check_package.py
 
-      - name: Manuscript values against the historical tables (informational)
-        continue-on-error: true
+      - name: Derived tables of the September 2026 revision follow from the recovered outputs
+        run: python replication/ijf-2026/scripts/maintainers/check_recovered_2026_09.py
+
+  manuscript:
+    name: Manuscript release check
+    # Separate from `host` so that a printed value that differs from its source fails this check
+    # without stopping the container tests. Required: a numerical mismatch is an error, not a
+    # warning. Missing evidence is reported (annotations and the step summary), not failed.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Printed values against their sources
         run: |
           python replication/ijf-2026/scripts/maintainers/check_manuscript_mapping.py \
-            --report manuscript_mapping.csv | tee -a "$GITHUB_STEP_SUMMARY"
+            --report manuscript_mapping.csv --markdown manuscript_traceability.md
+
+      - name: Traceability report
+        if: always()
+        run: cat manuscript_traceability.md >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: manuscript-mapping
-          path: manuscript_mapping.csv
+          path: |
+            manuscript_mapping.csv
+            manuscript_traceability.md
           if-no-files-found: ignore
 
   container:

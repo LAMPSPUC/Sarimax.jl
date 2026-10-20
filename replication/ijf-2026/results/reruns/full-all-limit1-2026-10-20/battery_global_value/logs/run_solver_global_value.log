@@ -1,0 +1,15 @@
+$ julia --project=/opt/sarimax/replication/ijf-2026/environments/julia --startup-file=no --color=no /opt/sarimax/replication/ijf-2026/experiments/runners/battery/run_solver_global_value.jl
+
+******************************************************************************
+This program contains Ipopt, a library for large-scale nonlinear optimization.
+ Ipopt is released as open source code under the Eclipse Public License (EPL).
+         For more information visit https://github.com/coin-or/Ipopt
+******************************************************************************
+
+sim_arma MA(1) T=80 / Ipopt -> LOCALLY_SOLVED  obj=73.6533 rmse_oos=0.5067 rt=1.9s
+sim_arma MA(1) T=80 / SCIP -> OPTIMAL  obj=73.6531 rmse_oos=0.5067 rt=338.3s  bound=73.65312391635199 gap=0.0 SCIP v8.0.0
+sim_arma ARMA(1,0,1) T=80 / Ipopt -> LOCALLY_SOLVED  obj=60.5257 rmse_oos=0.5499 rt=0.0s
+sim_arma ARMA(1,0,1) T=80 / SCIP -> TIME_LIMIT  obj=60.5256 rmse_oos=0.5498 rt=900.1s  bound=60.52523086706156 gap=5.344738231661896e-6 SCIP v8.0.0
+pjme_daily(scaled) ARMA(1,0,1) T=80 / Ipopt -> LOCALLY_SOLVED  obj=246.3799 rmse_oos=3.5962 rt=0.0s
+pjme_daily(scaled) ARMA(1,0,1) T=80 / SCIP -> TIME_LIMIT  obj=246.3796 rmse_oos=3.5961 rt=900.1s  bound=246.37121301651078 gap=3.40233788073203e-5 SCIP v8.0.0
+global_value DONE -> /ijf/output/runs/battery_global_value/full-all-limit1-2026-10-20/raw/battery-2026-07/solver/global_value_results.jsonl

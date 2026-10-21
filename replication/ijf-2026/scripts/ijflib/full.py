@@ -150,10 +150,14 @@ def compare_archived(paths: Paths, ref: dict, freq: str, rows: dict, report: Rep
 # ---------------------------------------------------------------------------------------------
 # Script experiments (the July 2026 battery)
 # ---------------------------------------------------------------------------------------------
-def run_script_experiment(paths: Paths, config: dict, run_dir: Path, report: Report, exp_id: str) -> bool:
+def run_script_experiment(paths: Paths, config: dict, run_dir: Path, report: Report, exp_id: str,
+                          jobs: int = 1) -> bool:
     ok = True
+    # IJF_JOBS: the --jobs of the run, for the script steps that parallelize themselves (the
+    # global-certification runner); the battery scripts ignore it.
     env = {"IJF_RUN_DIR": str(run_dir), "IJF_FIXTURES": str(paths.repl / "data" / "fixtures"),
-           "IJF_PJME_DIR": str(paths.pjme), "IJF_ARTIFACTS_DIR": str(paths.artifacts)}
+           "IJF_PJME_DIR": str(paths.pjme), "IJF_ARTIFACTS_DIR": str(paths.artifacts),
+           "IJF_JOBS": str(max(1, jobs or 1))}
     py = os.environ.get("IJF_PYTHON", sys.executable)
     for step in config["steps"]:
         script = paths.repl / step["script"]
@@ -272,7 +276,7 @@ def run(paths: Paths, args) -> int:
                 summarise_campaign(paths, config, run_dir, report, exp_id)
                 ok = True
             elif config["kind"] == "script":
-                ok = run_script_experiment(paths, config, run_dir, report, exp_id)
+                ok = run_script_experiment(paths, config, run_dir, report, exp_id, jobs=args.jobs)
             else:
                 raise ValueError(f"unknown kind {config['kind']}")
         except (RuntimeError, OSError, ValueError) as exc:

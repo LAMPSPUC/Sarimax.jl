@@ -1,0 +1,4 @@
+208c208
+< SC(tl)  = optimizer_with_attributes(SCIP.Optimizer, "limits/time" => tl)   # verblevel: default do SCIP (log vai para o stdout, capturado por caso)
+---
+> SC(tl)  = optimizer_with_attributes(SCIP.Optimizer, "limits/time" => tl, "heuristics/completesol/freq" => -1)   # DIAGNOSTICO 22/10: completesol desligada, NAO e replicacao   # verblevel: default do SCIP (log vai para o stdout, capturado por caso)

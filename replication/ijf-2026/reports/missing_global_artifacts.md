@@ -42,7 +42,10 @@ nodes, bounds, statuses, coefficients and SCIP logs. About 4.6 h of solver time,
 environment, on series identical to the package's instances. The 23 certificates are certified
 again with the same gaps, the instance values of Section 5.6 and the Ipopt objectives agree, and
 every Table S5 count is reproduced except T = 960 (1 / 1: id 38 did not return within 900 s, nor
-within 3600 s); ids 34 and 35 did not return either. The gaps of the time-limited seasonal
+within 3600 s, with other SCIP processes running); ids 34 and 35 did not return either. Run alone
+on 2026-10-22, ids 34 and 38 stop at the time limit (T = 960 is then 1 / 2, as printed) and id 35
+stays in SCIP's presolve, in the `completesol` heuristic that SCIP.jl's partial warm start
+triggers. The gaps of the time-limited seasonal
 instances differ (1.7e-4 to 4.6e-1, median 5.9e-2), as gaps at a time limit do from one machine
 load to another.
 

@@ -116,10 +116,10 @@ format and `compare_certification_2026_08.py` compares it with the record:
 | | record (August) | re-run (2026-10-21) |
 |---|---|---|
 | certified (OPTIMAL) | 23 | the same 23, certified gap equal to three digits in all; certified objective equal where recorded (33, 36, 44, 45) |
-| time limit | 21 | 20 of them again; id 38 (T = 960) did not return |
-| never returned | 34, 35 (T = 480) | 34, 35 and 38, under a 900 s and then a 3600 s clock |
+| time limit | 21 | 20 of them again; id 38 (T = 960) did not return in the queue, and stopped at the time limit when run alone (2026-10-22) |
+| never returned | 34, 35 (T = 480) | 34, 35 and 38 in the queue (3-4 SCIP processes at once), under a 900 s and then a 3600 s clock; run alone, 34 stops at the time limit and 35 stays in SCIP's presolve (`completesol` heuristic), measured |
 | Ipopt objective / Ipopt - SCIP | 9 / 32 recorded | 9 / 32 agree |
-| Table S5 (harness's cells) | the printed counts | the printed counts, except T = 960: 1 / 1 |
+| Table S5 (harness's cells) | the printed counts | the printed counts, except T = 960: 1 / 1 in the queue; with the isolated runs, T = 480 is 1 / 1 (34) with 35 not returning, and T = 960 is 1 / 2 as printed |
 | Section 5.6 ids 26, 44, 45 | the printed values | the printed values |
 | seasonal grid: largest Ipopt - SCIP; gaps smallest / largest / median | 2.52e-9; 1.94e-4 / 4.90e-1 / 1.51e-2 | 2.52e-9; 1.73e-4 / 4.63e-1 / 5.86e-2 |
 

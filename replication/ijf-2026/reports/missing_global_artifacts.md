@@ -28,9 +28,12 @@ median of 1.5e-2 where the text prints 2.5%, 1.9%, 4.9% and 1.2%; registered err
 omits the two unfinished T = 480 instances, its assignment is not unique, and it leaves out
 id 44, which anchors Section 5.6 (textual claims T16, T17).
 
-**Runner capability:** `run_global_certification.jl` builds the formulation; its instance list is
-still the provisional one. The batch's instances draw their coefficients through `Base.hash`, so
-porting them needs those values evaluated under Julia 1.12.3. A run is a new execution.
+**Runner capability:** RE-RUN AVAILABLE. `run_certification_2026_08.jl` re-runs the batch with
+its own harness on its own 46 instances, written as data (under the replication environment's
+Julia 1.10 MersenneTwister draws other series; the file was generated under Julia 1.11, as the
+batch's 1.12.3 drew them, and reproduces every Ipopt objective the record holds), and records
+nodes, bounds, statuses, coefficients and SCIP logs. About 4.6 h of solver time, divided by
+`--jobs`, in the Linux container. Not run yet (`certification_batch_2026_08.md` §1).
 
 **Wording.** The batch's results can be cited as such, with three changes: the seasonal-grid
 figures as recorded (the incumbent coincides with the Ipopt point; remaining relative gaps from

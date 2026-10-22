@@ -154,10 +154,10 @@ def run_script_experiment(paths: Paths, config: dict, run_dir: Path, report: Rep
                           jobs: int = 1) -> bool:
     ok = True
     # IJF_JOBS: the --jobs of the run, for the script steps that parallelize themselves (the
-    # global-certification runner); the battery scripts ignore it.
+    # global-certification runner); the battery scripts ignore it. IJF_M4_DIR: the fetched M4 files.
     env = {"IJF_RUN_DIR": str(run_dir), "IJF_FIXTURES": str(paths.repl / "data" / "fixtures"),
            "IJF_PJME_DIR": str(paths.pjme), "IJF_ARTIFACTS_DIR": str(paths.artifacts),
-           "IJF_JOBS": str(max(1, jobs or 1))}
+           "IJF_M4_DIR": str(paths.m4), "IJF_JOBS": str(max(1, jobs or 1))}
     py = os.environ.get("IJF_PYTHON", sys.executable)
     for step in config["steps"]:
         script = paths.repl / step["script"]

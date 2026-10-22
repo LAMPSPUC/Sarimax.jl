@@ -82,12 +82,26 @@ The printed seasonal figures carry the mantissas of the recorded values with the
 `2.5e-9` became 2.5%, `1.9e-4` 1.9%, `4.9e-1` 4.9%. The corrections proposed are in
 `results/manuscript/errata.csv`; the wording of the paper is decided by its authors.
 
-**Re-running.** The runner `experiments/runners/global/run_global_certification.jl` builds the
-same formulation, but its instance list is still the provisional one reconstructed from Table
-S5's classes. The batch's own instances draw their coefficients through
-`Base.hash((cell, draw, P, Q))`, whose values Julia does not guarantee across versions; porting
-them needs those values evaluated under the batch's Julia 1.12.3. A run is then a new execution:
-times and the gaps of time-limited instances depend on the machine.
+**Re-running: the batch's instances are recovered exactly.** The harness draws its synthetic
+series from `MersenneTwister` (the coefficients through `Base.hash((cell, draw, P, Q))`, the
+series from `MersenneTwister(1000 + id)`). `Base.hash` gives the same values under Julia 1.10
+and 1.11, but MersenneTwister's seeding changed in Julia 1.11: under the replication environment
+(Julia 1.10.12) the harness draws other series, and its Ipopt objectives differ from the record
+for every synthetic instance. Run under Julia 1.11.9, the harness's own data code
+(`experiments/runners/global/certification_2026_08_instances.jl`) gives series that, fitted
+with the harness's model in the replication environment, reproduce **every Ipopt objective the
+record holds**: ids 5, 26, 27, 33-38, 44 and 45 to the printed precision (to 5e-7 where six
+decimals were printed), and the three M4 series (ids 28-30, read from the M4 file, no random
+draw) to within 4e-5 of the SCIP objectives the harness printed. The 46 instances are therefore
+written as data (`experiments/configs/certification_2026_08_instances.csv`), and
+`experiments/runners/global/run_certification_2026_08.jl` re-runs the batch on them with the
+archived harness loaded verbatim, recording what the batch did not: SCIP's raw status, node
+count, coefficients and one log per case, and Ipopt's status and coefficients
+(`./reproduce.sh full --experiment global_optimization_grid --jobs N`; then
+`compare_certification_2026_08.py` compares the run with the record and recomputes Table S5 and
+the Section 5.6 figures). A run is a new execution: SCIP's times and the gaps of time-limited
+instances depend on the machine and the number of parallel jobs. **Not run yet:** SCIP needs the
+Linux container (the Windows build crashes), which was not available where this was prepared.
 
 ## 2. Table S2: the exogenous-convention simulation (LAMPSPUC/Sarimax.jl#18)
 

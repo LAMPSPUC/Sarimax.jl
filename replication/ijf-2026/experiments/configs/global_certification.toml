@@ -8,8 +8,11 @@
 # nodes and the exact objective at SCIP's coefficients.
 #
 # PROVISIONAL: the instance list (global_certification_instances.toml) is a reconstruction of the
-# August 2026 batch's design (same classes and counts as Table S5); the batch's own instances were
-# not archived. Run with --experiment; `full --all` leaves it out until the list is the batch's.
+# August 2026 batch's design (same classes and counts as Table S5). The batch's own 46 instances
+# are now archived (casos() in results/historical/certification-2026-08/received/harness/), but
+# their coefficients are drawn through Base.hash, so porting them needs those values evaluated
+# under the batch's Julia 1.12.3. Run with --experiment; `full --all` leaves it out until the
+# list is the batch's.
 # Use --jobs N: the runner starts N worker processes (SCIP is single-threaded). Linux container
 # only (the Windows SCIP build crashes).
 

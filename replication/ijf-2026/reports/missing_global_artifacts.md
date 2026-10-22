@@ -6,56 +6,36 @@ supplied), **RE-RUN AVAILABLE** (the package can produce a new, identified run),
 (the claim should be restated to what the archive supports). Nothing here was re-executed for
 this report beyond the re-run already recorded in `results/reruns/full-all-limit1-2026-10-20/`.
 
-## G1. The August 2026 certification batch (Table S5; Section 5.6) — AWAITING EVIDENCE
+## G1. The August 2026 certification batch (Table S5; Section 5.6) — RECONSTRUCTED RECORD; WORDING
 
-**Printed values without a record (24):** Table S5 (`tab:global_experiment`), all twelve cells:
-non-seasonal grid (1,0,1), T in {30, ..., 240}: 12 certified, 0 at the time limit; non-seasonal
-extended T = 480: 1 / 0; T = 960: 1 / 2; seasonal grid (1,0,1)(P,0,Q)_12, T in {36, 60}: 0 / 12;
-seasonal/adversarial diagnostics: 2 / 4; free pre-sample mode, T in {60, 120}: 3 / 0. Section
-5.6 (`sec:global_diagnostics`): seasonal grid incumbent 2.5% below the local objective, remaining
-gaps 1.9% / 4.9% / 1.2% (smallest / largest / median), near-cancellation instance Ipopt
-46.660913 and SCIP feasible 45.314976, certified instance 1 local 57.868044 and certified
-57.536983 (0.575%), instance 2 local 54.706978 and certified 53.681295 (1.911%). The rows are in
-`results/manuscript/manuscript_values.csv` and `global_certificate_inventory.csv`.
+**Received 2026-10-21** (`results/historical/certification-2026-08/`; reconciliation in
+`certification_batch_2026_08.md` §1). The per-instance raw outputs are lost; what exists is a
+reconstruction from the record of the session that ran the batch: the 46 instances (`casos()`
+of the harness; batch 1 ids 1-32, cells A-D; batch 2 ids 33-46, cells E-G), the three harness
+snapshots that ran, the Julia Manifest (SCIP.jl 0.11.6 on SCIP 8.0.0, Ipopt.jl 1.15.0, JuMP
+1.31.1, Julia 1.12.3), the SCIP parameters (`limits/time = 600`, `display/verblevel = 0`, nothing
+else), and per instance the status, time and certified gap (44 of 46), the Ipopt objective (9)
+and SCIP's objective and dual bound (7).
 
-**What is known about the batch** (coordination e-mail of 2026-08-21, not an archived record):
-32 cases, 600 s limit, a bilinear reformulation in an external harness without changes to the
-package; the non-seasonal cases all `OPTIMAL` with gaps around 1e-11 (including T = 240 in about
-2 min); seasonal cases at the time limit with the dual bound collected, one closed to 0.68%; the
-adversarial non-seasonal cases certified, the seasonal ones not. Table S5 counts 37 instances
-(12 + 1 + 3 + 12 + 6 + 3), the e-mail 32: the extended and free pre-sample rows may come from a
-later run. The batch's author wrote on 2026-10-16 that its files were sent on 2026-08-22 and
-offered to repackage them. They are not in this repository, its branches, the artifact bundle or
-the workspace that built it.
+**Never recorded or lost:** node counts, SCIP logs, SCIP's raw status, the Ipopt coefficients and
+status, the primal and dual bounds of 37 instances. Ids 34 and 35 (T = 480) never finished; the
+dual bound of id 37 is SCIP's `-1e+20` sentinel.
 
-**Records needed, per instance:** the series (or generator and seed) and T; the harness at the
-commit used (JuMP model, lifting variables `a_ik = phi_i Phi_k` and `m_jw = theta_j Theta_w` and
-their bounds, innovation bounds `|eps_t| <= sqrt(f_Ipopt)` and how `f_Ipopt` was obtained, warm
-start); the Julia Manifest (SCIP, SCIP_jll, Ipopt versions); the SCIP parameters in force
-(`limits/time`, `limits/gap`, `limits/absgap`, `numerics/feastol`, and any other); the SCIP
-output (termination and raw status, primal bound, dual bound, absolute and relative gap, solving
-time, nodes) or its log at `display/verblevel >= 4`; the Ipopt incumbent (objective,
-coefficients, status); the number of concurrent jobs.
+**Against the 24 printed values:** the 12 Table S5 counts agree under the assignment by the
+harness's cells; the near-cancellation instance (id 26) and the two certificates (ids 44, 45)
+agree, 8 values; the 4 seasonal-grid figures differ (the record has 2.5e-9, 1.9e-4, 4.9e-1 and a
+median of 1.5e-2 where the text prints 2.5%, 1.9%, 4.9% and 1.2%; registered errata). The table
+omits the two unfinished T = 480 instances, its assignment is not unique, and it leaves out
+id 44, which anchors Section 5.6 (textual claims T16, T17).
 
-**Runner capability:** none. The package does not generate lifting variables, innovation bounds
-or SCIP warm starts (`global_certification_audit.md` §2), and no runner of this replication
-package builds that formulation, so no command regenerates the batch. Re-creating the harness
-from the manuscript's description would be a NEW experiment, not a reproduction, and needs
-approval.
+**Runner capability:** `run_global_certification.jl` builds the formulation; its instance list is
+still the provisional one. The batch's instances draw their coefficients through `Base.hash`, so
+porting them needs those values evaluated under Julia 1.12.3. A run is a new execution.
 
-**Cost, if the harness is supplied and re-run:** 37 instances at up to 600 s each, single-threaded
-SCIP: at most 6.2 h of SCIP time, about 1.6 h of wall time with 4 parallel jobs, in the Linux
-container (SCIP crashes on native Windows). The archived 2026-10-20 re-run suggests that times
-on the container platform can be several times the archived ones.
-
-**Wording if the records stay missing.** Table S5 and the numbers above cannot be printed as
-archived results. Supported by the archive instead (inventory rows): "On non-seasonal MA(1)
-least-squares problems, SCIP 8.0.0 closed the gap within 600 s up to T = 120 and stopped at the
-time limit with relative gaps of about 1e-5 at T = 150 and T = 200; on the ARMA(1,1) instances of
-Table 7 it certified the simulated case and left a relative gap of 3.4e-5 on the PJME case in a
-logged 900 s run. Multiplicative seasonal instances were not certified in the archived runs." If
-the seasonal and adversarial findings are kept, they should be labelled as exploratory runs whose
-records are not part of the replication package.
+**Wording.** The batch's results can be cited as such, with three changes: the seasonal-grid
+figures as recorded (the incumbent coincides with the Ipopt point; remaining relative gaps from
+1.9e-4 to 4.9e-1, median 1.5e-2); the T = 480 row with its two unfinished instances; and the
+instances Table S5 counts stated, so that the certificates of Section 5.6 can be located in it.
 
 ## G2. Table 7, PJME ARMA(1,0,1): "Certified: yes", 900.0 s — WORDING (RE-RUN AVAILABLE)
 

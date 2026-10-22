@@ -46,11 +46,11 @@ difference as missing evidence on every run.
 | category | values | items |
 |---|---|---|
 | raw-reproduced | 603 | every regenerated row of Tables 2-7, S4, S8-S10, Figures 2-3 and Sections 5.3-5.6 except those below |
-| derived-only | 19 | Tables S6 (9) and S7 (10); their script and outputs are now recovered and checked in CI |
-| differing | 2 | Table 7, Ipopt times 0.04 s and 0.02 s (registered errata; `table7_timing_reconciliation.md`) |
-| no evidence | 46 | Table S5 (12), Section 5.6 (12), Section 5.5 (11), Table S2 (9), Table S3 (2) (`provenance_gaps.md`) |
+| derived-only | 56 | Tables S6 (9) and S7 (10), whose script and outputs are recovered and checked in CI; Table S5 (12), Section 5.6 (8), Table S2 (9) and Section 5.5 (8), checked against the records reconstructed on 2026-10-21 (`certification_batch_2026_08.md`) |
+| differing | 6 | Table 7, Ipopt times 0.04 s and 0.02 s (`table7_timing_reconciliation.md`); Section 5.6, the four seasonal-grid figures (`certification_batch_2026_08.md`); all registered errata |
+| no evidence | 5 | Section 5.5 (3: mixed seasonal orders 12.1% -> 16.5%, OWA +0.0097), Table S3 (2) (`provenance_gaps.md`) |
 | checked at run time only | 2 | cells without a historical table (Section 5.3 range) |
-| textual claims | 15 listed, 13 to verify | `results/manuscript/textual_claims.csv` |
+| textual claims | 17 listed, 13 to verify | `results/manuscript/textual_claims.csv` |
 
 "Raw-reproduced" in the static check means that the printed value agrees with the reference cell
 that a table group regenerates from archived raw records; the regeneration itself is verified by

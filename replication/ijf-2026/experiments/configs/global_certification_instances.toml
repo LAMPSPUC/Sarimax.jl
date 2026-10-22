@@ -8,6 +8,8 @@
 # MA root near the unit circle; free pre-sample mode with T in {60, 120}, 3), on simulated data
 # with declared coefficients and seeds. Results from this list are a NEW execution, not a
 # reproduction of the batch's numbers; replace the list with the batch's own to reproduce them.
+# The batch's own definitions (casos(), 46 instances in cells A-G) were received on 2026-10-21:
+# results/historical/certification-2026-08/received/harness/.
 
 [[instance]]
 id = "ns_grid_T30"

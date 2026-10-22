@@ -12,7 +12,7 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
    (`reports/manuscript_traceability.md`). The 672 numbers printed in the tables, figures and
    experimental sections of the 2026-10-16 revision are listed in
    `results/manuscript/manuscript_values.csv` and checked by `tables` and by the release check.
-   By category: 603 raw-reproduced, 19 derived-only, 2 differing (registered errata), 46 without
+   By category: 603 raw-reproduced, 56 derived-only, 6 differing (registered errata), 5 without
    evidence, 2 checked only against regenerated values; 13 textual claims need verification
    (`results/manuscript/textual_claims.csv`). In detail:
    * **Tables 5, 6, S9, S10, Figure 3 and Section 5.4 print the historical objective
@@ -45,15 +45,20 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
      environment, the Table 3 protocol gives 0.8977 again (359/359 series identical to
      campaign A) and the Section 5.1 protocol gives 0.9002; the 0.9429 cell differs from 0.9002
      only through the over-differencing guard (+0.0428, all 26 changed series have d + D >= 2).
-   * **No archived source** (46 values; `reports/provenance_gaps.md`): Table S5 and the
-     certification numbers of Section 5.6 (the August 2026 certification batch: seasonal-grid
-     gaps, the near-cancellation and the two certified instances); the likelihood-ranking
-     numbers of Section 5.5 (1,099 fits; 21.6 → 3.3; 12.1% → 16.5%; +0.0097), for which nothing
-     was found; Table S2 (exogenous-convention simulation) and the initialization numbers of
-     Section 5.5 (0.2076 → 0.0863; 47.4% → 0.2%; −28%), which appear only in the descriptions of
-     pull requests LAMPSPUC/Sarimax.jl#18 and #20, without records; and the two configuration
-     rows of Table S3 (the Table 3 item above). Their records must be supplied, or the
-     statements qualified.
+   * **Reconstructed records** (41 values; `reports/certification_batch_2026_08.md`): Table S5
+     and the certification numbers of Section 5.6 (the August 2026 certification batch), Table
+     S2, and the initialization and likelihood-ranking numbers of Section 5.5. Their raw outputs
+     are lost; what survives was reconstructed from the record of the session that produced
+     them and is archived in `results/historical/certification-2026-08/`. Against it, 37 values
+     agree (derived-only) and the four seasonal-grid figures of Section 5.6 differ (the record
+     has 2.5e-9, 1.9e-4, 4.9e-1 and a median of 1.5e-2 where the text prints percentages with
+     the same mantissas; registered errata). Table S5 omits two unfinished T = 480 instances
+     and does not count the group of the first certificate of Section 5.6; the ranking
+     paragraph merges two measurements, one of them not paired.
+   * **No archived source** (5 values; `reports/provenance_gaps.md`): the mixed seasonal orders
+     (12.1% → 16.5%) and the OWA deterioration (+0.0097) of the Section 5.5 ranking diagnostic,
+     which the files supplied do not give; and the two configuration rows of Table S3 (the
+     Table 3 item above).
    * **Derived tables only** (19 values): Tables S6 and S7 (and the coefficients of Figure S1)
      agree with the tables of the September 2026 revision analysis. Their simulation script and
      its outputs were recovered on 2026-10-20 (`results/historical/revision-2026-09/recovered/`),
@@ -123,7 +128,9 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
    coefficients the exact objective is not below Ipopt's in any Table 7 instance. The July
    2026 M4 yearly study ran SCIP with `limits/gap = 0.01`: its "OPTIMAL" rows are certified
    only to a 1% relative gap. The global-optimization grid of Table S5 and the certified
-   instances of Section 5.6 (the August 2026 certification batch) are not archived at all.
+   instances of Section 5.6 (the August 2026 certification batch) survive only as a
+   reconstruction from the session that ran them: status, time and certified gap per
+   instance, objectives for 9 of 46, no node counts and no SCIP logs.
    Per record: `reports/global_certificate_inventory.csv`; analysis:
    `reports/global_certification_audit.md`.
 9. The ported runners and the smoke test record the dual bound, relative gap, raw status,

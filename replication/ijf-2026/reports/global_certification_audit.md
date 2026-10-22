@@ -13,7 +13,7 @@ in `missing_global_artifacts.md`. Numbers below are copied from the inventory.
 | same battery, commit `ecc4878` (2026-07-11) | the records the solver logs show: MA(1) certificates and Table 7 (the scaling records are identical at both commits) | `results/historical/battery-2026-07-ecc4878/`; logs in the bundle (`refresh_scip.log`, `scip_scaling_run*.log`, `global_value_run.log`) |
 | re-run `full-all-limit1-2026-10-20` | a NEW execution of the Table 7 and MA(1)-certificate runners in the replication container, recording SCIP's dual bound, raw status and node count, with logs | `results/reruns/full-all-limit1-2026-10-20/` (`RUN.md`) |
 | July 2026 yearly study | SCIP against Ipopt through the package API on 100 short M4 yearly series (free and constrained runs) and two probes (size, gap limit) | bundle part 1, `raw/scip-ipopt-yearly-2026-07/` |
-| August 2026 certification batch | Table S5 and the seasonal-grid, near-cancellation and certified-instance numbers of Section 5.6 | **not archived** (section 6) |
+| August 2026 certification batch | Table S5 and the seasonal-grid, near-cancellation and certified-instance numbers of Section 5.6 | **reconstructed** from the session that ran it (raw outputs lost): `results/historical/certification-2026-08/` (section 6) |
 
 All archived battery SCIP solves used SCIP 8.0.0 through SCIP.jl 0.11.6 (SCIP_jll 0.2.1+0), on
 macOS arm64 with Julia 1.11.9; the re-run used the same SCIP build for Linux x86_64 with Julia
@@ -69,7 +69,7 @@ Elapsed time is not used to classify.
 | Table 7, simulated MA(1), T = 80, 900 s | `ecc4878` logged (71.6 s), `8ffc512` (69.2 s, printed), re-run (338.3 s, dual bound 73.65312392) | **certified** in all three runs |
 | Table 7, simulated ARMA(1,0,1), T = 80, 900 s | `ecc4878` logged (393.1 s), `8ffc512` (385.4 s, printed): `OPTIMAL`; re-run: `TIME_LIMIT` at 900.1 s, relative gap 5.34e-6 | **certified** in the archived runs; **not reproduced** within 900 s in the re-run (open gap) |
 | **Table 7, PJME ARMA(1,0,1), T = 80, 900 s** ("Certified: yes", 900.0 s) | section 4.1 | **insufficient evidence** for a certificate; **feasible with open gap** is established |
-| Table S5; Section 5.6 seasonal grid, near-cancellation instance, certified instances 1 and 2 | none (24 printed values) | **insufficient evidence** (awaiting the August 2026 batch) |
+| Table S5; Section 5.6 seasonal grid, near-cancellation instance, certified instances 1 and 2 | reconstructed per-instance status, time and certified gap (44 of 46), objectives and dual bounds (7); no logs, no node counts | ids 44 and 45 **certified** (gaps 1.09e-9, 1.07e-8) and id 26 **improved feasible without certification** on the reconstructed record; the seasonal grid **feasible with open gap** (relative 1.9e-4 to 4.9e-1); not re-verifiable without logs (`certification_batch_2026_08.md`) |
 | July 2026 yearly study (not cited by the 2026-10-16 revision) | 195 per-series rows, `limits/gap = 0.01` | 183 **feasible with open gap** (≤ 1%), 8 **improved feasible without certification** (SCIP's objective 0.9% to 25.8% below Ipopt's), 4 **insufficient evidence** (`TIME_LIMIT`, no gap recorded) |
 | July 2026 size and gap-limit probes (not cited) | status and time only | 2 feasible with gap ≤ 1%, 6 insufficient evidence |
 
@@ -127,13 +127,14 @@ properties of the machine, not of the instance alone.
 
 ## 6. Missing evidence
 
-The August 2026 certification batch (Table S5 and the Section 5.6 numbers listed in
-`results/manuscript/manuscript_values.csv` with `source_kind = none`) has no archived record,
-log, script, data or configuration. The 2026-10-16 e-mail of the batch's author states that its
-files were sent on 2026-08-22 and offers to repackage them; they are not in this repository or
-the artifact bundle. `missing_global_artifacts.md` lists, per item, what is needed, the
-command or harness that would regenerate it, its cost and the wording to use if it stays
-missing.
+The August 2026 certification batch (Table S5 and the Section 5.6 numbers) has no raw record:
+its per-instance outputs were lost. Its author supplied on 2026-10-21 a reconstruction from the
+record of the session that ran it: the 46 instances, the harness, the environment, and per
+instance the status, time and certified gap, with objectives and dual bounds for a few
+(`results/historical/certification-2026-08/`). SCIP ran with `display/verblevel = 0`, so no log
+exists, and node counts were never recorded: its certificates cannot be re-verified beyond the
+status and gap the session printed. `certification_batch_2026_08.md` reconciles it with the
+manuscript; `missing_global_artifacts.md` G1 gives the remaining gaps and the wording.
 
 ## 7. Reproduction
 

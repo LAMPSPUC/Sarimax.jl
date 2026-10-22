@@ -18,7 +18,7 @@ tables from archived results (Level B) and re-execution from the original data (
 the 2026-10-16 revision. The release check reports this as missing evidence, maps the items the
 2026-10-19 revision takes from the controlled campaign to `m4_objectives` in a template
 awaiting transcription, and sorts every value into five categories (raw-reproduced 603,
-derived-only 19, differing 2, no evidence 46, 2 checked at run time only; 13 textual claims to
+derived-only 56, differing 6, no evidence 5, 2 checked at run time only; 13 textual claims to
 verify). See `reports/manuscript_traceability.md` and `FINAL_SCIENTIFIC_AUDIT.md`.
 
 `results/manuscript/manuscript_values.csv` lists the 672 numbers printed in the tables,
@@ -41,10 +41,10 @@ in two ways:
 | Table 5 | `tab:m4_objectives` | 44 | 44 agree | 20 agree (`m4_objectives`); 24 need part-1 inputs not rebuildable from the repository | 44 agree | m4_objectives_icarai_innovations, m4_objective_distributions |
 | Table 6 | `tab:objective_paired_quantiles` | 60 | 60 agree | needs part-1 inputs not rebuildable from the repository | 60 agree | m4_objective_distributions |
 | Table 7 | `tab:local_global_forecasts` | 40 | 38 agree, **2 differ** (registered errata) | 38 agree, **2 differ** | 38 agree, **2 differ** | battery_global_value |
-| Table S2 | `tab:exog_validation` | 9 | no archived source (the values appear only in the description of LAMPSPUC/Sarimax.jl#18) | – | – | exog_convention_simulation (BLOCKED) |
+| Table S2 | `tab:exog_validation` | 9 | 9 agree with the recovered aggregate (reconstructed record, `results/historical/certification-2026-08/`) | – | – | exog_convention_simulation (PARTIAL) |
 | Table S3 | `tab:m4_baseline` | 2 | configuration, see LIMITATIONS item 1 | – | – | – |
 | Table S4 | (added on 2026-10-16) | 2 | 2 agree | 1 agree | 2 agree | m4_benchmark, m4_objective_distributions |
-| Table S5 | `tab:global_experiment` | 12 | no archived source | – | – | global_optimization_grid (BLOCKED) |
+| Table S5 | `tab:global_experiment` | 12 | 12 agree with the reconstructed record of the August 2026 batch | – | – | global_optimization_grid (PARTIAL) |
 | Table S6 | `tab:quantile_demo` | 9 | agree with a derived table, recomputed in CI from the recovered outputs | – | – | quantile_demo |
 | Table S7 | `tab:multistart` | 10 | agree with a derived table, recomputed in CI from the recovered per-start records | – | – | multistart_kstart |
 | Table S8 | `tab:supp_m4_marginal` | 115 | 115 agree | 115 agree | 75 agree | m4_benchmark (m4_paired) |
@@ -54,8 +54,8 @@ in two ways:
 | Figure 3 | `fig:objective_ecdf` | 12 | 12 agree | needs part-1 inputs not rebuildable from the repository | 12 agree | m4_objective_distributions |
 | Section 5.3 | `sec:m4_validation` | 4 | 2 agree, 2 checked at run time only | 4 agree (the 41–78% range needs all six frequencies) | 2 agree | m4_benchmark (m4_paired) |
 | Section 5.4 | `sec:m4_objectives` | 4 | 4 agree | needs part-1 inputs not rebuildable from the repository | 4 agree | m4_objective_distributions |
-| Section 5.5 | `sec:estimation_sensitivity` | 15 | 4 agree (admissibility); 11 no archived source (the 5 initialization values appear only in the description of LAMPSPUC/Sarimax.jl#20) | 4 agree (regenerated from the raw archive) | – | stable_admissibility_gavea; initialization_experiment, ranking_likelihood_diagnostic (BLOCKED) |
-| Section 5.6 | `sec:global_diagnostics` | 14 | 2 agree; 12 no archived source | 2 agree | 2 agree | battery_solver_comparison; global_optimization_grid (BLOCKED) |
+| Section 5.5 | `sec:estimation_sensitivity` | 15 | 4 agree (admissibility); 8 agree with recovered aggregates (initialization 5, ranking 3); 3 no archived source (ranking: 12.1%, 16.5%, +0.0097) | 4 agree (regenerated from the raw archive) | – | stable_admissibility_gavea; initialization_experiment, ranking_likelihood_diagnostic (PARTIAL) |
+| Section 5.6 | `sec:global_diagnostics` | 14 | 2 agree; 8 agree with the reconstructed record; **4 differ** (seasonal grid, registered errata) | 2 agree | 2 agree | battery_solver_comparison; global_optimization_grid (PARTIAL) |
 | Figure 1, Figure S1 | `fig:ar3_cross_sections`, `fig:weighted_demo` | – | figures without printed numbers; Figure S1's data agree with a derived table | – | – | ar3_stationarity_figure, weighted_regularization_demo (PARTIAL) |
 
 In all, against the historical tables:
@@ -66,7 +66,9 @@ In all, against the historical tables:
 | **differ** (Table 7, Ipopt times: printed 0.04 s and 0.02 s, archived 0.0018 s and 0.0020 s) | **2** |
 | checked at run time only | 2 |
 | agree only with derived tables whose raw inputs are not archived | 19 |
-| no archived source | 46 |
+| agree with records reconstructed from the session that produced them (2026-10-21) | 37 |
+| **differ** from those records (Section 5.6 seasonal grid: the exponents lost) | **4** |
+| no archived source | 5 |
 
 Every printed value that has a regenerable source was regenerated in at least one of the two
 runs: 605 values, of which 603 agree and 2 differ. Details, and what each gap needs, are in
@@ -101,10 +103,10 @@ those items at its `m4_objectives_controlled` cell, awaiting the printed values 
 | scip_ipopt_m4_yearly | not reported | VERIFIED | PARTIAL | SCIP gap limit 1%; no dual bounds |
 | stable_admissibility_gavea | Section 5.5 (admissibility) | **VERIFIED** (1,028 cells) | BLOCKED | the raw archive `brutos_gavea.zip` is in bundle part 2; the stable, admissibility-grid and guard tables of 2026-10-17 regenerate from it; the GAVEA runners need the GAVEA harness (Julia 1.12) and the census Manifest and one patch are lost |
 | admissibility_margins, initialization_order_search | not reported | PARTIAL | PARTIAL | raw results only |
-| exog_convention_simulation | Table S2 | BLOCKED | BLOCKED | no runner, outputs or table archived |
-| global_optimization_grid | Table S5; Section 5.6 certificates | BLOCKED | BLOCKED | August 2026 certification batch not archived |
+| exog_convention_simulation | Table S2 | PARTIAL | BLOCKED | per-DGP aggregate, generator, fitters and reader recovered (2026-10-21); per-replication outputs lost; not ported to a runner |
+| global_optimization_grid | Table S5; Section 5.6 certificates | PARTIAL | EXECUTABLE | August 2026 batch reconstructed from its session record (raw outputs lost); 4 Section 5.6 figures differ; the runner's instance list is still provisional |
 | quantile_demo, multistart_kstart, weighted_regularization_demo | Tables S6, S7; Figure S1 | VERIFIED (recovered outputs) | PARTIAL | script and outputs recovered (`results/historical/revision-2026-09/recovered/`); CI recomputes the derived tables from them; re-running the script is a new execution |
-| initialization_experiment, ranking_likelihood_diagnostic | Section 5.5 | BLOCKED | BLOCKED | records not identified; the initialization values appear in the description of LAMPSPUC/Sarimax.jl#20, the ranking values nowhere |
+| initialization_experiment, ranking_likelihood_diagnostic | Section 5.5 | PARTIAL | BLOCKED | scripts and aggregates recovered (2026-10-21); 3 ranking values not recovered; per-fit outputs lost; not ported to runners |
 | ar3_stationarity_figure | Figure 1 | PARTIAL | NOT APPLICABLE | analytic figure; its script recovered with the others |
 
 **Level B in total:** 6,860 reference cells in ten table groups.
@@ -143,8 +145,9 @@ report and the superseded historical campaign.
 | **M4 univariate results under the fixed code** | `full --experiment m4_objectives --frequency weekly --jobs 10` | 5 x 359 series OK in 22 min; every objective reproduces the archive on 359/359 series (same order; total sMAPE within 1.0e-11 MSE, 1.1e-12 MAE, 5.3e-12 Huber, 1.7e-13 Ridge; forecasts bit-identical for 230/222/230/286 series and otherwise within 6.4e-13 relative), the same as with v1.0.0; OWA MSE 0.9002, MAE 1.2735, Huber 1.0840, Ridge 0.9436 |
 | Samples of quarterly and yearly | `full ... --frequency quarterly --frequency yearly --sample 20` | every objective reproduces the archive on 20/20 series of each frequency |
 | Global-certificate inventory | `build_global_certificates.py --bundle <local bundle> --pjme-daily <re-run data>` | 255 rows; 22 certified, 190 feasible with open gap, 8 improved feasible without certification, 35 insufficient evidence |
+| Reconstructed records (2026-10-21) | `check_certification_2026_08.py` | 45 files verified; the consolidated per-instance table agrees with the per-batch tables on 44 rows; 42 derived values follow from the files |
 | Recovered outputs | `check_recovered_2026_09.py` | 14 files verified; Tables S6 (30 values), S7 (96 values, recomputed from 360 per-start records) and the Figure S1 table (60 values) agree |
-| Release check | `check_manuscript_mapping.py` / `--release` | pull-request mode PASS (2 registered errata, 0 unregistered, 0 stale); release mode FAIL on the 2 errata, as designed; a changed printed value and a stale erratum each make it fail |
+| Release check | `check_manuscript_mapping.py` / `--release` | pull-request mode PASS (6 registered errata, 0 unregistered, 0 stale); release mode FAIL on the 6 errata, as designed; a changed printed value and a stale erratum each make it fail |
 | CI at `8dc4290` | GitHub Actions | IJF replication: host, manuscript release check, container amd64 and arm64 all PASS; Documentation PASS; package CI PASS on ubuntu (Julia 1, 1.10) and macOS, FAIL on Windows in the elastic-net test fixed by the `src/penalty.jl` change |
 
 ### Container run (linux/amd64, Docker Desktop 27.2.0 on Windows 10, 2026-10-20; this pull request)
@@ -243,13 +246,10 @@ What remains:
 
 0. **The canonical manuscript** (2026-10-19 revision: PDF, supplement and source zip).
 1. **Records behind printed values with no archived source** (`reports/provenance_gaps.md`):
-   * the exogenous-convention simulation (Table S2; the values appear only in a pull-request
-     description);
-   * the global-optimization grid and the certified instances of Section 5.6 (the August 2026
-     certification batch: instances, SCIP logs, primal and dual bounds, tolerances;
-     `reports/missing_global_artifacts.md`);
-   * the initialization (pull-request description only) and likelihood-ranking (nothing found)
-     diagnostics of Section 5.5.
+   the source of the mixed-seasonal-order shares and the OWA of the Section 5.5 ranking
+   diagnostic. The August 2026 certification batch, Table S2 and the other Section 5.5
+   diagnostics were supplied on 2026-10-21 as reconstructions (raw outputs lost;
+   `reports/certification_batch_2026_08.md`).
 2. **The census Manifest and the `fator=1` patch** behind its normalization-off cells
    (lost), needed to re-execute those arms.
 3. ~~The simulation scripts of the September 2026 revision analysis and their outputs~~:

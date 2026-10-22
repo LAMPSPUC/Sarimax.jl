@@ -318,8 +318,9 @@ The controlled comparison of objectives was produced by a separate workstream (2
 5. **Archive the bundle.**
    * Part 1 already exists (its SHA-256 is in `artifacts.lock`); part 2 is rebuilt identically
      with `build_artifact_part2.py`.
-   * If the paper keeps the certification results of Section 5.6, the August 2026
-     certification batch has to be found and archived as a further part, with a table group.
+   * The August 2026 certification batch survives only as a reconstruction (raw outputs lost),
+     archived in the repository (`results/historical/certification-2026-08/`) and checked by
+     `check_certification_2026_08.py`; it needs no further bundle part.
    * Upload both tarballs and their inventories to one Zenodo data record. Test in the Zenodo
      Sandbox first: `scripts/maintainers/zenodo_deposit.py --bundle-dir DIR1 --part2-dir DIR2`.
    * Record the version DOI and each tarball's URL in `artifacts.lock`. This does not change
@@ -346,7 +347,8 @@ touch the package or the replication files, and by hand. Full campaigns never ru
   `checksums.sha256` against the committed files and against a fresh regeneration;
   `check_package.py` (manifest, table groups, manuscript mapping); and
   `check_recovered_2026_09.py` (the derived tables of Tables S6 and S7 and Figure S1 against
-  the recovered outputs).
+  the recovered outputs); and `check_certification_2026_08.py` (the values of Table S5,
+  Section 5.6, Table S2 and Section 5.5 against the records reconstructed on 2026-10-21).
 * **Manuscript release check** (its own job, so that it does not stop the container tests):
   `check_manuscript_mapping.py` fails on any printed value that differs from its source and is
   not a registered erratum, and on a registered erratum that no longer differs; it reports the

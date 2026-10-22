@@ -1,0 +1,20 @@
+=== CASO 26 — quase-cancelamento sazonal ===
+  obj Ipopt : 46.660913
+  obj SCIP  : 45.314976   (incumbente MELHOR)
+  dual SCIP : 30.738742
+  diferenca : 1.345937  =  2.970% do objetivo
+  status: TIME_LIMIT em 600s | gap certificado 3.22e-01
+
+=== todos os casos onde o SCIP achou ponto melhor que o Ipopt ===
+ id cel                     rotulo     status  obj_ipopt  obj_scip  gap_rel
+  5   A                fronteira-T    OPTIMAL  68.816623 68.816486 0.000002
+ 26   C quase-cancelamento-sazonal TIME_LIMIT  46.660913 45.314976 0.029702
+ 27   C    MA-quase-nao-inversivel    OPTIMAL  66.601316 66.601100 0.000003
+
+=== e os piores gaps relativos ===
+ id                     rotulo     status      gap_rel
+ 26 quase-cancelamento-sazonal TIME_LIMIT 2.970181e-02
+ 27    MA-quase-nao-inversivel    OPTIMAL 3.247223e-06
+  5                fronteira-T    OPTIMAL 1.987128e-06
+  1                fronteira-T    OPTIMAL 9.964219e-07
+  2                fronteira-T    OPTIMAL 9.548967e-07

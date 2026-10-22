@@ -1,0 +1,6 @@
+  [34] ipopt OK em 0.6s (obj 455.2423); scip...
+MORTO POR RELOGIO EXTERNO apos 900s
+  [35] ipopt OK em 0.6s (obj 485.4985); scip...
+MORTO POR RELOGIO EXTERNO apos 900s
+=== consolidando lote 2 ===
+12

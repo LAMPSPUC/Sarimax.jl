@@ -1,0 +1,43 @@
+quantity,value,instances,rule
+s5_nonseasonal_grid_certified,12,1-12,"OPTIMAL among cell A (non-seasonal (1,0,1), T in {30, 60, 120, 240}, 3 draws each)"
+s5_nonseasonal_grid_time_limit,0,1-12,"TIME_LIMIT among cell A (non-seasonal (1,0,1), T in {30, 60, 120, 240}, 3 draws each)"
+s5_extended_T480_certified,1,33-35,"OPTIMAL among cell E, T = 480 (ids 34 and 35 did not finish and are in neither column)"
+s5_extended_T480_time_limit,0,33-35,"TIME_LIMIT among cell E, T = 480 (ids 34 and 35 did not finish and are in neither column)"
+s5_extended_T960_certified,1,36-38,"OPTIMAL among cell E, T = 960"
+s5_extended_T960_time_limit,2,36-38,"TIME_LIMIT among cell E, T = 960"
+s5_seasonal_grid_certified,0,13-24,"OPTIMAL among cell B (seasonal (1,0,1)(P,0,Q)_12, T in {36, 60})"
+s5_seasonal_grid_time_limit,12,13-24,"TIME_LIMIT among cell B (seasonal (1,0,1)(P,0,Q)_12, T in {36, 60})"
+s5_diagnostics_certified,2,"25-30 or 25, 26, 27, 39, 41, 43","OPTIMAL among cell C, ids 25-30 (the harness's adversarial cell, with the three M4 series 28-30, which failed the harness's noise-floor assertion); the same counts follow from ids 25-27 with the seasonal cancellation cases 39, 41, 43 of cell F"
+s5_diagnostics_time_limit,4,"25-30 or 25, 26, 27, 39, 41, 43","TIME_LIMIT among cell C, ids 25-30 (the harness's adversarial cell, with the three M4 series 28-30, which failed the harness's noise-floor assertion); the same counts follow from ids 25-27 with the seasonal cancellation cases 39, 41, 43 of cell F"
+s5_free_presample_certified,3,"31, 32, 46 or 32, 45, 46","OPTIMAL among ids 31, 32 (cell D, :innovations, T = 60) and 46 (cell G, :innovations, T = 120); id 45 (cell G, T = 60) in place of 31 or 32 gives the same counts"
+s5_free_presample_time_limit,0,"31, 32, 46 or 32, 45, 46","TIME_LIMIT among ids 31, 32 (cell D, :innovations, T = 60) and 46 (cell G, :innovations, T = 120); id 45 (cell G, T = 60) in place of 31 or 32 gives the same counts"
+s5_extended_T480_unfinished,2,"34, 35",killed by an external 900 s clock; no SCIP result
+s56_seasonal_ipopt_minus_scip_max,2.52e-09,13-24,largest Ipopt - SCIP objective difference in cell B (absolute; the objectives of cell B were not recorded)
+s56_seasonal_gap_min,0.000194,13-24,"smallest certified relative gap in cell B ((SCIP primal - dual) / |primal|, all TIME_LIMIT at 600 s)"
+s56_seasonal_gap_max,0.49,13-24,largest certified relative gap in cell B
+s56_seasonal_gap_median,0.015099999999999999,13-24,median certified relative gap in cell B (12 values: mean of the 6th and 7th; the 6th alone is 0.0123)
+s56_near_cancellation_ipopt,46.660913,26,"Ipopt objective, cell C, (1,0,1)(1,0,1)_12, Phi = 0.700, Theta = -0.699, T = 60, TIME_LIMIT"
+s56_near_cancellation_scip,45.314976,26,"SCIP objective, cell C, (1,0,1)(1,0,1)_12, Phi = 0.700, Theta = -0.699, T = 60, TIME_LIMIT"
+s56_certified_1_ipopt,57.868044,44,"Ipopt objective, cell F, regular cancellation with slack 5e-2, :zeroed, OPTIMAL"
+s56_certified_1_scip,57.536983,44,"SCIP objective, cell F, regular cancellation with slack 5e-2, :zeroed, OPTIMAL"
+s56_certified_1_local_excess,0.005753881811981666,44,(Ipopt - SCIP) / SCIP
+s56_certified_2_ipopt,54.706978,45,"Ipopt objective, cell G, regular cancellation, :innovations, OPTIMAL"
+s56_certified_2_scip,53.681295,45,"SCIP objective, cell G, regular cancellation, :innovations, OPTIMAL"
+s56_certified_2_local_excess,0.01910689747704486,45,(Ipopt - SCIP) / SCIP
+s2_erros_arima_rmse_julia,2.4686,"seeds 9000+s, s = 1..20",aggregate printed by diag_ler.jl (per-replication outputs lost)
+s2_erros_arima_rmse_r,1.6069,"seeds 9000+s, s = 1..20",aggregate printed by diag_ler.jl (per-replication outputs lost)
+s2_erros_arima_dlog,+0.4262,"seeds 9000+s, s = 1..20",aggregate printed by diag_ler.jl (per-replication outputs lost)
+s2_ma_puro_rmse_julia,1.1212,"seeds 9000+s, s = 1..20",aggregate printed by diag_ler.jl (per-replication outputs lost)
+s2_ma_puro_rmse_r,1.1102,"seeds 9000+s, s = 1..20",aggregate printed by diag_ler.jl (per-replication outputs lost)
+s2_ma_puro_dlog,+0.0112,"seeds 9000+s, s = 1..20",aggregate printed by diag_ler.jl (per-replication outputs lost)
+s2_armax_rmse_julia,1.6582,"seeds 9000+s, s = 1..20",aggregate printed by diag_ler.jl (per-replication outputs lost)
+s2_armax_rmse_r,2.4586,"seeds 9000+s, s = 1..20",aggregate printed by diag_ler.jl (per-replication outputs lost)
+s2_armax_dlog,-0.4002,"seeds 9000+s, s = 1..20",aggregate printed by diag_ler.jl (per-replication outputs lost)
+s55_init_distance_free_presample,0.2076,"MersenneTwister(500+r), r = 1..10","arm A (:penalized, free pre-sample, no cross term): median distance to R arima(method=""ML"")"
+s55_init_distance_innovations,0.0863,"MersenneTwister(500+r), r = 1..10","arm C (:innovations, no determinant): median distance to R arima(method=""ML"")"
+s55_gate_itercap_penalized,47.4,"1,500 paired M4 series, commit f90e554","share of fits at the 200-iteration limit, :penalized (aggregate; per-fit outputs lost)"
+s55_gate_itercap_innovations,0.2,"1,500 paired M4 series, commit f90e554","same, :innovations"
+s55_gate_wall_reduction,0.2818396226415094,"1,500 paired M4 series, commit f90e554",1 - wall(:innovations) / wall(:penalized) per series (0.609 s / 0.848 s; totals 914 s / 1273 s)
+s55_rank_aicc_parity_fits,1099,first 100 series of the rand400 sample,fits of the AICc-parity comparison with R on the P x Q grid (aicq.jl / aicq.R)
+s55_rank_distance_prior_off,21.61,n = 14,"mixdist.jl, seasonalPresamplePrior = false: median CSS -> ML log-likelihood distance"
+s55_rank_distance_prior_on,3.30,n = 12,"same, seasonalPresamplePrior = true, same revision (2026-08-16); not paired with the line above"

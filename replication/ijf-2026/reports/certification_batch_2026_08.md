@@ -149,6 +149,13 @@ All five printed values agree with the records:
   per series; 1,273 s -> 914 s in total) are the paired 1,500-series gate at commit `f90e554`,
   whose runner was reconstructed (`m4_runner.jl` of 2026-08-14 with the `M4_INIT`
   parametrization). Only the aggregate survives; the per-fit outputs are lost.
+  **Re-run 2026-10-22** (`results/reruns/gate-1500-f90e554-2026-10-22/RUN.md`): the code of `f90e554` (supplied as a git bundle)
+  with the August Manifest, on another platform: 48.3% -> 0.2% of fits at the iteration limit;
+  under `:innovations` 1,494 of 1,500 series equal the August per-series record (six select
+  another order, not because of a time limit); sMAPE / MASE 13.8812 / 0.9512 and 13.9497 /
+  0.9476 against 13.9000 / 0.9528 and 13.9395 / 0.9471. The wall-time reduction is -43% there
+  and is not a property of the method: times depend on the machine, and the August -28% is not
+  paired.
 
 ## 4. Section 5.5: the likelihood-ranking diagnostic (LAMPSPUC/Sarimax.jl#17)
 
@@ -177,7 +184,7 @@ Checked against the repository's history (every branch):
 |---|---|---|
 | Table S2 (`diag_*.jl`, `diag_R.R`, 2026-08-20) | committed APIs; the revision of pull request 18 (`de56f50`) is in the repository | **possible**, as a new execution: the generator draws from `MersenneTwister`, so its data must be written under Julia >= 1.11 (as for the certification batch), and the R arm needs the container. Not done |
 | Section 5.5 initialization, 10 seeds (`g4.jl`, `g4p.jl`, 2026-08-21) | keywords `exactCrossTerm` and `crossTermMinObs`, which **no commit of the package ever had** | **not possible**: the code the four arms ran against was never committed |
-| Section 5.5 initialization, 1,500-series gate | the package at commit `f90e554`, **not in the repository**; the 1,500 per-fit outputs lost | **not possible** |
+| Section 5.5 initialization, 1,500-series gate | the package at commit `f90e554`, on no branch; supplied as a git bundle on 2026-10-22 | **done**, as a new execution (`results/reruns/gate-1500-f90e554-2026-10-22/`) |
 | Section 5.5 ranking, CSS -> ML distance (`mixdist.jl`, 2026-08-16 04:33) | keyword `seasonalPresamplePrior`, never committed (the prior was merged unconditionally at 16:17 the same day, `3e6cf20`, and reverted on 2026-08-18, `9e406a8`); the R reference `rmix.csv`, which defines the 14 and 12 fits, lost | **not possible** as measured |
 | Section 5.5 ranking, AICc parity (`aicq.jl`, `aicq.R`) | committed APIs (2026-08-13 on) | possible in principle; the order of the 400-series list it took the first 100 from is not certain (`rand400.csv` holds the ids) |
 

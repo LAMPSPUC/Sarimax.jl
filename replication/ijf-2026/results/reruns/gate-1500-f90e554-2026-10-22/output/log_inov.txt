@@ -1,0 +1,536 @@
+
+******************************************************************************
+This program contains Ipopt, a library for large-scale nonlinear optimization.
+ Ipopt is released as open source code under the Eclipse Public License (EPL).
+         For more information visit https://github.com/coin-or/Ipopt
+******************************************************************************
+
+[ Info: lendo M4 monthly...
+┌ Warning: thread = 1 warning: only found 470 / 2795 columns around data row: 1. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 471 / 2795 columns around data row: 2. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 471 / 2795 columns around data row: 3. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 83 / 2795 columns around data row: 4. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 113 / 2795 columns around data row: 5. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 667 / 2795 columns around data row: 6. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 113 / 2795 columns around data row: 7. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 113 / 2795 columns around data row: 8. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 823 / 2795 columns around data row: 9. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 10. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 619 / 2795 columns around data row: 11. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 919 / 2795 columns around data row: 12. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 919 / 2795 columns around data row: 13. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 727 / 2795 columns around data row: 14. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 727 / 2795 columns around data row: 15. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 727 / 2795 columns around data row: 16. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 727 / 2795 columns around data row: 17. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 727 / 2795 columns around data row: 18. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 175 / 2795 columns around data row: 19. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 175 / 2795 columns around data row: 20. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 175 / 2795 columns around data row: 21. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 175 / 2795 columns around data row: 22. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 175 / 2795 columns around data row: 23. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 679 / 2795 columns around data row: 24. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 679 / 2795 columns around data row: 25. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 501 / 2795 columns around data row: 26. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 501 / 2795 columns around data row: 27. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 28. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 29. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 30. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 31. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 32. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 33. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 34. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 35. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 36. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 37. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 38. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 39. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 40. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 163 / 2795 columns around data row: 41. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 163 / 2795 columns around data row: 42. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 163 / 2795 columns around data row: 43. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 271 / 2795 columns around data row: 44. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 667 / 2795 columns around data row: 45. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 667 / 2795 columns around data row: 46. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 667 / 2795 columns around data row: 47. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 679 / 2795 columns around data row: 48. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 679 / 2795 columns around data row: 49. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 679 / 2795 columns around data row: 50. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 571 / 2795 columns around data row: 51. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 487 / 2795 columns around data row: 52. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 631 / 2795 columns around data row: 53. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 631 / 2795 columns around data row: 54. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 631 / 2795 columns around data row: 55. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 56. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 569 / 2795 columns around data row: 57. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 58. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 59. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 569 / 2795 columns around data row: 60. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 171 / 2795 columns around data row: 61. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 171 / 2795 columns around data row: 62. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 171 / 2795 columns around data row: 63. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 64. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 65. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 66. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 67. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 68. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 69. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 569 / 2795 columns around data row: 70. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 569 / 2795 columns around data row: 71. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 72. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 73. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 74. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 75. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 569 / 2795 columns around data row: 76. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 569 / 2795 columns around data row: 77. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 78. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 79. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 569 / 2795 columns around data row: 80. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 81. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 82. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 133 / 2795 columns around data row: 83. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 133 / 2795 columns around data row: 84. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 133 / 2795 columns around data row: 85. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 185 / 2795 columns around data row: 86. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 185 / 2795 columns around data row: 87. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 185 / 2795 columns around data row: 88. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 187 / 2795 columns around data row: 89. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 187 / 2795 columns around data row: 90. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 213 / 2795 columns around data row: 91. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 453 / 2795 columns around data row: 92. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 703 / 2795 columns around data row: 93. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 245 / 2795 columns around data row: 94. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 245 / 2795 columns around data row: 95. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 245 / 2795 columns around data row: 96. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 245 / 2795 columns around data row: 97. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 245 / 2795 columns around data row: 98. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 245 / 2795 columns around data row: 99. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 293 / 2795 columns around data row: 100. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 245 / 2795 columns around data row: 101. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1: too many warnings, silencing any further warnings
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:597
+[ Info: series no treino: 48000
+[ Info: PACOTE sarima.jl sha256=833072403a766069  (f90e554 = 833072403a766069)  init=innovations
+[ Info:   5/1500 — ultima: sid=314 wall=0.643s status=OK
+[ Info:   10/1500 — ultima: sid=548 wall=2.917s status=OK
+[ Info:   15/1500 — ultima: sid=717 wall=2.001s status=OK
+[ Info:   20/1500 — ultima: sid=906 wall=3.034s status=OK
+[ Info:   25/1500 — ultima: sid=1060 wall=2.116s status=OK
+[ Info:   30/1500 — ultima: sid=1137 wall=2.613s status=OK
+[ Info:   35/1500 — ultima: sid=1342 wall=0.742s status=OK
+[ Info:   40/1500 — ultima: sid=1436 wall=5.914s status=OK
+[ Info:   45/1500 — ultima: sid=1650 wall=3.239s status=OK
+[ Info:   50/1500 — ultima: sid=1880 wall=1.873s status=OK
+[ Info:   55/1500 — ultima: sid=2014 wall=6.994s status=OK
+[ Info:   60/1500 — ultima: sid=2103 wall=2.375s status=OK
+[ Info:   65/1500 — ultima: sid=2331 wall=0.844s status=OK
+[ Info:   70/1500 — ultima: sid=2667 wall=0.977s status=OK
+[ Info:   75/1500 — ultima: sid=2888 wall=6.147s status=OK
+[ Info:   80/1500 — ultima: sid=3027 wall=0.231s status=OK
+[ Info:   85/1500 — ultima: sid=3150 wall=2.872s status=OK
+[ Info:   90/1500 — ultima: sid=3400 wall=7.823s status=OK
+[ Info:   95/1500 — ultima: sid=3526 wall=4.851s status=OK
+[ Info:   100/1500 — ultima: sid=3745 wall=1.872s status=OK
+[ Info:   105/1500 — ultima: sid=3886 wall=3.596s status=OK
+[ Info:   110/1500 — ultima: sid=4015 wall=0.752s status=OK
+[ Info:   115/1500 — ultima: sid=4243 wall=2.085s status=OK
+[ Info:   120/1500 — ultima: sid=4396 wall=1.513s status=OK
+[ Info:   125/1500 — ultima: sid=4503 wall=0.411s status=OK
+[ Info:   130/1500 — ultima: sid=4712 wall=6.633s status=OK
+[ Info:   135/1500 — ultima: sid=4884 wall=2.57s status=OK
+[ Info:   140/1500 — ultima: sid=4931 wall=1.103s status=OK
+[ Info:   145/1500 — ultima: sid=5066 wall=2.568s status=OK
+[ Info:   150/1500 — ultima: sid=5340 wall=0.986s status=OK
+[ Info:   155/1500 — ultima: sid=5445 wall=2.61s status=OK
+[ Info:   160/1500 — ultima: sid=5556 wall=1.7s status=OK
+[ Info:   165/1500 — ultima: sid=5731 wall=1.713s status=OK
+[ Info:   170/1500 — ultima: sid=5838 wall=3.7s status=OK
+[ Info:   175/1500 — ultima: sid=5923 wall=7.281s status=OK
+[ Info:   180/1500 — ultima: sid=6133 wall=0.932s status=OK
+[ Info:   185/1500 — ultima: sid=6342 wall=6.911s status=OK
+[ Info:   190/1500 — ultima: sid=6491 wall=0.802s status=OK
+[ Info:   195/1500 — ultima: sid=6679 wall=0.435s status=OK
+[ Info:   200/1500 — ultima: sid=6805 wall=3.088s status=OK
+[ Info:   205/1500 — ultima: sid=6996 wall=1.105s status=OK
+[ Info:   210/1500 — ultima: sid=7226 wall=0.107s status=OK
+[ Info:   215/1500 — ultima: sid=7466 wall=0.447s status=OK
+[ Info:   220/1500 — ultima: sid=7586 wall=0.511s status=OK
+[ Info:   225/1500 — ultima: sid=7633 wall=0.835s status=OK
+[ Info:   230/1500 — ultima: sid=7730 wall=1.868s status=OK
+[ Info:   235/1500 — ultima: sid=7843 wall=0.122s status=OK
+[ Info:   240/1500 — ultima: sid=7966 wall=0.09s status=OK
+[ Info:   245/1500 — ultima: sid=8275 wall=0.211s status=OK
+[ Info:   250/1500 — ultima: sid=8377 wall=0.352s status=OK
+[ Info:   255/1500 — ultima: sid=8565 wall=3.22s status=OK
+[ Info:   260/1500 — ultima: sid=8770 wall=0.269s status=OK
+[ Info:   265/1500 — ultima: sid=8965 wall=0.099s status=OK
+[ Info:   270/1500 — ultima: sid=9191 wall=0.784s status=OK
+[ Info:   275/1500 — ultima: sid=9433 wall=0.889s status=OK
+[ Info:   280/1500 — ultima: sid=9529 wall=0.892s status=OK
+[ Info:   285/1500 — ultima: sid=9664 wall=1.04s status=OK
+[ Info:   290/1500 — ultima: sid=9906 wall=0.349s status=OK
+[ Info:   295/1500 — ultima: sid=10014 wall=0.12s status=OK
+[ Info:   300/1500 — ultima: sid=10159 wall=2.001s status=OK
+[ Info:   305/1500 — ultima: sid=10250 wall=1.73s status=OK
+[ Info:   310/1500 — ultima: sid=10367 wall=2.254s status=OK
+[ Info:   315/1500 — ultima: sid=10538 wall=1.701s status=OK
+[ Info:   320/1500 — ultima: sid=10658 wall=0.387s status=OK
+[ Info:   325/1500 — ultima: sid=10762 wall=0.556s status=OK
+[ Info:   330/1500 — ultima: sid=10860 wall=0.64s status=OK
+[ Info:   335/1500 — ultima: sid=10928 wall=1.038s status=OK
+[ Info:   340/1500 — ultima: sid=11027 wall=1.935s status=OK
+[ Info:   345/1500 — ultima: sid=11189 wall=2.32s status=OK
+[ Info:   350/1500 — ultima: sid=11358 wall=1.909s status=OK
+[ Info:   355/1500 — ultima: sid=11434 wall=2.048s status=OK
+[ Info:   360/1500 — ultima: sid=11578 wall=2.894s status=OK
+[ Info:   365/1500 — ultima: sid=11823 wall=1.013s status=OK
+[ Info:   370/1500 — ultima: sid=11884 wall=1.791s status=OK
+[ Info:   375/1500 — ultima: sid=12037 wall=1.224s status=OK
+[ Info:   380/1500 — ultima: sid=12189 wall=0.702s status=OK
+[ Info:   385/1500 — ultima: sid=12289 wall=1.227s status=OK
+[ Info:   390/1500 — ultima: sid=12416 wall=2.86s status=OK
+[ Info:   395/1500 — ultima: sid=12524 wall=1.997s status=OK
+[ Info:   400/1500 — ultima: sid=12845 wall=0.161s status=OK
+[ Info:   405/1500 — ultima: sid=13033 wall=0.571s status=OK
+[ Info:   410/1500 — ultima: sid=13239 wall=1.699s status=OK
+[ Info:   415/1500 — ultima: sid=13537 wall=2.215s status=OK
+[ Info:   420/1500 — ultima: sid=13697 wall=0.302s status=OK
+[ Info:   425/1500 — ultima: sid=13874 wall=0.411s status=OK
+[ Info:   430/1500 — ultima: sid=14172 wall=1.002s status=OK
+[ Info:   435/1500 — ultima: sid=14324 wall=1.057s status=OK
+[ Info:   440/1500 — ultima: sid=14512 wall=0.982s status=OK
+[ Info:   445/1500 — ultima: sid=14802 wall=6.883s status=OK
+[ Info:   450/1500 — ultima: sid=14981 wall=1.853s status=OK
+[ Info:   455/1500 — ultima: sid=15071 wall=0.691s status=OK
+[ Info:   460/1500 — ultima: sid=15323 wall=1.978s status=OK
+[ Info:   465/1500 — ultima: sid=15390 wall=3.019s status=OK
+[ Info:   470/1500 — ultima: sid=15609 wall=0.371s status=OK
+[ Info:   475/1500 — ultima: sid=15732 wall=0.899s status=OK
+[ Info:   480/1500 — ultima: sid=15977 wall=4.42s status=OK
+[ Info:   485/1500 — ultima: sid=16062 wall=4.733s status=OK
+[ Info:   490/1500 — ultima: sid=16201 wall=1.042s status=OK
+[ Info:   495/1500 — ultima: sid=16333 wall=0.547s status=OK
+[ Info:   500/1500 — ultima: sid=16396 wall=1.951s status=OK
+[ Info:   505/1500 — ultima: sid=16543 wall=2.124s status=OK
+[ Info:   510/1500 — ultima: sid=16668 wall=0.25s status=OK
+[ Info:   515/1500 — ultima: sid=16814 wall=0.26s status=OK
+[ Info:   520/1500 — ultima: sid=16974 wall=0.292s status=OK
+[ Info:   525/1500 — ultima: sid=17276 wall=0.261s status=OK
+[ Info:   530/1500 — ultima: sid=17502 wall=0.493s status=OK
+[ Info:   535/1500 — ultima: sid=17700 wall=0.19s status=OK
+[ Info:   540/1500 — ultima: sid=17754 wall=0.31s status=OK
+[ Info:   545/1500 — ultima: sid=17824 wall=0.291s status=OK
+[ Info:   550/1500 — ultima: sid=17884 wall=0.12s status=OK
+[ Info:   555/1500 — ultima: sid=18039 wall=0.11s status=OK
+[ Info:   560/1500 — ultima: sid=18194 wall=0.111s status=OK
+[ Info:   565/1500 — ultima: sid=18515 wall=0.27s status=OK
+[ Info:   570/1500 — ultima: sid=18579 wall=0.447s status=OK
+[ Info:   575/1500 — ultima: sid=18629 wall=0.818s status=OK
+[ Info:   580/1500 — ultima: sid=18819 wall=0.119s status=OK
+[ Info:   585/1500 — ultima: sid=18889 wall=0.099s status=OK
+[ Info:   590/1500 — ultima: sid=18979 wall=0.19s status=OK
+[ Info:   595/1500 — ultima: sid=19186 wall=0.12s status=OK
+[ Info:   600/1500 — ultima: sid=19278 wall=0.256s status=OK
+[ Info:   605/1500 — ultima: sid=19402 wall=0.13s status=OK
+[ Info:   610/1500 — ultima: sid=19628 wall=1.012s status=OK
+[ Info:   615/1500 — ultima: sid=19836 wall=0.412s status=OK
+[ Info:   620/1500 — ultima: sid=19906 wall=1.071s status=OK
+[ Info:   625/1500 — ultima: sid=20126 wall=1.514s status=OK
+[ Info:   630/1500 — ultima: sid=20412 wall=1.947s status=OK
+[ Info:   635/1500 — ultima: sid=20852 wall=0.201s status=OK
+[ Info:   640/1500 — ultima: sid=21284 wall=2.339s status=OK
+[ Info:   645/1500 — ultima: sid=21497 wall=0.621s status=OK
+[ Info:   650/1500 — ultima: sid=21609 wall=0.477s status=OK
+[ Info:   655/1500 — ultima: sid=21771 wall=3.356s status=OK
+[ Info:   660/1500 — ultima: sid=21857 wall=1.506s status=OK
+[ Info:   665/1500 — ultima: sid=22070 wall=0.341s status=OK
+[ Info:   670/1500 — ultima: sid=22223 wall=1.341s status=OK
+[ Info:   675/1500 — ultima: sid=22347 wall=0.942s status=OK
+[ Info:   680/1500 — ultima: sid=22477 wall=1.77s status=OK
+[ Info:   685/1500 — ultima: sid=22626 wall=8.024s status=OK
+[ Info:   690/1500 — ultima: sid=22671 wall=1.64s status=OK
+[ Info:   695/1500 — ultima: sid=22835 wall=0.682s status=OK
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = ITERATION_LIMIT::TerminationStatusCode = 11
+└ @ Sarimax C:\Users\luizduarte\AppData\Local\Temp\claude\C--Users-luizduarte-Documents-repositorios-ForecastTester-SARIMAX-jl\be32b07b-0c4e-4f86-9e36-b7b6395dc6ab\scratchpad\gate_run\Sarimax.jl\src\models\sarima.jl:2619
+[ Info:   700/1500 — ultima: sid=23008 wall=0.996s status=OK
+[ Info:   705/1500 — ultima: sid=23127 wall=2.061s status=OK
+[ Info:   710/1500 — ultima: sid=23232 wall=1.684s status=OK
+[ Info:   715/1500 — ultima: sid=23450 wall=0.357s status=OK
+[ Info:   720/1500 — ultima: sid=23705 wall=1.558s status=OK
+[ Info:   725/1500 — ultima: sid=23922 wall=2.588s status=OK
+[ Info:   730/1500 — ultima: sid=23998 wall=0.281s status=OK
+[ Info:   735/1500 — ultima: sid=24114 wall=0.33s status=OK
+[ Info:   740/1500 — ultima: sid=24177 wall=2.206s status=OK
+[ Info:   745/1500 — ultima: sid=24325 wall=6.188s status=OK
+[ Info:   750/1500 — ultima: sid=24600 wall=2.465s status=OK
+[ Info:   755/1500 — ultima: sid=24931 wall=1.53s status=OK
+[ Info:   760/1500 — ultima: sid=25051 wall=0.372s status=OK
+[ Info:   765/1500 — ultima: sid=25112 wall=0.797s status=OK
+[ Info:   770/1500 — ultima: sid=25161 wall=1.091s status=OK
+[ Info:   775/1500 — ultima: sid=25301 wall=0.619s status=OK
+[ Info:   780/1500 — ultima: sid=25540 wall=1.796s status=OK
+[ Info:   785/1500 — ultima: sid=25720 wall=6.652s status=OK
+[ Info:   790/1500 — ultima: sid=25853 wall=2.057s status=OK
+[ Info:   795/1500 — ultima: sid=26051 wall=1.854s status=OK
+[ Info:   800/1500 — ultima: sid=26219 wall=3.859s status=OK
+[ Info:   805/1500 — ultima: sid=26317 wall=1.6s status=OK
+[ Info:   810/1500 — ultima: sid=26443 wall=4.321s status=OK
+[ Info:   815/1500 — ultima: sid=26763 wall=12.518s status=OK
+[ Info:   820/1500 — ultima: sid=26926 wall=2.742s status=OK
+[ Info:   825/1500 — ultima: sid=27219 wall=3.192s status=OK
+[ Info:   830/1500 — ultima: sid=27410 wall=0.501s status=OK
+[ Info:   835/1500 — ultima: sid=27485 wall=16.306s status=OK
+[ Info:   840/1500 — ultima: sid=27587 wall=0.461s status=OK
+[ Info:   845/1500 — ultima: sid=27692 wall=0.781s status=OK
+[ Info:   850/1500 — ultima: sid=27788 wall=2.753s status=OK
+[ Info:   855/1500 — ultima: sid=27926 wall=0.562s status=OK
+[ Info:   860/1500 — ultima: sid=28032 wall=0.991s status=OK
+[ Info:   865/1500 — ultima: sid=28146 wall=0.305s status=OK
+[ Info:   870/1500 — ultima: sid=28245 wall=0.627s status=OK
+[ Info:   875/1500 — ultima: sid=28315 wall=0.46s status=OK
+[ Info:   880/1500 — ultima: sid=28493 wall=0.748s status=OK
+[ Info:   885/1500 — ultima: sid=28586 wall=0.575s status=OK
+[ Info:   890/1500 — ultima: sid=28749 wall=0.582s status=OK
+[ Info:   895/1500 — ultima: sid=28885 wall=1.709s status=OK
+[ Info:   900/1500 — ultima: sid=28943 wall=1.622s status=OK
+[ Info:   905/1500 — ultima: sid=29026 wall=2.112s status=OK
+[ Info:   910/1500 — ultima: sid=29248 wall=1.475s status=OK
+[ Info:   915/1500 — ultima: sid=29441 wall=0.697s status=OK
+[ Info:   920/1500 — ultima: sid=29502 wall=1.047s status=OK
+[ Info:   925/1500 — ultima: sid=29631 wall=0.562s status=OK
+[ Info:   930/1500 — ultima: sid=29753 wall=4.444s status=OK
+[ Info:   935/1500 — ultima: sid=29836 wall=2.624s status=OK
+[ Info:   940/1500 — ultima: sid=30158 wall=7.433s status=OK
+[ Info:   945/1500 — ultima: sid=30373 wall=1.614s status=OK
+[ Info:   950/1500 — ultima: sid=30636 wall=1.189s status=OK
+[ Info:   955/1500 — ultima: sid=30703 wall=1.572s status=OK
+[ Info:   960/1500 — ultima: sid=30967 wall=0.691s status=OK
+[ Info:   965/1500 — ultima: sid=31129 wall=4.28s status=OK
+[ Info:   970/1500 — ultima: sid=31240 wall=1.55s status=OK
+[ Info:   975/1500 — ultima: sid=31457 wall=7.077s status=OK
+[ Info:   980/1500 — ultima: sid=31617 wall=2.308s status=OK
+[ Info:   985/1500 — ultima: sid=31797 wall=0.499s status=OK
+[ Info:   990/1500 — ultima: sid=31880 wall=0.259s status=OK
+[ Info:   995/1500 — ultima: sid=32045 wall=0.519s status=OK
+[ Info:   1000/1500 — ultima: sid=32266 wall=1.424s status=OK
+[ Info:   1005/1500 — ultima: sid=32384 wall=0.32s status=OK
+[ Info:   1010/1500 — ultima: sid=32433 wall=1.999s status=OK
+[ Info:   1015/1500 — ultima: sid=32553 wall=1.865s status=OK
+[ Info:   1020/1500 — ultima: sid=32637 wall=0.343s status=OK
+[ Info:   1025/1500 — ultima: sid=32805 wall=0.331s status=OK
+[ Info:   1030/1500 — ultima: sid=32906 wall=0.442s status=OK
+[ Info:   1035/1500 — ultima: sid=33012 wall=0.586s status=OK
+[ Info:   1040/1500 — ultima: sid=33137 wall=0.237s status=OK
+[ Info:   1045/1500 — ultima: sid=33349 wall=0.151s status=OK
+[ Info:   1050/1500 — ultima: sid=33483 wall=1.112s status=OK
+[ Info:   1055/1500 — ultima: sid=33598 wall=1.827s status=OK
+[ Info:   1060/1500 — ultima: sid=33784 wall=0.52s status=OK
+[ Info:   1065/1500 — ultima: sid=33978 wall=1.213s status=OK
+[ Info:   1070/1500 — ultima: sid=34200 wall=0.502s status=OK
+[ Info:   1075/1500 — ultima: sid=34368 wall=0.642s status=OK
+[ Info:   1080/1500 — ultima: sid=34477 wall=1.84s status=OK
+[ Info:   1085/1500 — ultima: sid=34609 wall=0.696s status=OK
+[ Info:   1090/1500 — ultima: sid=34674 wall=1.255s status=OK
+[ Info:   1095/1500 — ultima: sid=34745 wall=0.752s status=OK
+[ Info:   1100/1500 — ultima: sid=35028 wall=4.488s status=OK
+[ Info:   1105/1500 — ultima: sid=35096 wall=3.759s status=OK
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = ITERATION_LIMIT::TerminationStatusCode = 11
+└ @ Sarimax C:\Users\luizduarte\AppData\Local\Temp\claude\C--Users-luizduarte-Documents-repositorios-ForecastTester-SARIMAX-jl\be32b07b-0c4e-4f86-9e36-b7b6395dc6ab\scratchpad\gate_run\Sarimax.jl\src\models\sarima.jl:2619
+[ Info:   1110/1500 — ultima: sid=35195 wall=0.131s status=OK
+[ Info:   1115/1500 — ultima: sid=35325 wall=1.391s status=OK
+[ Info:   1120/1500 — ultima: sid=35448 wall=1.196s status=OK
+[ Info:   1125/1500 — ultima: sid=35544 wall=2.143s status=OK
+[ Info:   1130/1500 — ultima: sid=35688 wall=0.413s status=OK
+[ Info:   1135/1500 — ultima: sid=35877 wall=3.468s status=OK
+[ Info:   1140/1500 — ultima: sid=36019 wall=1.26s status=OK
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = TIME_LIMIT::TerminationStatusCode = 12
+└ @ Sarimax C:\Users\luizduarte\AppData\Local\Temp\claude\C--Users-luizduarte-Documents-repositorios-ForecastTester-SARIMAX-jl\be32b07b-0c4e-4f86-9e36-b7b6395dc6ab\scratchpad\gate_run\Sarimax.jl\src\models\sarima.jl:2619
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = TIME_LIMIT::TerminationStatusCode = 12
+└ @ Sarimax C:\Users\luizduarte\AppData\Local\Temp\claude\C--Users-luizduarte-Documents-repositorios-ForecastTester-SARIMAX-jl\be32b07b-0c4e-4f86-9e36-b7b6395dc6ab\scratchpad\gate_run\Sarimax.jl\src\models\sarima.jl:2619
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = TIME_LIMIT::TerminationStatusCode = 12
+└ @ Sarimax C:\Users\luizduarte\AppData\Local\Temp\claude\C--Users-luizduarte-Documents-repositorios-ForecastTester-SARIMAX-jl\be32b07b-0c4e-4f86-9e36-b7b6395dc6ab\scratchpad\gate_run\Sarimax.jl\src\models\sarima.jl:2619
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = TIME_LIMIT::TerminationStatusCode = 12
+└ @ Sarimax C:\Users\luizduarte\AppData\Local\Temp\claude\C--Users-luizduarte-Documents-repositorios-ForecastTester-SARIMAX-jl\be32b07b-0c4e-4f86-9e36-b7b6395dc6ab\scratchpad\gate_run\Sarimax.jl\src\models\sarima.jl:2619
+[ Info:   1145/1500 — ultima: sid=36177 wall=0.26s status=OK
+[ Info:   1150/1500 — ultima: sid=36298 wall=3.578s status=OK
+[ Info:   1155/1500 — ultima: sid=36479 wall=0.18s status=OK
+[ Info:   1160/1500 — ultima: sid=36648 wall=1.636s status=OK
+[ Info:   1165/1500 — ultima: sid=36935 wall=3.468s status=OK
+[ Info:   1170/1500 — ultima: sid=37042 wall=3.641s status=OK
+┌ Warning: Solver finished with a non-success termination status; estimates may be unreliable.
+│   status = ITERATION_LIMIT::TerminationStatusCode = 11
+└ @ Sarimax C:\Users\luizduarte\AppData\Local\Temp\claude\C--Users-luizduarte-Documents-repositorios-ForecastTester-SARIMAX-jl\be32b07b-0c4e-4f86-9e36-b7b6395dc6ab\scratchpad\gate_run\Sarimax.jl\src\models\sarima.jl:2619
+[ Info:   1175/1500 — ultima: sid=37172 wall=0.321s status=OK
+[ Info:   1180/1500 — ultima: sid=37356 wall=0.29s status=OK
+[ Info:   1185/1500 — ultima: sid=37549 wall=0.19s status=OK
+[ Info:   1190/1500 — ultima: sid=37698 wall=0.5s status=OK
+[ Info:   1195/1500 — ultima: sid=37929 wall=2.493s status=OK
+[ Info:   1200/1500 — ultima: sid=38036 wall=2.564s status=OK
+[ Info:   1205/1500 — ultima: sid=38190 wall=7.271s status=OK
+[ Info:   1210/1500 — ultima: sid=38255 wall=2.487s status=OK
+[ Info:   1215/1500 — ultima: sid=38430 wall=0.681s status=OK
+[ Info:   1220/1500 — ultima: sid=38565 wall=8.636s status=OK
+[ Info:   1225/1500 — ultima: sid=38767 wall=0.111s status=OK
+[ Info:   1230/1500 — ultima: sid=38848 wall=1.597s status=OK
+[ Info:   1235/1500 — ultima: sid=39077 wall=0.118s status=OK
+[ Info:   1240/1500 — ultima: sid=39185 wall=0.14s status=OK
+[ Info:   1245/1500 — ultima: sid=39475 wall=0.9s status=OK
+[ Info:   1250/1500 — ultima: sid=39522 wall=2.435s status=OK
+[ Info:   1255/1500 — ultima: sid=39681 wall=0.1s status=OK
+[ Info:   1260/1500 — ultima: sid=39853 wall=0.181s status=OK
+[ Info:   1265/1500 — ultima: sid=40018 wall=0.3s status=OK
+[ Info:   1270/1500 — ultima: sid=40171 wall=1.306s status=OK
+[ Info:   1275/1500 — ultima: sid=40354 wall=0.946s status=OK
+[ Info:   1280/1500 — ultima: sid=40545 wall=1.333s status=OK
+[ Info:   1285/1500 — ultima: sid=40676 wall=0.732s status=OK
+[ Info:   1290/1500 — ultima: sid=40924 wall=1.283s status=OK
+[ Info:   1295/1500 — ultima: sid=41125 wall=0.28s status=OK
+[ Info:   1300/1500 — ultima: sid=41263 wall=0.381s status=OK
+[ Info:   1305/1500 — ultima: sid=41411 wall=2.612s status=OK
+[ Info:   1310/1500 — ultima: sid=41713 wall=1.011s status=OK
+[ Info:   1315/1500 — ultima: sid=41906 wall=0.288s status=OK
+[ Info:   1320/1500 — ultima: sid=42074 wall=0.18s status=OK
+[ Info:   1325/1500 — ultima: sid=42140 wall=2.196s status=OK
+[ Info:   1330/1500 — ultima: sid=42239 wall=0.13s status=OK
+[ Info:   1335/1500 — ultima: sid=42504 wall=1.272s status=OK
+[ Info:   1340/1500 — ultima: sid=42767 wall=4.562s status=OK
+[ Info:   1345/1500 — ultima: sid=42908 wall=2.449s status=OK
+[ Info:   1350/1500 — ultima: sid=43032 wall=0.39s status=OK
+[ Info:   1355/1500 — ultima: sid=43233 wall=1.521s status=OK
+[ Info:   1360/1500 — ultima: sid=43337 wall=0.201s status=OK
+[ Info:   1365/1500 — ultima: sid=43558 wall=1.464s status=OK
+[ Info:   1370/1500 — ultima: sid=43895 wall=0.933s status=OK
+[ Info:   1375/1500 — ultima: sid=44083 wall=0.135s status=OK
+[ Info:   1380/1500 — ultima: sid=44251 wall=0.151s status=OK
+[ Info:   1385/1500 — ultima: sid=44423 wall=0.688s status=OK
+[ Info:   1390/1500 — ultima: sid=44596 wall=0.159s status=OK
+[ Info:   1395/1500 — ultima: sid=44709 wall=2.354s status=OK
+[ Info:   1400/1500 — ultima: sid=44869 wall=0.181s status=OK
+[ Info:   1405/1500 — ultima: sid=44926 wall=0.393s status=OK
+[ Info:   1410/1500 — ultima: sid=45289 wall=0.549s status=OK
+[ Info:   1415/1500 — ultima: sid=45514 wall=0.51s status=OK
+[ Info:   1420/1500 — ultima: sid=45738 wall=0.341s status=OK
+[ Info:   1425/1500 — ultima: sid=45918 wall=1.381s status=OK
+[ Info:   1430/1500 — ultima: sid=46029 wall=0.432s status=OK
+[ Info:   1435/1500 — ultima: sid=46210 wall=0.652s status=OK
+[ Info:   1440/1500 — ultima: sid=46310 wall=0.372s status=OK
+[ Info:   1445/1500 — ultima: sid=46516 wall=0.841s status=OK
+[ Info:   1450/1500 — ultima: sid=46695 wall=0.295s status=OK
+[ Info:   1455/1500 — ultima: sid=46805 wall=0.4s status=OK
+[ Info:   1460/1500 — ultima: sid=46846 wall=0.246s status=OK
+[ Info:   1465/1500 — ultima: sid=47005 wall=0.263s status=OK
+[ Info:   1470/1500 — ultima: sid=47098 wall=0.16s status=OK
+[ Info:   1475/1500 — ultima: sid=47327 wall=0.323s status=OK
+[ Info:   1480/1500 — ultima: sid=47446 wall=0.371s status=OK
+[ Info:   1485/1500 — ultima: sid=47551 wall=0.431s status=OK
+[ Info:   1490/1500 — ultima: sid=47708 wall=0.106s status=OK
+[ Info:   1495/1500 — ultima: sid=47859 wall=0.29s status=OK
+[ Info:   1500/1500 — ultima: sid=47991 wall=1.794s status=OK
+[ Info: pronto: m1500_inov.csv

@@ -10,3 +10,4 @@ replication/**/*.png binary
 replication/**/*.pdf binary
 replication/**/*.gz binary
 replication/**/*.zip binary
+replication/**/*.bundle binary

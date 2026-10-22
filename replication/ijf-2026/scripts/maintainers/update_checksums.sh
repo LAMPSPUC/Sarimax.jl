@@ -28,7 +28,7 @@ list_files \
     | LC_ALL=C sort \
     | while IFS= read -r f; do
         case "$f" in
-            *.gz|*.zip|*.png|*.pdf) printf '%s  %s\n' "$(sha256 < "$f")" "$f" ;;      # binary: raw bytes
+            *.gz|*.zip|*.png|*.pdf|*.bundle) printf '%s  %s\n' "$(sha256 < "$f")" "$f" ;;      # binary: raw bytes
             *) printf '%s  %s\n' "$(tr -d '\r' < "$f" | sha256)" "$f" ;;
         esac
     done > checksums.sha256

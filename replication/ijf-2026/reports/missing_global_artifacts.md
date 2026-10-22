@@ -4,9 +4,10 @@ Status of every global-optimization claim whose evidence is incomplete, with wha
 it. Status values: **AWAITING EVIDENCE** (the original records exist elsewhere and must be
 supplied), **RE-RUN AVAILABLE** (the package can produce a new, identified run), **WORDING**
 (the claim should be restated to what the archive supports). Nothing here was re-executed for
-this report beyond the re-run already recorded in `results/reruns/full-all-limit1-2026-10-20/`.
+this report beyond the re-runs recorded in `results/reruns/full-all-limit1-2026-10-20/` and,
+by the batch's author, `results/reruns/certification-2026-08-rerun-2026-10-21/`.
 
-## G1. The August 2026 certification batch (Table S5; Section 5.6) — RECONSTRUCTED RECORD; WORDING
+## G1. The August 2026 certification batch (Table S5; Section 5.6) — RECONSTRUCTED RECORD AND LOGGED RE-RUN; WORDING
 
 **Received 2026-10-21** (`results/historical/certification-2026-08/`; reconciliation in
 `certification_batch_2026_08.md` §1). The per-instance raw outputs are lost; what exists is a
@@ -19,7 +20,8 @@ and SCIP's objective and dual bound (7).
 
 **Never recorded or lost:** node counts, SCIP logs, SCIP's raw status, the Ipopt coefficients and
 status, the primal and dual bounds of 37 instances. Ids 34 and 35 (T = 480) never finished; the
-dual bound of id 37 is SCIP's `-1e+20` sentinel.
+dual bound of id 37 is SCIP's `-1e+20` sentinel. The re-run of 2026-10-21 records all of these,
+with a SCIP log per case, for the 43 instances that finished in it.
 
 **Against the 24 printed values:** the 12 Table S5 counts agree under the assignment by the
 harness's cells; the near-cancellation instance (id 26) and the two certificates (ids 44, 45)
@@ -33,11 +35,21 @@ its own harness on its own 46 instances, written as data (under the replication 
 Julia 1.10 MersenneTwister draws other series; the file was generated under Julia 1.11, as the
 batch's 1.12.3 drew them, and reproduces every Ipopt objective the record holds), and records
 nodes, bounds, statuses, coefficients and SCIP logs. About 4.6 h of solver time, divided by
-`--jobs`, in the Linux container. Not run yet (`certification_batch_2026_08.md` §1).
+`--jobs`, in the Linux container. Not run in the container.
+
+**Re-run by the batch's author, 2026-10-21** (`results/reruns/certification-2026-08-rerun-2026-10-21/`,
+`certification_batch_2026_08.md` §1): the batch's harness, recording extended, in the batch's
+environment, on series identical to the package's instances. The 23 certificates are certified
+again with the same gaps, the instance values of Section 5.6 and the Ipopt objectives agree, and
+every Table S5 count is reproduced except T = 960 (1 / 1: id 38 did not return within 900 s, nor
+within 3600 s); ids 34 and 35 did not return either. The gaps of the time-limited seasonal
+instances differ (1.7e-4 to 4.6e-1, median 5.9e-2), as gaps at a time limit do from one machine
+load to another.
 
 **Wording.** The batch's results can be cited as such, with three changes: the seasonal-grid
 figures as recorded (the incumbent coincides with the Ipopt point; remaining relative gaps from
-1.9e-4 to 4.9e-1, median 1.5e-2); the T = 480 row with its two unfinished instances; and the
+1.9e-4 to 4.9e-1, median 1.5e-2), noting that they depend on the run; the T = 480 row with its two
+unfinished instances (and, if the re-run is cited, T = 960 with id 38 unfinished); and the
 instances Table S5 counts stated, so that the certificates of Section 5.6 can be located in it.
 
 ## G2. Table 7, PJME ARMA(1,0,1): "Certified: yes", 900.0 s — WORDING (RE-RUN AVAILABLE)

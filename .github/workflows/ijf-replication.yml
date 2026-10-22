@@ -105,6 +105,7 @@ jobs:
       - name: The August 2026 certification batch's records and its 2026-10-21 re-run
         run: |
           python replication/ijf-2026/scripts/maintainers/check_certification_2026_08.py
+          python replication/ijf-2026/scripts/maintainers/check_certification_rerun_2026_10.py
 
   manuscript:
     name: Manuscript release check

@@ -1,0 +1,380 @@
+PROGRAMA SCIP — 1 casos nesta fatia (de 46), limite 600s, SCIP 8.0.0
+CARIMBO rerun 21/10: 2026-10-21T19:51:37.357 host=[redacted] julia=1.12.3 manifest_sha256=05f0db2d79f5de7c4e3826d4de1fef9af4251dcde0c7aff677f16bdc251a4dcf git_head=14dd581 loadavg=[7.90966796875, 8.34716796875, 8.3818359375]
+  [29] ipopt...
+
+******************************************************************************
+This program contains Ipopt, a library for large-scale nonlinear optimization.
+ Ipopt is released as open source code under the Eclipse Public License (EPL).
+         For more information visit https://github.com/coin-or/Ipopt
+******************************************************************************
+
+  [29] ipopt OK em 1.6s (obj 4.7526); scip...
+feasible solution found by completesol heuristic after 10.9 seconds, objective value 4.752595e+00
+presolving:
+(round 1, fast)       14 del vars, 0 del conss, 0 add conss, 15 chg bounds, 0 chg sides, 0 chg coeffs, 1 upgd conss, 0 impls, 0 clqs
+(round 2, fast)       15 del vars, 1 del conss, 0 add conss, 17 chg bounds, 0 chg sides, 0 chg coeffs, 1 upgd conss, 0 impls, 0 clqs
+   (10.9s) symmetry computation started: requiring (bin +, int +, cont +), (fixed: bin -, int -, cont -)
+   (10.9s) no symmetry present
+presolving (3 rounds: 3 fast, 1 medium, 1 exhaustive):
+ 15 deleted vars, 1 deleted constraints, 0 added constraints, 17 tightened bounds, 0 added holes, 0 changed sides, 0 changed coefficients
+ 0 implications, 0 cliques
+presolved problem has 60 variables (0 bin, 0 int, 0 impl, 60 cont) and 57 constraints
+     57 constraints of type <nonlinear>
+Presolving Time: 10.92
+transformed 1/1 original solutions to the transformed problem space
+
+ time | node  | left  |LP iter|LP it/n|mem/heur|mdpt |vars |cons |rows |cuts |sepa|confs|strbr|  dualbound   | primalbound  |  gap   | compl. 
+ 10.9s|     1 |     0 |   186 |     - |  3558k |   0 | 316 |  57 | 462 |   0 |  0 |   0 |   0 | 7.083802e-01 | 4.752595e+00 | 570.91%| unknown
+ 11.0s|     1 |     0 |   186 |     - |  5181k |   0 | 316 |  57 | 462 |   0 |  0 |   0 |   0 | 7.083802e-01 | 4.752595e+00 | 570.91%| unknown
+ 11.0s|     1 |     0 |   244 |     - |  5278k |   0 | 316 |  57 | 518 |  56 |  1 |   0 |   0 | 7.911654e-01 | 4.752595e+00 | 500.71%| unknown
+ 11.0s|     1 |     0 |   244 |     - |  5278k |   0 | 316 |  57 | 518 |  56 |  1 |   0 |   0 | 7.911654e-01 | 4.752595e+00 | 500.71%| unknown
+ 11.0s|     1 |     0 |   309 |     - |  5294k |   0 | 316 |  57 | 572 | 110 |  2 |   0 |   0 | 8.460876e-01 | 4.752595e+00 | 461.71%| unknown
+ 11.0s|     1 |     0 |   309 |     - |  5294k |   0 | 316 |  57 | 572 | 110 |  2 |   0 |   0 | 8.460876e-01 | 4.752595e+00 | 461.71%| unknown
+ 11.0s|     1 |     0 |   365 |     - |  5298k |   0 | 316 |  57 | 627 | 165 |  3 |   0 |   0 | 8.522326e-01 | 4.752595e+00 | 457.66%| unknown
+ 11.0s|     1 |     0 |   428 |     - |  5305k |   0 | 316 |  57 | 683 | 221 |  4 |   0 |   0 | 8.547780e-01 | 4.752595e+00 | 456.00%| unknown
+ 11.0s|     1 |     0 |   492 |     - |  5560k |   0 | 316 |  57 | 738 | 276 |  5 |   0 |   0 | 8.548058e-01 | 4.752595e+00 | 455.99%| unknown
+ 11.0s|     1 |     0 |   551 |     - |  5561k |   0 | 316 |  57 | 793 | 331 |  6 |   0 |   0 | 8.548673e-01 | 4.752595e+00 | 455.95%| unknown
+ 11.0s|     1 |     0 |   612 |     - |  5561k |   0 | 316 |  57 | 848 | 386 |  7 |   0 |   0 | 8.549120e-01 | 4.752595e+00 | 455.92%| unknown
+ 11.0s|     1 |     0 |   665 |     - |  5576k |   0 | 316 |  57 | 903 | 441 |  8 |   0 |   0 | 8.549332e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.0s|     1 |     0 |   720 |     - |  5592k |   0 | 316 |  57 | 957 | 495 |  9 |   0 |   0 | 8.549374e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.0s|     1 |     0 |   773 |     - |  5723k |   0 | 316 |  57 |1011 | 549 | 10 |   0 |   0 | 8.549427e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.0s|     1 |     0 |   784 |     - |  5727k |   0 | 316 |  57 | 585 | 561 | 11 |   0 |   0 | 8.549438e-01 | 4.752595e+00 | 455.90%| unknown
+ time | node  | left  |LP iter|LP it/n|mem/heur|mdpt |vars |cons |rows |cuts |sepa|confs|strbr|  dualbound   | primalbound  |  gap   | compl. 
+ 11.0s|     1 |     0 |   793 |     - |  5727k |   0 | 316 |  57 | 595 | 571 | 12 |   0 |   0 | 8.549438e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.0s|     1 |     0 |   796 |     - |  5727k |   0 | 316 |  57 | 599 | 575 | 13 |   0 |   0 | 8.549438e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.0s|     1 |     0 |   798 |     - |  5727k |   0 | 316 |  57 | 601 | 577 | 14 |   0 |   0 | 8.549438e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.1s|     1 |     0 | 11160 |     - |  5751k |   0 | 316 |  57 | 601 | 577 | 14 |   0 |   0 | 8.549438e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.1s|     1 |     0 | 11186 |     - |  5751k |   0 | 316 |  57 | 344 | 592 | 15 |   0 |   0 | 8.549438e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.1s|     1 |     0 | 11201 |     - |  5751k |   0 | 316 |  57 | 357 | 605 | 16 |   0 |   0 | 8.549438e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.1s|     1 |     0 | 11216 |     - |  5751k |   0 | 316 |  57 | 372 | 620 | 17 |   0 |   0 | 8.549438e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.1s|     1 |     0 | 11234 |     - |  5751k |   0 | 316 |  57 | 385 | 633 | 18 |   0 |   0 | 8.549438e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.1s|     1 |     0 | 11258 |     - |  5751k |   0 | 316 |  57 | 396 | 644 | 19 |   0 |   0 | 8.549438e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.1s|     1 |     0 | 11265 |     - |  5751k |   0 | 316 |  57 | 403 | 651 | 20 |   0 |   0 | 8.549438e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.1s|     1 |     0 | 11271 |     - |  5751k |   0 | 316 |  57 | 205 | 657 | 21 |   0 |   0 | 8.549438e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.1s|     1 |     0 | 11277 |     - |  5751k |   0 | 316 |  57 | 211 | 663 | 22 |   0 |   0 | 8.549438e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.1s|     1 |     0 | 11283 |     - |  5751k |   0 | 316 |  57 | 217 | 669 | 23 |   0 |   0 | 8.549438e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.1s|     1 |     0 | 11289 |     - |  5751k |   0 | 316 |  57 | 223 | 675 | 24 |   0 |   0 | 8.549438e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.1s|     1 |     0 | 11295 |     - |  5751k |   0 | 316 |  57 | 229 | 681 | 25 |   0 |   0 | 8.549438e-01 | 4.752595e+00 | 455.90%| unknown
+ time | node  | left  |LP iter|LP it/n|mem/heur|mdpt |vars |cons |rows |cuts |sepa|confs|strbr|  dualbound   | primalbound  |  gap   | compl. 
+ 11.6s|     1 |     0 | 15063 |     - |  6344k |   0 | 316 |  57 | 397 | 849 | 25 |   0 |   0 | 8.549441e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.6s|     1 |     0 | 15120 |     - |  6344k |   0 | 316 |  57 | 444 | 896 | 26 |   0 |   0 | 8.549441e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.6s|     1 |     0 | 15235 |     - |  6344k |   0 | 316 |  57 | 519 | 971 | 27 |   0 |   0 | 8.549441e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.6s|     1 |     0 | 15295 |     - |  6344k |   0 | 316 |  57 | 568 |1020 | 28 |   0 |   0 | 8.549441e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.6s|     1 |     0 | 15384 |     - |  6351k |   0 | 316 |  57 | 615 |1067 | 29 |   0 |   0 | 8.549441e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.6s|     1 |     0 | 15420 |     - |  6351k |   0 | 316 |  57 | 537 |1111 | 30 |   0 |   0 | 8.549441e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.6s|     1 |     0 | 15445 |     - |  6351k |   0 | 316 |  57 | 580 |1154 | 31 |   0 |   0 | 8.549441e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.6s|     1 |     0 | 15469 |     - |  6351k |   0 | 316 |  57 | 623 |1197 | 32 |   0 |   0 | 8.549441e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.6s|     1 |     0 | 15493 |     - |  6351k |   0 | 316 |  57 | 666 |1240 | 33 |   0 |   0 | 8.549441e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.6s|     1 |     0 | 15518 |     - |  6351k |   0 | 316 |  57 | 709 |1283 | 34 |   0 |   0 | 8.549441e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.6s|     1 |     0 | 15539 |     - |  6351k |   0 | 316 |  57 | 730 |1304 | 35 |   0 |   0 | 8.549441e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.6s|     1 |     0 | 15554 |     - |  6351k |   0 | 316 |  57 | 565 |1319 | 36 |   0 |   0 | 8.549441e-01 | 4.752595e+00 | 455.90%| unknown
+ 11.6s|     1 |     2 | 15554 |     - |  6365k |   0 | 316 |  57 | 565 |1319 | 37 |   0 |   0 | 8.549441e-01 | 4.752595e+00 | 455.90%| unknown
+ 15.3s|   100 |   101 |161656 |1610.7 |    13M |  11 | 316 |  57 |1184 |  41k| 24 |   0 |   0 | 1.502847e+00 | 4.752595e+00 | 216.24%| unknown
+ 20.5s|   200 |   201 |323209 |1613.1 |    20M |  13 | 316 |  57 | 794 | 100k| 13 |   0 |   0 | 1.630051e+00 | 4.752595e+00 | 191.56%| unknown
+ time | node  | left  |LP iter|LP it/n|mem/heur|mdpt |vars |cons |rows |cuts |sepa|confs|strbr|  dualbound   | primalbound  |  gap   | compl. 
+ 25.0s|   300 |   295 |468766 |1560.4 |    28M |  14 | 316 |  57 |1174 | 152k| 10 |   0 |   0 | 1.689552e+00 | 4.752595e+00 | 181.29%|  19.64%
+d29.7s|   380 |   375 |605858 |1592.8 |linesear|  14 | 316 |  57 |1205 | 201k| 22 |   0 |   0 | 2.376301e+00 | 4.752595e+00 | 100.00%|  27.07%
+ 31.0s|   400 |   395 |641856 |1603.2 |    37M |  14 | 316 |  57 |1678 | 214k| 24 |   0 |   0 | 2.410989e+00 | 4.752595e+00 |  97.12%|  27.59%
+ 38.3s|   500 |   489 |848856 |1696.7 |    45M |  15 | 316 |  57 |1531 | 284k| 27 |   0 |   0 | 2.522315e+00 | 4.752595e+00 |  88.42%|  37.41%
+ 45.1s|   600 |   573 |  1036k|1727.3 |    53M |  15 | 316 |  57 |1378 | 351k| 22 |   0 |   0 | 2.582391e+00 | 4.752595e+00 |  84.04%|  38.66%
+ 53.1s|   700 |   663 |  1250k|1786.0 |    62M |  15 | 316 |  57 |1398 | 423k| 25 |   0 |   0 | 2.707023e+00 | 4.752595e+00 |  75.57%|  40.82%
+ 60.8s|   800 |   749 |  1458k|1822.2 |    71M |  15 | 316 |  57 |1518 | 493k| 21 |   0 |   0 | 2.822269e+00 | 4.752595e+00 |  68.40%|  43.43%
+ 68.5s|   900 |   841 |  1657k|1841.1 |    78M |  15 | 316 |  57 |1629 | 563k| 27 |   0 |   0 | 3.019734e+00 | 4.752595e+00 |  57.38%|  46.73%
+ 75.4s|  1000 |   925 |  1834k|1834.5 |    86M |  15 | 316 |  57 |1107 | 626k|  6 |   0 |   0 | 3.133598e+00 | 4.752595e+00 |  51.67%|  49.34%
+ 82.6s|  1100 |  1015 |  2016k|1832.5 |    95M |  16 | 316 |  57 |1493 | 685k| 17 |   0 |   0 | 3.183991e+00 | 4.752595e+00 |  49.27%|  50.66%
+ 89.6s|  1200 |  1103 |  2192k|1826.7 |   102M |  16 | 316 |  57 |1563 | 743k| 11 |   0 |   0 | 3.258422e+00 | 4.752595e+00 |  45.86%|  51.79%
+ 96.4s|  1300 |  1183 |  2362k|1816.7 |   110M |  16 | 316 |  57 |1486 | 800k| 27 |   0 |   0 | 3.297218e+00 | 4.752595e+00 |  44.14%|  52.94%
+  104s|  1400 |  1279 |  2546k|1818.6 |   117M |  16 | 316 |  57 |1438 | 857k| 27 |   0 |   0 | 3.346997e+00 | 4.752595e+00 |  42.00%|  53.92%
+  111s|  1500 |  1369 |  2724k|1816.0 |   124M |  16 | 316 |  57 |1265 | 912k| 21 |   0 |   0 | 3.397004e+00 | 4.752595e+00 |  39.91%|  55.01%
+  119s|  1600 |  1441 |  2903k|1814.4 |   133M |  16 | 316 |  57 |1484 | 970k| 14 |   0 |   0 | 3.461809e+00 | 4.752595e+00 |  37.29%|  56.20%
+ time | node  | left  |LP iter|LP it/n|mem/heur|mdpt |vars |cons |rows |cuts |sepa|confs|strbr|  dualbound   | primalbound  |  gap   | compl. 
+d 125s|  1678 |  1509 |  3053k|1819.6 |adaptive|  16 | 316 |  57 |1572 |1015k| 32 |   0 |   0 | 3.497315e+00 | 4.752595e+00 |  35.89%|  56.90%
+  127s|  1700 |  1531 |  3094k|1820.1 |   141M |  16 | 316 |  57 |1655 |1027k| 23 |   0 |   0 | 3.505852e+00 | 4.752595e+00 |  35.56%|  56.97%
+  134s|  1800 |  1621 |  3276k|1819.8 |   148M |  16 | 316 |  57 |1509 |1082k| 19 |   0 |   0 | 3.540108e+00 | 4.752595e+00 |  34.25%|  57.79%
+  142s|  1900 |  1713 |  3463k|1822.7 |   155M |  16 | 316 |  57 |1743 |1140k| 18 |   0 |   0 | 3.578101e+00 | 4.752595e+00 |  32.82%|  58.63%
+  150s|  2000 |  1805 |  3649k|1824.6 |   164M |  16 | 316 |  57 |1594 |1197k| 14 |   0 |   0 | 3.621911e+00 | 4.752595e+00 |  31.22%|  59.42%
+  158s|  2100 |  1899 |  3812k|1815.1 |   172M |  16 | 316 |  57 |1566 |1247k|  9 |   0 |   0 | 3.643580e+00 | 4.752595e+00 |  30.44%|  59.85%
+  165s|  2200 |  1991 |  3979k|1808.6 |   178M |  16 | 316 |  57 |1654 |1297k| 19 |   0 |   0 | 3.658155e+00 | 4.752595e+00 |  29.92%|  60.26%
+  172s|  2300 |  2089 |  4149k|1803.8 |   186M |  16 | 316 |  57 |1590 |1348k| 26 |   0 |   0 | 3.675150e+00 | 4.752595e+00 |  29.32%|  60.52%
+  180s|  2400 |  2181 |  4312k|1796.7 |   194M |  16 | 316 |  57 |1650 |1399k| 11 |   0 |   0 | 3.690080e+00 | 4.752595e+00 |  28.79%|  61.04%
+  187s|  2500 |  2277 |  4468k|1787.3 |   201M |  16 | 316 |  57 |1722 |1446k| 22 |   0 |   0 | 3.712195e+00 | 4.752595e+00 |  28.03%|  61.26%
+  194s|  2600 |  2365 |  4634k|1782.3 |   206M |  16 | 316 |  57 |1515 |1498k| 21 |   0 |   0 | 3.730396e+00 | 4.752595e+00 |  27.40%|  61.61%
+  201s|  2700 |  2457 |  4804k|1779.4 |   212M |  16 | 316 |  57 |1436 |1550k| 25 |   0 |   0 | 3.753830e+00 | 4.752595e+00 |  26.61%|  63.21%
+  209s|  2800 |  2549 |  4965k|1773.1 |   221M |  16 | 316 |  57 |1582 |1598k| 20 |   0 |   0 | 3.769778e+00 | 4.752595e+00 |  26.07%|  63.51%
+  216s|  2900 |  2641 |  5116k|1764.1 |   230M |  16 | 316 |  57 |1632 |1646k| 27 |   0 |   0 | 3.794976e+00 | 4.752595e+00 |  25.23%|  63.98%
+  223s|  3000 |  2737 |  5273k|1757.6 |   237M |  16 | 316 |  57 |1747 |1695k| 15 |   0 |   0 | 3.815775e+00 | 4.752595e+00 |  24.55%|  64.37%
+ time | node  | left  |LP iter|LP it/n|mem/heur|mdpt |vars |cons |rows |cuts |sepa|confs|strbr|  dualbound   | primalbound  |  gap   | compl. 
+  231s|  3100 |  2833 |  5429k|1751.4 |   243M |  16 | 316 |  57 |1705 |1744k|  6 |   0 |   0 | 3.839048e+00 | 4.752595e+00 |  23.80%|  65.38%
+  239s|  3200 |  2915 |  5589k|1746.6 |   250M |  16 | 316 |  57 |1587 |1794k| 35 |   0 |   0 | 3.852827e+00 | 4.752595e+00 |  23.35%|  66.90%
+  246s|  3300 |  3005 |  5747k|1741.5 |   258M |  17 | 316 |  57 |1648 |1843k| 17 |   0 |   0 | 3.875542e+00 | 4.752595e+00 |  22.63%|  67.31%
+  252s|  3400 |  3093 |  5893k|1733.3 |   267M |  17 | 316 |  57 |1728 |1889k| 23 |   0 |   0 | 3.893505e+00 | 4.752595e+00 |  22.06%|  68.38%
+  259s|  3500 |  3193 |  6051k|1728.8 |   274M |  17 | 316 |  57 |1734 |1936k| 16 |   0 |   0 | 3.902275e+00 | 4.752595e+00 |  21.79%|  68.48%
+  267s|  3600 |  3283 |  6201k|1722.4 |   280M |  17 | 316 |  57 |1586 |1980k| 25 |   0 |   0 | 3.918536e+00 | 4.752595e+00 |  21.28%|  68.83%
+  274s|  3700 |  3371 |  6355k|1717.5 |   286M |  17 | 316 |  57 |1430 |2028k|  7 |   0 |   0 | 3.929382e+00 | 4.752595e+00 |  20.95%|  69.19%
+  280s|  3800 |  3469 |  6500k|1710.5 |   292M |  17 | 316 |  57 |1681 |2073k|  9 |   0 |   0 | 3.941798e+00 | 4.752595e+00 |  20.57%|  69.38%
+  286s|  3900 |  3565 |  6636k|1701.5 |   300M |  17 | 316 |  57 |1527 |2118k| 23 |   0 |   0 | 3.952103e+00 | 4.752595e+00 |  20.25%|  69.62%
+  293s|  4000 |  3655 |  6786k|1696.6 |   308M |  17 | 316 |  57 |1691 |2165k| 27 |   0 |   0 | 3.966047e+00 | 4.752595e+00 |  19.83%|  69.84%
+  300s|  4100 |  3741 |  6939k|1692.5 |   314M |  17 | 316 |  57 |1673 |2213k| 25 |   0 |   0 | 3.977612e+00 | 4.752595e+00 |  19.48%|  70.23%
+  307s|  4200 |  3835 |  7086k|1687.1 |   321M |  17 | 316 |  57 |1749 |2258k| 32 |   0 |   0 | 3.987650e+00 | 4.752595e+00 |  19.18%|  70.40%
+  315s|  4300 |  3921 |  7232k|1681.9 |   328M |  17 | 316 |  57 |1678 |2305k| 11 |   0 |   0 | 4.000275e+00 | 4.752595e+00 |  18.81%|  70.74%
+  322s|  4400 |  4015 |  7381k|1677.5 |   336M |  17 | 316 |  57 |1775 |2350k| 22 |   0 |   0 | 4.007454e+00 | 4.752595e+00 |  18.59%|  70.90%
+  328s|  4500 |  4107 |  7508k|1668.4 |   342M |  17 | 316 |  57 |1834 |2393k| 23 |   0 |   0 | 4.011771e+00 | 4.752595e+00 |  18.47%|  71.05%
+ time | node  | left  |LP iter|LP it/n|mem/heur|mdpt |vars |cons |rows |cuts |sepa|confs|strbr|  dualbound   | primalbound  |  gap   | compl. 
+  334s|  4600 |  4199 |  7637k|1660.3 |   349M |  17 | 316 |  57 |1480 |2436k| 19 |   0 |   0 | 4.015864e+00 | 4.752595e+00 |  18.35%|  71.11%
+  342s|  4700 |  4289 |  7782k|1655.8 |   355M |  17 | 316 |  57 |1785 |2481k| 10 |   0 |   0 | 4.020757e+00 | 4.752595e+00 |  18.20%|  71.23%
+  349s|  4800 |  4379 |  7917k|1649.4 |   364M |  17 | 316 |  57 |1859 |2524k| 13 |   0 |   0 | 4.024722e+00 | 4.752595e+00 |  18.09%|  71.33%
+  355s|  4900 |  4471 |  8049k|1642.7 |   371M |  17 | 316 |  57 |1848 |2567k| 24 |   0 |   0 | 4.028094e+00 | 4.752595e+00 |  17.99%|  71.43%
+  361s|  5000 |  4559 |  8177k|1635.3 |   377M |  17 | 316 |  57 |1809 |2610k| 25 |   0 |   0 | 4.034986e+00 | 4.752595e+00 |  17.78%|  71.58%
+  368s|  5100 |  4651 |  8312k|1629.8 |   384M |  17 | 316 |  57 |1582 |2653k| 22 |   0 |   0 | 4.039755e+00 | 4.752595e+00 |  17.65%|  71.75%
+  375s|  5200 |  4745 |  8444k|1623.9 |   392M |  17 | 316 |  57 |1771 |2695k| 24 |   0 |   0 | 4.043981e+00 | 4.752595e+00 |  17.52%|  71.82%
+  381s|  5300 |  4831 |  8573k|1617.4 |   397M |  17 | 316 |  57 |1774 |2737k| 27 |   0 |   0 | 4.048244e+00 | 4.752595e+00 |  17.40%|  71.93%
+  388s|  5400 |  4923 |  8706k|1612.2 |   403M |  17 | 316 |  57 |1669 |2780k| 18 |   0 |   0 | 4.051895e+00 | 4.752595e+00 |  17.29%|  72.18%
+  394s|  5500 |  5019 |  8832k|1605.8 |   410M |  17 | 316 |  57 |1777 |2824k|  7 |   0 |   0 | 4.056393e+00 | 4.752595e+00 |  17.16%|  72.25%
+  400s|  5600 |  5113 |  8949k|1598.1 |   417M |  17 | 316 |  57 |1807 |2866k| 10 |   0 |   0 | 4.060993e+00 | 4.752595e+00 |  17.03%|  72.43%
+  407s|  5700 |  5207 |  9083k|1593.6 |   427M |  17 | 316 |  57 |1885 |2910k| 15 |   0 |   0 | 4.066011e+00 | 4.752595e+00 |  16.89%|  72.76%
+  414s|  5800 |  5301 |  9219k|1589.5 |   434M |  17 | 316 |  57 |1328 |2955k| 24 |   0 |   0 | 4.073605e+00 | 4.752595e+00 |  16.67%|  73.16%
+  421s|  5900 |  5393 |  9346k|1584.1 |   440M |  17 | 316 |  57 |1760 |2997k| 13 |   0 |   0 | 4.079554e+00 | 4.752595e+00 |  16.50%|  75.17%
+  427s|  6000 |  5485 |  9477k|1579.5 |   446M |  17 | 316 |  57 |1802 |3041k| 12 |   0 |   0 | 4.087059e+00 | 4.752595e+00 |  16.28%|  75.23%
+ time | node  | left  |LP iter|LP it/n|mem/heur|mdpt |vars |cons |rows |cuts |sepa|confs|strbr|  dualbound   | primalbound  |  gap   | compl. 
+  433s|  6100 |  5585 |  9609k|1575.3 |   452M |  17 | 316 |  57 |1724 |3087k| 22 |   0 |   0 | 4.092098e+00 | 4.752595e+00 |  16.14%|  75.27%
+  440s|  6200 |  5669 |  9732k|1569.7 |   460M |  17 | 316 |  57 |1554 |3128k| 19 |   0 |   0 | 4.099762e+00 | 4.752595e+00 |  15.92%|  75.37%
+  447s|  6300 |  5757 |  9867k|1566.2 |   467M |  18 | 316 |  57 |1809 |3173k| 24 |   0 |   0 | 4.103723e+00 | 4.752595e+00 |  15.81%|  75.46%
+  453s|  6400 |  5853 |  9989k|1560.8 |   474M |  18 | 316 |  57 |1831 |3215k|  7 |   0 |   0 | 4.111802e+00 | 4.752595e+00 |  15.58%|  75.67%
+  459s|  6500 |  5945 | 10120k|1556.9 |   480M |  18 | 316 |  57 |1915 |3257k| 26 |   0 |   0 | 4.118082e+00 | 4.752595e+00 |  15.41%|  75.76%
+  466s|  6600 |  6037 | 10256k|1553.9 |   486M |  18 | 316 |  57 |1803 |3300k| 27 |   0 |   0 | 4.123233e+00 | 4.752595e+00 |  15.26%|  75.92%
+  473s|  6700 |  6131 | 10393k|1551.2 |   497M |  18 | 316 |  57 |1801 |3344k| 12 |   0 |   0 | 4.128070e+00 | 4.752595e+00 |  15.13%|  76.15%
+  480s|  6800 |  6223 | 10509k|1545.4 |   501M |  18 | 316 |  57 |1836 |3384k| 26 |   0 |   0 | 4.134002e+00 | 4.752595e+00 |  14.96%|  76.33%
+  486s|  6900 |  6323 | 10633k|1541.0 |   511M |  18 | 316 |  57 |1928 |3424k|  8 |   0 |   0 | 4.138333e+00 | 4.752595e+00 |  14.84%|  76.37%
+  492s|  7000 |  6419 | 10756k|1536.5 |   516M |  18 | 316 |  57 |1843 |3467k|  6 |   0 |   0 | 4.143165e+00 | 4.752595e+00 |  14.71%|  76.47%
+  499s|  7100 |  6517 | 10881k|1532.5 |   524M |  18 | 316 |  57 |1670 |3508k| 30 |   0 |   0 | 4.149554e+00 | 4.752595e+00 |  14.53%|  76.56%
+  506s|  7200 |  6609 | 11024k|1531.1 |   530M |  18 | 316 |  57 |1857 |3552k|  8 |   0 |   0 | 4.153926e+00 | 4.752595e+00 |  14.41%|  76.65%
+  511s|  7300 |  6703 | 11140k|1526.0 |   536M |  18 | 316 |  57 |1834 |3596k| 26 |   0 |   0 | 4.158804e+00 | 4.752595e+00 |  14.28%|  76.76%
+  518s|  7400 |  6793 | 11264k|1522.1 |   543M |  18 | 316 |  57 |1739 |3638k|  9 |   0 |   0 | 4.163427e+00 | 4.752595e+00 |  14.15%|  76.86%
+  524s|  7500 |  6887 | 11391k|1518.8 |   550M |  18 | 316 |  57 |1897 |3680k|  6 |   0 |   0 | 4.169946e+00 | 4.752595e+00 |  13.97%|  76.97%
+ time | node  | left  |LP iter|LP it/n|mem/heur|mdpt |vars |cons |rows |cuts |sepa|confs|strbr|  dualbound   | primalbound  |  gap   | compl. 
+  530s|  7600 |  6977 | 11513k|1514.8 |   558M |  18 | 316 |  57 |1743 |3723k|  8 |   0 |   0 | 4.176508e+00 | 4.752595e+00 |  13.79%|  77.12%
+  536s|  7700 |  7073 | 11644k|1512.2 |   565M |  18 | 316 |  57 |1946 |3766k|  9 |   0 |   0 | 4.184144e+00 | 4.752595e+00 |  13.59%|  77.23%
+  543s|  7800 |  7157 | 11784k|1510.7 |   570M |  18 | 316 |  57 |1823 |3810k| 11 |   0 |   0 | 4.190572e+00 | 4.752595e+00 |  13.41%|  77.34%
+  549s|  7900 |  7237 | 11911k|1507.7 |   575M |  18 | 316 |  57 |1807 |3854k| 27 |   0 |   0 | 4.196734e+00 | 4.752595e+00 |  13.25%|  77.49%
+  556s|  8000 |  7309 | 12040k|1505.0 |   582M |  18 | 316 |  57 |1871 |3898k| 21 |   0 |   0 | 4.202232e+00 | 4.752595e+00 |  13.10%|  78.90%
+  562s|  8100 |  7395 | 12166k|1501.9 |   594M |  18 | 316 |  57 |1851 |3941k| 25 |   0 |   0 | 4.209654e+00 | 4.752595e+00 |  12.90%|  79.11%
+  568s|  8200 |  7483 | 12290k|1498.7 |   601M |  18 | 316 |  57 |1833 |3985k| 29 |   0 |   0 | 4.215254e+00 | 4.752595e+00 |  12.75%|  79.24%
+  574s|  8300 |  7579 | 12416k|1495.9 |   606M |  18 | 316 |  57 |1760 |4028k| 12 |   0 |   0 | 4.220043e+00 | 4.752595e+00 |  12.62%|  79.34%
+  581s|  8400 |  7673 | 12544k|1493.3 |   612M |  18 | 316 |  57 |1832 |4070k|  6 |   0 |   0 | 4.224858e+00 | 4.752595e+00 |  12.49%|  79.44%
+  587s|  8500 |  7765 | 12668k|1490.3 |   619M |  18 | 316 |  57 |1810 |4112k| 22 |   0 |   0 | 4.230653e+00 | 4.752595e+00 |  12.34%|  79.55%
+  593s|  8600 |  7849 | 12801k|1488.4 |   626M |  18 | 316 |  57 |1885 |4157k| 17 |   0 |   0 | 4.236416e+00 | 4.752595e+00 |  12.18%|  79.68%
+  599s|  8700 |  7937 | 12911k|1484.0 |   632M |  18 | 316 |  57 |1622 |4196k| 21 |   0 |   0 | 4.240362e+00 | 4.752595e+00 |  12.08%|  79.82%
+
+SCIP Status        : solving was interrupted [time limit reached]
+Solving Time (sec) : 600.00
+Solving Nodes      : 8717
+Primal Bound       : +4.75259454292620e+00 (118 solutions)
+Dual Bound         : +4.24128028752457e+00
+Gap                : 12.06 %
+  *** ALERTA piso: obj 4.7526 < 17.0000
+ 29 C  M4-real                    P0Q1 T69   zeroed       | ip     4.7526  scip     4.7526  TIME_LIMIT      603.0s  gapcert +1.08e-01
+┌ Warning: thread = 1 warning: only found 470 / 2795 columns around data row: 1. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 471 / 2795 columns around data row: 2. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 471 / 2795 columns around data row: 3. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 83 / 2795 columns around data row: 4. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 113 / 2795 columns around data row: 5. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 667 / 2795 columns around data row: 6. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 113 / 2795 columns around data row: 7. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 113 / 2795 columns around data row: 8. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 823 / 2795 columns around data row: 9. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 10. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 619 / 2795 columns around data row: 11. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 919 / 2795 columns around data row: 12. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 919 / 2795 columns around data row: 13. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 727 / 2795 columns around data row: 14. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 727 / 2795 columns around data row: 15. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 727 / 2795 columns around data row: 16. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 727 / 2795 columns around data row: 17. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 727 / 2795 columns around data row: 18. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 175 / 2795 columns around data row: 19. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 175 / 2795 columns around data row: 20. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 175 / 2795 columns around data row: 21. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 175 / 2795 columns around data row: 22. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 175 / 2795 columns around data row: 23. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 679 / 2795 columns around data row: 24. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 679 / 2795 columns around data row: 25. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 501 / 2795 columns around data row: 26. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 501 / 2795 columns around data row: 27. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 28. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 29. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 30. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 31. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 32. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 33. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 34. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 35. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 36. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 37. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 38. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 39. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 40. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 163 / 2795 columns around data row: 41. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 163 / 2795 columns around data row: 42. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 163 / 2795 columns around data row: 43. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 271 / 2795 columns around data row: 44. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 667 / 2795 columns around data row: 45. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 667 / 2795 columns around data row: 46. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 667 / 2795 columns around data row: 47. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 679 / 2795 columns around data row: 48. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 679 / 2795 columns around data row: 49. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 679 / 2795 columns around data row: 50. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 571 / 2795 columns around data row: 51. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 487 / 2795 columns around data row: 52. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 631 / 2795 columns around data row: 53. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 631 / 2795 columns around data row: 54. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 631 / 2795 columns around data row: 55. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 56. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 569 / 2795 columns around data row: 57. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 58. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 59. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 569 / 2795 columns around data row: 60. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 171 / 2795 columns around data row: 61. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 171 / 2795 columns around data row: 62. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 171 / 2795 columns around data row: 63. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 64. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 65. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 66. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 67. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 68. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 69. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 569 / 2795 columns around data row: 70. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 569 / 2795 columns around data row: 71. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 72. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 73. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 74. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 75. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 569 / 2795 columns around data row: 76. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 569 / 2795 columns around data row: 77. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 78. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 79. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 569 / 2795 columns around data row: 80. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 81. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 82. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 133 / 2795 columns around data row: 83. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 133 / 2795 columns around data row: 84. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 133 / 2795 columns around data row: 85. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 185 / 2795 columns around data row: 86. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 185 / 2795 columns around data row: 87. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 185 / 2795 columns around data row: 88. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 187 / 2795 columns around data row: 89. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 187 / 2795 columns around data row: 90. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 213 / 2795 columns around data row: 91. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 453 / 2795 columns around data row: 92. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 703 / 2795 columns around data row: 93. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 245 / 2795 columns around data row: 94. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 245 / 2795 columns around data row: 95. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 245 / 2795 columns around data row: 96. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 245 / 2795 columns around data row: 97. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 245 / 2795 columns around data row: 98. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 245 / 2795 columns around data row: 99. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 293 / 2795 columns around data row: 100. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1 warning: only found 245 / 2795 columns around data row: 101. Filling remaining columns with `missing`
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:592
+┌ Warning: thread = 1: too many warnings, silencing any further warnings
+└ @ CSV ~/.julia/packages/CSV/LiiJM/src/file.jl:597
+fatia pronta: /Users/davi/dev/paper/rerun_scip_21-10/saida/caso_29.csv

@@ -3,8 +3,10 @@
 Reconciliation of the material received on 2026-10-21 (archived in
 `results/historical/certification-2026-08/`, see its `PROVENANCE.md`) with the values the
 2026-10-16 manuscript prints. It answers the requests listed in `provenance_gaps.md` (items 1, 3,
-4, 5) and `missing_global_artifacts.md` (G1). Nothing was re-executed: the comparisons are
+4, 5) and `missing_global_artifacts.md` (G1). Nothing was re-executed here: the comparisons are
 against the received record, computed by `scripts/maintainers/check_certification_2026_08.py`.
+The batch's author re-ran the certification batch on 2026-10-21; that re-run is compared with the
+record in section 1.
 
 **What kind of evidence this is.** The per-instance raw outputs of the certification batch, and
 the per-replication or per-fit outputs of the three diagnostics, are lost: they ran in a
@@ -100,8 +102,30 @@ count, coefficients and one log per case, and Ipopt's status and coefficients
 (`./reproduce.sh full --experiment global_optimization_grid --jobs N`; then
 `compare_certification_2026_08.py` compares the run with the record and recomputes Table S5 and
 the Section 5.6 figures). A run is a new execution: SCIP's times and the gaps of time-limited
-instances depend on the machine and the number of parallel jobs. **Not run yet:** SCIP needs the
-Linux container (the Windows build crashes), which was not available where this was prepared.
+instances depend on the machine and the number of parallel jobs. This runner has not been run
+in the replication container (SCIP needs Linux; the Windows build crashes).
+
+**The re-run of 2026-10-21.** The batch's author re-ran the 46 instances with the batch's harness
+(recording extended, model unchanged) in the batch's environment (Julia 1.12.3, the batch's
+Manifest, SCIP 8.0.0), under an expectation written beforehand; it is archived as
+`results/reruns/certification-2026-08-rerun-2026-10-21/` (`RUN.md`) and checked in CI by
+`scripts/maintainers/check_certification_rerun_2026_10.py`. The 43 series it wrote are the
+package's instances exactly. `import_certification_rerun_2026_10.py` writes it in the runner's
+format and `compare_certification_2026_08.py` compares it with the record:
+
+| | record (August) | re-run (2026-10-21) |
+|---|---|---|
+| certified (OPTIMAL) | 23 | the same 23, certified gap equal to three digits in all; certified objective equal where recorded (33, 36, 44, 45) |
+| time limit | 21 | 20 of them again; id 38 (T = 960) did not return |
+| never returned | 34, 35 (T = 480) | 34, 35 and 38, under a 900 s and then a 3600 s clock |
+| Ipopt objective / Ipopt - SCIP | 9 / 32 recorded | 9 / 32 agree |
+| Table S5 (harness's cells) | the printed counts | the printed counts, except T = 960: 1 / 1 |
+| Section 5.6 ids 26, 44, 45 | the printed values | the printed values |
+| seasonal grid: largest Ipopt - SCIP; gaps smallest / largest / median | 2.52e-9; 1.94e-4 / 4.90e-1 / 1.51e-2 | 2.52e-9; 1.73e-4 / 4.63e-1 / 5.86e-2 |
+
+The re-run therefore reproduces every certificate and every instance value the text relies on,
+with per-instance records and SCIP logs; what it does not reproduce is what depends on the
+machine's load: times, the gaps of instances stopped at the time limit, and whether id 38 returns.
 
 ## 2. Table S2: the exogenous-convention simulation (LAMPSPUC/Sarimax.jl#18)
 
@@ -159,8 +183,10 @@ Checked against the repository's history (every branch):
 
 ## What remains open
 
-* Table S5 and Section 5.6: the per-instance raw records (lost); which instances Table S5 counts;
-  the four seasonal-grid figures (errata); ids 34-35 and 44 in the text (T16, T17).
+* Table S5 and Section 5.6: the August batch's per-instance raw records are lost, and the
+  2026-10-21 re-run stands in for them (with logs) for everything but load-dependent quantities;
+  which instances Table S5 counts; the four seasonal-grid figures (errata); ids 34-35, 38 and 44
+  in the text (T16, T17).
 * Section 5.5: the source of 12.1% -> 16.5% and OWA +0.0097, and the wording that merges two
   measurements (T13).
 * Porting the batch's instances and the diagnostics' scripts to runners of this package

@@ -104,7 +104,7 @@ those items at its `m4_objectives_controlled` cell, awaiting the printed values 
 | stable_admissibility_gavea | Section 5.5 (admissibility) | **VERIFIED** (1,028 cells) | BLOCKED | the raw archive `brutos_gavea.zip` is in bundle part 2; the stable, admissibility-grid and guard tables of 2026-10-17 regenerate from it; the GAVEA runners need the GAVEA harness (Julia 1.12) and the census Manifest and one patch are lost |
 | admissibility_margins, initialization_order_search | not reported | PARTIAL | PARTIAL | raw results only |
 | exog_convention_simulation | Table S2 | PARTIAL | BLOCKED | per-DGP aggregate, generator, fitters and reader recovered (2026-10-21); per-replication outputs lost; not ported to a runner |
-| global_optimization_grid | Table S5; Section 5.6 certificates | PARTIAL | EXECUTABLE | August 2026 batch reconstructed from its session record (raw outputs lost); 4 Section 5.6 figures differ; the batch's harness and 46 instances re-run by `run_certification_2026_08.jl` (Ipopt half validated against the record; SCIP run pending a Linux container) |
+| global_optimization_grid | Table S5; Section 5.6 certificates | PARTIAL | EXECUTABLE | August 2026 batch reconstructed from its session record (raw outputs lost); 4 Section 5.6 figures differ; the batch's harness and 46 instances re-run by `run_certification_2026_08.jl` (Ipopt half validated against the record; not run in the container). Re-run by the batch's author on 2026-10-21 in the batch's environment, with SCIP logs (`results/reruns/certification-2026-08-rerun-2026-10-21/`): same series, the 23 certificates and every Section 5.6 instance value again, Table S5 counts again except T = 960 (id 38 did not return) |
 | quantile_demo, multistart_kstart, weighted_regularization_demo | Tables S6, S7; Figure S1 | VERIFIED (recovered outputs) | PARTIAL | script and outputs recovered (`results/historical/revision-2026-09/recovered/`); CI recomputes the derived tables from them; re-running the script is a new execution |
 | initialization_experiment, ranking_likelihood_diagnostic | Section 5.5 | PARTIAL | BLOCKED | scripts and aggregates recovered (2026-10-21); 3 ranking values not recovered; per-fit outputs lost; not ported to runners |
 | ar3_stationarity_figure | Figure 1 | PARTIAL | NOT APPLICABLE | analytic figure; its script recovered with the others |
@@ -146,6 +146,7 @@ report and the superseded historical campaign.
 | Samples of quarterly and yearly | `full ... --frequency quarterly --frequency yearly --sample 20` | every objective reproduces the archive on 20/20 series of each frequency |
 | Global-certificate inventory | `build_global_certificates.py --bundle <local bundle> --pjme-daily <re-run data>` | 255 rows; 22 certified, 190 feasible with open gap, 8 improved feasible without certification, 35 insufficient evidence |
 | Reconstructed records (2026-10-21) | `check_certification_2026_08.py` | 45 files verified; the consolidated per-instance table agrees with the per-batch tables on 44 rows; 42 derived values follow from the files |
+| Certification re-run (2026-10-21) | `check_certification_rerun_2026_10.py` | 154 files verified against the archived and the received lists (49 logs with the host name redacted, 2 CSV files with CRLF kept as LF); 43 instances identical to the package's; records, comparison and summary follow from the files |
 | Recovered outputs | `check_recovered_2026_09.py` | 14 files verified; Tables S6 (30 values), S7 (96 values, recomputed from 360 per-start records) and the Figure S1 table (60 values) agree |
 | Release check | `check_manuscript_mapping.py` / `--release` | pull-request mode PASS (6 registered errata, 0 unregistered, 0 stale); release mode FAIL on the 6 errata, as designed; a changed printed value and a stale erratum each make it fail |
 | CI at `8dc4290` | GitHub Actions | IJF replication: host, manuscript release check, container amd64 and arm64 all PASS; Documentation PASS; package CI PASS on ubuntu (Julia 1, 1.10) and macOS, FAIL on Windows in the elastic-net test fixed by the `src/penalty.jl` change |
@@ -249,7 +250,8 @@ What remains:
    the source of the mixed-seasonal-order shares and the OWA of the Section 5.5 ranking
    diagnostic. The August 2026 certification batch, Table S2 and the other Section 5.5
    diagnostics were supplied on 2026-10-21 as reconstructions (raw outputs lost;
-   `reports/certification_batch_2026_08.md`).
+   `reports/certification_batch_2026_08.md`); the certification batch was re-run with logs on
+   2026-10-21 by its author (`results/reruns/certification-2026-08-rerun-2026-10-21/`).
 2. **The census Manifest and the `fator=1` patch** behind its normalization-off cells
    (lost), needed to re-execute those arms.
 3. ~~The simulation scripts of the September 2026 revision analysis and their outputs~~:

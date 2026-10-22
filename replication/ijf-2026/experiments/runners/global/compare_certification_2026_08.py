@@ -11,7 +11,9 @@ tabela_scip_lotes1-2_RECONSTRUIDA.csv), and writes next to the records:
   the manuscript's.
 
 Objectives the record holds are compared at the precision it printed: Ipopt's always, SCIP's
-when both runs certified the instance. Statuses, times and the gaps of instances stopped at the
+when both runs certified the instance, and batch 1's Ipopt - SCIP (differences below 1e-10 are
+rounding at the Ipopt point and agree). A case killed by the external clock is the same outcome
+whether the record wrote it in Portuguese or the runner in English. Statuses, times and the gaps of instances stopped at the
 time limit depend on the machine and its load, and are reported, not judged. Exit 1 only when
 an Ipopt objective differs (the data or the model are not the batch's) or the records are
 missing; otherwise 0.
@@ -44,6 +46,12 @@ def f(x) -> float:
         return math.nan
 
 
+def outcome(status: str) -> str:
+    """The record writes a case killed by the external clock in Portuguese, the runner in English."""
+    s = status.strip()
+    return "KILLED_EXTERNAL_CLOCK" if s.startswith(("MORTO_RELOGIO_EXTERNO", "KILLED_EXTERNAL_CLOCK")) else s
+
+
 def decimals(s: str) -> int:
     s = s.strip().lower()
     if "e" in s:
@@ -71,7 +79,8 @@ def main() -> int:
     old = {int(r["id"]): r for r in csv.DictReader(open(RECORD, newline="", encoding="utf-8"))}
     rows, bad = [], []
     count = {"status same": 0, "status differs": 0, "ipopt agrees": 0, "ipopt differs": 0,
-             "scip optimum agrees": 0, "scip optimum differs": 0}
+             "scip optimum agrees": 0, "scip optimum differs": 0,
+             "ipopt - scip agrees": 0, "ipopt - scip differs": 0}
     for i in sorted(new):
         n, o = new[i], old.get(i, {})
         out = {"id": i, "cell": n["cel"], "label": n["rotulo"], "T": n["T"],
@@ -84,7 +93,7 @@ def main() -> int:
                "obj_scip_record": o.get("obj_scip", ""), "obj_scip_rerun": n["obj_scip"],
                "dual_rerun": n["dual_scip"], "nodes_rerun": n["scip_nodes"], "outcome": ""}
         notes = []
-        st = "same" if o.get("status") == n["status"] else "differs"
+        st = "same" if outcome(o.get("status", "")) == outcome(n["status"]) else "differs"
         count[f"status {st}"] += 1
         if st == "differs":
             notes.append(f"status {o.get('status')} -> {n['status']}")
@@ -99,6 +108,14 @@ def main() -> int:
             count["scip optimum agrees" if ok else "scip optimum differs"] += 1
             if not ok:
                 notes.append("certified optimum differs")
+        if o.get("ipopt_menos_scip"):
+            # batch 1 printed Ipopt - SCIP to 3 significant digits; below 1e-10 both runs ended at
+            # the Ipopt point and the digits are rounding, so those agree whatever they print
+            d = f(n["obj_ipopt"]) - f(n["obj_scip"])
+            ok = same_printed(o["ipopt_menos_scip"], d) or max(abs(d), abs(f(o["ipopt_menos_scip"]))) < 1e-10
+            count["ipopt - scip agrees" if ok else "ipopt - scip differs"] += 1
+            if not ok:
+                notes.append(f"Ipopt - SCIP {o['ipopt_menos_scip']} -> {d:.2e}")
         out["outcome"] = "; ".join(notes) or "agrees"
         rows.append(out)
     with open(run / "comparison.csv", "w", newline="", encoding="utf-8") as fh:
@@ -147,7 +164,7 @@ def main() -> int:
                          f"{f(n['obj_scip']):.6f} / {n['status']} / {f(n['gap_certificado']):.2e} |")
     lines += ["", "Per instance: `comparison.csv`. Times and the gaps of time-limited instances depend on "
               "the machine and its load."]
-    (run / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (run / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
     print("\n".join(lines))
     if bad:
         print(f"FAIL: the Ipopt objective differs from the record for ids {bad}")

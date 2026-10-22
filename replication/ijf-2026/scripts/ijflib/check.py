@@ -152,7 +152,7 @@ def check_committed(paths: Paths, report: Report) -> bool:
     for digest, rel in read_sha256_list(lst):
         n += 1
         f = paths.repl / rel
-        binary = f.suffix in (".gz", ".zip", ".png", ".pdf")
+        binary = f.suffix in (".gz", ".zip", ".png", ".pdf", ".bundle")
         if not f.exists():
             bad.append(f"{rel} (missing)")
         elif sha256_file(f, strip_cr=not binary) != digest:

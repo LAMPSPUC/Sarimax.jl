@@ -102,6 +102,10 @@ jobs:
       - name: Derived tables of the September 2026 revision follow from the recovered outputs
         run: python replication/ijf-2026/scripts/maintainers/check_recovered_2026_09.py
 
+      - name: The August 2026 certification batch's records and its 2026-10-21 re-run
+        run: |
+          python replication/ijf-2026/scripts/maintainers/check_certification_2026_08.py
+
   manuscript:
     name: Manuscript release check
     # Separate from `host` so that a printed value that differs from its source fails this check

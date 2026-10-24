@@ -204,16 +204,24 @@ The text states the first two as properties of the release used by the controlle
 | `verification/defect_tests/run.jl` at `14dd581` | 13 pass, 3 broken (section 5) |
 
 **In the container** (linux/amd64, Docker 27.2.0), from a clean worktree of commit
-`dd8b8fe` (source fingerprint `d14b1dd7…499e`; this report is outside the fingerprint), with a
-local copy of the artifact bundle (part 2 complete; part 1 with 446 of its 535 files, the other
-89 coming from workspaces that are not in the repository), 2026-10-24:
+`fe5c3c7` (source fingerprint `1950cf97…e7f5`; this report is outside the fingerprint), with an
+empty SCIP volume and a local copy of the artifact bundle (part 2 complete; part 1 with 446 of
+its 535 files, the other 89 coming from workspaces that are not in the repository), 2026-10-24:
 
 | command | result |
 |---|---|
-| `./reproduce.sh build` | PASS (226 s) |
-| `./reproduce.sh check --artifacts <bundle>` | exit 4, as required with an incomplete part 1: Julia 1.10.12 and its 148, R's 39 and Python's 17 locked packages match their locks, Ipopt 3.14.19 and SCIP 8.0.0 load; image content and code match the checkout; committed files intact; part 2 368/368 files verified; part 1 MISSING |
+| `./reproduce.sh build` | PASS (216 s); no file of the image is a SCIP or SoPlex library, and its Julia layer is about 90 MB smaller than with them (the two artifacts) |
+| `./reproduce.sh check --offline --artifacts <bundle>` (before fetching SCIP) | exit 4: the SCIP binaries MISSING (and the incomplete part 1), the Julia load checks SKIPPED, nothing FAIL |
+| `./reproduce.sh fetch scip` | SCIP_jll and SCIP_PaPILO_jll installed in the volume and verified against their content hashes (4 s of download) |
+| `./reproduce.sh check --artifacts <bundle>` | exit 4, as required with an incomplete part 1: Julia 1.10.12 and its 148, R's 39 and Python's 17 locked packages match their locks, Ipopt 3.14.19 and SCIP 8.0.0 load; the SCIP binaries installed; image content and code match the checkout; committed files intact; part 2 368/368 files verified; part 1 MISSING |
 | `./reproduce.sh smoke` | PASS: 61 of 61 compared quantities (Julia/Ipopt fits, non-default objectives, admissibility, a SCIP global solve with dual bound, R `forecast`, Python `statsmodels`) |
 | `./reproduce.sh tables --artifacts <bundle>` | 9 table groups PASS, 4,204 of 4,204 cells (battery 583, m4_benchmark 192, m4_paired 420, m4_objectives 880, m4_objectives_controlled 760, arms 299, robust_cvar 19, scip_ipopt 23, stable_admissibility_gavea 1,028); manuscript: 836 printed values, 662 equal to their regenerated cell, 174 consistent with their derived record, 0 differing; `m4_objective_distributions` MISSING, so exit 4 |
+
+At the previous commit `e644e9f` (the same image apart from two messages), the same sequence
+passed, and `full --experiment battery_solver_comparison --offline` ran its SCIP certificate
+runner on the fetched binaries (5 min; 58 of 70 cells agree, as in the earlier re-runs; the
+other 12 are timing cells and the definition changes listed in
+`experiments/runners/battery/PORTING.md`).
 
 The group that needs the missing part-1 files, `m4_objective_distributions`, concerns the
 historical objective campaigns: no printed value of the manuscript depends on it. A run on the

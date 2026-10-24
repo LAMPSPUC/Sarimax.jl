@@ -63,7 +63,7 @@ Elapsed time is not used to classify.
 
 | instance (manuscript) | records | verdict |
 |---|---|---|
-| MA(1), T = 8, 10, 20, 40 (Section 5.6: "closes the gap in 1.7-14.8 s") | `ecc4878` logged (1.21-14.35 s), `8ffc512` unlogged with identical objectives (1.27-14.83 s, the printed values), re-run with dual bounds (6.2-61.2 s) | **certified** in all three runs |
+| MA(1), T = 8, 10, 20, 40 (Section 5.6: certified within 1.7-14.8 s) | `ecc4878` logged (1.21-14.35 s), `8ffc512` unlogged with identical objectives (1.27-14.83 s; 1.73-14.83 s over T = 8, 20, 40, the printed range), re-run with dual bounds (6.2-61.2 s) | **certified** in all three runs |
 | MA(1) scaling, T = 40-120, 600 s (not cited by the manuscript) | logged | **certified** |
 | MA(1) scaling, T = 150, 200, 600 s (not cited) | logged; `TIME_LIMIT`, relative gaps 1.02e-5 and 1.17e-5 | **feasible with open gap** |
 | Table 7, simulated MA(1), T = 80, 900 s | `ecc4878` logged (71.6 s), `8ffc512` (69.2 s, printed), re-run (338.3 s, dual bound 73.65312392) | **certified** in all three runs |
@@ -93,7 +93,7 @@ established: SCIP's dual bound shows the local (Ipopt) solution within 3.51e-5 (
 global optimum of the tolerance-relaxed problem (re-run), and within 1.06e-7 according to the
 unlogged record 1.
 
-## 5. Two properties of the certificates that the manuscript should reflect
+## 5. Two properties of the certificates (stated in the manuscript)
 
 ### 5.1 The objective differences in Table 7 are within SCIP's feasibility tolerance
 
@@ -133,8 +133,8 @@ record of the session that ran it: the 46 instances, the harness, the environmen
 instance the status, time and certified gap, with objectives and dual bounds for a few
 (`results/historical/certification-2026-08/`). SCIP ran with `display/verblevel = 0`, so no log
 exists, and node counts were never recorded: its certificates cannot be re-verified beyond the
-status and gap the session printed. `certification_batch_2026_08.md` reconciles it with the
-manuscript; `missing_global_artifacts.md` G1 gives the remaining gaps and the wording.
+status and gap the session printed. `certification_batch_2026_08.md` describes the record and
+the logged re-run of 2026-10-21; `missing_global_artifacts.md` G1 gives the remaining gaps.
 
 ## 7. Reproduction
 

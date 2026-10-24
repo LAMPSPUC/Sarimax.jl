@@ -32,23 +32,16 @@ Every experiment that loads `AIR_PASSENGERS` used `a10`, labelled "AirPassengers
 * the July 2026 battery: validation (`run_validation_julia.jl`, the `airpassengers` rows),
   rolling-origin forecasting (`run_forecasting_*`), architecture checks
   (`run_architecture_extensions.jl`);
-* Table S7 (`tab:multistart`), case "Airline, log AirPassengers" (`efg_julia_experiments.jl`
+* Table S11 (`tab:multistart`), case "Airline model, log a10" (`efg_julia_experiments.jl`
   part G loads `log.(load_dataset(AIR_PASSENGERS))`);
 * the README's "Verified against R" table (R was given the same file, so the comparison itself
   is valid; only the name is wrong).
 
 The R and Python comparisons of the battery read the same CSV, so every package-to-package
-agreement stands; only the description of the data is wrong.
+agreement stands.
 
-## Proposed manuscript wording
+## In the manuscript
 
-Where the text or a table names the series:
-
-> ... the monthly series of Australian anti-diabetic drug sales (`a10` in the R package fpp2,
-> July 1991 to June 2008, 204 observations), shipped with the package under the name
-> `AIR_PASSENGERS` ...
-
-and in Table S7 rename the case "Airline, log AirPassengers" to "Airline model, log a10" (the
-model is the airline specification (0,1,1)(0,1,1)_12; the data are `a10`). If the authors intend
-the Box-Jenkins series, the experiments that used the file would have to be re-run on it; that
-is a new execution and is not done here.
+Table S11 names the case "Airline model, log a10", and the text below it states that the airline
+specification is applied to the log of the `a10` series (Australian anti-diabetic drug sales),
+not to the Box-Jenkins passenger data. This agrees with the file the experiments read.

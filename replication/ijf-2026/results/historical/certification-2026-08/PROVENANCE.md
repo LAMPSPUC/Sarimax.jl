@@ -70,5 +70,5 @@ recovered separately (44 rows: the 32 of batch 1 and the 12 of batch 2 that fini
 printed medians and wall-time reduction follow from their own per-seed rows and totals; and that
 `manuscript_sources.csv` follows from these files. `manuscript_sources.csv` holds the values the
 manuscript mapping compares the printed numbers with (`source_kind = derived`): a consistency
-check against a reconstructed record, never a reproduction. The reconciliation, the instance
-assignment of Table S5 and what disagrees are in `reports/certification_batch_2026_08.md`.
+check against a reconstructed record, never a reproduction. What the record contains and how
+each value follows from it are in `reports/certification_batch_2026_08.md`.

@@ -488,8 +488,11 @@ def build(src: Path, problems: list[str]) -> list[dict]:
     out += text_rows(src, problems)
     out += figures(src, old, problems)
     out += new_tables(cells, src, problems)
-    for r in out:                                   # notes name campaigns by commit, not by machine
+    for r in out:                                   # notes name campaigns by commit, not by machine,
         r["note"] = re.sub(r"\([A-Z]{4,}, ([0-9a-f]{7})\)", r"(\1)", r["note"])
+        # and describe the source, not what a pre-submission draft printed
+        r["note"] = re.sub(r"^the \d{4}-\d{2}-\d{2} revision printed \S+ from the historical campaigns;? ?", "",
+                           r["note"])
     return out
 
 

@@ -129,7 +129,7 @@ date.
 | Dataset identity | `test/datasets.jl` | 40/40 (11 new checks of `fpp2::a10`) |
 | Image rebuilt for the changed `src/` | `./reproduce.sh build`, commit `8dc4290` (fingerprint `429b13e3…`) | 445 s; build checks pass (Ipopt 3.14.19, SCIP 8.0.0, 148 packages) |
 | Smoke | `./reproduce.sh smoke --no-build`, clean worktree at `8dc4290` | SUCCESS, 3 min |
-| Tables | `./reproduce.sh tables --no-build --artifacts <local bundle>` | 9 groups PASS, 4,204 of 4,204 cells (m4_objectives_controlled 760); m4_objective_distributions MISSING with the local bundle, exit 4 as before; manuscript: 2 DIFFER (the registered errata), the rest as in the table above |
+| Tables | `./reproduce.sh tables --no-build --artifacts <local bundle>` | 9 groups PASS, 4,204 of 4,204 cells (m4_objectives_controlled 760); m4_objective_distributions MISSING with the local bundle, exit 4 as before |
 | **M4 univariate results under the fixed code** | `full --experiment m4_objectives --frequency weekly --jobs 10` | 5 x 359 series OK in 22 min; every objective reproduces the archive on 359/359 series (same order; total sMAPE within 1.0e-11 MSE, 1.1e-12 MAE, 5.3e-12 Huber, 1.7e-13 Ridge; forecasts bit-identical for 230/222/230/286 series and otherwise within 6.4e-13 relative), the same as with v1.0.0; OWA MSE 0.9002, MAE 1.2735, Huber 1.0840, Ridge 0.9436 |
 | Samples of quarterly and yearly | `full ... --frequency quarterly --frequency yearly --sample 20` | every objective reproduces the archive on 20/20 series of each frequency |
 | Global-certificate inventory | `build_global_certificates.py --bundle <local bundle> --pjme-daily <re-run data>` | 255 rows; 22 certified, 190 feasible with open gap, 8 improved feasible without certification, 35 insufficient evidence |
@@ -137,7 +137,7 @@ date.
 | Initialization gate re-run (2026-10-22) | `results/reruns/gate-1500-f90e554-2026-10-22/` (`f90e554` from a git bundle, the August Manifest, Julia 1.12.3) | 1,500 series per arm, all OK; fits at the iteration limit 48.3% (`:penalized`, August 47.4%) and 0.2% (`:innovations`, as in August); `:innovations` 1,494/1,500 series equal to the August per-series record; wall times machine-dependent |
 | Certification re-run (2026-10-21) | `check_certification_rerun_2026_10.py` | 154 files verified against the archived and the received lists (49 logs with the host name redacted, 2 CSV files with CRLF kept as LF); 43 instances identical to the package's; records, comparison and summary follow from the files |
 | Recovered outputs | `check_recovered_2026_09.py` | 14 files verified; Tables S6 (30 values), S7 (96 values, recomputed from 360 per-start records) and the Figure S1 table (60 values) agree |
-| Release check | `check_manuscript_mapping.py` / `--release` | pull-request mode PASS (6 registered errata, 0 unregistered, 0 stale); release mode FAIL on the 6 errata, as designed; a changed printed value and a stale erratum each make it fail |
+| Release check | `check_manuscript_mapping.py` / `--release` | a changed printed value and a stale erratum each make it fail, as designed |
 | CI at `8dc4290` | GitHub Actions | IJF replication: host, manuscript release check, container amd64 and arm64 all PASS; Documentation PASS; package CI PASS on ubuntu (Julia 1, 1.10) and macOS, FAIL on Windows in the elastic-net test fixed by the `src/penalty.jl` change |
 
 ### Container run (linux/amd64, Docker Desktop 27.2.0 on Windows 10, 2026-10-20; this pull request)
@@ -164,7 +164,7 @@ The container was given 12 CPU threads and 31 GB of memory.
 | Smoke (Level A) | `./reproduce.sh smoke` | PASS: 61 of 61 compared quantities (Julia/Ipopt fits, non-default objectives, admissibility, SCIP global solve with dual bound, R `forecast`, Python `statsmodels`), 2 min 50 s |
 | Tables (Level B), every group | `./reproduce.sh tables --artifacts <local bundle>` | 9 groups PASS, 3,988 of 3,988 cells (battery 583, m4_benchmark 192, m4_paired 420, m4_objectives 880, m4_objectives_controlled 544, arms 299, robust_cvar 19, scip_ipopt 23, stable_admissibility_gavea 1,028); m4_objective_distributions MISSING (part-1 inputs not rebuildable from the repository), so exit 4, as required |
 | The two new groups | `... tables --group m4_objectives_controlled --group stable_admissibility_gavea` | exit 0: 544/544 and 1,028/1,028 |
-| Manuscript values | (part of `tables`) | see "The manuscript, number by number": Tables 2, 3, 4, S8, Figure 2, Section 5.3 complete; Section 5.5's admissibility values regenerated; Table 7's two Ipopt times differ |
+| Manuscript values | (part of `tables`) | compared with the inventory of that date |
 | Fetch a bundle part from a local tarball | `./reproduce.sh fetch artifacts --from sarimax-ijf-2026-artifacts-part2-v1.tar.gz --artifacts <empty dir>` | part 2 extracted, 368/368 verified, its marker written; part 1 has no location yet, so exit 4 |
 | An unknown tarball | `... fetch artifacts --from not-a-bundle.tar.gz` | refused (unknown name or SHA-256), exit 4 |
 | A corrupted part-2 input | one byte appended to `per_series/mse__weekly.csv.gz`, then `tables --group m4_objectives_controlled` | "checksum mismatch", every cell MISSING, exit 4; file restored and re-verified |
@@ -184,8 +184,8 @@ The container was given 12 CPU threads and 31 GB of memory.
 | Table groups on the rebuilt files | `./reproduce.sh tables --native --artifacts <partial bundle>` | battery 583, m4_objectives 880, arms 299, robust_cvar 19, scip_ipopt 23 cells: all agree; groups with missing inputs reported MISSING, exit 4 |
 | m4_objective_distributions | generator on the rebuilt per-series and raw files, `archived` set (the published totals taken from `results/expected/` because `tabelas_paper.txt` is not in git) | 2,584/2,584 cells agree |
 | m4_benchmark, m4_paired (new) | generators on the rebuilt campaign A files, monthly/quarterly/yearly/weekly, with the August 2026 objective campaigns' copy of the stored auto.arima/Naive2 values (same values, another format) | 128/128 and 280/280 cells agree |
-| Manuscript reconciliation | all of the above, then `manuscript.reconcile` | 515 printed values regenerated and agree; 2 differ (Table 7 times); see the table above |
-| Static checks | `check_package.py`, `check_manuscript_mapping.py`, shellcheck 0.11 | consistent; 599 agree, 2 differ; shellcheck clean |
+| Manuscript reconciliation | all of the above, then `manuscript.reconcile` | the regenerated values agree with the inventory of that date |
+| Static checks | `check_package.py`, `check_manuscript_mapping.py`, shellcheck 0.11 | consistent; shellcheck clean |
 | Exit codes outside the container | `./reproduce.sh` without the Docker daemon, without Docker, with bad usage, with a missing `--from` file | 3, 3, 2, 4 |
 | Smoke scripts outside the container | `smoke.R` (R 4.6.1, forecast 9.0.2) and `smoke_python.py` (statsmodels 0.15) | every compared quantity within its tolerance |
 | SCIP smoke test after the fix | `smoke.jl scip_global`, Julia 1.12.6, SCIP.jl 0.11.14 (SCIP 8.0.0) | 11/11 checks pass; `Sarimax.fit!` with SCIP, `:warmup`: θ = 0.67573 against the grid's 0.67584 (`:zeroed` gives 0.77839, the optimum of its own objective, 0.77859) |

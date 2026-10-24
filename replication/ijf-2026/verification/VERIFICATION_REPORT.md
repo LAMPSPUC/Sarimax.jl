@@ -155,10 +155,9 @@ q = Q = 1, s = 12, θ₁ = 0.8, Θ₁ = -0.6 it is 1.00042. It affects fits with
 under `:penalized` or `:innovations` whose model has both regular and seasonal MA terms, and,
 through the warm start, possibly the Huber fits started from them. The printed results are those of the
 implementation as it is (they are regenerated from its records, section 2); what differs is the
-description of the estimator. The estimator was not changed and no experiment was re-run.
-Either the text describes the separate factors that are implemented, or the estimator gains the
-cross factor and the affected experiments are re-run as new identified executions; the choice
-is the authors' (section 8).
+description of the estimator. The authors record it as a known defect of the implementation:
+neither the text nor the estimator is changed in this release, and no experiment was re-run
+(`LIMITATIONS.md`, item 22).
 
 ### 4.2 Other settings stated by the text
 
@@ -256,27 +255,34 @@ SCIP 8.0.0); R 4.4.1 (`rocker/r-ver` by digest) with the 39 packages of
 data are fetched from Mcompetitions/M4-methods at commit `b8f01984` and the PJME series from its
 pinned source, each verified by SHA-256 (`data/external_files.csv`).
 
-## 8. Open items requiring the authors' decision
+## 8. Decisions and open items
 
-1. **Supplementary Section S2 (C8, C9):** describe the separate regular and seasonal factors that
-   the package applies, or add the cross factor to the estimator and re-run the affected
-   experiments as new identified executions.
-2. **Table S3 (C3):** add `requireTermsWhenOverDifferenced = true` to the configuration of the
-   120-second monthly experiment, or state why it is omitted.
-3. **Independent runs cited by the text (C18-C20):** deposit the regenerated runs for Table S2,
-   the ten-seed study and the AICc pairing in the package, or restate those sentences to the
-   recovered aggregates.
-4. **The LaTeX source:** whether to deposit it (it allows anyone to re-run the transcription;
+Decided by the authors:
+
+1. **Supplementary Section S2 (C8, C9):** a known defect of the implementation, documented in
+   `LIMITATIONS.md` (item 22); neither the text nor the estimator is changed in this release.
+2. **Table S3 (C3):** the over-differencing requirement of the 120-second experiment is added
+   to the table.
+3. **Independent runs cited by the text (C18-C20):** not deposited; the three sentences are
+   restated to what the archived records support.
+4. **Software version:** registering the `src/` fixes as 1.0.1 is on hold; the replication
+   release identifies its code by commit.
+
+Items 2 and 3 change the manuscript: once the revised files exist, the mapping is transcribed
+again from their LaTeX source, `REVISION.toml` records their SHA-256, and claims C3 and C18-C20
+are checked again.
+
+Open:
+
+5. **The LaTeX source:** whether to deposit it (it allows anyone to re-run the transcription;
    its archive contains editorial notes that would have to be removed first).
-5. **Software version:** `src/` differs from v1.0.0 by three fixes that no printed result
-   depends on (CHANGELOG "Unreleased"), while `Project.toml` still reads 1.0.0; whether to
-   register 1.0.1, which the replication release does not require.
-6. **SCIP 8.0.0 (ZIB Academic License):** `./reproduce.sh` builds the image locally and the build
-   downloads SCIP; a pre-built public image would redistribute it (`reports/scip_licence.md`).
-7. **Publication:** the Zenodo data record (both bundle parts), the image on GHCR, the DOIs and
-   digest in `artifacts.lock`, `image.lock`, `CITATION.cff` and the availability statement; the
-   creator lists of `CITATION.cff`, `.zenodo.json` and the data record; a permanent identifier of
-   the manuscript for `REVISION.toml` once one exists.
+6. **The container image and SCIP 8.0.0 (ZIB Academic License):** `./reproduce.sh` builds the
+   image locally and the build downloads SCIP; a pre-built public image would redistribute it
+   (`reports/scip_licence.md`).
+7. **Publication:** the Zenodo data record (both bundle parts), the DOIs in `artifacts.lock`,
+   `CITATION.cff` and the availability statement; the creator lists of `CITATION.cff`,
+   `.zenodo.json` and the data record; a permanent identifier of the manuscript for
+   `REVISION.toml` once one exists.
 8. **Author statements:** the AI-use declaration and the other statements the journal requires
    are not part of this package.
 

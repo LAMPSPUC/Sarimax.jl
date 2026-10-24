@@ -201,3 +201,18 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
     use the exact likelihood (the CSS values are still recorded by the ported runners), and
     `elastic_net` is a single-stage estimator. Every such change is listed in
     `experiments/runners/battery/PORTING.md`.
+
+## Known defect of the estimator (documented; not changed in this release)
+
+22. **The moving-average normalization omits the regular-seasonal cross factor.** In the `mse`
+    objective under `:penalized` and `:innovations`, the package multiplies the sum of squares
+    by D_reg(θ)·D_seas(Θ), the separate factors of the regular and the seasonal MA polynomial.
+    Supplementary Section S2 gives the complete stationary-history factor of the multiplicative
+    polynomial, D_reg·D_seas·[R(θ, Θ; s)²]^(-1/T), and for the additive specification the factor
+    of the complete polynomial. The supplement's identity is exact
+    (`verification/ma_normalization/check_ma_normalization.py`), and every revision of the package
+    applies the separate factors (`verification/ma_normalization/package_factor.jl`, at `14dd581`
+    and `21903b5`). It affects fits with both regular and seasonal MA terms; at T = 200 the omitted
+    factor lies between 0.987 and 1.010 (multiplicative) and between 0.994 and 1.039 (additive).
+    The printed results are those of the implementation; neither the text nor the estimator is
+    changed in this release (textual claims C8, C9).

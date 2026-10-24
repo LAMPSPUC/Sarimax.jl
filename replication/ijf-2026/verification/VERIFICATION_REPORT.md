@@ -268,18 +268,20 @@ Decided by the authors:
 4. **Software version:** registering the `src/` fixes as 1.0.1 is on hold; the replication
    release identifies its code by commit.
 
+5. **SCIP 8.0.0 (ZIB Academic License):** the image does not contain its binaries; the
+   replication script downloads them on the user's machine, verified by content hash, on first
+   use (`reports/scip_licence.md`). The image itself can therefore be published.
+
 Items 2 and 3 change the manuscript: once the revised files exist, the mapping is transcribed
 again from their LaTeX source, `REVISION.toml` records their SHA-256, and claims C3 and C18-C20
 are checked again.
 
 Open:
 
-5. **The LaTeX source:** whether to deposit it (it allows anyone to re-run the transcription;
+6. **The LaTeX source:** whether to deposit it (it allows anyone to re-run the transcription;
    its archive contains editorial notes that would have to be removed first).
-6. **The container image and SCIP 8.0.0 (ZIB Academic License):** `./reproduce.sh` builds the
-   image locally and the build downloads SCIP; a pre-built public image would redistribute it
-   (`reports/scip_licence.md`).
-7. **Publication:** the Zenodo data record (both bundle parts), the DOIs in `artifacts.lock`,
+7. **Publication:** the image on GHCR and, exported, in the Zenodo data record; the Zenodo data
+   record (both bundle parts); the DOIs and digest in `artifacts.lock`, `image.lock`,
    `CITATION.cff` and the availability statement; the creator lists of `CITATION.cff`,
    `.zenodo.json` and the data record; a permanent identifier of the manuscript for
    `REVISION.toml` once one exists.

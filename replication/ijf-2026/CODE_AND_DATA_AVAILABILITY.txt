@@ -38,5 +38,6 @@ hundred CPU-hours, is supported but was not repeated for this archive.
 
 The M4 competition data are not redistributed. They are obtained from the organisers'
 repository (https://github.com/Mcompetitions/M4-methods) at a fixed revision and verified by
-checksum. [Note on SCIP: the SCIP binaries used through SCIP.jl 0.11 are distributed under the
-ZIB Academic License.]
+checksum. The global solver SCIP 8.0.0 is distributed under the ZIB Academic License; it is not
+included in the container image, and the replication script downloads it from the Julia package
+registry, verified by content hash, on first use.

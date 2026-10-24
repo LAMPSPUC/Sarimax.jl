@@ -91,22 +91,32 @@ ENV PATH=/opt/venv/bin:/opt/julia/bin:$PATH \
 COPY Project.toml /opt/sarimax/Project.toml
 COPY src /opt/sarimax/src
 COPY replication/ijf-2026/environments/julia /opt/sarimax/replication/ijf-2026/environments/julia
+COPY replication/ijf-2026/scripts/checks/scip_artifacts.jl /opt/ijf-env/scip_artifacts.jl
 # Precompiled code is built for the CPU targets of the official Julia binaries rather than for
 # the build machine, so that it stays valid on the reviewer's CPU (otherwise every container
 # start would recompile into its throw-away depot).
+# SCIP's binaries (SCIP 8.0.0 and SoPlex 6.0, ZIB Academic License) are used to precompile and
+# test the environment and then removed in this same layer, so that no layer of the image
+# contains them; `./reproduce.sh fetch scip` installs them on the user's machine.
 RUN case "${TARGETARCH:-amd64}" in \
         amd64) export JULIA_CPU_TARGET="generic;sandybridge,-xsaveopt,clone_all;haswell,-rdrnd,base(1)" ;; \
         arm64) export JULIA_CPU_TARGET="generic;cortex-a57;thunderx2t99;carmel,clone_all;apple-m1,base(3);neoverse-512tvb,base(3)" ;; \
     esac \
     && julia --project=/opt/sarimax/replication/ijf-2026/environments/julia -e ' \
         using Pkg; Pkg.instantiate(); Pkg.precompile(); \
-        using Sarimax, JuMP, Ipopt, SCIP, HiGHS, CSV, DataFrames, JSON, TimeSeries' \
-    && chmod -R a+rX /opt/julia-depot
+        using Sarimax, JuMP, Ipopt, SCIP, HiGHS, CSV, DataFrames, JSON, TimeSeries; \
+        println("SCIP ", JuMP.MOI.get(SCIP.Optimizer(), JuMP.MOI.SolverVersion()), " loads")' \
+    && julia --project=/opt/sarimax/replication/ijf-2026/environments/julia /opt/ijf-env/scip_artifacts.jl \
+        record /opt/ijf-env/scip-artifacts.toml \
+    && julia --project=/opt/sarimax/replication/ijf-2026/environments/julia /opt/ijf-env/scip_artifacts.jl strip \
+    && chmod -R a+rX /opt/julia-depot /opt/ijf-env
 
 # --- The rest of the checkout ----------------------------------------------------------------
 # The identity arguments are declared here, not at the top: a build argument invalidates the
 # cache of every RUN that follows it, and the fingerprint changes with any replication file.
 # Declared here, editing a script rebuilds only this last layer, not R, Python and Julia.
+# Sarimax.jl loads SCIP (the default solver of its lower-bounding step), so precompiling and
+# checking it here reinstalls the SCIP artifacts; they are removed again before this layer ends.
 ARG SOURCE_FINGERPRINT
 ARG SOURCE_REVISION=unknown
 COPY . /opt/sarimax
@@ -124,15 +134,22 @@ RUN test -n "${SOURCE_FINGERPRINT}" \
     && julia --project=/opt/sarimax/replication/ijf-2026/environments/julia -e 'using Pkg; Pkg.precompile()' \
     && julia --project=/opt/sarimax/replication/ijf-2026/environments/julia \
         /opt/sarimax/replication/ijf-2026/scripts/checks/julia_env.jl \
+    && julia --project=/opt/sarimax/replication/ijf-2026/environments/julia \
+        /opt/sarimax/replication/ijf-2026/scripts/checks/scip_artifacts.jl strip \
     && bash /opt/sarimax/replication/ijf-2026/docker/collect-licenses.sh \
     && chmod -R a+rX /opt/julia-depot /opt/licenses \
     && (id -u ijf >/dev/null 2>&1 || useradd --create-home ijf) \
-    && mkdir -p /ijf/output /ijf/artifacts /ijf/data \
-    && chown ijf /ijf/output /ijf/artifacts /ijf/data
+    && mkdir -p /ijf/output /ijf/artifacts /ijf/data /ijf/julia \
+    && chown ijf /ijf/output /ijf/artifacts /ijf/data \
+    && chmod 1777 /ijf/julia
 
 # A writable depot goes first so that the read-only image depot still serves the precompiled
-# packages when the container runs as an arbitrary host user.
-ENV JULIA_DEPOT_PATH=/tmp/julia-depot:/opt/julia-depot \
+# packages when the container runs as an arbitrary host user. /ijf/julia is the depot that
+# `fetch scip` installs SCIP's binaries into (reproduce.sh mounts a Docker volume there, so
+# they persist between runs); it is world-writable so that a new volume is too.
+ENV JULIA_DEPOT_PATH=/tmp/julia-depot:/ijf/julia:/opt/julia-depot \
+    IJF_SCIP_DEPOT=/ijf/julia \
+    IJF_SCIP_RECORD=/opt/ijf-env/scip-artifacts.toml \
     JULIA_PKG_OFFLINE=true \
     HOME=/tmp \
     IJF_RUNTIME=docker \
@@ -143,7 +160,7 @@ ENV JULIA_DEPOT_PATH=/tmp/julia-depot:/opt/julia-depot \
     PYTHONDONTWRITEBYTECODE=1
 
 LABEL org.opencontainers.image.title="sarimax-ijf-replication" \
-      org.opencontainers.image.description="Replication environment for the SARIMAX.jl IJF paper: Julia 1.10.12 (JuMP, Ipopt, SCIP), R 4.4.1 (forecast 8.23.0), Python 3.12 (statsmodels 0.14.6)" \
+      org.opencontainers.image.description="Replication environment for the SARIMAX.jl IJF paper: Julia 1.10.12 (JuMP, Ipopt; SCIP 8.0.0 fetched on first use, not included), R 4.4.1 (forecast 8.23.0), Python 3.12 (statsmodels 0.14.6)" \
       org.opencontainers.image.source="https://github.com/LAMPSPUC/Sarimax.jl" \
       org.opencontainers.image.revision="${SOURCE_REVISION}" \
       org.opencontainers.image.licenses="MIT" \

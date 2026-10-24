@@ -9,12 +9,15 @@
 #   ./reproduce.sh full --experiment ID [--jobs N] [--resume] [--limit N | --sample N]
 #   ./reproduce.sh full --all [--jobs N] [--resume]
 #   ./reproduce.sh list                 experiments and their replication readiness
-#   ./reproduce.sh fetch [artifacts|m4|pjme|all]   download (or --from FILE) and verify inputs
+#   ./reproduce.sh fetch [artifacts|m4|pjme|scip|all]   download (or --from FILE) and verify inputs
 #   ./reproduce.sh build                build the container image from this checkout
 #   ./reproduce.sh help
 #
-# Everything scientific runs inside a container image (Julia, R, Python and the solvers are
-# preinstalled there); the host only needs bash and Docker. See replication/ijf-2026/README.md.
+# Everything scientific runs inside a container image (Julia, R, Python and Ipopt are
+# preinstalled there); the host only needs bash and Docker. The SCIP 8.0.0 binaries (ZIB
+# Academic License) are not in the image: the first command that needs them downloads them
+# (`fetch scip`, verified by content hash) into the Docker volume sarimax-ijf-scip.
+# See replication/ijf-2026/README.md.
 set -Eeuo pipefail
 
 readonly EXIT_OK=0
@@ -30,6 +33,8 @@ readonly REPL_REL="replication/ijf-2026"
 readonly REPL_DIR="$REPO_ROOT/$REPL_REL"
 # The container engine; IJF_DOCKER_BIN lets CI simulate a host without Docker.
 readonly DOCKER="${IJF_DOCKER_BIN:-docker}"
+# The Docker volume that holds the SCIP binaries once fetched (they are not in the image).
+readonly SCIP_VOLUME="${IJF_SCIP_VOLUME:-sarimax-ijf-scip}"
 
 # ---------------------------------------------------------------------------------------------
 # Output helpers
@@ -45,7 +50,7 @@ err()  { printf '%serror:%s %s\n' "$c_red" "$c_off" "$*" >&2; }
 die()  { local code="$1"; shift; err "$*"; exit "$code"; }
 
 usage() {
-    sed -n '2,19p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
     cat <<'EOF'
 
 Options (all commands):
@@ -127,7 +132,7 @@ while [[ $# -gt 0 ]]; do
             passthrough+=("$1" "$2"); shift 2 ;;
         --all|--resume|--keep-going)
             passthrough+=("$1"); shift ;;
-        artifacts|m4|pjme|all)
+        artifacts|m4|pjme|scip|all)
             passthrough+=("$1"); shift ;;
         *) usage >&2; die "$EXIT_USAGE" "unknown argument: $1" ;;
     esac
@@ -300,7 +305,8 @@ run_container() {  # run_container REF NETWORK(none|bridge) RW_INPUTS(0|1) ARGS.
         -e "IJF_OFFLINE=$offline"
         -v "$(abspath "$output_dir"):/ijf/output"
         -v "$(abspath "$artifacts_dir"):/ijf/artifacts$ro"
-        -v "$(abspath "$data_dir"):/ijf/data$ro")
+        -v "$(abspath "$data_dir"):/ijf/data$ro"
+        -v "$SCIP_VOLUME:/ijf/julia$ro")
     if [[ ${#from_files[@]} -gt 0 && "${1:-}" == "fetch" ]]; then   # local bundle tarballs, read-only, for `fetch --from`
         local from_file
         for from_file in "${from_files[@]}"; do
@@ -315,6 +321,14 @@ run_container() {  # run_container REF NETWORK(none|bridge) RW_INPUTS(0|1) ARGS.
     [[ "${1:-}" == "shell" ]] && args+=(-i --entrypoint bash) && set --
     # MSYS_NO_PATHCONV stops Git Bash on Windows from rewriting the container paths.
     MSYS_NO_PATHCONV=1 "$DOCKER" "${args[@]}" "$ref" "$@"
+}
+
+# SCIP's binaries are not in the image: fetch them (once; verified by content hash) unless
+# --offline, in which case a command that needs them reports them as a missing input.
+fetch_scip() {  # fetch_scip REF [ARGS...]
+    [[ $offline -eq 0 ]] || return 0
+    run_container "$1" bridge 1 fetch scip "${@:2}" \
+        || warn "the SCIP binaries could not be fetched; they will be reported as a missing input"
 }
 
 main() {
@@ -363,13 +377,18 @@ main() {
                 [[ $rc -eq 0 ]] || warn "the artifact bundle could not be fetched; tables will report it as MISSING"
                 rc=0
             fi
+            fetch_scip "$ref"
             run_container "$ref" none 0 quick || rc=$? ;;
+        check|smoke)
+            fetch_scip "$ref"
+            run_container "$ref" none 0 "$command_name" "${passthrough[@]+"${passthrough[@]}"}" || rc=$? ;;
         full)
             # A full run reads the M4 data; fetch and verify it first unless --offline.
             if [[ $offline -eq 0 ]]; then
                 run_container "$ref" bridge 1 fetch m4 --if-needed "${passthrough[@]+"${passthrough[@]}"}" || rc=$?
                 [[ $rc -eq 0 ]] || exit "$rc"
             fi
+            fetch_scip "$ref"
             run_container "$ref" none 0 full "${passthrough[@]+"${passthrough[@]}"}" || rc=$? ;;
         *)  run_container "$ref" none 0 "$command_name" "${passthrough[@]+"${passthrough[@]}"}" || rc=$? ;;
     esac

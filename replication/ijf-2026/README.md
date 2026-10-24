@@ -7,7 +7,11 @@ repository itself and runs the package source of the same checkout.
 ## Quickstart
 
 You need `git`, `bash` and [Docker](https://docs.docker.com/get-docker/) (Docker Desktop on
-macOS and Windows). Nothing else: Julia, R, Python and the solvers are inside the container.
+macOS and Windows). Nothing else: Julia, R, Python and Ipopt are inside the container. The
+global solver SCIP 8.0.0 is under the ZIB Academic License (free for academic, non-commercial
+use), which does not let us ship it in a public image. Sarimax.jl loads SCIP, so the first run
+downloads it through Julia's package manager, verified by its content hash, into the Docker
+volume `sarimax-ijf-scip` (about 90 MB, once).
 
 ```bash
 git clone https://github.com/LAMPSPUC/Sarimax.jl.git
@@ -60,7 +64,7 @@ archived files, readiness) and [`REPRODUCIBILITY_STATUS.md`](REPRODUCIBILITY_STA
 ./reproduce.sh list                  # experiments and their readiness
 ./reproduce.sh full --experiment m4_benchmark --jobs 4 --resume
 ./reproduce.sh full --all --jobs 4 --resume   # every re-runnable experiment the manuscript reports
-./reproduce.sh fetch artifacts|m4|pjme   # download and verify inputs
+./reproduce.sh fetch artifacts|m4|pjme|scip   # download and verify inputs
 ./reproduce.sh build                 # build the image from this checkout
 ```
 
@@ -82,7 +86,7 @@ this checkout); 4 an input is missing or corrupted.
 | Disk | about 8 GB (image 4.3–6 GB, artifact bundle 0.6 GB compressed and about 0.7 GB extracted) | plus a few GB of run outputs and 0.3 GB of M4 data |
 | Memory | 4 GB available to Docker | about 2 GB per worker |
 | CPU | any | as many cores as `--jobs` |
-| Network | to pull the image and fetch the artifacts once | to fetch M4 (and PJME) once |
+| Network | to pull the image and fetch the artifacts and SCIP once | to fetch M4 (and PJME) once |
 
 The reference platform is `linux/amd64`. On Apple Silicon, Docker runs the amd64 image under
 emulation, which is slow and has not been tested; a native `linux/arm64` image
@@ -90,8 +94,9 @@ emulation, which is slow and has not been tested; a native `linux/arm64` image
 (results in `REPRODUCIBILITY_STATUS.md`).
 
 Computations run without network access (`--network none`); only `fetch` downloads, and
-every download is pinned to a version (a commit or a DOI record) and checked against its
-SHA-256.
+every download is pinned to a version (a commit, a DOI record, or the content hash of a Julia
+artifact) and verified. With `--offline` nothing is downloaded: run `./reproduce.sh fetch scip`
+once beforehand, or SCIP is reported as a missing input.
 
 ## Where results go
 

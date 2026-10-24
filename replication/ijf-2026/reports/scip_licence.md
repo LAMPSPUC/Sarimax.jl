@@ -1,6 +1,6 @@
 # SCIP 8.0.0 in the replication image: licence and a possible migration
 
-Not a legal opinion; a record of the facts for the maintainers' decision. Nothing was changed.
+Not a legal opinion; a record of the facts and of the maintainers' decision.
 
 ## Current state
 
@@ -15,6 +15,25 @@ Not a legal opinion; a record of the facts for the maintainers' decision. Nothin
   on GHCR that contains the SCIP 8.0.0 binaries redistributes them to anyone; whether the
   licence allows that is the question to settle (with ZIB, or by the maintainers' reading of the
   licence) before `ijf-image-publish.yml` is run. The workflow's header already says so.
+
+## Decision: the image does not ship the SCIP binaries
+
+The licence allows academic, non-commercial use, and redistribution only of a work licensed as a
+whole under its terms, with no exception for programs merely packaged together; a public image
+containing the binaries would fall under that clause. The package therefore keeps SCIP 8.0.0
+(the solver of every archived SCIP result) and leaves its binaries out of the image:
+
+* the build installs the artifacts of SCIP_jll and SCIP_PaPILO_jll (SCIP 8.0.0, SoPlex 6.0),
+  precompiles and tests SCIP.jl with them, records their identity
+  (`/opt/ijf-env/scip-artifacts.toml`) and removes them, in the same layer, so that no layer of
+  the image holds them (`scripts/checks/scip_artifacts.jl`);
+* `./reproduce.sh fetch scip` installs them on the user's machine through Julia's package
+  manager, verified against their content hash, into the Docker volume `sarimax-ijf-scip`;
+  since Sarimax.jl loads SCIP, every Julia computation needs them, and `check`, `smoke`, `full`
+  and the default run fetch them automatically unless `--offline`;
+* CI and `ijf-image-publish.yml` check that the image contains no SCIP or SoPlex library.
+
+The options considered before this decision are kept below.
 
 ## Options
 

@@ -216,6 +216,20 @@ jobs:
             'size {{.Size}} bytes; fingerprint {{ index .Config.Labels "io.github.lampspuc.sarimax.ijf.fingerprint" }}; revision {{ index .Config.Labels "org.opencontainers.image.revision" }}'
           df -h /
 
+      # SCIP 8.0.0 and SoPlex (ZIB Academic License) must not be in the image: the build removes
+      # them in the layer that installs them, and `fetch scip` installs them on the user's machine.
+      - name: The image contains no SCIP binaries; fetch scip installs and verifies them
+        run: |
+          if docker run --rm --entrypoint bash "${{ steps.fp.outputs.tag }}" -c \
+              'find / -xdev \( -name "libscip*" -o -name "libsoplex*" \) 2>/dev/null | grep .'; then
+            echo "::error::the image contains SCIP or SoPlex binaries"; exit 1
+          fi
+          set +e
+          ./reproduce.sh check --offline --no-build --platform "$PLATFORM" > "$RUNNER_TEMP/scip-absent.log" 2>&1
+          set -e
+          grep "SCIP 8.0.0 binaries" replication/ijf-2026/output/reports/check.md | grep -q MISSING
+          ./reproduce.sh fetch scip --no-build --platform "$PLATFORM"
+
       - name: Default run without the artifact bundle (check + smoke + tables; must report MISSING)
         run: |
           set +e

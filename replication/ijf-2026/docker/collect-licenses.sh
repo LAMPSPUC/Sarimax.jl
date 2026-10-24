@@ -4,8 +4,9 @@
 #   julia-artifacts/<artifact>/...   licence files shipped with each binary dependency (JLL)
 #   r-packages.csv                   R packages: name, version, licence (from DESCRIPTION)
 #   python-packages.csv              Python packages: name, version, licence metadata
-# See ARTIFACT_GUIDE.md ("Licences") for the summary, including the ZIB Academic License of
-# the SCIP 8.0.0 / SoPlex binaries that SCIP.jl 0.11 bundles.
+# See ARTIFACT_GUIDE.md ("Licences") for the summary. The SCIP 8.0.0 / SoPlex binaries that
+# SCIP.jl 0.11 uses (ZIB Academic License) are not in the image (scripts/checks/scip_artifacts.jl);
+# `./reproduce.sh fetch scip` installs them, with their licence files, on the user's machine.
 set -euo pipefail
 out=/opt/licenses
 mkdir -p "$out/julia-artifacts"

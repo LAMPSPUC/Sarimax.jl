@@ -19,6 +19,7 @@ from pathlib import Path
 from .common import (EXIT_FAIL, EXIT_INPUT, EXIT_OK, FAIL, INFO, MISSING, PASS, SKIPPED, WARN,
                      BundlePart, Paths, Report, bundle_parts, julia_cmd, read_sha256_list, run_logged,
                      sha256_file, tail, which)
+from . import scip
 
 
 # ---------------------------------------------------------------------------------------------
@@ -263,6 +264,20 @@ def check_resources(paths: Paths, report: Report) -> None:
                note=f"{platform.system()} {platform.machine()}")
 
 
+def check_scip(report: Report) -> bool:
+    """SCIP's binaries, which the image does not ship (scip.py): a missing input until fetched."""
+    installed, missing = scip.status()
+    if installed is None:
+        return True
+    if installed:
+        report.add("inputs", "SCIP 8.0.0 binaries", PASS, generated="installed and verified",
+                   note=scip.NOTICE + "; fetched on this machine, not shipped in the image")
+        return True
+    report.add("inputs", "SCIP 8.0.0 binaries", MISSING, generated=f"{', '.join(missing)} absent",
+               note=scip.FETCH_HINT)
+    return False
+
+
 # ---------------------------------------------------------------------------------------------
 def run(paths: Paths, args) -> int:
     report = Report("check", paths)
@@ -275,12 +290,13 @@ def run(paths: Paths, args) -> int:
     print("== check: inputs")
     committed_ok = check_committed(paths, report)
     artifacts_ok = check_artifacts(paths, report, required=True)
+    scip_ok = check_scip(report)
     check_m4(paths, report, required=False)
     print("== check: resources")
     check_resources(paths, report)
     out = report.write()
     print(f"check report: {out}")
-    if not committed_ok or not artifacts_ok:
+    if not committed_ok or not artifacts_ok or not scip_ok:
         return EXIT_INPUT if not report.failed or _only_input_failures(report) else EXIT_FAIL
     return EXIT_FAIL if report.failed else EXIT_OK
 

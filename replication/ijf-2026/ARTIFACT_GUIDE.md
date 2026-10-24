@@ -70,7 +70,7 @@ report is labelled NATIVE).
 | R | 4.4.1; CRAN frozen at the Posit Package Manager snapshot of 2024-10-30 | base image; packages checked against `renv.lock` at build time |
 | forecast | 8.23.0 (the version of the archived auto.arima baselines) | snapshot + `renv.lock` |
 | Julia | 1.10.12 | official tarball SHA-256 |
-| Julia packages | Sarimax.jl from the checkout; JuMP 1.31.1, MathOptInterface 1.52.0, Ipopt.jl 1.15.0 (Ipopt 3.14.19, MUMPS 5.9.0), SCIP.jl 0.11.6 (SCIP 8.0.0), HiGHS 1.26.0, … | `environments/julia/Manifest.toml` (148 versioned packages) |
+| Julia packages | Sarimax.jl from the checkout; JuMP 1.31.1, MathOptInterface 1.52.0, Ipopt.jl 1.15.0 (Ipopt 3.14.19, MUMPS 5.9.0), SCIP.jl 0.11.6 (its SCIP 8.0.0 binaries are fetched, not shipped: below), HiGHS 1.26.0, … | `environments/julia/Manifest.toml` (148 versioned packages) |
 | Python | CPython 3.12.14 (python-build-standalone 20260901) | release tarball SHA-256 |
 | Python packages | numpy 2.4.6, pandas 2.3.3, scipy 1.16.3, statsmodels 0.14.6, matplotlib 3.11.2 + dependencies | wheel hashes in `requirements.lock` |
 
@@ -102,15 +102,28 @@ dependency, and the licence fields of the R and Python packages. Notable:
 | Julia, most Julia packages | MIT; JuMP and MathOptInterface: MPL-2.0 |
 | Ipopt | EPL-2.0; MUMPS: CeCILL-C; METIS: Apache-2.0; OpenBLAS: BSD-3-Clause |
 | HiGHS | MIT |
-| **SCIP 8.0.0 and SoPlex (bundled by SCIP_jll 0.2.1, used by SCIP.jl 0.11)** | **ZIB Academic License** (academic, non-commercial use); PaPILO: GPL-3.0 |
+| **SCIP 8.0.0 and SoPlex 6.0 (SCIP_jll 0.2.1 and SCIP_PaPILO_jll 0.1.0, used by SCIP.jl 0.11); not in the image** | **ZIB Academic License** (academic, non-commercial use); PaPILO: GPL-3.0 |
 | R, forecast | GPL-2/GPL-3 |
 | Python, numpy, scipy, pandas, statsmodels, matplotlib | PSF, BSD-3-Clause and compatible |
 
-The ZIB Academic License of SCIP 8.0.0 is not an open-source licence. SCIP is Apache-2.0
-from version 8.0.3 on, but Sarimax.jl 1.0.0 is compatible only with SCIP.jl 0.11
-(`SCIP = "^0.11.6"`), which bundles 8.0.0. This affects how the paper can describe SCIP and
-whether and how the image may be redistributed; see LIMITATIONS.md and the release
-checklist below.
+The ZIB Academic License of SCIP 8.0.0 is not an open-source licence: it allows academic,
+non-commercial use, and it allows redistribution only of a work licensed as a whole under its
+own terms. SCIP is Apache-2.0 from version 8.0.3 on, but Sarimax.jl 1.0.0 is compatible only
+with SCIP.jl 0.11 (`SCIP = "^0.11.6"`), which uses 8.0.0, the solver of every archived SCIP
+result. **The image therefore does not contain the SCIP and SoPlex binaries.** The build
+installs them, precompiles and tests SCIP.jl with them, records their identity
+(`/opt/ijf-env/scip-artifacts.toml`: package, version and git-tree-sha1) and removes them, all
+in the same layer, so that no layer of the image holds them
+(`scripts/checks/scip_artifacts.jl`). On the user's machine, `./reproduce.sh fetch scip`
+installs them through Julia's package manager, which verifies each artifact against the
+content hash recorded in its package's `Artifacts.toml`; they go to the Docker volume
+`sarimax-ijf-scip` (mounted at `/ijf/julia`, a depot on `JULIA_DEPOT_PATH`), so the download
+(about 90 MB) happens once. Sarimax.jl itself loads SCIP (the default solver of its
+lower-bounding step), so every Julia computation needs them: `check`, `smoke`, `full` and the
+default run fetch them automatically unless `--offline` is given, in which case they are
+reported as a missing input (exit 4) and the Julia stages do not run. The final layer of the
+build reinstalls them to precompile and check Sarimax.jl and removes them again before it
+ends. `docker volume rm sarimax-ijf-scip` removes the fetched copy.
 
 ## 4. The artifact bundle
 
@@ -184,6 +197,9 @@ are accepted):
   `b8f01984fde0b562aa6f1a9181a242ce076ba73e` (the files the experiments used are byte-identical
   to these, up to line endings; also recorded as git blob SHA-1);
 * PJME: `PJME_hourly.csv` from this repository at commit `308461e` (SHA-256 `4eb2b16d…`).
+
+The SCIP 8.0.0 binaries are fetched in the same spirit (section 3): pinned by the content hash
+in the locked Julia environment, downloaded and verified by Julia's package manager.
 
 ## 6. Level B internals
 
@@ -309,9 +325,9 @@ The controlled comparison of objectives was produced by a separate workstream (2
    Then run `scripts/maintainers/check_manuscript_mapping.py --release`: it must pass (it does
    for the submitted manuscript: no printed value differs from its source).
    `ijf-image-publish.yml` runs the same gate before it publishes anything.
-2. **Decide on SCIP's licence** (section 3, `reports/scip_licence.md`): keep SCIP 8.0.0 and
-   settle its redistribution, or move to SCIP 8.0.3 or later (Apache 2.0) and re-run the SCIP
-   evidence as new identified runs.
+2. **SCIP's licence** is settled by not shipping its binaries (section 3,
+   `reports/scip_licence.md`); `ijf-image-publish.yml` checks the published image for their
+   absence.
 3. **Tag the pinned commits.** Tag the commits of the `paper/replication-staging-*` branches
    that the bundle builder pins (section 4) before those branches are deleted.
 4. **Merge** the replication branch into `master` after review.
@@ -329,8 +345,8 @@ The controlled comparison of objectives was produced by a separate workstream (2
      the fingerprint.
 6. **Publish the image.** Build and push it with the manually triggered workflow
    `ijf-image-publish.yml`; record the digest, fingerprint and revision in `image.lock`; make
-   the GHCR package public. If its size and the SCIP licence allow, archive the exported image
-   (`docker save | gzip`) in the Zenodo data record.
+   the GHCR package public. The image contains no SCIP binaries, so the exported image
+   (`docker save | gzip`) can also be archived in the Zenodo data record.
 7. **Tag the release.** Tag the replication release commit `ijf-2026-replication-v1.0.0` and
    publish the GitHub release under the article's title; the Zenodo GitHub integration archives
    it and mints the software DOI (`.zenodo.json`). `src/` differs from v1.0.0 by three fixes that
@@ -365,7 +381,9 @@ touch the package or the replication files, and by hand. Full campaigns never ru
   `ijf-image-publish.yml`.
 * **Container**, on `linux/amd64` (the reference) and `linux/arm64` (experimental): the image
   is built from the checkout with the same Dockerfile and build arguments as
-  `./reproduce.sh build` (buildx adds a layer cache), then: the default command without the
+  `./reproduce.sh build` (buildx adds a layer cache), then: the image contains no SCIP or
+  SoPlex library, `check --offline` reports SCIP as a missing input, and `fetch scip` installs
+  and verifies it; the default command without the
   unpublished bundle (smoke must pass; the run must end with exit 4, never SUCCESS); the
   battery, robust-CVaR and SCIP/Ipopt tables from the committed fixture subset; a missing and
   a corrupted archived input (exit 4); an image refused because the checkout changed after it

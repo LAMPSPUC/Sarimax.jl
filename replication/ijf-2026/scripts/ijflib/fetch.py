@@ -9,6 +9,8 @@
               redistributed; the SHA-256 proves the content is the official one.
 * pjme      - the PJM hourly load file of the July 2026 battery, from this repository's
               history at a pinned commit (licence not established; not redistributed).
+* scip      - the SCIP 8.0.0 binaries (ZIB Academic License), which the image does not ship:
+              installed through Julia's package manager, verified by content hash (scip.py).
 
 Downloads are versioned (pinned commits or a versioned DOI record) and checksummed; a file
 whose checksum does not match is deleted and reported, never used.
@@ -26,6 +28,7 @@ import tomllib
 import urllib.request
 from pathlib import Path
 
+from . import scip
 from .check import part_inventory
 from .common import EXIT_FAIL, EXIT_INPUT, EXIT_OK, BundlePart, Paths, bundle_parts, sha256_file
 
@@ -190,9 +193,12 @@ def run(paths: Paths, args) -> int:
         if not args.if_needed or freqs:
             print("== fetch: M4 data")
             codes.append(fetch_external(paths, "m4", freqs or None, offline))
-    if what in ("pjme", "all") or (args.if_needed and _needs_pjme(args)):
+    if what in ("pjme", "all") or (what != "scip" and args.if_needed and _needs_pjme(args)):
         print("== fetch: PJME data")
         codes.append(fetch_external(paths, "pjme", None, offline))
+    if what in ("scip", "all"):          # every Julia computation needs it: Sarimax.jl loads SCIP
+        print("== fetch: SCIP binaries")
+        codes.append(scip.fetch(paths, offline))
     return max(codes) if codes else EXIT_OK
 
 

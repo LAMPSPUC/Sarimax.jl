@@ -8,7 +8,7 @@ reported as a success.
     python ijf.py quick              check + smoke + tables
     python ijf.py check | smoke | tables | list
     python ijf.py full --experiment ID [--jobs N] [--resume] [--limit N | --sample N] [--timeout S]
-    python ijf.py fetch artifacts|m4|all [--if-available] [--if-needed] [--from FILE]
+    python ijf.py fetch artifacts|m4|pjme|scip|all [--if-available] [--if-needed] [--from FILE]
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ def main(argv: list[str]) -> int:
     f.add_argument("--arm", action="append", help="only these arms (repeatable)")
     f.add_argument("--keep-going", action="store_true", help="continue with the next experiment after a failure")
     g = sub.add_parser("fetch", help="download and verify archived inputs")
-    g.add_argument("what", nargs="?", default="all", choices=["artifacts", "m4", "pjme", "all"])
+    g.add_argument("what", nargs="?", default="all", choices=["artifacts", "m4", "pjme", "scip", "all"])
     g.add_argument("--if-available", action="store_true",
                    help="do nothing (successfully) when no download location is recorded yet")
     g.add_argument("--if-needed", action="store_true",

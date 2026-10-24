@@ -216,3 +216,13 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
     factor lies between 0.987 and 1.010 (multiplicative) and between 0.994 and 1.039 (additive).
     The printed results are those of the implementation; neither the text nor the estimator is
     changed in this release (textual claims C8, C9).
+
+## Third-party binaries fetched at run time
+
+23. **SCIP 8.0.0 is downloaded, not shipped.** Its licence (ZIB Academic License) does not let a
+    public image carry it, so the image leaves its binaries out and `./reproduce.sh fetch scip`
+    installs them from the Julia package servers, verified by content hash
+    (`reports/scip_licence.md`). Sarimax.jl loads SCIP, so every Julia computation needs them:
+    the first run needs the network once, and depends on those servers (or the release files of JuliaBinaryWrappers/SCIP_jll.jl, the
+    fallback recorded in the package's `Artifacts.toml`) keeping the artifacts. Ipopt, R, Python
+    and every other dependency are in the image.

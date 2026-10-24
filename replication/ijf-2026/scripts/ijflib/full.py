@@ -27,7 +27,7 @@ import sys
 import tomllib
 from pathlib import Path
 
-from . import campaign, m4data
+from . import campaign, m4data, scip
 from .common import (EXIT_FAIL, EXIT_INPUT, EXIT_OK, EXIT_USAGE, FAIL, INFO, MISSING, PASS, WARN,
                      Paths, Report, julia_cmd, run_logged, tail)
 from .check import check_m4, compute_fingerprint
@@ -250,8 +250,14 @@ def run(paths: Paths, args) -> int:
         config_path = paths.repl / exp["full_runner"]
         config = tomllib.loads(config_path.read_text(encoding="utf-8"))
         print(f"\n######## full: {exp_id} ({config['kind']}) ########", flush=True)
+        if scip.status()[0] is False:      # every runner loads Sarimax.jl, which loads SCIP
+            report.add("full", f"{exp_id}: SCIP 8.0.0 binaries", MISSING, note=scip.FETCH_HINT)
+            status = EXIT_INPUT
+            if not args.keep_going:
+                break
+            continue
         if config["kind"] == "m4":
-            freqs = {f for f in config["frequencies"] if not args.frequency or f in args.frequency}
+            freqs ={f for f in config["frequencies"] if not args.frequency or f in args.frequency}
             if not check_m4(paths, report, required=True, frequencies=freqs):
                 status = EXIT_INPUT
                 if not args.keep_going:

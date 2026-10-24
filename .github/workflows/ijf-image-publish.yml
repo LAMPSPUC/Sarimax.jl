@@ -8,8 +8,9 @@
 # It starts with the manuscript release gate: publication stops while any number the manuscript
 # prints differs from its archived source, including the registered errata.
 #
-# Licence note (ARTIFACT_GUIDE.md, section 3): the image bundles SCIP 8.0.0 (ZIB Academic
-# License) through SCIP_jll; decide on its redistribution before making the package public.
+# Licence note (ARTIFACT_GUIDE.md, section 3): the image does not contain the SCIP 8.0.0 and
+# SoPlex binaries (ZIB Academic License); `./reproduce.sh fetch scip` installs them on the user's
+# machine. The published image is checked for their absence below.
 name: IJF replication image (publish)
 
 on:
@@ -120,8 +121,12 @@ jobs:
           host="$(bash replication/ijf-2026/scripts/fingerprint.sh .)"
           echo "image fingerprint $label; checkout fingerprint $host"
           test "$label" = "$host"
+          if docker run --rm --entrypoint bash "$ref" -c \
+              'find / -xdev \( -name "libscip*" -o -name "libsoplex*" \) 2>/dev/null | grep .'; then
+            echo "::error::the published image contains SCIP or SoPlex binaries"; exit 1
+          fi
 
-      - name: Smoke tests in the published image
+      - name: Smoke tests in the published image (fetches SCIP first)
         run: ./reproduce.sh smoke --image "${IMAGE}@${{ needs.publish.outputs.digest }}" --no-build
 
       - name: Lines for image.lock

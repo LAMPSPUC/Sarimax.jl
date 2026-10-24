@@ -57,14 +57,27 @@ else
            generated = "registry or missing")
 end
 
-try
-    @eval using Sarimax, JuMP, Ipopt, SCIP
-    MOI = JuMP.MOI
-    record("Ipopt binary", "PASS"; generated = MOI.get(Ipopt.Optimizer(), MOI.SolverVersion()))
-    record("SCIP binary", "PASS"; generated = MOI.get(SCIP.Optimizer(), MOI.SolverVersion()))
-    record("Sarimax.jl loads", "PASS"; generated = string(pkgversion(Sarimax)))
-catch err
-    record("Sarimax.jl, JuMP, Ipopt, SCIP load", "FAIL"; note = sprint(showerror, err))
+# The image does not ship SCIP's binaries (scip_artifacts.jl), and Sarimax.jl loads SCIP: until
+# `./reproduce.sh fetch scip` has installed them nothing below can load, and `check` reports
+# them as a missing input.
+scip_record = get(ENV, "IJF_SCIP_RECORD", "/opt/ijf-env/scip-artifacts.toml")
+scip_absent = isfile(scip_record) &&
+              any(a -> !Pkg.Artifacts.artifact_exists(Base.SHA1(a["git-tree-sha1"])),
+                  TOML.parsefile(scip_record)["artifact"])
+if scip_absent
+    record("Sarimax.jl, JuMP, Ipopt, SCIP load", "SKIPPED";
+           note = "needs the SCIP binaries, not shipped in the image (ZIB Academic License): " *
+                  "./reproduce.sh fetch scip installs them")
+else
+    try
+        @eval using Sarimax, JuMP, Ipopt, SCIP
+        MOI = JuMP.MOI
+        record("Ipopt binary", "PASS"; generated = MOI.get(Ipopt.Optimizer(), MOI.SolverVersion()))
+        record("SCIP binary", "PASS"; generated = MOI.get(SCIP.Optimizer(), MOI.SolverVersion()))
+        record("Sarimax.jl loads", "PASS"; generated = string(pkgversion(Sarimax)))
+    catch err
+        record("Sarimax.jl, JuMP, Ipopt, SCIP load", "FAIL"; note = sprint(showerror, err))
+    end
 end
 
 foreach(emit, RESULTS)

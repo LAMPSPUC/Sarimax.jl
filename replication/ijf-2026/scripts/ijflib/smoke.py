@@ -14,7 +14,8 @@ import math
 import os
 from pathlib import Path
 
-from .common import (EXIT_FAIL, EXIT_OK, FAIL, INFO, PASS, Paths, Report, julia_cmd,
+from . import scip
+from .common import (EXIT_FAIL, EXIT_INPUT, EXIT_OK, FAIL, INFO, MISSING, PASS, Paths, Report, julia_cmd,
                      run_logged, tail, which)
 
 TIMEOUT = {"julia": 2400, "julia-scip": 1200, "r": 600, "python": 600}
@@ -66,8 +67,14 @@ def run(paths: Paths, args) -> int:
         ("python", [py, str(val / "smoke_python.py"), str(fixtures)], py),
     ]
     records: list[dict] = []
+    absent: set[str] = set()      # engines not run because an input is missing
     for name, cmd, exe in engines:
         print(f"== smoke: {name}", flush=True)
+        # Sarimax.jl loads SCIP, so neither Julia engine runs before SCIP has been fetched.
+        if name.startswith("julia") and scip.status()[0] is False:
+            report.add("smoke", f"{name} engine", MISSING, note=scip.FETCH_HINT)
+            absent.add("julia")
+            continue
         if not which(exe):
             report.add("smoke", f"{name} engine", FAIL, note=f"{exe} not found")
             continue
@@ -91,8 +98,8 @@ def run(paths: Paths, args) -> int:
         key = (c["engine"], c["test"], c["quantity"])
         label = f"{c['engine']}:{c['test']}:{c['quantity']}"
         if key not in produced:
-            report.add("smoke", label, FAIL, expected=c["expected"], generated="(not produced)",
-                       note=c.get("source", ""))
+            report.add("smoke", label, MISSING if c["engine"] in absent else FAIL,
+                       expected=c["expected"], generated="(not produced)", note=c.get("source", ""))
             continue
         ok, diff = _compare(c, produced[key])
         tol = f" (tol {c['compare']} {c['tol']})" if "tol" in c else ""
@@ -106,4 +113,6 @@ def run(paths: Paths, args) -> int:
     (outdir / "values.json").write_text(json.dumps(records, indent=1), encoding="utf-8")
     out = report.write()
     print(f"smoke report: {out}")
-    return EXIT_FAIL if report.failed else EXIT_OK
+    if not report.failed:
+        return EXIT_OK
+    return EXIT_INPUT if all(r.status == MISSING for r in report.rows if r.status in (FAIL, MISSING)) else EXIT_FAIL

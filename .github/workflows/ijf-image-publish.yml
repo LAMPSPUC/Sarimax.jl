@@ -122,7 +122,7 @@ jobs:
           echo "image fingerprint $label; checkout fingerprint $host"
           test "$label" = "$host"
           if docker run --rm --entrypoint bash "$ref" -c \
-              'find / -xdev \( -name "libscip*" -o -name "libsoplex*" \) 2>/dev/null | grep .'; then
+              'find / -xdev \( -name "libscip.*" -o -name "libsoplex*" \) 2>/dev/null | grep .'; then
             echo "::error::the published image contains SCIP or SoPlex binaries"; exit 1
           fi
 

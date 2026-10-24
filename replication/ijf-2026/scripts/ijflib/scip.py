@@ -46,7 +46,7 @@ def fetch(paths: Paths, offline: bool) -> int:
         print("  scip: not managed by this runtime (native mode uses the host's Julia depot)")
         return EXIT_OK
     if installed:
-        print("  scip: SCIP 8.0.0 binaries already installed and verified")
+        print(f"  scip: SCIP 8.0.0 binaries already installed in {DEPOT} (verified when installed)")
         return EXIT_OK
     if offline:
         print(f"  scip: {', '.join(missing)} missing (offline: not downloaded)")
@@ -59,5 +59,5 @@ def fetch(paths: Paths, offline: bool) -> int:
     if code != 0 or not status()[0]:
         print(f"  ERROR scip: download or verification failed after {secs:.0f}s; see {log}: {tail(log, 3)}")
         return EXIT_INPUT
-    print(f"  scip: installed and verified in {secs:.0f}s ({tail(log, 2)})")
+    print(f"  scip: installed in {DEPOT} and verified against the content hashes in {secs:.0f}s (log: {log})")
     return EXIT_OK

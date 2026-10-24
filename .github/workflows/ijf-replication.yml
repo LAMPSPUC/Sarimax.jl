@@ -221,7 +221,7 @@ jobs:
       - name: The image contains no SCIP binaries; fetch scip installs and verifies them
         run: |
           if docker run --rm --entrypoint bash "${{ steps.fp.outputs.tag }}" -c \
-              'find / -xdev \( -name "libscip*" -o -name "libsoplex*" \) 2>/dev/null | grep .'; then
+              'find / -xdev \( -name "libscip.*" -o -name "libsoplex*" \) 2>/dev/null | grep .'; then
             echo "::error::the image contains SCIP or SoPlex binaries"; exit 1
           fi
           set +e

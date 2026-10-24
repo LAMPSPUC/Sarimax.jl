@@ -43,10 +43,10 @@ status and coefficients, SCIP's raw status, node count, coefficients and a full 
   passes every warm start as a partial solution. Why 34 and 38 return alone and not with other
   SCIP processes running was not measured. A diagnostic with `completesol` switched off
   (`diag/`, a changed parameter, not a replication) is kept but not used.
-* **Table S5** under the assignment by the harness's cells: every count of the record again,
-  except the T = 960 row, 1 certified / 1 at the time limit in the 2026-10-21 queue (id 38 did not
-  return). With the isolated runs of 2026-10-22, T = 480 is 1 certified / 1 at the time limit
-  (id 34) with id 35 not returning, and T = 960 is 1 / 2, as printed.
+* **Table S5**, by the harness's cells (OPTIMAL / TIME_LIMIT / not returned): every cell as in the
+  record except cell E, 2/1/3 against 2/2/2 (id 38, T = 960, did not return in the 2026-10-21
+  queue); in all, 23/20/3 against 23/21/2. In the isolated runs of 2026-10-22, ids 34 and 38 stop
+  at the time limit and id 35 does not return.
 * **Section 5.6**: id 26 Ipopt 46.660913 and SCIP 45.314976 (time limit), id 44 57.868044 ->
   57.536983 (certified, gap 1.09e-9) and id 45 54.706978 -> 53.681295 (certified, gap 1.07e-8),
   as in the record. Seasonal grid (cell B): largest Ipopt - SCIP 2.52e-9 as in the record;

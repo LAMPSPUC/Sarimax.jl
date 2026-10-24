@@ -26,7 +26,6 @@ its derived record (CI job "Manuscript release check").
 | `textual_claims.csv` | statements of the text checked against the archive and the code, with their status (supported, differs, needs verification) |
 | `errata.csv` | printed values established as errors of the manuscript; empty: no printed value differs from its source |
 | `REVISION.toml` | the identity of the submitted manuscript |
-| `history/` | transcriptions of pre-submission drafts, kept for development traceability; not checked and not part of the evidence |
 
 | Column | Meaning |
 |---|---|

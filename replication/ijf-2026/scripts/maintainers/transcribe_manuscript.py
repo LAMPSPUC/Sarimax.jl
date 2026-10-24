@@ -11,10 +11,12 @@ printed value is paired with the archived source it is compared with (a table-gr
 row of a derived table in the repository). The result is results/manuscript/manuscript_values.csv,
 which scripts/maintainers/check_manuscript_mapping.py and ./reproduce.sh tables check.
 
-Rows of tables that also appeared in the earlier transcription reuse its source specification
-(results/manuscript/history/draft-2026-10-16/), matched by row and column; their printed values
-are still read from the submitted source. Without --write the script compares its output with
-the committed mapping and exits 1 when they differ.
+The rows written out below (numbers quoted in the text, the tables and figure annotations added
+for the submitted manuscript) carry their source here. The other table rows, and a few quoted
+numbers, keep the source specification of the committed mapping, matched by label, row and
+column; their printed values are read again from the source, and a row the source no longer
+prints is reported. Without --write the script compares its output with the committed mapping
+and exits 1 when they differ.
 """
 
 from __future__ import annotations
@@ -29,7 +31,6 @@ from pathlib import Path
 
 REPL = Path(__file__).resolve().parents[2]
 OUT = REPL / "results" / "manuscript" / "manuscript_values.csv"
-HIST = REPL / "results" / "manuscript" / "history" / "draft-2026-10-16"
 FIELDS = ["item", "label", "row", "column", "printed", "decimals", "scale", "source_kind", "source",
           "source_row", "source_column", "note"]
 RECON = "results/historical/certification-2026-08/manuscript_sources.csv"
@@ -133,7 +134,7 @@ ITEM = {  # label -> item name in the submitted manuscript
     "tab:multistart": "Table S11", "tab:supp_m4_marginal": "Table S12", "tab:supp_obj_mase": "Table S13",
     "tab:supp_obj_smape": "Table S14", "tab:stable_m4": "Table S15", "tab:supp_stable_mase": "Table S16",
 }
-# tables of the earlier transcription whose source specification is reused: (key cells, columns)
+# tables whose rows keep the source specification of the committed mapping: (key cells, columns)
 REUSED = {
     "tab:matched_validation": (3, {3: "phi1", 4: "theta1", 5: "RSS"}),
     "tab:m4_forecasting": (1, {1: "Sarimax.jl", 2: "Reference"}),
@@ -144,16 +145,13 @@ REUSED = {
     "tab:multistart": (1, {1: ":zeroed", 2: ":innovations"}),
     "tab:supp_m4_marginal": (3, {3: "N", 4: "Mean", 5: "q05", 6: "Median", 7: "q95"}),
 }
-# tables whose source specification is the controlled-campaign template of the earlier transcription
+# the same, for the tables of the controlled objective comparison
 TEMPLATE = {
     "tab:m4_objectives": (1, {1: "Reference", 2: "MSE", 3: "Huber", 4: "MAE", 5: "Ridge"}),
     "tab:objective_paired_quantiles": (2, {2: "N", 3: "Mean", 4: "q05", 5: "Median", 6: "q95"}),
     "tab:supp_obj_mase": (2, {2: "q01", 3: "q05", 4: "q25", 5: "Median", 6: "q75", 7: "q95", 8: "q99"}),
     "tab:supp_obj_smape": (2, {2: "q01", 3: "q05", 4: "q25", 5: "Median", 6: "q75", 7: "q95", 8: "q99"}),
 }
-ROW_RENAME = {("tab:multistart", "Airline, log AirPassengers"): "Airline model, log a10",
-              ("tab:quantile_demo", "tau=0.1"): "0.1", ("tab:quantile_demo", "tau=0.5"): "0.5",
-              ("tab:quantile_demo", "tau=0.9"): "0.9"}
 
 
 def decimals(printed: str) -> str:
@@ -176,14 +174,14 @@ def load(path: Path) -> list[dict]:
 
 
 def reuse(label, spec_rows, cells, problems):
-    """Earlier rows of `label` with the printed value of the submitted source."""
+    """The mapping's rows of `label`, with the printed value read again from the source."""
     keys, cols = (REUSED.get(label) or TEMPLATE.get(label))
     look = lookup(cells.get(label, []), keys, cols)
     out = []
     for r in spec_rows:
         if r["label"] != label or r["row"].startswith("caption"):
             continue
-        key = re.sub(r" \[[^]]*\]$", "", ROW_RENAME.get((label, r["row"]), r["row"]))
+        key = re.sub(r" \[[^]]*\]$", "", r["row"])
         printed = look.get((key, r["column"]))
         if printed is None:
             problems.append(f"{label}: {r['row']} / {r['column']} not found in the submitted table")
@@ -191,11 +189,8 @@ def reuse(label, spec_rows, cells, problems):
         if printed in ("--", "-", ""):
             continue                                   # an empty cell in the submitted table
         printed = printed.replace("%", "")
-        new = dict(r, item=ITEM[label], row=ROW_RENAME.get((label, r["row"]), r["row"]), printed=printed,
-                   decimals=r["decimals"] if r["decimals"] == "" else decimals(printed))
-        new["note"] = re.sub(r"^2026-10-19 controlled revision: printed value to be transcribed from its source; ?", "",
-                             new["note"])
-        out.append(new)
+        out.append(dict(r, item=ITEM[label], printed=printed,
+                        decimals=r["decimals"] if r["decimals"] == "" else decimals(printed)))
     return out
 
 
@@ -338,7 +333,7 @@ def figures(src: Path, old: list[dict], problems: list[str]) -> list[dict]:
             rows = [r for r in old if r["label"] == "fig:m4_pair_ecdf" and r["row"].endswith(f"|{metric}")
                     and r["column"] == f"{sign} (%)"]
             if sorted(int(r["printed"]) for r in rows) != printed:
-                problems.append(f"Figure 2 {metric} {sign}: panel values {printed} differ from the earlier rows")
+                problems.append(f"Figure 2 {metric} {sign}: panel values {printed} differ from the mapping's rows")
             out += [dict(r, item=ITEM["fig:m4_pair_ecdf"]) for r in rows]
     txt = subprocess.run(["pdftotext", "-layout", str(src / "figs" / "objectives_ecdf_delta_mase_controlled.pdf"), "-"],
                          capture_output=True, text=True, check=True).stdout
@@ -456,18 +451,17 @@ def new_tables(cells: dict, src: Path, problems: list[str]) -> list[dict]:
 
 def build(src: Path, problems: list[str]) -> list[dict]:
     cells = table_rows(src)
-    old = load(HIST / "manuscript_values.csv")
-    tmpl = load(HIST / "manuscript_values_controlled_template.csv")
+    old = load(OUT)                                     # the committed mapping: the source specification
     out: list[dict] = []
     for label in REUSED:
         rows = reuse(label, old, cells, problems)
-        if label == "tab:local_global_forecasts":       # Ipopt times and the PJME label are re-specified
+        if label == "tab:local_global_forecasts":       # Ipopt times and the PJME label are written below
             rows = [r for r in rows if not (r["column"] == "Time (s)" and r["row"].endswith("|Ipopt"))
                     and not (r["column"] == "Certified" and r["row"].startswith("PJME"))]
         out += rows
     for label in TEMPLATE:
-        out += reuse(label, tmpl, cells, problems)
-    # text rows of the earlier transcription that the submitted text still prints, with the same source
+        out += reuse(label, old, cells, problems)
+    # quoted numbers whose source specification is kept from the mapping, checked against the text
     keep = {("sec:m4_validation", r) for r in ("yearly MASE paired difference, 5th percentile",
                                                  "yearly MASE paired difference, 95th percentile",
                                                  "top-5% share of sum |Delta|, smallest of 12 panels (%)",
@@ -488,11 +482,6 @@ def build(src: Path, problems: list[str]) -> list[dict]:
     out += text_rows(src, problems)
     out += figures(src, old, problems)
     out += new_tables(cells, src, problems)
-    for r in out:                                   # notes name campaigns by commit, not by machine,
-        r["note"] = re.sub(r"\([A-Z]{4,}, ([0-9a-f]{7})\)", r"(\1)", r["note"])
-        # and describe the source, not what a pre-submission draft printed
-        r["note"] = re.sub(r"^the \d{4}-\d{2}-\d{2} revision printed \S+ from the historical campaigns;? ?", "",
-                           r["note"])
     return out
 
 

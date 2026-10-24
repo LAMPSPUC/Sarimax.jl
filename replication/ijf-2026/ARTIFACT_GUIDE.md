@@ -32,7 +32,7 @@ replication/ijf-2026/
   results/expected/                reference cell values, parsed from the historical tables
   results/manuscript/              every number printed in the manuscript, with its source;
                                    textual_claims.csv, derived_quantities.csv, errata.csv,
-                                   REVISION.toml (the submitted files' SHA-256), history/
+                                   REVISION.toml (the submitted files' SHA-256)
   results/historical/              derived tables not in the bundle (with PROVENANCE.md), the
                                    ecc4878 solver records, the recovered 2026-09 scripts/outputs
   results/reruns/                  identified re-runs kept as evidence (with RUN.md)
@@ -330,12 +330,13 @@ The controlled comparison of objectives was produced by a separate workstream (2
    `ijf-image-publish.yml`; record the digest, fingerprint and revision in `image.lock`; make
    the GHCR package public. If its size and the SCIP licence allow, archive the exported image
    (`docker save | gzip`) in the Zenodo data record.
-7. **Tag the release.** `src/` now differs from v1.0.0 (the information-criterion fix for models
-   with regressors, the elastic-net fix for L1 weights of zero and the dataset alias, CHANGELOG
-   "Unreleased"), so release the package as
-   1.0.1 first, then tag the replication release commit `ijf-2026-replication-v1.0.0` and
-   publish the GitHub release under the article's title. The Zenodo GitHub
-   integration archives it and mints the software DOI (`.zenodo.json`).
+7. **Tag the release.** Tag the replication release commit `ijf-2026-replication-v1.0.0` and
+   publish the GitHub release under the article's title; the Zenodo GitHub integration archives
+   it and mints the software DOI (`.zenodo.json`). `src/` differs from v1.0.0 by three fixes that
+   no printed result depends on (the information-criterion fix for models with regressors, the
+   elastic-net fix for L1 weights of zero and the dataset alias, CHANGELOG "Unreleased");
+   registering them as 1.0.1 is a separate decision that the replication release does not need,
+   since the package identifies its code by commit.
 8. **Link the records.** Software → `isSupplementedBy` the data record; both → `isSupplementTo`
    the article DOI once assigned. Then update `CITATION.cff` and the availability statement.
 

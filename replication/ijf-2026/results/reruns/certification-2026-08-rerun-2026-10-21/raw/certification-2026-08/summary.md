@@ -11,25 +11,27 @@
 | ipopt - scip agrees | 32 |
 | ipopt - scip differs | 0 |
 
-## Table S5 (assignment by the harness's cells; certified / time limit)
+## Table S5 (by the harness's cells; OPTIMAL / TIME_LIMIT / killed by the external clock)
 
-| row | manuscript | record | re-run |
-|---|---|---|---|
-| nonseasonal_grid | 12 / 0 | 12 / 0 | 12 / 0 |
-| extended_T480 | 1 / 0 | 1 / 0 | 1 / 0 |
-| extended_T960 | 1 / 2 | 1 / 2 | 1 / 1 |
-| seasonal_grid | 0 / 12 | 0 / 12 | 0 / 12 |
-| diagnostics | 2 / 4 | 2 / 4 | 2 / 4 |
-| free_presample | 3 / 0 | 3 / 0 | 3 / 0 |
+| cell | record | re-run |
+|---|---|---|
+| A | 12/0/0 | 12/0/0 |
+| B | 0/12/0 | 0/12/0 |
+| C | 2/4/0 | 2/4/0 |
+| D | 2/0/0 | 2/0/0 |
+| E | 2/2/2 | 2/1/3 |
+| F | 3/3/0 | 3/3/0 |
+| G | 2/0/0 | 2/0/0 |
+| all | 23/21/2 | 23/20/3 |
 
 ## Section 5.6, seasonal grid (cell B)
 
-| quantity | manuscript | record | re-run |
-|---|---|---|---|
-| s56_seasonal_ipopt_minus_scip_max | 2.5 (%) | 2.520e-09 | 2.520e-09 |
-| s56_seasonal_gap_min | 1.9 (%) | 1.940e-04 | 1.732e-04 |
-| s56_seasonal_gap_max | 4.9 (%) | 4.900e-01 | 4.626e-01 |
-| s56_seasonal_gap_median | 1.2 (%) | 1.510e-02 | 5.860e-02 |
+| quantity | record | re-run |
+|---|---|---|
+| s56_seasonal_ipopt_minus_scip_max | 2.520e-09 | 2.520e-09 |
+| s56_seasonal_gap_min | 1.940e-04 | 1.732e-04 |
+| s56_seasonal_gap_max | 4.900e-01 | 4.626e-01 |
+| s56_seasonal_gap_median | 1.510e-02 | 5.860e-02 |
 
 ## Section 5.6 instances
 

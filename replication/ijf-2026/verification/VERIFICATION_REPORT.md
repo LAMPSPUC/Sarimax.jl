@@ -194,7 +194,7 @@ The text states the first two as properties of the release used by the controlle
 | `transcribe_manuscript.py --source <LaTeX source>` | 836 printed values; identical to the committed mapping |
 | `check_manuscript_mapping.py` and `--release` | raw-reproduced 660, derived-only 174, differing 0, no evidence 0, at run time 2; both PASS |
 | `check_package.py` | 30 experiments, 10 table groups, 836 manuscript values: consistent |
-| `check_certification_2026_08.py` | 45 received files verified; 44 per-instance rows match the per-batch tables; 74 derived values PASS |
+| `check_certification_2026_08.py` | 45 received files verified; 44 per-instance rows match the per-batch tables; 61 derived values PASS |
 | `check_certification_rerun_2026_10.py` | 154 files and the 15 of the 2026-10-22 correction verified; 43 instances identical to the package's; records, comparison and sources PASS |
 | `check_gate_rerun_2026_10.py` | 24 files verified; aggregates recomputed from the per-series records; PASS |
 | `check_recovered_2026_09.py` | 14 files; Table S10 30 values, Figure S1 60 values, Table S11 96 values recomputed: OK |
@@ -268,18 +268,16 @@ pinned source, each verified by SHA-256 (`data/external_files.csv`).
    recovered aggregates.
 4. **The LaTeX source:** whether to deposit it (it allows anyone to re-run the transcription;
    its archive contains editorial notes that would have to be removed first).
-5. **`results/manuscript/history/`:** whether to keep the development records of pre-submission
-   drafts in the public release (the transcriber reads two of its files only to reuse source
-   specifications).
-6. **Software release:** `src/` differs from v1.0.0 (three fixes, CHANGELOG "Unreleased"):
-   release 1.0.1 before tagging the replication release `ijf-2026-replication-v1.0.0`.
-7. **SCIP 8.0.0 (ZIB Academic License):** whether the public image may redistribute it
-   (`reports/scip_licence.md`).
-8. **Publication:** the Zenodo data record (both bundle parts), the image on GHCR, the DOIs and
+5. **Software version:** `src/` differs from v1.0.0 by three fixes that no printed result
+   depends on (CHANGELOG "Unreleased"), while `Project.toml` still reads 1.0.0; whether to
+   register 1.0.1, which the replication release does not require.
+6. **SCIP 8.0.0 (ZIB Academic License):** `./reproduce.sh` builds the image locally and the build
+   downloads SCIP; a pre-built public image would redistribute it (`reports/scip_licence.md`).
+7. **Publication:** the Zenodo data record (both bundle parts), the image on GHCR, the DOIs and
    digest in `artifacts.lock`, `image.lock`, `CITATION.cff` and the availability statement; the
    creator lists of `CITATION.cff`, `.zenodo.json` and the data record; a permanent identifier of
    the manuscript for `REVISION.toml` once one exists.
-9. **Author statements:** the AI-use declaration and the other statements the journal requires
+8. **Author statements:** the AI-use declaration and the other statements the journal requires
    are not part of this package.
 
 Nothing was merged, tagged, published or uploaded.

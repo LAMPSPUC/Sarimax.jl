@@ -16,8 +16,3 @@ source_tree_sha256 = "071aa67fd8e8a9043304b04afc5f5558be1a0088dd4194d56e4d22564b
 transcribed_with = "scripts/maintainers/transcribe_manuscript.py"
 # a permanent identifier of the submitted manuscript, once one exists
 archival_identifier = ""
-
-[history]
-# Earlier transcriptions of pre-submission drafts, kept for development traceability only; they
-# are not checked and are not part of the replication evidence.
-directory = "history"

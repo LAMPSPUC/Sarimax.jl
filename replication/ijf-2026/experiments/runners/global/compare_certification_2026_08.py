@@ -6,9 +6,10 @@ tabela_scip_lotes1-2_RECONSTRUIDA.csv), and writes next to the records:
 
 * comparison.csv: per instance, the record's and the re-run's status, time, certified gap,
   Ipopt - SCIP, objectives, and the outcome of each comparison;
-* summary.md: the outcomes, and Table S5 and the Section 5.6 numbers computed from the re-run
-  with the rules of scripts/maintainers/check_certification_2026_08.py, beside the record's and
-  the manuscript's.
+* summary.md: the outcomes, and the Table S5 counts by cell and the Section 5.6 seasonal-grid
+  numbers computed from the re-run with the rules of scripts/maintainers/check_certification_2026_08.py,
+  beside the record's. The manuscript's printed values are compared with these records by the
+  manuscript mapping, not here.
 
 Objectives the record holds are compared at the precision it printed: Ipopt's always, SCIP's
 when both runs certified the instance, and batch 1's Ipopt - SCIP (differences below 1e-10 are
@@ -30,13 +31,9 @@ from pathlib import Path
 
 REPL = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPL / "scripts" / "maintainers"))
-from check_certification_2026_08 import S5, SEASONAL  # noqa: E402
+from check_certification_2026_08 import SEASONAL  # noqa: E402
 
 RECORD = REPL / "results" / "historical" / "certification-2026-08" / "received" / "tabela_scip_lotes1-2_RECONSTRUIDA.csv"
-PRINTED = {  # as first transcribed (results/manuscript/history/draft-2026-10-16/manuscript_values.csv)
-    "s56_seasonal_ipopt_minus_scip_max": "2.5 (%)", "s56_seasonal_gap_min": "1.9 (%)",
-    "s56_seasonal_gap_max": "4.9 (%)", "s56_seasonal_gap_median": "1.2 (%)",
-}
 
 
 def f(x) -> float:
@@ -123,12 +120,12 @@ def main() -> int:
         w.writeheader()
         w.writerows(rows)
 
-    def s5_counts(tab):
+    def s5_cells(tab):
+        """OPTIMAL / TIME_LIMIT / killed by the external clock, by the harness's cells."""
         out = []
-        for key, _, specs in S5:
-            s = specs[0]
-            out.append((key, sum(tab[i]["status"] == "OPTIMAL" for i in s if i in tab),
-                        sum(tab[i]["status"] == "TIME_LIMIT" for i in s if i in tab)))
+        for cell in sorted({r["cel"] for r in tab.values()}) + ["all"]:
+            st = [outcome(r["status"]) for r in tab.values() if cell in ("all", r["cel"])]
+            out.append((cell, "/".join(str(st.count(k)) for k in ("OPTIMAL", "TIME_LIMIT", "KILLED_EXTERNAL_CLOCK"))))
         return out
 
     def seasonal(tab, gapcol, diffcol):
@@ -144,17 +141,14 @@ def main() -> int:
     lines = [f"# Re-run of the August 2026 certification batch: {run.parent.parent.name}", "",
              "| comparison | instances |", "|---|---|"]
     lines += [f"| {k} | {v} |" for k, v in count.items()]
-    lines += ["", "## Table S5 (assignment by the harness's cells; certified / time limit)", "",
-              "| row | manuscript | record | re-run |", "|---|---|---|---|"]
-    printed = {"nonseasonal_grid": "12 / 0", "extended_T480": "1 / 0", "extended_T960": "1 / 2",
-               "seasonal_grid": "0 / 12", "diagnostics": "2 / 4", "free_presample": "3 / 0"}
-    for (k, oc, ot), (_, nc, nt) in zip(s5_counts(old), s5_counts(new)):
-        lines.append(f"| {k} | {printed[k]} | {oc} / {ot} | {nc} / {nt} |")
+    lines += ["", "## Table S5 (by the harness's cells; OPTIMAL / TIME_LIMIT / killed by the external clock)", "",
+              "| cell | record | re-run |", "|---|---|---|"]
+    for (k, o), (_, n) in zip(s5_cells(old), s5_cells(new)):
+        lines.append(f"| {k} | {o} | {n} |")
     so = seasonal(old, "gap_cert", "ipopt_menos_scip")
     sn = seasonal(new, "gap_certificado", "ipopt_menos_scip")
-    lines += ["", "## Section 5.6, seasonal grid (cell B)", "", "| quantity | manuscript | record | re-run |",
-              "|---|---|---|---|"]
-    lines += [f"| {k} | {PRINTED[k]} | {so[k]:.3e} | {sn[k]:.3e} |" for k in PRINTED]
+    lines += ["", "## Section 5.6, seasonal grid (cell B)", "", "| quantity | record | re-run |", "|---|---|---|"]
+    lines += [f"| {k} | {so[k]:.3e} | {sn[k]:.3e} |" for k in so]
     lines += ["", "## Section 5.6 instances", "", "| id | record Ipopt / SCIP | re-run Ipopt / SCIP / status / gap |",
               "|---|---|---|"]
     for i in (26, 44, 45):

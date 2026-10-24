@@ -38,25 +38,7 @@ REC = D / "received"
 AGG = REC / "resultados_agregados"
 SOURCES = D / "manuscript_sources.csv"
 
-# Rows of Table S5 and the instances of the batch each one counts. The batch's record does not
-# say which instances the table counts; this is the assignment by the harness's own cells
-# (casos() in harness/scip_prog_lote*.jl). Where another assignment gives the same counts, it is
-# listed too and the counts are checked under both.
-S5 = [
-    ("nonseasonal_grid", "cell A (non-seasonal (1,0,1), T in {30, 60, 120, 240}, 3 draws each)",
-     [range(1, 13)]),
-    ("extended_T480", "cell E, T = 480 (ids 34 and 35 did not finish and are in neither column)",
-     [range(33, 36)]),
-    ("extended_T960", "cell E, T = 960", [range(36, 39)]),
-    ("seasonal_grid", "cell B (seasonal (1,0,1)(P,0,Q)_12, T in {36, 60})", [range(13, 25)]),
-    ("diagnostics", "cell C, ids 25-30 (the harness's adversarial cell, with the three M4 series "
-     "28-30, which failed the harness's noise-floor assertion); the same counts follow from ids "
-     "25-27 with the seasonal cancellation cases 39, 41, 43 of cell F",
-     [range(25, 31), [25, 26, 27, 39, 41, 43]]),
-    ("free_presample", "ids 31, 32 (cell D, :innovations, T = 60) and 46 (cell G, :innovations, "
-     "T = 120); id 45 (cell G, T = 60) in place of 31 or 32 gives the same counts",
-     [[31, 32, 46], [32, 45, 46]]),
-]
+# Table S5 lists the 46 instances by the harness's own cells (casos() in harness/scip_prog_lote*.jl).
 SEASONAL = range(13, 25)
 
 
@@ -118,19 +100,7 @@ def derive(problems: list[str]) -> list[dict]:
         out.append({"quantity": quantity, "value": value if isinstance(value, str) else repr(value),
                     "instances": instances, "rule": rule})
 
-    # ---- Table S5: counts of certified (OPTIMAL) and time-limited instances per row
-    for key, desc, specs in S5:
-        counts = {(sum(table[i]["status"] == "OPTIMAL" for i in s),
-                   sum(table[i]["status"] == "TIME_LIMIT" for i in s)) for s in specs}
-        if len(counts) != 1:
-            problems.append(f"Table S5 {key}: the listed assignments give different counts {counts}")
-        cert, tl = sorted(counts)[0]
-        inst = " or ".join(ids(s) for s in specs)
-        put(f"s5_{key}_certified", cert, inst, f"OPTIMAL among {desc}")
-        put(f"s5_{key}_time_limit", tl, inst, f"TIME_LIMIT among {desc}")
-    put("s5_extended_T480_unfinished", sum(table[i]["status"].startswith("MORTO") for i in (34, 35)),
-        "34, 35", "killed by an external 900 s clock; no SCIP result")
-    # by the harness's cells (the table as organized in the submitted Supplementary Material)
+    # ---- Table S5: outcomes by the harness's cells
     outcome = {"O": "OPTIMAL", "T": "TIME_LIMIT", "X": "MORTO"}
     for cell in sorted({r["cel"] for r in table.values()}) + ["all"]:
         members = sorted(i for i, r in table.items() if cell in ("all", r["cel"]))

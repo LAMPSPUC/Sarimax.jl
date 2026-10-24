@@ -1,17 +1,4 @@
 quantity,value,instances,rule
-s5_nonseasonal_grid_certified,12,1-12,"OPTIMAL among cell A (non-seasonal (1,0,1), T in {30, 60, 120, 240}, 3 draws each)"
-s5_nonseasonal_grid_time_limit,0,1-12,"TIME_LIMIT among cell A (non-seasonal (1,0,1), T in {30, 60, 120, 240}, 3 draws each)"
-s5_extended_T480_certified,1,33-35,"OPTIMAL among cell E, T = 480 (ids 34 and 35 did not finish and are in neither column)"
-s5_extended_T480_time_limit,0,33-35,"TIME_LIMIT among cell E, T = 480 (ids 34 and 35 did not finish and are in neither column)"
-s5_extended_T960_certified,1,36-38,"OPTIMAL among cell E, T = 960"
-s5_extended_T960_time_limit,2,36-38,"TIME_LIMIT among cell E, T = 960"
-s5_seasonal_grid_certified,0,13-24,"OPTIMAL among cell B (seasonal (1,0,1)(P,0,Q)_12, T in {36, 60})"
-s5_seasonal_grid_time_limit,12,13-24,"TIME_LIMIT among cell B (seasonal (1,0,1)(P,0,Q)_12, T in {36, 60})"
-s5_diagnostics_certified,2,"25-30 or 25, 26, 27, 39, 41, 43","OPTIMAL among cell C, ids 25-30 (the harness's adversarial cell, with the three M4 series 28-30, which failed the harness's noise-floor assertion); the same counts follow from ids 25-27 with the seasonal cancellation cases 39, 41, 43 of cell F"
-s5_diagnostics_time_limit,4,"25-30 or 25, 26, 27, 39, 41, 43","TIME_LIMIT among cell C, ids 25-30 (the harness's adversarial cell, with the three M4 series 28-30, which failed the harness's noise-floor assertion); the same counts follow from ids 25-27 with the seasonal cancellation cases 39, 41, 43 of cell F"
-s5_free_presample_certified,3,"31, 32, 46 or 32, 45, 46","OPTIMAL among ids 31, 32 (cell D, :innovations, T = 60) and 46 (cell G, :innovations, T = 120); id 45 (cell G, T = 60) in place of 31 or 32 gives the same counts"
-s5_free_presample_time_limit,0,"31, 32, 46 or 32, 45, 46","TIME_LIMIT among ids 31, 32 (cell D, :innovations, T = 60) and 46 (cell G, :innovations, T = 120); id 45 (cell G, T = 60) in place of 31 or 32 gives the same counts"
-s5_extended_T480_unfinished,2,"34, 35",killed by an external 900 s clock; no SCIP result
 s5_cell_A_O,12,1-12,"OPTIMAL among cell A (X: killed by the external clock, no result)"
 s5_cell_A_T,0,1-12,"TIME_LIMIT among cell A (X: killed by the external clock, no result)"
 s5_cell_A_X,0,1-12,"MORTO among cell A (X: killed by the external clock, no result)"

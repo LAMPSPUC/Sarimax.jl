@@ -1,10 +1,12 @@
 # The August 2026 certification batch, Table S2 and Section 5.5: the records received on 2026-10-21
 
-Reconciliation of the material received on 2026-10-21 (archived in
-`results/historical/certification-2026-08/`, see its `PROVENANCE.md`) with the values the
-2026-10-16 manuscript prints. It answers the requests listed in `provenance_gaps.md` (items 1, 3,
-4, 5) and `missing_global_artifacts.md` (G1). Nothing was re-executed here: the comparisons are
-against the received record, computed by `scripts/maintainers/check_certification_2026_08.py`.
+What the material received on 2026-10-21 (archived in
+`results/historical/certification-2026-08/`, see its `PROVENANCE.md`) contains and which results
+it supports (`provenance_gaps.md`, `missing_global_artifacts.md`, G1). Nothing was re-executed
+here: the values are computed from the received record by
+`scripts/maintainers/check_certification_2026_08.py`, which writes them to
+`results/historical/certification-2026-08/manuscript_sources.csv`; the manuscript mapping
+compares the submitted manuscript's printed values with them.
 The batch's author re-ran the certification batch on 2026-10-21; that re-run is compared with the
 record in section 1.
 
@@ -13,18 +15,8 @@ the per-replication or per-fit outputs of the three diagnostics, are lost: they 
 temporary directory that no longer exists. What was received is a reconstruction from the record
 of the session that ran them (console tables, and the harness rebuilt from the session's patches
 and checked by execution), with the source of every row declared. The manuscript mapping
-therefore classifies these values as **derived-only**: they agree, or not, with a recovered
-summary; none is reproduced from raw records.
-
-## Effect on the manuscript inventory (2026-10-16 transcription)
-
-| category | before | after |
-|---|---|---|
-| raw-reproduced | 603 | 603 |
-| derived-only | 19 | 56 (+37: Table S5 12, Section 5.6 8, Table S2 9, Section 5.5 8) |
-| differing | 2 | 6 (+4: the Section 5.6 seasonal-grid figures, registered errata) |
-| no evidence | 46 | 5 (Section 5.5 ranking: 12.1%, 16.5%, OWA +0.0097; Table S3: 2) |
-| checked at run time only | 2 | 2 |
+therefore classifies these values as **derived-only**: they agree with a recovered summary;
+none is reproduced from raw records.
 
 ## 1. The certification batch (Table S5, Section 5.6)
 
@@ -45,44 +37,21 @@ and dual bounds of the 37 instances without objectives. Ids 34 and 35 (T = 480) 
 34 ran 7 h 40 min under a 600 s `limits/time` before an external 900 s clock was added, and both
 were killed by it. The dual bound of id 37 is SCIP's `-1e+20` sentinel: no valid bound.
 
-**Table S5: the counts agree.** The record does not say which instances each row counts. The
-assignment by the harness's own cells reproduces every count:
+**Table S5.** The submitted table lists the 46 instances by the harness's cells (A-G), with the
+outcome counts of the August record and of the 2026-10-21 re-run. The record gives, by cell,
+OPTIMAL / TIME_LIMIT / not returned: A 12/0/0, B 0/12/0, C 2/4/0, D 2/0/0, E 2/2/2, F 3/3/0,
+G 2/0/0, in total 23/21/2 (quantities `s5_cell_*`), as printed. Id 44, the first certificate of
+Section 5.6, is in cell F; ids 34 and 35 (T = 480) are the two instances that did not return.
 
-| Table S5 row | certified / time limit (printed) | instances | record |
-|---|---|---|---|
-| non-seasonal grid, T in {30, ..., 240} | 12 / 0 | cell A, ids 1-12 | 12 / 0 |
-| extended, T = 480 | 1 / 0 | id 33 (34, 35 unfinished) | 1 / 0 |
-| extended, T = 960 | 1 / 2 | ids 36-38 | 1 / 2 (37 without a valid dual bound) |
-| seasonal grid, T in {36, 60} | 0 / 12 | cell B, ids 13-24 | 0 / 12 |
-| seasonal/adversarial diagnostics | 2 / 4 | cell C, ids 25-30 | 2 / 4 |
-| free pre-sample mode, T in {60, 120} | 3 / 0 | ids 31, 32 (cell D), 46 (cell G) | 3 / 0 |
-
-Two caveats the text should reflect (textual claims T16, T17):
-
-* **The T = 480 row omits two unfinished instances.** Three were run; one certified (136 s).
-* **The assignment is not unique, and either one leaves out instances the text relies on.** Under
-  the harness's cells, the diagnostics row counts the three M4 series (ids 28-30), which failed
-  the harness's own noise-floor assertion (SCIP objective below `0.25 (T - 1)`, which the harness
-  marks as a wrong box). Ids 25-27 with the seasonal cancellation cases 39, 41, 43 of cell F give
-  the same 2 / 4. Either way the table counts 37 of the 46 instances and leaves out most of cell F,
-  including **id 44, the first certificate of Section 5.6**; id 45 (the second) is counted only
-  if it replaces 31 or 32 in the last row.
-
-**Section 5.6: the instance values agree, the seasonal-grid figures do not.**
+**Section 5.6: the instance values and the seasonal-grid figures agree.**
 
 | printed | record | status |
 |---|---|---|
 | near-cancellation instance: Ipopt 46.660913, SCIP feasible 45.314976 | id 26 (cell C, (1,0,1)(1,0,1)_12, Φ = 0.700, Θ = -0.699, T = 60): 46.660913, 45.314976, dual 30.738742, TIME_LIMIT | agrees |
 | certified instance 1: local 57.868044, optimum 57.536983 (0.575%) | id 44 (cell F, regular cancellation, slack 5e-2, `:zeroed`): 57.868044, 57.536983, gap 1.09e-9, OPTIMAL in 521 s | agrees |
 | certified instance 2: local 54.706978, optimum 53.681295 (1.911%) | id 45 (cell G, regular cancellation, `:innovations`): 54.706978, 53.681295, gap 1.07e-8, OPTIMAL in 36 s | agrees |
-| seasonal grid: incumbent 2.5% below the local objective | cell B: largest Ipopt - SCIP difference 2.52e-9 (absolute): the incumbent is the Ipopt point | **differs** (erratum) |
-| seasonal grid: smallest remaining gap 1.9% | 1.94e-4 relative, 0.019% | **differs** (erratum) |
-| seasonal grid: largest remaining gap 4.9% | 4.90e-1 relative, 49% | **differs** (erratum) |
-| seasonal grid: median remaining gap 1.2% | 1.51e-2 relative, 1.5% (median of 12; the 6th value is 1.23e-2) | **differs** (erratum) |
-
-The printed seasonal figures carry the mantissas of the recorded values with the exponents lost:
-`2.5e-9` became 2.5%, `1.9e-4` 1.9%, `4.9e-1` 4.9%. The corrections proposed are in
-`results/manuscript/errata.csv`; the wording of the paper is decided by its authors.
+| seasonal grid: largest absolute difference between SCIP incumbent and Ipopt objective 2.52e-9 | cell B: largest Ipopt - SCIP difference 2.52e-9: the incumbent is the Ipopt point | agrees |
+| seasonal grid: remaining normalized gaps 1.94e-4 to 4.90e-1, median 1.51e-2 | 1.94e-4, 4.90e-1, median of 12 1.51e-2 (the 6th value is 1.23e-2) | agrees |
 
 **Re-running: the batch's instances are recovered exactly.** The harness draws its synthetic
 series from `MersenneTwister` (the coefficients through `Base.hash((cell, draw, P, Q))`, the
@@ -119,8 +88,8 @@ format and `compare_certification_2026_08.py` compares it with the record:
 | time limit | 21 | 20 of them again; id 38 (T = 960) did not return in the queue, and stopped at the time limit when run alone (2026-10-22) |
 | never returned | 34, 35 (T = 480) | 34, 35 and 38 in the queue (3-4 SCIP processes at once), under a 900 s and then a 3600 s clock; run alone, 34 stops at the time limit and 35 stays in SCIP's presolve (`completesol` heuristic), measured |
 | Ipopt objective / Ipopt - SCIP | 9 / 32 recorded | 9 / 32 agree |
-| Table S5 (harness's cells) | the printed counts | the printed counts, except T = 960: 1 / 1 in the queue; with the isolated runs, T = 480 is 1 / 1 (34) with 35 not returning, and T = 960 is 1 / 2 as printed |
-| Section 5.6 ids 26, 44, 45 | the printed values | the printed values |
+| Table S5, by cell (OPTIMAL / TIME_LIMIT / not returned) | 23/21/2 | 23/20/3 (cell E 2/1/3: ids 34, 35, 38 did not return in the queue); run alone on 2026-10-22, 34 and 38 stop at the time limit and 35 does not return (Table S7) |
+| Section 5.6 ids 26, 44, 45 | 46.660913 / 45.314976; 57.868044 / 57.536983; 54.706978 / 53.681295 | the same values |
 | seasonal grid: largest Ipopt - SCIP; gaps smallest / largest / median | 2.52e-9; 1.94e-4 / 4.90e-1 / 1.51e-2 | 2.52e-9; 1.73e-4 / 4.63e-1 / 5.86e-2 |
 
 The re-run therefore reproduces every certificate and every instance value the text relies on,
@@ -159,7 +128,7 @@ All five printed values agree with the records:
 
 ## 4. Section 5.5: the likelihood-ranking diagnostic (LAMPSPUC/Sarimax.jl#17)
 
-The paragraph merges two measurements, and only part of it is recovered:
+Two separate measurements, which the record keeps apart:
 
 * **1,099 paired fits** is the AICc-parity comparison with R on the seasonal P x Q grid
   (`aicq.jl`, `aicq.R`; the first 100 series of a 400-series sample whose ids are in
@@ -168,13 +137,12 @@ The paragraph merges two measurements, and only part of it is recovered:
   distance with the `seasonalPresamplePrior` flag off (n = 14) and on (n = 12), **in the same
   revision (2026-08-16), not paired**, and on 14 and 12 fits, not 1,099. "Before" and "after"
   are the flag, not two revisions.
-* **12.1% -> 16.5%** mixed seasonal orders and **OWA +0.0097** are not recovered. The
-  collaborator points to `g_rand400.csv` and `fix_rand400.csv` (archived); no evident definition
-  of a mixed seasonal order (P > 0 and Q > 0, over all series, over seasonal series or over
-  seasonally differenced series) gives 12.1% or 16.5% from them (they give 3.8%-12.5%), and the
-  OWA needs the Naive2 baseline, which they do not hold. The summary they cite
-  (`FRONTEIRA_FINAL.md`, sections 15-16) was not supplied. These three values stay without
-  evidence.
+* The session record also reports **12.1% -> 16.5%** mixed seasonal orders and **OWA
+  +0.0097**; they are not recovered. The collaborator points to `g_rand400.csv` and
+  `fix_rand400.csv` (archived); no evident definition of a mixed seasonal order (P > 0 and Q > 0,
+  over all series, over seasonal series or over seasonally differenced series) gives 12.1% or
+  16.5% from them (they give 3.8%-12.5%), and the OWA needs the Naive2 baseline, which they do
+  not hold. The manuscript does not print these values.
 
 ## Can the diagnostics be re-run?
 
@@ -191,10 +159,10 @@ Checked against the repository's history (every branch):
 ## What remains open
 
 * Table S5 and Section 5.6: the August batch's per-instance raw records are lost, and the
-  2026-10-21 re-run stands in for them (with logs) for everything but load-dependent quantities;
-  which instances Table S5 counts; the four seasonal-grid figures (errata); ids 34-35, 38 and 44
-  in the text (T16, T17).
-* Section 5.5: the source of 12.1% -> 16.5% and OWA +0.0097, and the wording that merges two
-  measurements (T13).
+  2026-10-21 re-run stands in for them (with logs) for everything but load-dependent quantities
+  (times, the gaps of time-limited instances, whether ids 34, 35 and 38 return).
+* Section 5.5 and Table S9: the ranking diagnostics survive as aggregates only; the regenerated
+  AICc pairing the manuscript mentions is not deposited (`results/manuscript/textual_claims.csv`,
+  C20).
 * Porting the batch's instances and the diagnostics' scripts to runners of this package
   (new executions, on approval).

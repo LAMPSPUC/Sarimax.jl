@@ -9,7 +9,7 @@
 # This file is outside the source fingerprint on purpose: recording the digest of an image
 # must not change the fingerprint of that image.
 IMAGE_REPOSITORY=ghcr.io/lampspuc/sarimax-ijf-replication
-IMAGE_TAG=ijf-2026-v1
+IMAGE_TAG=ijf-2026-replication-v1.0.0
 IMAGE_DIGEST=
 SOURCE_FINGERPRINT=
 SOURCE_REVISION=

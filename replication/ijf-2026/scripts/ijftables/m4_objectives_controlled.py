@@ -13,8 +13,7 @@ auto.arima/Naive2 baselines (part 1):
   MASE and sMAPE than MSE, and with the same selected order;
 * `controlled.paired`: N, mean and quantiles (q01 ... q99) of the paired differences
   MASE(objective) - MASE(MSE) and sMAPE(objective) - sMAPE(MSE) (the controlled counterpart of
-  the supplementary paired-quantile tables, S9 for MASE and S10 for sMAPE in the 2026-10-16
-  revision);
+  the supplementary paired-quantile tables of the objectives, S13 for MASE and S14 for sMAPE);
 * `controlled.quantiles`: mean and quantiles (q01 ... q99) of MASE and sMAPE of each method on
   the joint set (the controlled counterpart of the supplementary distribution tables);
 * `controlled.weekly`: the weekly MSE reconciliation: the controlled cell and the single extra
@@ -22,7 +21,7 @@ auto.arima/Naive2 baselines (part 1):
   cell (same order and |delta sMAPE| <= 1e-3).
 
 and writes the rebuilt tables (CSV and LaTeX) and the ECDF figure of the per-series MASE
-differences (the replacement for `fig:objective_ecdf`, Figure 3 of the 2026-10-16 revision).
+differences (`fig:objective_ecdf`, Figure 3).
 
 Definitions (those of the campaign's protocol, [evaluation]): a series counts for an objective
 when the fit returned a finite forecast (status OK, any solver status); the joint set is the

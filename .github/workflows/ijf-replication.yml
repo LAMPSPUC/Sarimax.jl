@@ -5,10 +5,10 @@
 # full M4 campaigns never run here. The image is not pushed anywhere (see ijf-image-publish.yml).
 #
 #   host       shellcheck, usage/missing-Docker exit codes, checksums, manifest consistency,
-#              the recovered outputs of the September 2026 revision analysis
+#              the recovered and reconstructed records, the identified re-runs and the derived
+#              manuscript quantities
 #   manuscript release check: every printed manuscript value against its source (fails on a
-#              numerical mismatch; reports missing evidence, the untranscribed canonical
-#              revision and the textual claims to verify)
+#              numerical mismatch; reports missing evidence and the textual claims to verify)
 #   container  image build, default quick run without the (unpublished) bundle, tables on the
 #              committed fixture subset, missing/corrupted inputs, an image from other code,
 #              M4 fetch with SHA-256 check, m4_benchmark on a random sample of 2 then (--resume)
@@ -106,6 +106,11 @@ jobs:
         run: |
           python replication/ijf-2026/scripts/maintainers/check_certification_2026_08.py
           python replication/ijf-2026/scripts/maintainers/check_certification_rerun_2026_10.py
+
+      - name: The 1,500-series initialization re-run and the derived manuscript quantities
+        run: |
+          python replication/ijf-2026/scripts/maintainers/check_gate_rerun_2026_10.py
+          python replication/ijf-2026/scripts/maintainers/derive_manuscript_quantities.py
 
   manuscript:
     name: Manuscript release check

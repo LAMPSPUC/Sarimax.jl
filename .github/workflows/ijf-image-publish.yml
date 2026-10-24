@@ -16,9 +16,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Image tag (e.g. ijf-2026-v1); the digest is what the replication package records"
+        description: "Image tag (e.g. ijf-2026-replication-v1.0.0); the digest is what the replication package records"
         required: true
-        default: "ijf-2026-v1"
+        default: "ijf-2026-replication-v1.0.0"
       platforms:
         description: "Platforms (linux/amd64 is the reference; add linux/arm64 only once it has passed CI)"
         required: true

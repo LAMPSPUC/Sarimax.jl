@@ -64,13 +64,13 @@ Elapsed time is not used to classify.
 | instance (manuscript) | records | verdict |
 |---|---|---|
 | MA(1), T = 8, 10, 20, 40 (Section 5.6: "closes the gap in 1.7-14.8 s") | `ecc4878` logged (1.21-14.35 s), `8ffc512` unlogged with identical objectives (1.27-14.83 s, the printed values), re-run with dual bounds (6.2-61.2 s) | **certified** in all three runs |
-| MA(1) scaling, T = 40-120, 600 s (not cited by the 2026-10-16 revision) | logged | **certified** |
+| MA(1) scaling, T = 40-120, 600 s (not cited by the manuscript) | logged | **certified** |
 | MA(1) scaling, T = 150, 200, 600 s (not cited) | logged; `TIME_LIMIT`, relative gaps 1.02e-5 and 1.17e-5 | **feasible with open gap** |
 | Table 7, simulated MA(1), T = 80, 900 s | `ecc4878` logged (71.6 s), `8ffc512` (69.2 s, printed), re-run (338.3 s, dual bound 73.65312392) | **certified** in all three runs |
 | Table 7, simulated ARMA(1,0,1), T = 80, 900 s | `ecc4878` logged (393.1 s), `8ffc512` (385.4 s, printed): `OPTIMAL`; re-run: `TIME_LIMIT` at 900.1 s, relative gap 5.34e-6 | **certified** in the archived runs; **not reproduced** within 900 s in the re-run (open gap) |
 | **Table 7, PJME ARMA(1,0,1), T = 80, 900 s** ("Certified: yes", 900.0 s) | section 4.1 | **insufficient evidence** for a certificate; **feasible with open gap** is established |
 | Table S5; Section 5.6 seasonal grid, near-cancellation instance, certified instances 1 and 2 | reconstructed per-instance status, time and certified gap (44 of 46), objectives and dual bounds (7); no logs, no node counts | ids 44 and 45 **certified** (gaps 1.09e-9, 1.07e-8) and id 26 **improved feasible without certification** on the reconstructed record; the seasonal grid **feasible with open gap** (relative 1.9e-4 to 4.9e-1); not re-verifiable without logs (`certification_batch_2026_08.md`) |
-| July 2026 yearly study (not cited by the 2026-10-16 revision) | 195 per-series rows, `limits/gap = 0.01` | 183 **feasible with open gap** (≤ 1%), 8 **improved feasible without certification** (SCIP's objective 0.9% to 25.8% below Ipopt's), 4 **insufficient evidence** (`TIME_LIMIT`, no gap recorded) |
+| July 2026 yearly study (not cited by the manuscript) | 195 per-series rows, `limits/gap = 0.01` | 183 **feasible with open gap** (≤ 1%), 8 **improved feasible without certification** (SCIP's objective 0.9% to 25.8% below Ipopt's), 4 **insufficient evidence** (`TIME_LIMIT`, no gap recorded) |
 | July 2026 size and gap-limit probes (not cited) | status and time only | 2 feasible with gap ≤ 1%, 6 insufficient evidence |
 
 ### 4.1 The PJME instance

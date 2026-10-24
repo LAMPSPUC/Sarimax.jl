@@ -1,0 +1,51 @@
+quantity,value,instances,rule
+rerun_cell_A_O,12,12 cases,"OPTIMAL in the queue of 2026-10-21, cell A"
+rerun_cell_A_T,0,12 cases,"TIME_LIMIT in the queue of 2026-10-21, cell A"
+rerun_cell_A_X,0,12 cases,"KILLED_EXTERNAL_CLOCK in the queue of 2026-10-21, cell A"
+rerun_cell_B_O,0,12 cases,"OPTIMAL in the queue of 2026-10-21, cell B"
+rerun_cell_B_T,12,12 cases,"TIME_LIMIT in the queue of 2026-10-21, cell B"
+rerun_cell_B_X,0,12 cases,"KILLED_EXTERNAL_CLOCK in the queue of 2026-10-21, cell B"
+rerun_cell_C_O,2,6 cases,"OPTIMAL in the queue of 2026-10-21, cell C"
+rerun_cell_C_T,4,6 cases,"TIME_LIMIT in the queue of 2026-10-21, cell C"
+rerun_cell_C_X,0,6 cases,"KILLED_EXTERNAL_CLOCK in the queue of 2026-10-21, cell C"
+rerun_cell_D_O,2,2 cases,"OPTIMAL in the queue of 2026-10-21, cell D"
+rerun_cell_D_T,0,2 cases,"TIME_LIMIT in the queue of 2026-10-21, cell D"
+rerun_cell_D_X,0,2 cases,"KILLED_EXTERNAL_CLOCK in the queue of 2026-10-21, cell D"
+rerun_cell_E_O,2,6 cases,"OPTIMAL in the queue of 2026-10-21, cell E"
+rerun_cell_E_T,1,6 cases,"TIME_LIMIT in the queue of 2026-10-21, cell E"
+rerun_cell_E_X,3,6 cases,"KILLED_EXTERNAL_CLOCK in the queue of 2026-10-21, cell E"
+rerun_cell_F_O,3,6 cases,"OPTIMAL in the queue of 2026-10-21, cell F"
+rerun_cell_F_T,3,6 cases,"TIME_LIMIT in the queue of 2026-10-21, cell F"
+rerun_cell_F_X,0,6 cases,"KILLED_EXTERNAL_CLOCK in the queue of 2026-10-21, cell F"
+rerun_cell_G_O,2,2 cases,"OPTIMAL in the queue of 2026-10-21, cell G"
+rerun_cell_G_T,0,2 cases,"TIME_LIMIT in the queue of 2026-10-21, cell G"
+rerun_cell_G_X,0,2 cases,"KILLED_EXTERNAL_CLOCK in the queue of 2026-10-21, cell G"
+rerun_cell_all_O,23,46 cases,"OPTIMAL in the queue of 2026-10-21, cell all"
+rerun_cell_all_T,20,46 cases,"TIME_LIMIT in the queue of 2026-10-21, cell all"
+rerun_cell_all_X,3,46 cases,"KILLED_EXTERNAL_CLOCK in the queue of 2026-10-21, cell all"
+rerun_returned,43,46 cases,cases that returned (OPTIMAL or TIME_LIMIT) in the queue of 2026-10-21
+rerun_certificates_reproduced,23,"1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 25, 27, 31, 32, 33, 36, 40, 42, 44, 45, 46",instances OPTIMAL in the August record and again in the re-run
+rerun_26_ipopt,46.660912857702584,26,Ipopt objective
+rerun_26_scip,45.31497612795591,26,SCIP primal objective
+rerun_26_dual,31.478314140670513,26,"SCIP dual bound (case 37: the -1e+20 sentinel, not a bound)"
+rerun_26_gap,0.30534413056325593,26,"normalized gap (SCIP primal - dual) / max(|SCIP primal|, 1e-12)"
+rerun_37_ipopt,938.4454361001311,37,Ipopt objective
+rerun_37_scip,938.4454361001315,37,SCIP primal objective
+rerun_37_dual,-1.0e20,37,"SCIP dual bound (case 37: the -1e+20 sentinel, not a bound)"
+rerun_37_gap,1.065592054190885e17,37,"normalized gap (SCIP primal - dual) / max(|SCIP primal|, 1e-12)"
+rerun_44_ipopt,57.86804418636809,44,Ipopt objective
+rerun_44_scip,57.53698337533696,44,SCIP primal objective
+rerun_44_dual,57.536983312721595,44,"SCIP dual bound (case 37: the -1e+20 sentinel, not a bound)"
+rerun_44_gap,1.0882628856698203e-9,44,"normalized gap (SCIP primal - dual) / max(|SCIP primal|, 1e-12)"
+rerun_45_ipopt,54.70697844729881,45,Ipopt objective
+rerun_45_scip,53.68129458565682,45,SCIP primal objective
+rerun_45_dual,53.68129401215854,45,"SCIP dual bound (case 37: the -1e+20 sentinel, not a bound)"
+rerun_45_gap,1.0683391448657332e-8,45,"normalized gap (SCIP primal - dual) / max(|SCIP primal|, 1e-12)"
+isolated_34_gap_pct,5.105436361118089,34,"normalized gap of the isolated run of 2026-10-22, in percent"
+isolated_34_solver_time,600.013515,34,SCIP's own solving time (s)
+isolated_34_call_elapsed,613.5343008041382,34,wall time around the SCIP call (s)
+isolated_38_gap_pct,1.9261575160085067,38,"normalized gap of the isolated run of 2026-10-22, in percent"
+isolated_38_solver_time,600.005084,38,SCIP's own solving time (s)
+isolated_38_call_elapsed,608.9416708946228,38,wall time around the SCIP call (s)
+rerun_seasonal_gap_min,0.00017321679131579763,13-24,"smallest normalized gap in cell B, re-run"
+rerun_seasonal_gap_max,0.46261778813415916,13-24,"largest normalized gap in cell B, re-run"

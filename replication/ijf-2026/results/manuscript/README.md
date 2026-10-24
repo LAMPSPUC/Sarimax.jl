@@ -1,50 +1,43 @@
 # Printed values of the manuscript
 
-`manuscript_values.csv` lists every number printed in the tables, figures and experimental
-sections of the manuscript, with the LaTeX label of its table, figure or section and the
-source it is checked against. `./reproduce.sh tables` compares each one with the value the
+`manuscript_values.csv` lists every number printed in the tables, figures and text of the
+submitted manuscript and its Supplementary Material (836 values), with the label of its table,
+figure or section and the archived source it is checked against. The mapping is bound to the
+submitted files, not to a name: `REVISION.toml` holds the SHA-256 of the manuscript PDF, the
+supplement PDF and the LaTeX sources.
+
+**How it was built.** `scripts/maintainers/transcribe_manuscript.py --source DIR` reads the
+printed values from the LaTeX source itself (table cells, figure annotations through
+`pdftotext`, and numbers quoted in the text located by their exact LaTeX text) and pairs each
+with its source; nothing was typed by hand. Run without `--write` on the same sources, it
+reproduces this file byte for byte. Any change to the manuscript needs a new transcription and
+new hashes in `REVISION.toml`.
+
+**How it is checked.** `./reproduce.sh tables` compares each value with the value the
 replication package regenerates and writes the cell-level result to
-`output/reports/manuscript_cells.csv`; `scripts/maintainers/check_manuscript_mapping.py`
-compares it, without the artifact bundle, with the historical reference tables.
-
-**Version.** The values are those of the revision of 2026-10-16 (main text and Supplementary
-Material). They were parsed from the LaTeX source of the 2026-10-11 revision, and every
-transcribed table row was checked to appear in the text of the 2026-10-16 PDF; Table S4 and
-the panel percentages of Figure 2, which are not in that source, were read from the
-2026-10-16 PDF. When the manuscript changes, this file must be updated with it.
-
-**The canonical revision is 2026-10-19** (controlled M4 objective comparison), whose PDF,
-supplement and source are not available here. `REVISION.toml` records both revisions, and the
-release check reports the difference as missing evidence. For the items that revision takes
-from the controlled campaign (Tables 5, 6, S9, S10, Figure 3, Section 5.4),
-`pending/manuscript_values_2026-10-19_controlled.csv` points every value at its
-`m4_objectives_controlled` cell with the printed value empty, to be transcribed from the source
-(`scripts/maintainers/make_controlled_mapping_template.py`; procedure in
-`reports/manuscript_traceability.md`).
-
-Other files:
+`output/reports/manuscript_cells.csv`. `scripts/maintainers/check_manuscript_mapping.py`
+compares it, without the artifact bundle, with the historical value of the same cell or with
+its derived record (CI job "Manuscript release check").
 
 | file | content |
 |---|---|
-| `errata.csv` | printed values established as errors of the manuscript, with the archived value, the report and the proposed correction. The pull-request check fails on any differing value not listed here, and on a listed value that no longer differs; the release gate (`--release`) fails on listed values too |
-| `textual_claims.csv` | statements of the text checked against the archive, with their status (supported, differs, no evidence, needs verification) |
-| `REVISION.toml` | transcribed and canonical revisions, and the missing inputs |
-| `pending/` | the transcription template for the canonical revision |
-
-The release check (`scripts/maintainers/check_manuscript_mapping.py`, CI job "Manuscript release
-check") reports every value as raw-reproduced, derived-only, differing or no evidence, and the
-textual claims to verify.
+| `manuscript_values.csv` | the printed values and their sources |
+| `derived_quantities.csv` | values that are simple functions of archived records but no archived table holds (Table 7 Ipopt times at the record's precision, Table S15's Stable-minus-MSE column, the Section 5.4 improvement shares at the declared tolerance), with the SHA-256 of each input (`scripts/maintainers/derive_manuscript_quantities.py`) |
+| `textual_claims.csv` | statements of the text checked against the archive and the code, with their status (supported, differs, needs verification) |
+| `errata.csv` | printed values established as errors of the manuscript; empty: no printed value differs from its source |
+| `REVISION.toml` | the identity of the submitted manuscript |
+| `history/` | transcriptions of pre-submission drafts, kept for development traceability; not checked and not part of the evidence |
 
 | Column | Meaning |
 |---|---|
 | `item`, `label` | where the value is printed (e.g. Table 3, `tab:m4_forecasting`) |
 | `row`, `column` | its position, in the manuscript's own words |
-| `printed`, `decimals` | the value as printed and its number of decimals (empty for text) |
+| `printed`, `decimals` | the value as printed and its precision (decimal places; for a value printed as `a.bc × 10^-k`, the decimal places of the equivalent fixed-point number) |
 | `scale` | factor applied to the source before comparing (100 for percentages) |
-| `source_kind` | `regenerated` (a cell of a table group), `derived` (a derived table archived in `results/historical/`, whose raw inputs are not archived), or `none` (no archived source identified; `note` says why) |
+| `source_kind` | `regenerated` (a cell of a table group, rebuilt from per-series or per-instance records) or `derived` (a row of an archived record in the repository that no table group rebuilds: a value recomputed by a check from an identified re-run, a recovered output, a derived quantity, or a summary record) |
 | `source`, `source_row`, `source_column` | the cell compared with: `<group>/<table>` and the cell keys, or a CSV path and `column=value` selectors |
-| `note` | provenance remarks, such as protocol differences between the text and the archived run |
+| `note` | provenance remarks |
 
 A value agrees when the source, rounded to the printed precision, gives the printed value
 (|source - printed| <= half a unit of the last printed decimal); a text cell is compared on its
-first word. The comparison never treats `derived` or `none` values as reproduced.
+first word. A `derived` value is never counted as reproduced.

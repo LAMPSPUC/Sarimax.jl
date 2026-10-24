@@ -55,13 +55,13 @@ Section 5.1 configuration gives 0.9002. One caption sentence states it (proposal
    OWA (+0.0401, interval includes zero) and is neutral elsewhere: its value depends on the
    frequency.
 
-## Superseded values (2026-10-16 revision)
+## The historical objective campaigns
 
-The 2026-10-16 revision printed the historical objective campaigns of August 2026
-(feature-branch commits, mixed commits inside the monthly cell, over-differencing guard on).
-They are replaced by the values above; for the record, the largest changes are weekly MSE
-0.9429 -> 0.9002, weekly Ridge 0.9721 -> 0.9436, monthly Ridge 0.9028 -> 0.9048, yearly Huber
-0.8855 -> 0.8931 and yearly MAE 0.8846 -> 0.8900. For MSE and MAE every change comes from series
-with `d + D >= 2`, the domain of the over-differencing guard; Huber and Ridge also moved with the
-estimator fixes made before v1.0.0 (`historical_vs_controlled.csv`, `guard_domain_decomposition.csv`,
-bundle part 2).
+The objective campaigns of August 2026 (`m4_objectives_icarai_*`: feature-branch commits, mixed
+commits inside the monthly cell, over-differencing guard on) are not used by the manuscript and
+are not combined with the controlled campaign. Against it, their largest differences are weekly
+MSE 0.9429 against 0.9002, weekly Ridge 0.9721 against 0.9436, monthly Ridge 0.9028 against
+0.9048, yearly Huber 0.8855 against 0.8931 and yearly MAE 0.8846 against 0.8900. For MSE and
+MAE every difference comes from series with `d + D >= 2`, the domain of the over-differencing
+guard; Huber and Ridge also differ by the estimator fixes made before v1.0.0
+(`historical_vs_controlled.csv`, `guard_domain_decomposition.csv`, bundle part 2).

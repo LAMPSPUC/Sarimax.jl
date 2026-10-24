@@ -1,0 +1,16 @@
+Run of package_factor.jl against a checkout of commit 14dd58164867ef025d87468f266f36f1930ca61f (v1.0.0, the release of the controlled objective comparison),
+Julia 1.10.12, Windows x86_64, 2026-10-24:
+
+multiplicative theta=0.7 Theta=0.6       applied 1.02069875  separate 1.02069875  complete 1.01841183
+multiplicative theta=-0.8 Theta=0.7      applied 1.03144278  separate 1.03144278  complete 1.02711816
+multiplicative theta=0.9 Theta=-0.5      applied 1.02370544  separate 1.02370544  complete 1.03051123
+additive theta=0.5 Theta=0.3             applied 1.00555642  separate 1.00555642  complete 1.00658713
+additive theta=-0.4 Theta=0.5            applied 1.01110354  separate 1.01110354  complete 1.01430464
+additive theta=0.6 Theta=-0.3            applied 1.00688635  separate 1.00688635  complete 1.01282645
+Test Summary:                           | Pass  Total   Time
+MA normalization applied by the package |   12     12  39.7s
+
+applied: the recorded objective divided by the inner minimum S_innov computed without the package;
+separate: D_reg(theta) D_seas(Theta); complete: the factor of Supplementary Section S2
+(eq. app_d_ma_complete for the multiplicative polynomial; the complete polynomial's factor for
+the additive one). The package applies the separate factors, to eight decimals, in every case.

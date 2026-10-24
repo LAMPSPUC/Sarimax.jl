@@ -1,16 +1,16 @@
-"""Check that the derived tables of the September 2026 revision follow from the recovered outputs.
+"""Check that the derived tables of the September 2026 simulation scripts follow from the recovered outputs.
 
 results/historical/revision-2026-09/ holds three derived tables that the manuscript prints
-(Table S6 from quantile_controlled_example.csv, Table S7 from multistart_kstart.csv, and the
+(Table S10 from quantile_controlled_example.csv, Table S11 from multistart_kstart.csv, and the
 coefficients behind Figure S1 in weighted_regularization_demo.csv). The scripts that produced
 them (efg_julia_experiments.jl, parts E, F and G, and efg_figures.py) and the outputs the Julia
 script wrote were recovered and are archived in recovered/. This script verifies, without the
 artifact bundle:
 
 * every recovered file against recovered/SHA256SUMS;
-* Table S6 and the Figure S1 table: equal, value for value, to the summaries the Julia script
+* Table S10 and the Figure S1 table: equal, value for value, to the summaries the Julia script
   wrote (the derived copies were re-written by pandas, so floats are compared to 1e-12 relative);
-* Table S7: recomputed from the per-start records (outputs/multistart_kstart.csv) with the rule of
+* Table S11: recomputed from the per-start records (outputs/multistart_kstart.csv) with the rule of
   efg_figures.py part G (objective values clustered greedily within 1e-6 of the cluster's lowest
   value; converged = LOCALLY_SOLVED, OPTIMAL or ALMOST_LOCALLY_SOLVED), every column.
 
@@ -120,8 +120,8 @@ def main() -> int:
     n6 = same_table(D / "quantile_controlled_example.csv", REC / "outputs" / "quantile_example_summary.csv", problems)
     nf = same_table(D / "weighted_regularization_demo.csv", REC / "outputs" / "weighted_penalty_table.csv", problems)
     n7 = multistart(problems)
-    print(f"recovered files: {listed} listed; Table S6 table: {n6} values; Figure S1 table: {nf} values; "
-          f"Table S7 table: {n7} values recomputed from the per-start records")
+    print(f"recovered files: {listed} listed; Table S10 table: {n6} values; Figure S1 table: {nf} values; "
+          f"Table S11 table: {n7} values recomputed from the per-start records")
     for p in problems:
         print("DIFFER", p)
     print("OK" if not problems else f"{len(problems)} problems")

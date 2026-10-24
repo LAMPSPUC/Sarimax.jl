@@ -39,8 +39,8 @@ DESCRIPTION = (
 )
 
 
-# The article's authors and affiliation (manuscript revision of 2026-10-16); TO CONFIRM by the
-# authors before publishing, together with the licence.
+# The article's authors and affiliation (the submitted manuscript); TO CONFIRM by the authors
+# before publishing, together with the licence.
 AUTHORS = ["Duarte, Luiz Fernando", "Valladão, Davi", "Street, Alexandre"]
 AFFILIATION = "Industrial Engineering Department, Pontifical Catholic University of Rio de Janeiro (PUC-Rio)"
 
@@ -66,7 +66,8 @@ def main() -> int:
     ap.add_argument("--publish", action="store_true", help="publish the deposition (irreversible on zenodo.org)")
     ap.add_argument("--i-have-approval", action="store_true",
                     help="required with --production --publish: the authors approved this publication")
-    ap.add_argument("--version", default="1")
+    ap.add_argument("--version", default="ijf-2026-replication-v1.0.0",
+                    help="the replication release this record belongs to")
     ap.add_argument("--related-software-doi", default="", help="version DOI of the archived software release")
     args = ap.parse_args()
 
@@ -100,7 +101,8 @@ def main() -> int:
         print(f"  uploading {f.name} ({f.stat().st_size} bytes)")
         api(base, token, "PUT", f"{bucket}/{f.name}", data=f.read_bytes(), content_type="application/octet-stream")
     metadata = {
-        "title": "SARIMAX.jl IJF replication: archived experimental artifacts",
+        "title": "Archived experimental results for: SARIMAX.jl: Open-Source Optimization-Based "
+                 "SARIMAX Modeling in Julia",
         "upload_type": "dataset",
         "description": DESCRIPTION,
         "version": args.version,

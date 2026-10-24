@@ -81,7 +81,7 @@ def main() -> int:
                 problems.append(f"manuscript {m['item']} {m['row']}: {m['source']} does not exist")
         elif m["source_kind"] != "none":
             problems.append(f"manuscript {m['item']} {m['row']}: unknown source_kind {m['source_kind']}")
-        if m["decimals"] and not re.fullmatch(r"-?[\d,]*\.?\d*", m["printed"].lstrip("+")):
+        if m["decimals"] and not re.fullmatch(r"-?[\d,]*\.?\d*([eE][-+]?\d+)?", m["printed"].lstrip("+")):
             problems.append(f"manuscript {m['item']} {m['row']}/{m['column']}: printed value {m['printed']!r} is not a number")
 
     for e in csv.DictReader(open(REPL / "data" / "external_files.csv", newline="", encoding="utf-8")):

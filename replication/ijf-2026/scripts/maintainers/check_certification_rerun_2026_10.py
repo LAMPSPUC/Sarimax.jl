@@ -15,7 +15,9 @@ without the artifact bundle:
   value, the three M4 series by identifier and length;
 * that raw/certification-2026-08/records.csv follows from the received files
   (import_certification_rerun_2026_10.py), and comparison.csv and summary.md from the records
-  and the batch's record (compare_certification_2026_08.py).
+  and the batch's record (compare_certification_2026_08.py);
+* that manuscript_sources.csv, the re-run values the manuscript mapping compares printed numbers
+  with (Tables S5-S7, Section 5.6), follows from the records (`--write` regenerates it).
 
 It re-runs no solver. Exit 0 when everything agrees, 1 otherwise.
 """
@@ -24,6 +26,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import io
 import os
 import subprocess
 import sys
@@ -37,6 +40,7 @@ PREFIX = "scip_rerun_replicacao_21-10/"
 INSTANCES = REPL / "experiments" / "configs" / "certification_2026_08_instances.csv"
 GLOBAL = REPL / "experiments" / "runners" / "global"
 OUTPUTS = ["records.csv", "comparison.csv", "summary.md"]
+SOURCES = RUN / "manuscript_sources.csv"
 
 
 def sha(path: Path) -> str:
@@ -115,16 +119,76 @@ def check_outputs(problems: list[str]) -> None:
                 problems.append(f"raw/certification-2026-08/{name} does not follow from the received files")
 
 
+def derive(problems: list[str]) -> list[dict]:
+    """The values of the re-run that the manuscript mapping compares printed numbers with."""
+    recs = {int(r["id"]): r for r in csv.DictReader(open(RUN / "raw" / "certification-2026-08" / "records.csv",
+                                                         newline="", encoding="utf-8"))}
+    comp = {int(r["id"]): r for r in csv.DictReader(open(RUN / "raw" / "certification-2026-08" / "comparison.csv",
+                                                         newline="", encoding="utf-8"))}
+    out: list[dict] = []
+
+    def put(quantity, value, instances, rule):
+        out.append({"quantity": quantity, "value": value if isinstance(value, str) else repr(value),
+                    "instances": instances, "rule": rule})
+
+    status = {"O": "OPTIMAL", "T": "TIME_LIMIT", "X": "KILLED_EXTERNAL_CLOCK"}
+    for cell in sorted({r["cel"] for r in recs.values()}) + ["all"]:
+        members = [i for i, r in recs.items() if cell in ("all", r["cel"])]
+        for code, s in status.items():
+            put(f"rerun_cell_{cell}_{code}", sum(recs[i]["status"].startswith(s) for i in members),
+                f"{len(members)} cases", f"{s} in the queue of 2026-10-21, cell {cell}")
+    put("rerun_returned", sum(not r["status"].startswith("KILLED") for r in recs.values()), f"{len(recs)} cases",
+        "cases that returned (OPTIMAL or TIME_LIMIT) in the queue of 2026-10-21")
+    both = [i for i, c in comp.items() if c["status_record"] == "OPTIMAL" and c["status_rerun"] == "OPTIMAL"]
+    put("rerun_certificates_reproduced", len(both), ", ".join(map(str, both)),
+        "instances OPTIMAL in the August record and again in the re-run")
+    for i in (26, 37, 44, 45):
+        r = recs[i]
+        put(f"rerun_{i}_ipopt", r["obj_ipopt"], str(i), "Ipopt objective")
+        put(f"rerun_{i}_scip", r["obj_scip"], str(i), "SCIP primal objective")
+        put(f"rerun_{i}_dual", r["dual_scip"], str(i), "SCIP dual bound (case 37: the -1e+20 sentinel, not a bound)")
+        put(f"rerun_{i}_gap", r["gap_certificado"], str(i),
+            "normalized gap (SCIP primal - dual) / max(|SCIP primal|, 1e-12)")
+    for i in (34, 38):
+        f = RUN / "received-2026-10-22" / "saida" / f"caso_{i}_sozinho_22-10.csv"
+        r = next(csv.DictReader(open(f, newline="", encoding="utf-8")))
+        if r["status"] != "TIME_LIMIT":
+            problems.append(f"isolated run of case {i}: status {r['status']}, TIME_LIMIT expected")
+        put(f"isolated_{i}_gap_pct", 100 * float(r["gap_certificado"]), str(i),
+            "normalized gap of the isolated run of 2026-10-22, in percent")
+        put(f"isolated_{i}_solver_time", r["scip_solve_time"], str(i), "SCIP's own solving time (s)")
+        put(f"isolated_{i}_call_elapsed", r["t_scip"], str(i), "wall time around the SCIP call (s)")
+    seasonal = [float(recs[i]["gap_certificado"]) for i in range(13, 25)]
+    put("rerun_seasonal_gap_min", min(seasonal), "13-24", "smallest normalized gap in cell B, re-run")
+    put("rerun_seasonal_gap_max", max(seasonal), "13-24", "largest normalized gap in cell B, re-run")
+    return out
+
+
+def render(out: list[dict]) -> str:
+    buf = io.StringIO()
+    w = csv.DictWriter(buf, ["quantity", "value", "instances", "rule"], lineterminator="\n")
+    w.writeheader()
+    w.writerows(out)
+    return buf.getvalue()
+
+
 def main() -> int:
+    write = "--write" in sys.argv[1:]
     problems: list[str] = []
     files = check_files(problems, "received", PREFIX)
     corr = check_files(problems, "received-2026-10-22", "scip_correcao_22-10/")
     inst = check_instances(problems)
     check_outputs(problems)
+    new = render(derive(problems))
+    if write:
+        SOURCES.write_text(new, encoding="utf-8", newline="\n")
+    elif not SOURCES.exists() or SOURCES.read_text(encoding="utf-8") != new:
+        problems.append(f"{SOURCES.name} does not follow from the records (run with --write)")
     for p in problems:
         print("FAIL", p)
     print(f"re-run 2026-10-21: {files} files and {corr} of the 2026-10-22 correction checked; {inst} instances "
-          f"identical to the package's; records, comparison and summary: " + ("FAIL" if problems else "PASS"))
+          f"identical to the package's; records, comparison, summary and {SOURCES.name}: "
+          + ("FAIL" if problems else "PASS"))
     return 1 if problems else 0
 
 

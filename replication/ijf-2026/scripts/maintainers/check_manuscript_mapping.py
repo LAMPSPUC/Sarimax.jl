@@ -15,9 +15,8 @@ It reports every value in one of five categories:
   no evidence        no archived source, or a template row whose printed value is not entered
   textual claims     statements of the text that need verification (textual_claims.csv)
 
-and states, as missing evidence, which manuscript revision is transcribed and whether it is the
-canonical one (results/manuscript/REVISION.toml). The template for the canonical revision
-(pending/...) is checked too: its rows with printed values are compared like any other.
+and names the manuscript the values are transcribed from: the submitted manuscript, identified
+by the SHA-256 of its files (results/manuscript/REVISION.toml).
 
 Two modes. A differing value is an error of the manuscript or of the mapping. When it has been
 established as an error of the manuscript, it is entered in results/manuscript/errata.csv with
@@ -89,8 +88,7 @@ def main() -> int:
     rev = tomllib.loads((REPL / "results" / "manuscript" / "REVISION.toml").read_text(encoding="utf-8"))
 
     rows = check(expected, tables, manuscript.VALUES)
-    pending_path = Path("results") / "manuscript" / rev["pending"]["file"]
-    pending = check(expected, tables, pending_path) if (REPL / pending_path).exists() else []
+    pending: list[dict] = []
     with open(REPL / "results" / "manuscript" / "textual_claims.csv", newline="", encoding="utf-8") as f:
         claims = list(csv.DictReader(f))
     with open(REPL / "results" / "manuscript" / "errata.csv", newline="", encoding="utf-8") as f:
@@ -103,19 +101,15 @@ def main() -> int:
 
     out: list[str] = []
     say = out.append
-    tr, can = rev["transcribed"], rev["canonical"]
-    say(f"# Manuscript traceability: revision {tr['revision']} (canonical: {can['revision']})")
+    sub = rev["submitted"]
+    say(f"# Manuscript traceability: {sub['title']}")
     say("")
-    if tr["revision"] != can["revision"]:
-        missing = ", ".join(can["inputs"]) if not can.get("inputs_available") else "(available)"
-        msg = (f"MISSING EVIDENCE: the canonical revision {can['revision']} ({can['title']}) is not "
-               f"transcribed; the values below are those of {tr['revision']}. Missing inputs: {missing}")
-        say(f"**{msg}**")
-        print(msg)
-        annotate("warning", msg)
-        say("")
-    for label, rs in ((f"{tr['revision']} transcription ({tr['file']})", rows),
-                      (f"{can['revision']} template for the controlled items ({rev['pending']['file']})", pending)):
+    say(f"Submitted manuscript and Supplementary Material, bound by SHA-256: manuscript PDF "
+        f"`{sub['manuscript_pdf_sha256'][:16]}...`, supplement PDF `{sub['supplement_pdf_sha256'][:16]}...`, "
+        f"LaTeX sources `{sub['source_archive_sha256'][:16]}...` (`REVISION.toml`)"
+        + (f"; archival identifier {sub['archival_identifier']}" if sub.get("archival_identifier") else "") + ".")
+    say("")
+    for label, rs in ((f"printed values ({sub['file']})", rows),):
         if not rs:
             continue
         counts = {c: 0 for c in ORDER}
@@ -175,10 +169,7 @@ def main() -> int:
         for (item, note), n in by_note.items():
             say(f"* {item}: {n} values. {note}")
         say("")
-        annotate("warning", f"{len(none)} printed values of the {tr['revision']} revision have no archived evidence")
-    waiting = [r for r in pending if r["status"] == manuscript.AWAITING]
-    if waiting:
-        annotate("warning", f"{len(waiting)} values of the {can['revision']} controlled items await transcription")
+        annotate("warning", f"{len(none)} printed values of the submitted manuscript have no archived evidence")
     open_claims = [c for c in claims if c["status"] != "supported"]
     say(f"## Textual claims needing verification: {len(open_claims)} of {len(claims)}")
     say("")

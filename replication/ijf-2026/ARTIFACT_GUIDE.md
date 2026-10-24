@@ -31,12 +31,13 @@ replication/ijf-2026/
   data/fixtures/                   small committed inputs: smoke data, a 1 MB subset of the bundle
   results/expected/                reference cell values, parsed from the historical tables
   results/manuscript/              every number printed in the manuscript, with its source;
-                                   errata.csv, textual_claims.csv, REVISION.toml, pending/
+                                   textual_claims.csv, derived_quantities.csv, errata.csv,
+                                   REVISION.toml (the submitted files' SHA-256), history/
   results/historical/              derived tables not in the bundle (with PROVENANCE.md), the
                                    ecc4878 solver records, the recovered 2026-09 scripts/outputs
   results/reruns/                  identified re-runs kept as evidence (with RUN.md)
-  reports/                         audit reports (index in reports/README.md)
-  FINAL_SCIENTIFIC_AUDIT.md        summary of the final scientific audit
+  reports/                         provenance and audit reports (index in reports/README.md)
+  verification/                    VERIFICATION_REPORT.md; targeted defect tests (defect_tests/)
   artifacts/   (not committed)     the extracted artifact bundle
   data/external/ (not committed)   fetched M4 and PJME files
   output/      (not committed)     everything a reproduction writes
@@ -199,21 +200,23 @@ in the manifest, and regenerate `checksums.sha256`
 |---|---|---|
 | battery | the seven July 2026 battery tables (`tab:*`) | 583 |
 | m4_benchmark | campaign A's `table_m4` (M4 vs auto.arima, six frequencies x four blocks) | 192 |
-| m4_paired | paired differences and marginal distributions against auto.arima (manuscript Tables 4 and S8, Figure 2); reference values in `results/historical/m4-paired-2026-09/` | 420 |
+| m4_paired | paired differences and marginal distributions against auto.arima (manuscript Tables 4 and S12, Figure 2); reference values in `results/historical/m4-paired-2026-09/` | 420 |
 | m4_objectives | Tables 1–2 of the August 2026 objective campaigns and `tabelas_paper` sections A and B | 880 |
 | m4_objective_distributions | October 2026 Table 7 evidence: reproduction, 4a–4d, figures | 2,872 |
 | arms | the campaign B–F objective, multistart, isolation, axes and stable tables | 299 |
 | robust_cvar | contamination study (reference values transcribed from internal notes) | 19 |
 | scip_ipopt | SCIP vs Ipopt summaries of the July 2026 yearly study | 23 |
 
-**The manuscript.** `results/manuscript/manuscript_values.csv` lists the 672 numbers printed in
-the tables, figures and experimental sections of the 2026-10-16 revision, each with its LaTeX
-label and its source (a cell of a table group, a derived table in `results/historical/`, or
-none with the reason; `results/manuscript/README.md`). After the groups run, `tables`
-compares each one with its regenerated cell (`scripts/ijflib/manuscript.py`) and reports one
-row per manuscript item; `scripts/maintainers/check_manuscript_mapping.py` makes the same
-comparison against `results/expected/` without the bundle. When the manuscript changes, update
-the file and run that script.
+**The manuscript.** `results/manuscript/manuscript_values.csv` lists the 836 numbers printed in
+the tables, figures and text of the submitted manuscript and its Supplementary Material, each
+with its LaTeX label and its source (a cell of a table group, or an archived record in the
+repository; `results/manuscript/README.md`). It is transcribed from the LaTeX source by
+`scripts/maintainers/transcribe_manuscript.py` and bound to the submitted files by the SHA-256
+in `results/manuscript/REVISION.toml`. After the groups run, `tables` compares each value with
+its regenerated cell (`scripts/ijflib/manuscript.py`) and reports one row per manuscript item;
+`scripts/maintainers/check_manuscript_mapping.py` makes the same comparison against
+`results/expected/` without the bundle. If the manuscript changes, transcribe it again, record
+the new hashes and run that script.
 
 ## 7. Level C internals
 
@@ -288,27 +291,23 @@ The controlled comparison of objectives was produced by a separate workstream (2
    * the manifest row.
 
    The expected values are parsed from the tables written by the campaign's independent
-   scorer, because the manuscript does not print the controlled values yet. They are its
-   proposed replacements.
+   scorer. The manuscript's objective-comparison items (Tables 5, 6, S13, S14, Figure 3 and
+   Section 5.4) are compared with the cells this group regenerates.
 5. **Never mix.** The historical campaigns keep their own ids (`m4_objectives_icarai_*`) and
    table groups. `m4_objectives_icarai_innovations` is marked `superseded_by = "m4_objectives"`,
    so `full --all` runs the controlled experiment only. No table combines the two.
 
 ## 9. Release checklist (maintainers; every step needs the authors' approval)
 
-1. **Resolve the manuscript findings** (`LIMITATIONS.md`, item 1; corrections with exact text
-   in `FINAL_SCIENTIFIC_AUDIT.md`, section C):
-   * transcribe the canonical 2026-10-19 revision (`reports/manuscript_traceability.md`):
-     fill the pending template of the controlled items and re-check every other row;
-   * the Table 7 Ipopt times and the PJME certificate (registered errata, release gate);
-   * the description of the monthly protocol behind Table 3 (`reports/monthly_protocol.md`);
-   * the printed values that have no archived source (`reports/provenance_gaps.md`: archive
-     their records, or qualify the statements);
-   * the name of the package's `AIR_PASSENGERS` series (`reports/airpassengers_dataset.md`).
+1. **Resolve the open manuscript items** (`verification/VERIFICATION_REPORT.md`, section 8):
+   the textual claims marked "differs" or "needs verification" in
+   `results/manuscript/textual_claims.csv` (C3, C8, C9, C18-C20). If the manuscript changes,
+   transcribe it again (`scripts/maintainers/transcribe_manuscript.py --source DIR --write`)
+   and record the new SHA-256 in `results/manuscript/REVISION.toml`.
 
-   Then run `scripts/maintainers/check_manuscript_mapping.py --release`: it must pass (every
-   registered erratum corrected and removed from `errata.csv`). `ijf-image-publish.yml` runs
-   the same gate before it publishes anything.
+   Then run `scripts/maintainers/check_manuscript_mapping.py --release`: it must pass (it does
+   for the submitted manuscript: no printed value differs from its source).
+   `ijf-image-publish.yml` runs the same gate before it publishes anything.
 2. **Decide on SCIP's licence** (section 3, `reports/scip_licence.md`): keep SCIP 8.0.0 and
    settle its redistribution, or move to SCIP 8.0.3 or later (Apache 2.0) and re-run the SCIP
    evidence as new identified runs.
@@ -334,8 +333,8 @@ The controlled comparison of objectives was produced by a separate workstream (2
 7. **Tag the release.** `src/` now differs from v1.0.0 (the information-criterion fix for models
    with regressors, the elastic-net fix for L1 weights of zero and the dataset alias, CHANGELOG
    "Unreleased"), so release the package as
-   1.0.1 first, then tag the replication release commit (for example `ijf-2026-v1`) and publish
-   the GitHub release. The Zenodo GitHub
+   1.0.1 first, then tag the replication release commit `ijf-2026-replication-v1.0.0` and
+   publish the GitHub release under the article's title. The Zenodo GitHub
    integration archives it and mints the software DOI (`.zenodo.json`).
 8. **Link the records.** Software → `isSupplementedBy` the data record; both → `isSupplementTo`
    the article DOI once assigned. Then update `CITATION.cff` and the availability statement.
@@ -347,18 +346,21 @@ touch the package or the replication files, and by hand. Full campaigns never ru
 
 * **Host checks** (no Docker): shellcheck; the usage and missing-Docker exit codes;
   `checksums.sha256` against the committed files and against a fresh regeneration;
-  `check_package.py` (manifest, table groups, manuscript mapping); and
-  `check_recovered_2026_09.py` (the derived tables of Tables S6 and S7 and Figure S1 against
-  the recovered outputs); `check_certification_2026_08.py` (the values of Table S5,
-  Section 5.6, Table S2 and Section 5.5 against the records reconstructed on 2026-10-21); and
+  `check_package.py` (manifest, table groups, manuscript mapping);
+  `check_recovered_2026_09.py` (the derived tables of Tables S10 and S11 and Figure S1 against
+  the recovered outputs); `check_certification_2026_08.py` (the values of Tables S2, S5, S8 and
+  S9 and Sections 5.5 and 5.6 against the records reconstructed on 2026-10-21); and
   `check_certification_rerun_2026_10.py` (the archived re-run of the certification batch: its
-  files, its instances against the package's, and the comparison with the record).
+  files, its instances against the package's, and the comparison with the record);
+  `check_gate_rerun_2026_10.py` (the 1,500-series initialization re-run: its files, and its
+  aggregates recomputed from the per-series records); and `derive_manuscript_quantities.py`
+  (the derived manuscript quantities that follow from records in the repository).
 * **Manuscript release check** (its own job, so that it does not stop the container tests):
   `check_manuscript_mapping.py` fails on any printed value that differs from its source and is
   not a registered erratum, and on a registered erratum that no longer differs; it reports the
-  five categories, the untranscribed canonical revision and the textual claims in the step
-  summary. The release gate (`--release`, registered errata fail too) is shown for information
-  and enforced by `ijf-image-publish.yml`.
+  categories and the textual claims in the step summary. The release gate (`--release`,
+  registered errata fail too) is shown for information and enforced by
+  `ijf-image-publish.yml`.
 * **Container**, on `linux/amd64` (the reference) and `linux/arm64` (experimental): the image
   is built from the checkout with the same Dockerfile and build arguments as
   `./reproduce.sh build` (buildx adds a layer cache), then: the default command without the

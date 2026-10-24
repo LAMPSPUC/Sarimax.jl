@@ -1,0 +1,26 @@
+# Which manuscript revision the transcription in manuscript_values.csv follows, and which
+# revision is canonical. check_manuscript_mapping.py reports the difference as missing
+# evidence (it does not fail on it): a transcription of a non-canonical revision cannot show
+# that the canonical one is traceable.
+
+[transcribed]
+revision = "2026-10-16"
+file = "manuscript_values.csv"
+note = "parsed from the LaTeX source of the 2026-10-11 revision and checked row by row against the 2026-10-16 PDF (README.md)"
+
+[canonical]
+revision = "2026-10-19"
+title = "controlled M4 objective-comparison revision"
+inputs = [
+    "SARIMAX_jl_IJF_revision_20261019_controlled.pdf",
+    "SARIMAX_jl_IJF_revision_20261019_controlled_supplement.pdf",
+    "SARIMAX_jl_IJF_revision_20261019_controlled_source.zip",
+]
+inputs_available = false
+note = "none of the three inputs is in this repository, the artifact bundle or the workspace that built them (searched 2026-10-20)"
+
+[pending]
+# Rows for the items the 2026-10-19 revision replaces with the controlled campaign, pointing at
+# the m4_objectives_controlled group; their printed values are entered when the source is
+# supplied (scripts/maintainers/make_controlled_mapping_template.py).
+file = "pending/manuscript_values_2026-10-19_controlled.csv"

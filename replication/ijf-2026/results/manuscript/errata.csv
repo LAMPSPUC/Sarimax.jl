@@ -1,7 +1,1 @@
 item,label,row,column,printed,archived,report,proposed_correction
-Table 7,tab:local_global_forecasts,"Sim. ARMA(1,0,1)|Ipopt",Time (s),0.04,0.0018,reports/table7_timing_reconciliation.md,"print 0.0018 (archived record, 8ffc512), or state that each local solve took milliseconds; no record gives 0.04"
-Table 7,tab:local_global_forecasts,"PJME ARMA(1,0,1)|Ipopt",Time (s),0.02,0.0020,reports/table7_timing_reconciliation.md,"print 0.0020 (archived record, 8ffc512), or state that each local solve took milliseconds; Section 5.6 'hundredths of a second' becomes 'about two milliseconds'"
-Section 5.6,sec:global_diagnostics,seasonal grid: incumbent vs local objective,value,2.5,"2.52e-09 (largest Ipopt - SCIP objective difference in cell B, absolute)",reports/certification_batch_2026_08.md,the SCIP incumbent coincides with the Ipopt point to 2.5e-9 in every seasonal instance; it is not 2.5% below it
-Section 5.6,sec:global_diagnostics,seasonal grid: smallest remaining gap,value,1.9,"1.94e-04 (relative), i.e. 0.019%",reports/certification_batch_2026_08.md,print 0.02% (relative gap 1.9e-4)
-Section 5.6,sec:global_diagnostics,seasonal grid: largest remaining gap,value,4.9,"4.90e-01 (relative), i.e. 49%",reports/certification_batch_2026_08.md,print 49% (relative gap 4.9e-1)
-Section 5.6,sec:global_diagnostics,seasonal grid: median remaining gap,value,1.2,"1.51e-02 (relative, median of 12), i.e. 1.5%; the 6th of the 12 values is 1.23e-02",reports/certification_batch_2026_08.md,print 1.5% (median of the 12 instances); 1.2% is the lower median

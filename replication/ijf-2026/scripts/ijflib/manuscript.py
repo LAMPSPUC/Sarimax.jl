@@ -1,7 +1,7 @@
 """Reconciliation of the manuscript's printed numbers with their sources.
 
 `results/manuscript/manuscript_values.csv` lists every number printed in the tables, figures
-and experimental text of the manuscript (revision of 2026-10-16), with its LaTeX label and its
+and text of the submitted manuscript (results/manuscript/REVISION.toml), with its LaTeX label and its
 source, of one of three kinds:
 
 * `regenerated`: a cell that a table group rebuilds from archived per-series results

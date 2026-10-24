@@ -67,4 +67,7 @@ wall-time reduction.
 * `pilot/`: the pilot's lists, records, logs and validations.
 * The validations and the pilot list were written with CRLF line endings on Windows and are kept
   with LF, as every text file of this package; nothing else in `output/` and `pilot/` is changed.
-* `SHA256SUMS`: every file of this directory.
+* `SHA256SUMS`: every file of the run.
+* `manuscript_sources.csv`: the values the manuscript mapping compares Table S9 and Section 5.5
+  with, recomputed from the per-series records by `scripts/maintainers/check_gate_rerun_2026_10.py`
+  (which also checks `SHA256SUMS` and the printed aggregate).

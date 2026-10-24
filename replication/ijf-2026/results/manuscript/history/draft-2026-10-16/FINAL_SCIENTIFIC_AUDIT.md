@@ -1,5 +1,8 @@
 # Final scientific audit of the replication package (October 2026)
 
+> **Development record.** This audit concerns pre-submission drafts of the manuscript. For the
+> submitted manuscript, see `verification/VERIFICATION_REPORT.md`.
+
 Scope: the scientific and reproducibility corrections requested for pull request
 LAMPSPUC/Sarimax.jl#34, branch `feature/ijf-replication`. Canonical manuscript: the revision of
 2026-10-19 (controlled M4 objective comparison), which was **not available** (section B). Every

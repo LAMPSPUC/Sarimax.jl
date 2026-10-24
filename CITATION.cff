@@ -5,8 +5,8 @@
 # package author recorded in Project.toml is listed; other contributors in the git history
 # include Davi Michel Valladao, Luisa Millen Compasso and Joao Quintella), ORCID identifiers,
 # and the version DOIs of the software and data records, which exist only once the Zenodo
-# records are published. The article's authors and affiliation are those of the manuscript
-# (revision of 2026-10-16).
+# records are published. The article's authors and affiliation are those of the submitted
+# manuscript.
 cff-version: 1.2.0
 message: >-
   If you use Sarimax.jl, please cite the software and the article below. To cite the exact

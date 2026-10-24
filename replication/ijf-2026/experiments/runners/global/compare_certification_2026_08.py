@@ -33,7 +33,7 @@ sys.path.insert(0, str(REPL / "scripts" / "maintainers"))
 from check_certification_2026_08 import S5, SEASONAL  # noqa: E402
 
 RECORD = REPL / "results" / "historical" / "certification-2026-08" / "received" / "tabela_scip_lotes1-2_RECONSTRUIDA.csv"
-PRINTED = {  # manuscript 2026-10-16 (results/manuscript/manuscript_values.csv)
+PRINTED = {  # as first transcribed (results/manuscript/history/draft-2026-10-16/manuscript_values.csv)
     "s56_seasonal_ipopt_minus_scip_max": "2.5 (%)", "s56_seasonal_gap_min": "1.9 (%)",
     "s56_seasonal_gap_max": "4.9 (%)", "s56_seasonal_gap_median": "1.2 (%)",
 }

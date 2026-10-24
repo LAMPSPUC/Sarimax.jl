@@ -1,26 +1,22 @@
-# Which manuscript revision the transcription in manuscript_values.csv follows, and which
-# revision is canonical. check_manuscript_mapping.py reports the difference as missing
-# evidence (it does not fail on it): a transcription of a non-canonical revision cannot show
-# that the canonical one is traceable.
+# The manuscript that manuscript_values.csv transcribes: the submitted manuscript and its
+# Supplementary Material, identified by the SHA-256 of the files that were submitted. The
+# mapping is bound to these bytes, not to a name; any change to the manuscript requires a new
+# transcription (scripts/maintainers/transcribe_manuscript.py --source DIR) and new hashes here.
 
-[transcribed]
-revision = "2026-10-16"
+[submitted]
+title = "SARIMAX.jl: Open-Source Optimization-Based SARIMAX Modeling in Julia"
+venue = "International Journal of Forecasting, Advances in Open Source Forecasting Software"
 file = "manuscript_values.csv"
-note = "parsed from the LaTeX source of the 2026-10-11 revision and checked row by row against the 2026-10-16 PDF (README.md)"
+manuscript_pdf_sha256 = "7d7d24585c24e59d190a110476bf425e39f52e49f6aa1c83f2351ff10d2f7a08"
+supplement_pdf_sha256 = "f18a2f6049e4630321b79e7605872541208b774f868b26067546137f01750e4c"
+source_archive_sha256 = "5f57939a491b6581fe3b0a5da7352dca5ea6a57803e03c188666847f93142021"
+# SHA-256 of the sorted `sha256sum` listing of the 55 files of the extracted source archive
+source_tree_sha256 = "071aa67fd8e8a9043304b04afc5f5558be1a0088dd4194d56e4d22564b271706"
+transcribed_with = "scripts/maintainers/transcribe_manuscript.py"
+# a permanent identifier of the submitted manuscript, once one exists
+archival_identifier = ""
 
-[canonical]
-revision = "2026-10-19"
-title = "controlled M4 objective-comparison revision"
-inputs = [
-    "SARIMAX_jl_IJF_revision_20261019_controlled.pdf",
-    "SARIMAX_jl_IJF_revision_20261019_controlled_supplement.pdf",
-    "SARIMAX_jl_IJF_revision_20261019_controlled_source.zip",
-]
-inputs_available = false
-note = "none of the three inputs is in this repository, the artifact bundle or the workspace that built them (searched 2026-10-20)"
-
-[pending]
-# Rows for the items the 2026-10-19 revision replaces with the controlled campaign, pointing at
-# the m4_objectives_controlled group; their printed values are entered when the source is
-# supplied (scripts/maintainers/make_controlled_mapping_template.py).
-file = "pending/manuscript_values_2026-10-19_controlled.csv"
+[history]
+# Earlier transcriptions of pre-submission drafts, kept for development traceability only; they
+# are not checked and are not part of the replication evidence.
+directory = "history"

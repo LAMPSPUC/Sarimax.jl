@@ -6,71 +6,37 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
 
 ## The manuscript itself
 
-1. **Not every printed number has an archived source, and the canonical revision is not
-   transcribed.** The canonical manuscript is the revision of 2026-10-19 (controlled objective
-   comparison); its PDF, supplement and source are not available here
-   (`reports/manuscript_traceability.md`). The 672 numbers printed in the tables, figures and
-   experimental sections of the 2026-10-16 revision are listed in
-   `results/manuscript/manuscript_values.csv` and checked by `tables` and by the release check.
-   By category: 603 raw-reproduced, 56 derived-only, 6 differing (registered errata), 5 without
-   evidence, 2 checked only against regenerated values; 13 textual claims need verification
-   (`results/manuscript/textual_claims.csv`). In detail:
-   * **Tables 5, 6, S9, S10, Figure 3 and Section 5.4 print the historical objective
-     campaigns** (`m4_objectives_icarai_innovations`, feature-branch commits, guard on). The
-     controlled experiment `m4_objectives` (one frozen protocol, the release, every series under
-     every objective) supersedes them; its replacement tables and the sentences that change
-     are in `derived/m4-objectives-controlled-2026-10/manuscript_update_proposal.md` (bundle
-     part 2). Until the manuscript adopts them, `tables` checks the printed values against the
-     historical sources, and regenerates the controlled tables separately
-     (`m4_objectives_controlled`); the two are never combined.
-   * **Table 7 (`tab:local_global_forecasts`), Ipopt times.** The manuscript prints 0.04 s
-     (simulated ARMA(1,0,1)) and 0.02 s (PJME); the archived records
-     (`raw/battery-2026-07/solver/global_value_results.jsonl`) give 0.0018 s and 0.0020 s, and
-     the historical table printed 0.0. The printed values come from the July 2026 experiment
-     report, not from any record (`reports/table7_timing_reconciliation.md`). They are registered
-     in `results/manuscript/errata.csv` with the proposed correction: the pull-request check
-     reports them as known errata, `tables` reports Table 7 as FAIL, and the release gate fails
-     until the manuscript is corrected. The "hundredths of a second" of Section 5.6 rests on
-     these cells.
-   * **Table 3, monthly cell.** Section 5.1 and Table S3 describe the monthly comparison as
-     time-limited (120 s per fit) with stationarity checked after estimation; the archived
-     monthly cell (campaign A, 3d7f883) had no time cap and imposed stationarity through the
-     reflection parameterization (the 120 s limit belongs to campaign B). Either the text or the
-     cell's source must change; the minimal text correction is in `reports/monthly_protocol.md`.
-   * **Table S4.** Its two weekly MSE values are the two archived experiments, 0.8977
-     (campaign A, aa68d57) and 0.9429 (August 2026 objective campaign, 6a11698). The manifest records the settings in
-     which they differ: stationarity by reflection (A) or not (the August 2026 cell), `warmStartFromBox`
-     (false, true), `requireTermsWhenOverDifferenced` (false, true), the commit and the Julia
-     version (1.9.4, 1.10.12). The controlled experiment settles it: under the release and one
-     environment, the Table 3 protocol gives 0.8977 again (359/359 series identical to
-     campaign A) and the Section 5.1 protocol gives 0.9002; the 0.9429 cell differs from 0.9002
-     only through the over-differencing guard (+0.0428, all 26 changed series have d + D >= 2).
-   * **Reconstructed records** (41 values; `reports/certification_batch_2026_08.md`): Table S5
-     and the certification numbers of Section 5.6 (the August 2026 certification batch), Table
-     S2, and the initialization and likelihood-ranking numbers of Section 5.5. Their raw outputs
-     are lost; what survives was reconstructed from the record of the session that produced
-     them and is archived in `results/historical/certification-2026-08/`. Against it, 37 values
-     agree (derived-only) and the four seasonal-grid figures of Section 5.6 differ (the record
-     has 2.5e-9, 1.9e-4, 4.9e-1 and a median of 1.5e-2 where the text prints percentages with
-     the same mantissas; registered errata). Table S5 omits two unfinished T = 480 instances
-     and does not count the group of the first certificate of Section 5.6; the ranking
-     paragraph merges two measurements, one of them not paired.
-   * **No archived source** (5 values; `reports/provenance_gaps.md`): the mixed seasonal orders
-     (12.1% → 16.5%) and the OWA deterioration (+0.0097) of the Section 5.5 ranking diagnostic,
-     which the files supplied do not give; and the two configuration rows of Table S3 (the
-     Table 3 item above).
-   * **Derived tables only** (19 values): Tables S6 and S7 (and the coefficients of Figure S1)
-     agree with the tables of the September 2026 revision analysis. Their simulation script and
-     its outputs were recovered on 2026-10-20 (`results/historical/revision-2026-09/recovered/`),
-     and CI recomputes the tables from them; the per-replication values of Table S6 and the run
-     environment were not recorded. (The admissibility numbers of Section 5.5, 0.9094–0.9115 and
-     0.9095 → 0.9038, are regenerated from the raw archive in bundle part 2: item 7.)
-   * **Wording that the archive contradicts** (`results/manuscript/textual_claims.csv`): the
-     package's "AirPassengers" series is `fpp2::a10` (item 12); the Huber threshold 1.345 is
-     applied to the series divided by the standard deviation of its differenced values, not to
-     residuals standardized to unit variance; Table 7's objective column shows differences
-     within SCIP's feasibility tolerance (item 8).
-   * Figure 1 is an analytic illustration; its plotting script is not archived.
+1. **Every printed number has an archived source; not every source is a per-series record.**
+   The 836 numbers printed in the tables, figures and text of the submitted manuscript and its
+   Supplementary Material are listed in `results/manuscript/manuscript_values.csv`, bound to the
+   submitted files by SHA-256 (`results/manuscript/REVISION.toml`). None differs from its source.
+   660 are regenerated from archived per-series or per-instance records; 174 agree with archived
+   summary records whose individual records are not archived, and are never counted as
+   reproduced:
+   * **Global-optimization grid** (Tables S5-S7, Section 5.6). The August 2026 per-instance
+     outputs are lost; its summary record is a reconstruction from the record of the session
+     that ran it. An identified re-run of all 46 instances in the batch's environment, with
+     per-instance records and SCIP logs, reproduces every certificate and instance value; its
+     values are the source of Tables S6 and S7 and of the October column of Table S5.
+   * **Initialization diagnostics** (Tables S8, S9, Section 5.5). The ten-seed medians follow
+     from their archived per-seed rows; the 1,500-series comparison was re-run with per-series
+     records (August per-series outputs lost).
+   * **Table S2 and the ranking diagnostics of Section 5.5** agree with recovered summary records
+     only; their per-replication and per-fit outputs are lost.
+   * **Tables S10, S11 and Figure S1** agree with the recovered outputs of their scripts, which CI
+     recomputes.
+   * **Derived quantities** (`results/manuscript/derived_quantities.csv`): the Ipopt times of
+     Table 7 at the precision of the archived record, the Stable-minus-MSE column of Table S15 and
+     the improvement shares of Section 5.4 at the tolerance the text declares.
+   * **Statements the source contradicts or the package cannot yet show**
+     (`results/manuscript/textual_claims.csv`, `verification/VERIFICATION_REPORT.md`): the multiplicative moving-average normalization of Supplementary Section S2 includes a
+     resultant cross factor that no revision of the package implements, and the additive
+     specification is not normalized by its complete MA polynomial (claims C8, C9); Table S3 describes the 120-second monthly protocol without the over-differencing
+     requirement its runners set (C3); the independent runs that the Supplementary text cites for Table S2, the ten-seed
+     diagnostic and the AICc pairing have not been deposited in the package (C18-C20).
+   * The reference scores of `forecast::auto.arima` are archived outputs whose R and package
+     versions were not recorded; Figure 1 is an analytic illustration whose plotting script is
+     not archived.
 
 ## Provenance of the archived results
 

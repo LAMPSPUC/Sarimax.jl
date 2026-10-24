@@ -130,6 +130,13 @@ def derive(problems: list[str]) -> list[dict]:
         put(f"s5_{key}_time_limit", tl, inst, f"TIME_LIMIT among {desc}")
     put("s5_extended_T480_unfinished", sum(table[i]["status"].startswith("MORTO") for i in (34, 35)),
         "34, 35", "killed by an external 900 s clock; no SCIP result")
+    # by the harness's cells (the table as organized in the submitted Supplementary Material)
+    outcome = {"O": "OPTIMAL", "T": "TIME_LIMIT", "X": "MORTO"}
+    for cell in sorted({r["cel"] for r in table.values()}) + ["all"]:
+        members = sorted(i for i, r in table.items() if cell in ("all", r["cel"]))
+        for code, status in outcome.items():
+            put(f"s5_cell_{cell}_{code}", sum(table[i]["status"].startswith(status) for i in members),
+                ids(members), f"{status} among cell {cell} (X: killed by the external clock, no result)")
 
     # ---- Section 5.6: seasonal grid (cell B)
     b = [table[i] for i in SEASONAL]
@@ -174,21 +181,28 @@ def derive(problems: list[str]) -> list[dict]:
 
     # ---- Section 5.5: initialization diagnostic (10 seeds) and the paired 1,500-series gate
     ab, cd = text("g_10sementes_bracos_AB_21-08_0005.txt"), text("g_10sementes_bracos_CD_21-08_0109.txt")
-    seeds_a = [float(m.group(2)) for m in re.finditer(r"^\s+(\d+)\s+\[[^]]*\]\s+\[[^]]*\]\s+([\d.]+)\s+([\d.]+)\s*$", ab, re.M)]
-    seeds_c = [float(m.group(2)) for m in re.finditer(r"^\s+(\d+)\s+\[[^]]*\]\s+\[[^]]*\]\s+([\d.]+)\s+([\d.]+)\s+(sim|NAO)\s*$", cd, re.M)]
-    med_a = re.search(r"distancia mediana ao R: sem ([\d.]+)", ab)
-    med_c = re.search(r"mediana:\s+C ([\d.]+)", cd)
-    if len(seeds_a) != 10 or len(seeds_c) != 10 or not med_a or not med_c:
+    rows_ab = [m.groups() for m in re.finditer(r"^\s+(\d+)\s+\[[^]]*\]\s+\[[^]]*\]\s+([\d.]+)\s+([\d.]+)\s*$", ab, re.M)]
+    rows_cd = [m.groups() for m in re.finditer(r"^\s+(\d+)\s+\[[^]]*\]\s+\[[^]]*\]\s+([\d.]+)\s+([\d.]+)\s+(sim|NAO)\s*$", cd, re.M)]
+    seeds = {"A": [float(r[1]) for r in rows_ab], "B": [float(r[2]) for r in rows_ab],
+             "C": [float(r[1]) for r in rows_cd], "D": [float(r[2]) for r in rows_cd]}
+    med = {"A": re.search(r"distancia mediana ao R: sem ([\d.]+)", ab),
+           "B": re.search(r"distancia mediana ao R: sem [\d.]+ -> com ([\d.]+)", ab),
+           "C": re.search(r"mediana:\s+C ([\d.]+)", cd), "D": re.search(r"mediana:\s+C [\d.]+\s+D ([\d.]+)", cd)}
+    if any(len(v) != 10 for v in seeds.values()) or not all(med.values()):
         problems.append("Section 5.5 initialization: 10 seeds per arm and the printed medians expected")
     else:
-        for name, seeds, med in (("A", seeds_a, med_a), ("C", seeds_c, med_c)):
-            if abs(statistics.median(seeds) - float(med.group(1))) > 0.5e-4 + 1e-12:
+        for name in "ABCD":
+            if abs(statistics.median(seeds[name]) - float(med[name].group(1))) > 0.5e-4 + 1e-12:
                 problems.append(f"Section 5.5 initialization arm {name}: median of the seeds "
-                                f"{statistics.median(seeds)} != printed {med.group(1)}")
-        put("s55_init_distance_free_presample", med_a.group(1), "MersenneTwister(500+r), r = 1..10",
+                                f"{statistics.median(seeds[name])} != printed {med[name].group(1)}")
+        put("s55_init_distance_free_presample", med["A"].group(1), "MersenneTwister(500+r), r = 1..10",
             "arm A (:penalized, free pre-sample, no cross term): median distance to R arima(method=\"ML\")")
-        put("s55_init_distance_innovations", med_c.group(1), "MersenneTwister(500+r), r = 1..10",
+        put("s55_init_distance_free_presample_cross_term", med["B"].group(1), "MersenneTwister(500+r), r = 1..10",
+            "arm B (:penalized, free pre-sample, with the cross term): median distance to R arima(method=\"ML\")")
+        put("s55_init_distance_innovations", med["C"].group(1), "MersenneTwister(500+r), r = 1..10",
             "arm C (:innovations, no determinant): median distance to R arima(method=\"ML\")")
+        put("s55_init_distance_innovations_determinant", med["D"].group(1), "MersenneTwister(500+r), r = 1..10",
+            "arm D (:innovations, with the determinant term): median distance to R arima(method=\"ML\")")
     g = text("g_gate_1500_21-08_1104.txt")
     arms = {m.group(1): m.groups() for m in re.finditer(
         r"^(:penalized|:innovations)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)%\s+(\d+)", g, re.M)}
@@ -201,9 +215,15 @@ def derive(problems: list[str]) -> list[dict]:
         if abs((1 - wi / wp) - (1 - ti / tp)) > 1e-3:
             problems.append("Section 5.5 gate: per-series and total wall times disagree")
         put("s55_gate_itercap_penalized", arms[":penalized"][4], "1,500 paired M4 series, commit f90e554",
-            "share of fits at the 200-iteration limit, :penalized (aggregate; per-fit outputs lost)")
+            "share of model-selection searches whose largest candidate iteration count (iterMax) reached the "
+            "200-iteration limit, :penalized (aggregate; per-series outputs lost)")
         put("s55_gate_itercap_innovations", arms[":innovations"][4], "1,500 paired M4 series, commit f90e554",
             "same, :innovations")
+        for arm, key in ((":penalized", "penalized"), (":innovations", "innovations")):
+            put(f"s55_gate_{key}_smape", arms[arm][1], "1,500 paired M4 series, commit f90e554",
+                f"mean sMAPE, {arm} (aggregate)")
+            put(f"s55_gate_{key}_mase", arms[arm][2], "1,500 paired M4 series, commit f90e554",
+                f"mean MASE, {arm} (aggregate)")
         put("s55_gate_wall_reduction", 1 - wi / wp, "1,500 paired M4 series, commit f90e554",
             f"1 - wall(:innovations) / wall(:penalized) per series ({wi} s / {wp} s; totals {ti:.0f} s / {tp:.0f} s)")
 
@@ -221,6 +241,8 @@ def derive(problems: list[str]) -> list[dict]:
             "mixdist.jl, seasonalPresamplePrior = false: median CSS -> ML log-likelihood distance")
         put("s55_rank_distance_prior_on", dist["true"][1], f"n = {dist['true'][0]}",
             "same, seasonalPresamplePrior = true, same revision (2026-08-16); not paired with the line above")
+        put("s55_rank_distance_prior_off_n", dist["false"][0], "mixdist.jl", "fits behind the median with the flag off")
+        put("s55_rank_distance_prior_on_n", dist["true"][0], "mixdist.jl", "fits behind the median with the flag on")
     return out
 
 

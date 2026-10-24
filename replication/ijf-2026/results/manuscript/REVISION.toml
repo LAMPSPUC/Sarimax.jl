@@ -10,7 +10,8 @@ file = "manuscript_values.csv"
 manuscript_pdf_sha256 = "7d7d24585c24e59d190a110476bf425e39f52e49f6aa1c83f2351ff10d2f7a08"
 supplement_pdf_sha256 = "f18a2f6049e4630321b79e7605872541208b774f868b26067546137f01750e4c"
 source_archive_sha256 = "5f57939a491b6581fe3b0a5da7352dca5ea6a57803e03c188666847f93142021"
-# SHA-256 of the sorted `sha256sum` listing of the 55 files of the extracted source archive
+# SHA-256 of the sorted `sha256sum` listing of the 55 files of the extracted source archive:
+#   find . -type f -printf '%P<NL>' | LC_ALL=C sort | xargs -d '<NL>' sha256sum -b | sha256sum   (<NL> = newline escape)
 source_tree_sha256 = "071aa67fd8e8a9043304b04afc5f5558be1a0088dd4194d56e4d22564b271706"
 transcribed_with = "scripts/maintainers/transcribe_manuscript.py"
 # a permanent identifier of the submitted manuscript, once one exists

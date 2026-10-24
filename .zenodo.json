@@ -1,7 +1,8 @@
 {
-  "title": "Sarimax.jl: optimization-based SARIMAX modeling in Julia",
+  "title": "SARIMAX.jl: Open-Source Optimization-Based SARIMAX Modeling in Julia (replication package)",
+  "version": "ijf-2026-replication-v1.0.0",
   "upload_type": "software",
-  "description": "<p>Sarimax.jl estimates SARIMA and SARIMAX models by formulating them as explicit JuMP optimization problems, with user-selectable objective functions, coefficient constraints, regularization and solvers (local, such as Ipopt, or global, such as SCIP).</p><p>This archived release contains the exact source code, the containerized replication environment and the reproduction scripts (replication/ijf-2026) of the article <em>SARIMAX.jl: Open-Source Optimization-Based SARIMAX Modeling in Julia</em> (International Journal of Forecasting, special issue Advances in Open Source Forecasting Software). The archived experimental results are a separate Zenodo record, linked below.</p>",
+  "description": "<p>Replication package of the article <em>SARIMAX.jl: Open-Source Optimization-Based SARIMAX Modeling in Julia</em> (International Journal of Forecasting, special issue Advances in Open Source Forecasting Software): the source code of Sarimax.jl at the release commit, the containerized replication environment, the experiment configurations and runners, the mapping of every value printed in the article to its archived record, and the verification report (replication/ijf-2026). The archived experimental results are a separate Zenodo record, linked below.</p><p>Sarimax.jl estimates SARIMA and SARIMAX models by formulating them as explicit JuMP optimization problems, with user-selectable objective functions, coefficient constraints, regularization and solvers (local, such as Ipopt, or global, such as SCIP).</p>",
   "creators": [
     {
       "name": "Duarte, Luiz Fernando Cunha",
@@ -20,5 +21,5 @@
     "Julia",
     "reproducibility"
   ],
-  "notes": "Before the release: confirm the creator list and affiliations (only the package author recorded in Project.toml is listed; other contributors appear in the git history), add the version DOI of the experimental-artifact record (relation isSupplementedBy) and the article DOI once assigned (relation isSupplementTo)."
+  "notes": "Before the release: confirm the creator list and affiliations (only the package author recorded in Project.toml is listed; other contributors appear in the git history), add the version DOI of the experimental-artifact record (relation isSupplementedBy) and the article DOI once assigned (relation isSupplementTo). For a later software-only release, restore the software title."
 }

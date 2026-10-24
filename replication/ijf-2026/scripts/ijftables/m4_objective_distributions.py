@@ -1,11 +1,11 @@
-"""Per-series distributions behind Table 7 (estimation objectives under `:innovations`): the
-October 2026 evidence pipeline, `original-scripts/m4-objective-distributions-2026-10`.
+"""Per-series distributions of the historical objective campaigns (estimation objectives under
+`:innovations`; not reported in the manuscript): the October 2026 evidence pipeline, `original-scripts/m4-objective-distributions-2026-10`.
 
 Rebuilds, from the per-series datasets that the pipeline's step 2 wrote and its steps 3-5 read
 (`derived/m4-objective-distributions-2026-10/perseries_{archived,latest}.csv.gz`):
 
 * `distributions.reproduction` (s3_reproduce.py): N, mean sMAPE, mean MASE and OWA per
-  frequency x method for both candidate sets, against the published Table 7 values, which s3
+  frequency x method for both candidate sets, against the published totals of those campaigns, which s3
   parsed from ForecastTester `tabelas_paper.txt` (section B, total horizon; match = same N and
   every difference within 1e-4);
 * `distributions.4a_marginal`, `4b_paired`, `4c_tail`, `4c_tail_ratios`, `4d_union_tail`
@@ -44,7 +44,7 @@ import numpy as np
 
 from .common import Cell, Context, open_text, read_csv
 
-TITLE = "M4 objective distributions, Oct 2026 (Table 7 evidence): reproduction, tables 4a-4d, figures"
+TITLE = "M4 objective distributions, Oct 2026 (historical campaigns, not reported): reproduction, tables 4a-4d, figures"
 DERIVED = "derived/m4-objective-distributions-2026-10"
 PUBLISHED = "historical-tables/forecasttester-2026-08/tabelas_paper.txt"
 PUBLISHED_SECTION = "B) CONFIGURACAO DE PRODUCAO"

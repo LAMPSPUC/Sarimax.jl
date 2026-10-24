@@ -1,5 +1,5 @@
 """Expected cells of the `m4_objective_distributions` group, parsed from the tables of the
-October 2026 Table 7 evidence pipeline as they were generated (2026-10, ForecastTester
+October 2026 objective-distribution pipeline as they were generated (2026-10, ForecastTester
 `table7_results/tables/`, now historical-tables/m4-objective-distributions-2026-10/tables/):
 
 * reproduction.csv (s3_reproduce.py): both candidate sets against the published totals;
@@ -11,7 +11,7 @@ Row keys are the identifying columns joined by `|`; column keys are the CSV colu
 The original scripts wrote these files with csv.DictWriter, which prints floats at full
 precision (Python repr): there is no printed rounding to compare at. Float cells are therefore
 compared at 6 decimals (|generated - expected| <= 5e-7, far below the 4 decimals of the
-published Table 7); integer cells (N, N_published, U_size) exactly; text cells (`yes`/`no`,
+published totals); integer cells (N, N_published, U_size) exactly; text cells (`yes`/`no`,
 `n/a`, `not recorded`) as text.
 
 recompute_check.csv (s2: needs the per-series forecasts and the M4 test values) and

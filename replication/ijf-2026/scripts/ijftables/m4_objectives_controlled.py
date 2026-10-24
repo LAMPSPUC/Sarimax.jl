@@ -6,10 +6,10 @@ Rebuilds, from the per-series results of the campaign (bundle part 2) and the st
 auto.arima/Naive2 baselines (part 1):
 
 * `controlled.table5`: OWA of auto.arima and of each objective on the jointly evaluable series
-  (the replacement Table 5 proposed for the manuscript), with N;
+  (Table 5), with N;
 * `controlled.table5_means`: mean sMAPE and MASE of each method and of Naive2 on that set;
-* `controlled.table6`: N, mean, q05, median and q95 of MASE(objective) - MASE(MSE) (the
-  replacement Table 6), and the shares of series with a lower, tied (|d| <= 1e-4) or higher
+* `controlled.table6`: N, mean, q05, median and q95 of MASE(objective) - MASE(MSE) (Table
+  6), and the shares of series with a lower, tied (|d| <= 1e-4) or higher
   MASE and sMAPE than MSE, and with the same selected order;
 * `controlled.paired`: N, mean and quantiles (q01 ... q99) of the paired differences
   MASE(objective) - MASE(MSE) and sMAPE(objective) - sMAPE(MSE) (the controlled counterpart of
@@ -43,7 +43,7 @@ import math
 
 from .common import BLOCK_NAMES, Cell, Context, fmean, owa, read_csv, write_csv, write_text
 
-TITLE = "M4 objectives, controlled campaign Oct 2026: replacement Tables 5, 6, S9, S10 and objective ECDF figure"
+TITLE = "M4 objectives, controlled campaign Oct 2026: Tables 5, 6, S13, S14 and the objective ECDF figure"
 RAW = "raw/m4-objectives-controlled-2026-10"
 BASE = "raw/m4-baselines-r-2026-07"
 FREQS = [("monthly", 48000), ("quarterly", 24000), ("yearly", 23000), ("weekly", 359)]
@@ -126,7 +126,7 @@ def generate(ctx: Context) -> list[Cell]:
                       Cell("controlled.table5_means", freq, f"{label}.sMAPE", s, 6),
                       Cell("controlled.table5_means", freq, f"{label}.MASE", m, 6)]
         t5_rows.append(row)
-        # Marginal distributions on the joint set (the controlled counterpart of Tables S9/S10).
+        # Marginal distributions on the joint set (the controlled counterpart of the distribution tables).
         series = {label: cell[o] for o, label in OBJECTIVES}
         series["auto.arima"] = {i: {"smape": ar[i][0], "mase": ar[i][1]} for i in ids}
         for label, d in series.items():

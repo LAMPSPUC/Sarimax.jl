@@ -6,7 +6,7 @@ from the places where the experimental material actually lives:
   * this repository's history (the July 2026 battery, removed from master by 74eb882) and
     the three `paper/replication-staging-*` branches;
   * the experiment workspace of the ForecastTester checkout (raw campaign files, the
-    auto.arima/Naive2 baselines, the October 2026 Table 7 evidence, the SCIP/Ipopt runs);
+    auto.arima/Naive2 baselines, the October 2026 objective-distribution evidence, the SCIP/Ipopt runs);
   * the `sarimax-replication` folder (the v1.0.0 = a1ebc0d re-run of the huber/ridge cells).
 
 Nothing is recomputed except in one documented transform: the campaign A-F files carry
@@ -299,7 +299,7 @@ def build(b: Builder) -> None:
         src = (ft / "src" / "models" / name).resolve()
         b.add_file(src, f"original-scripts/m4-baselines-r-2026-07/{src.name}")
 
-    # 6. Table 7 distribution evidence (October 2026) -----------------------------------------
+    # 6. Objective-distribution evidence (October 2026) -----------------------------------------
     t7 = ft / "table7_results"
     for f in sorted((t7 / "data").iterdir()):
         b.add_file(f, f"derived/m4-objective-distributions-2026-10/{f.name}",

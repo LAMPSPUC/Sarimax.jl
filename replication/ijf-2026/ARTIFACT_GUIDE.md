@@ -140,7 +140,7 @@ carry no timestamps or owners.
 | `raw/m4-recreio-2026-08/` | 1 | campaigns A–F (`actual` redacted, per-block metrics added) and verification files |
 | `raw/m4-baselines-r-2026-07/` | 1 | auto.arima and Naive2 per-series metrics, all six M4 frequencies, four horizon blocks |
 | `raw/robust-cvar-monthly-2026-08/`, `raw/admissibility-2026-08/`, `raw/initialization-order-search-2026-08/`, `raw/scip-ipopt-yearly-2026-07/`, `raw/stable-admissibility-gavea-2026-09/tables/` | 1 | the smaller studies (see the manifest) |
-| `derived/m4-objective-distributions-2026-10/` | 1 | the per-series sets of the October 2026 Table 7 evidence |
+| `derived/m4-objective-distributions-2026-10/` | 1 | the per-series sets of the October 2026 objective-distribution evidence |
 | `historical-tables/` | 1 | the tables as generated at the time (source of `results/expected/`) |
 | `raw/m4-objectives-controlled-2026-10/` | 2 | the controlled objective campaign: frozen protocol and environment; every per-series record of the 16 cells and of the weekly Table 3 protocol run (`test` redacted, per-block metrics added); ledgers, audits, event logs, orchestrator logs; the same results in the per-series schema of `full` |
 | `derived/m4-objectives-controlled-2026-10/` | 2 | the independent scorer's tables, reconciliation and validity files, the reconciliation report and the manuscript update proposal (source of `results/expected/m4_objectives_controlled.csv`) |
@@ -202,7 +202,7 @@ in the manifest, and regenerate `checksums.sha256`
 | m4_benchmark | campaign A's `table_m4` (M4 vs auto.arima, six frequencies x four blocks) | 192 |
 | m4_paired | paired differences and marginal distributions against auto.arima (manuscript Tables 4 and S12, Figure 2); reference values in `results/historical/m4-paired-2026-09/` | 420 |
 | m4_objectives | Tables 1–2 of the August 2026 objective campaigns and `tabelas_paper` sections A and B | 880 |
-| m4_objective_distributions | October 2026 Table 7 evidence: reproduction, 4a–4d, figures | 2,872 |
+| m4_objective_distributions | October 2026 distributions of the historical objective campaigns (not reported): reproduction, 4a–4d, figures | 2,872 |
 | arms | the campaign B–F objective, multistart, isolation, axes and stable tables | 299 |
 | robust_cvar | contamination study (reference values transcribed from internal notes) | 19 |
 | scip_ipopt | SCIP vs Ipopt summaries of the July 2026 yearly study | 23 |

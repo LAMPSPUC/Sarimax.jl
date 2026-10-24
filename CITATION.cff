@@ -1,0 +1,55 @@
+# Citation metadata for Sarimax.jl. GitHub shows it as "Cite this repository"; Zenodo's
+# GitHub integration reads .zenodo.json for the archived release.
+#
+# TO CONFIRM BEFORE THE RELEASE (maintainers): the author list of the SOFTWARE (only the
+# package author recorded in Project.toml is listed; other contributors in the git history
+# include Davi Michel Valladao, Luisa Millen Compasso and Joao Quintella), ORCID identifiers,
+# and the version DOIs of the software and data records, which exist only once the Zenodo
+# records are published. The article's authors and affiliation are those of the submitted
+# manuscript.
+cff-version: 1.2.0
+message: >-
+  If you use Sarimax.jl, please cite the software and the article below. To cite the exact
+  code and data used for the article's results, cite the version DOIs of the archived
+  release and of the experimental-artifact record (see replication/ijf-2026/README.md).
+title: "Sarimax.jl: optimization-based SARIMAX modeling in Julia"
+type: software
+version: "1.0.0"
+date-released: "2026-09-12"
+license: MIT
+repository-code: "https://github.com/LAMPSPUC/Sarimax.jl"
+url: "https://lampspuc.github.io/Sarimax.jl/dev/"
+abstract: >-
+  Sarimax.jl estimates SARIMA and SARIMAX models by formulating them as explicit JuMP
+  optimization problems: coefficients and residuals are decision variables, the model
+  dynamics are constraints, and the objective function, coefficient constraints,
+  regularization and solver (local, such as Ipopt, or global, such as SCIP) are
+  user-selectable.
+keywords:
+  - time series
+  - forecasting
+  - SARIMAX
+  - ARIMA
+  - mathematical optimization
+  - JuMP
+  - Julia
+authors:
+  - family-names: Duarte
+    given-names: Luiz Fernando Cunha
+    affiliation: "Industrial Engineering Department, Pontifical Catholic University of Rio de Janeiro (PUC-Rio)"
+preferred-citation:
+  type: article
+  title: "SARIMAX.jl: Open-Source Optimization-Based SARIMAX Modeling in Julia"
+  journal: "International Journal of Forecasting"
+  status: submitted
+  notes: "Special issue: Advances in Open Source Forecasting Software"
+  authors:
+    - family-names: Duarte
+      given-names: Luiz Fernando
+      affiliation: "Industrial Engineering Department, Pontifical Catholic University of Rio de Janeiro (PUC-Rio)"
+    - family-names: Valladão
+      given-names: Davi
+      affiliation: "Industrial Engineering Department, Pontifical Catholic University of Rio de Janeiro (PUC-Rio)"
+    - family-names: Street
+      given-names: Alexandre
+      affiliation: "Industrial Engineering Department, Pontifical Catholic University of Rio de Janeiro (PUC-Rio)"

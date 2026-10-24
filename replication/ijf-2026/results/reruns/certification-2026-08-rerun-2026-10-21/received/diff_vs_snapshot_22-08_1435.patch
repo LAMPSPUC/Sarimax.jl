@@ -1,0 +1,78 @@
+--- /Users/davi/dev/paper/resgate_luiz_21-10/reconstrucao/scip_prog_lote2_22-08_1435.jl	2026-10-21 18:18:37
++++ scip_rerun.jl	2026-10-21 19:18:58
+@@ -1,9 +1,13 @@
+ # ARNES EXTERNO — o pacote NAO e tocado.
++# RERUN 21/10/2026 (replicacao): identico ao snapshot scip_prog_lote2_22-08_1435.jl no MODELO
++# (monta, B, bound OBBT, warm start, limits/time=600). Mudancas: so o que e GRAVADO —
++# instancias em CSV, coeficientes/status do Ipopt, nos/raw status/coeficientes do SCIP, log por caso
++# (display/verblevel volta ao default do SCIP), carimbo de ambiente. Diff contra o snapshot no README.
+ # Desenho do Fable, 21/08: celulas A/B/C/D, gap-no-timeout como PRODUTO,
+ # celula adversarial contra o vies de selecao. Piloto 12/40 morto e descartado.
+ #
+ #   julia --project=/Users/davi/dev/Sarimax.jl scip_prog.jl <i1> <i2> <saida.csv>
+-using JuMP, SCIP, Ipopt, Random, Printf, LinearAlgebra, CSV, DataFrames, Statistics
++using JuMP, SCIP, Ipopt, Random, Printf, LinearAlgebra, CSV, DataFrames, Statistics, Dates, SHA
+ BLAS.set_num_threads(1)
+ const s  = 12
+ const TL = 600.0                 # NUNCA estendido
+@@ -194,10 +198,14 @@
+     rg = try MOI.get(m, MOI.RelativeGap()) catch; NaN end
+     ev = has_values(m) ? [value(m[:ε][t]) for t = 1:length(y)] : Float64[]
+     e0v = (has_values(m) && c.modo === :innovations) ? value(m[:e0]) : NaN
+-    (has_values(m) ? objective_value(m) : NaN, st, time() - t0, co, ob, rg, ev, e0v)
++    # --- RERUN: campos extras, so leitura ---
++    raw = try MOI.get(m, MOI.RawStatusString()) catch; "" end
++    nos = try Int(MOI.get(m, MOI.NodeCount())) catch; -1 end
++    stime = try solve_time(m) catch; NaN end
++    (has_values(m) ? objective_value(m) : NaN, st, time() - t0, co, ob, rg, ev, e0v, raw, nos, stime)
+ end
+ IP()    = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0, "max_wall_time" => 600.0)
+-SC(tl)  = optimizer_with_attributes(SCIP.Optimizer, "limits/time" => tl, "display/verblevel" => 0)
++SC(tl)  = optimizer_with_attributes(SCIP.Optimizer, "limits/time" => tl)   # verblevel: default do SCIP (log vai para o stdout, capturado por caso)
+ 
+ # ---------------------------------------------------------------- main
+ function main()
+@@ -205,16 +213,22 @@
+     cs = casos(); cs = cs[max(1,i1):min(length(cs), i2)]
+     @printf("PROGRAMA SCIP — %d casos nesta fatia (de %d), limite %ds, SCIP %s\n",
+             length(cs), length(casos()), Int(TL), string(SCIP.SCIP_versionnumber()))
++    println("CARIMBO rerun 21/10: ", Dates.now(), " host=", gethostname(), " julia=", VERSION,
++            " manifest_sha256=", bytes2hex(SHA.sha256(read("/Users/davi/dev/Sarimax.jl/Manifest.toml"))),
++            " git_head=", strip(read(`git -C /Users/davi/dev/Sarimax.jl rev-parse --short HEAD`, String)),
++            " loadavg=", Sys.loadavg())
+     open(out, "w") do io
+-        println(io, "id,cel,rotulo,P,Q,T,rep,modo,sid,obj_ipopt,obj_scip,dual_scip,status,t_scip,gap_rel,gap_certificado,piso_ok")
++        println(io, "id,cel,rotulo,P,Q,T,rep,modo,sid,obj_ipopt,obj_scip,dual_scip,status,t_scip,gap_rel,gap_certificado,piso_ok," *
++                    "ipopt_status,ipopt_t,ipopt_phi,ipopt_theta,ipopt_Phi,ipopt_Theta," *
++                    "scip_raw_status,scip_nos,scip_solve_time,scip_phi,scip_theta,scip_Phi,scip_Theta,scip_eps_norm2,dgp_phi,dgp_theta,dgp_Phi,dgp_Theta")
+         for c in cs
+             y = dados(c)
+             cc = c.sid > 0 ? Caso(c.id,c.cel,c.P,c.Q,length(y),c.rep,c.modo,c.rotulo,c.par,c.sid) : c
+             @printf("  [%d] ipopt...\n", cc.id); flush(stdout)
+-            oi = try roda(y, cc, IP()) catch e; (NaN, "erro", NaN, fill(NaN,4), NaN, NaN, Float64[], NaN) end
++            oi = try roda(y, cc, IP()) catch e; (NaN, "erro", NaN, fill(NaN,4), NaN, NaN, Float64[], NaN, first(string(e),80), -1, NaN) end
+             @printf("  [%d] ipopt OK em %.1fs (obj %.4f); scip...\n", cc.id, oi[3], oi[1]); flush(stdout)
+             os = try roda(y, cc, SC(TL); ub = oi[1], warm = (oi[4], oi[7], oi[8]))
+-                 catch e; (NaN, first(string(e), 16), NaN, fill(NaN,4), NaN, NaN, Float64[], NaN) end
++                 catch e; (NaN, first(string(e), 16), NaN, fill(NaN,4), NaN, NaN, Float64[], NaN, first(string(e),80), -1, NaN) end
+             piso = 0.25 * (length(y) - 1)          # assercao: abaixo disso a caixa esta errada
+             piso_ok = isnan(os[1]) || os[1] >= piso
+             !piso_ok && @printf("  *** ALERTA piso: obj %.4f < %.4f\n", os[1], piso)
+@@ -226,7 +240,16 @@
+                     cc.id, cc.cel, cc.rotulo, cc.P, cc.Q, length(y), string(cc.modo),
+                     oi[1], os[1], os[2], os[3], gc)
+             println(io, join((cc.id,cc.cel,cc.rotulo,cc.P,cc.Q,length(y),cc.rep,cc.modo,cc.sid,
+-                              oi[1],os[1],os[5],os[2],os[3],g,gc,piso_ok), ","))
++                              oi[1],os[1],os[5],os[2],os[3],g,gc,piso_ok,
++                              oi[2],oi[3],oi[4][1],oi[4][2],oi[4][3],oi[4][4],
++                              replace(os[9], ","=>";"),os[10],os[11],os[4][1],os[4][2],os[4][3],os[4][4],
++                              isempty(os[7]) ? NaN : sum(abs2, os[7]),
++                              cc.par[1],cc.par[2],cc.par[3],cc.par[4]), ","))
++            # RERUN: a instancia em si, para o conjunto nao depender da estabilidade do hash entre versoes
++            open(joinpath(dirname(out), "..", "instancias", "caso_$(cc.id).csv"), "w") do ii
++                println(ii, "# id=$(cc.id) cel=$(cc.cel) rotulo=$(cc.rotulo) P=$(cc.P) Q=$(cc.Q) T=$(length(y)) rep=$(cc.rep) modo=$(cc.modo) sid=$(cc.sid) dgp=$(cc.par)")
++                println(ii, "y"); for v in y; println(ii, v); end
++            end
+             flush(io); flush(stdout)
+         end
+     end

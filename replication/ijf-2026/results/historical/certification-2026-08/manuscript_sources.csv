@@ -1,0 +1,62 @@
+quantity,value,instances,rule
+s5_cell_A_O,12,1-12,"OPTIMAL among cell A (X: killed by the external clock, no result)"
+s5_cell_A_T,0,1-12,"TIME_LIMIT among cell A (X: killed by the external clock, no result)"
+s5_cell_A_X,0,1-12,"MORTO among cell A (X: killed by the external clock, no result)"
+s5_cell_B_O,0,13-24,"OPTIMAL among cell B (X: killed by the external clock, no result)"
+s5_cell_B_T,12,13-24,"TIME_LIMIT among cell B (X: killed by the external clock, no result)"
+s5_cell_B_X,0,13-24,"MORTO among cell B (X: killed by the external clock, no result)"
+s5_cell_C_O,2,25-30,"OPTIMAL among cell C (X: killed by the external clock, no result)"
+s5_cell_C_T,4,25-30,"TIME_LIMIT among cell C (X: killed by the external clock, no result)"
+s5_cell_C_X,0,25-30,"MORTO among cell C (X: killed by the external clock, no result)"
+s5_cell_D_O,2,"31, 32","OPTIMAL among cell D (X: killed by the external clock, no result)"
+s5_cell_D_T,0,"31, 32","TIME_LIMIT among cell D (X: killed by the external clock, no result)"
+s5_cell_D_X,0,"31, 32","MORTO among cell D (X: killed by the external clock, no result)"
+s5_cell_E_O,2,33-38,"OPTIMAL among cell E (X: killed by the external clock, no result)"
+s5_cell_E_T,2,33-38,"TIME_LIMIT among cell E (X: killed by the external clock, no result)"
+s5_cell_E_X,2,33-38,"MORTO among cell E (X: killed by the external clock, no result)"
+s5_cell_F_O,3,39-44,"OPTIMAL among cell F (X: killed by the external clock, no result)"
+s5_cell_F_T,3,39-44,"TIME_LIMIT among cell F (X: killed by the external clock, no result)"
+s5_cell_F_X,0,39-44,"MORTO among cell F (X: killed by the external clock, no result)"
+s5_cell_G_O,2,"45, 46","OPTIMAL among cell G (X: killed by the external clock, no result)"
+s5_cell_G_T,0,"45, 46","TIME_LIMIT among cell G (X: killed by the external clock, no result)"
+s5_cell_G_X,0,"45, 46","MORTO among cell G (X: killed by the external clock, no result)"
+s5_cell_all_O,23,1-46,"OPTIMAL among cell all (X: killed by the external clock, no result)"
+s5_cell_all_T,21,1-46,"TIME_LIMIT among cell all (X: killed by the external clock, no result)"
+s5_cell_all_X,2,1-46,"MORTO among cell all (X: killed by the external clock, no result)"
+s56_seasonal_ipopt_minus_scip_max,2.52e-09,13-24,largest Ipopt - SCIP objective difference in cell B (absolute; the objectives of cell B were not recorded)
+s56_seasonal_gap_min,0.000194,13-24,"smallest certified relative gap in cell B ((SCIP primal - dual) / |primal|, all TIME_LIMIT at 600 s)"
+s56_seasonal_gap_max,0.49,13-24,largest certified relative gap in cell B
+s56_seasonal_gap_median,0.015099999999999999,13-24,median certified relative gap in cell B (12 values: mean of the 6th and 7th; the 6th alone is 0.0123)
+s56_near_cancellation_ipopt,46.660913,26,"Ipopt objective, cell C, (1,0,1)(1,0,1)_12, Phi = 0.700, Theta = -0.699, T = 60, TIME_LIMIT"
+s56_near_cancellation_scip,45.314976,26,"SCIP objective, cell C, (1,0,1)(1,0,1)_12, Phi = 0.700, Theta = -0.699, T = 60, TIME_LIMIT"
+s56_certified_1_ipopt,57.868044,44,"Ipopt objective, cell F, regular cancellation with slack 5e-2, :zeroed, OPTIMAL"
+s56_certified_1_scip,57.536983,44,"SCIP objective, cell F, regular cancellation with slack 5e-2, :zeroed, OPTIMAL"
+s56_certified_1_local_excess,0.005753881811981666,44,(Ipopt - SCIP) / SCIP
+s56_certified_2_ipopt,54.706978,45,"Ipopt objective, cell G, regular cancellation, :innovations, OPTIMAL"
+s56_certified_2_scip,53.681295,45,"SCIP objective, cell G, regular cancellation, :innovations, OPTIMAL"
+s56_certified_2_local_excess,0.01910689747704486,45,(Ipopt - SCIP) / SCIP
+s2_erros_arima_rmse_julia,2.4686,"seeds 9000+s, s = 1..20",aggregate printed by diag_ler.jl (per-replication outputs lost)
+s2_erros_arima_rmse_r,1.6069,"seeds 9000+s, s = 1..20",aggregate printed by diag_ler.jl (per-replication outputs lost)
+s2_erros_arima_dlog,+0.4262,"seeds 9000+s, s = 1..20",aggregate printed by diag_ler.jl (per-replication outputs lost)
+s2_ma_puro_rmse_julia,1.1212,"seeds 9000+s, s = 1..20",aggregate printed by diag_ler.jl (per-replication outputs lost)
+s2_ma_puro_rmse_r,1.1102,"seeds 9000+s, s = 1..20",aggregate printed by diag_ler.jl (per-replication outputs lost)
+s2_ma_puro_dlog,+0.0112,"seeds 9000+s, s = 1..20",aggregate printed by diag_ler.jl (per-replication outputs lost)
+s2_armax_rmse_julia,1.6582,"seeds 9000+s, s = 1..20",aggregate printed by diag_ler.jl (per-replication outputs lost)
+s2_armax_rmse_r,2.4586,"seeds 9000+s, s = 1..20",aggregate printed by diag_ler.jl (per-replication outputs lost)
+s2_armax_dlog,-0.4002,"seeds 9000+s, s = 1..20",aggregate printed by diag_ler.jl (per-replication outputs lost)
+s55_init_distance_free_presample,0.2076,"MersenneTwister(500+r), r = 1..10","arm A (:penalized, free pre-sample, no cross term): median distance to R arima(method=""ML"")"
+s55_init_distance_free_presample_cross_term,0.4294,"MersenneTwister(500+r), r = 1..10","arm B (:penalized, free pre-sample, with the cross term): median distance to R arima(method=""ML"")"
+s55_init_distance_innovations,0.0863,"MersenneTwister(500+r), r = 1..10","arm C (:innovations, no determinant): median distance to R arima(method=""ML"")"
+s55_init_distance_innovations_determinant,0.7984,"MersenneTwister(500+r), r = 1..10","arm D (:innovations, with the determinant term): median distance to R arima(method=""ML"")"
+s55_gate_itercap_penalized,47.4,"1,500 paired M4 series, commit f90e554","share of model-selection searches whose largest candidate iteration count (iterMax) reached the 200-iteration limit, :penalized (aggregate; per-series outputs lost)"
+s55_gate_itercap_innovations,0.2,"1,500 paired M4 series, commit f90e554","same, :innovations"
+s55_gate_penalized_smape,13.9000,"1,500 paired M4 series, commit f90e554","mean sMAPE, :penalized (aggregate)"
+s55_gate_penalized_mase,0.9528,"1,500 paired M4 series, commit f90e554","mean MASE, :penalized (aggregate)"
+s55_gate_innovations_smape,13.9395,"1,500 paired M4 series, commit f90e554","mean sMAPE, :innovations (aggregate)"
+s55_gate_innovations_mase,0.9471,"1,500 paired M4 series, commit f90e554","mean MASE, :innovations (aggregate)"
+s55_gate_wall_reduction,0.2818396226415094,"1,500 paired M4 series, commit f90e554",1 - wall(:innovations) / wall(:penalized) per series (0.609 s / 0.848 s; totals 914 s / 1273 s)
+s55_rank_aicc_parity_fits,1099,first 100 series of the rand400 sample,fits of the AICc-parity comparison with R on the P x Q grid (aicq.jl / aicq.R)
+s55_rank_distance_prior_off,21.61,n = 14,"mixdist.jl, seasonalPresamplePrior = false: median CSS -> ML log-likelihood distance"
+s55_rank_distance_prior_on,3.30,n = 12,"same, seasonalPresamplePrior = true, same revision (2026-08-16); not paired with the line above"
+s55_rank_distance_prior_off_n,14,mixdist.jl,fits behind the median with the flag off
+s55_rank_distance_prior_on_n,12,mixdist.jl,fits behind the median with the flag on

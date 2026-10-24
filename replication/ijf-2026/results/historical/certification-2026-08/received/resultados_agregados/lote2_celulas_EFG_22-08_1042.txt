@@ -1,0 +1,17 @@
+=== celula E (fronteira estendida) ===
+  id 33 T=480 OPTIMAL     | ipopt 435.5372 | scip 435.5372 | DUAL 435.537 | gap 4.205e-11
+  id 36 T=960 OPTIMAL     | ipopt 928.6367 | scip 928.6367 | DUAL 928.637 | gap 1.559e-11
+  id 37 T=960 TIME_LIMIT  | ipopt 938.4454 | scip 938.4454 | DUAL -1e+20 | gap 1.066e+17
+  id 38 T=960 TIME_LIMIT  | ipopt 969.4430 | scip 969.4430 | DUAL 401.192 | gap 0.5862
+
+=== celula F: folga vs bloco ===
+  cancel-sazonal-folga1e-4       TIME_LIMIT  t= 605s | ipopt-scip +1.786e-10 (0.0000%)
+  cancel-regular-folga1e-4       OPTIMAL     t= 267s | ipopt-scip +8.029e-05 (0.0001%)
+  cancel-sazonal-folga1e-2       TIME_LIMIT  t= 600s | ipopt-scip +4.198e-10 (0.0000%)
+  cancel-regular-folga1e-2       OPTIMAL     t=  12s | ipopt-scip +5.729e-05 (0.0001%)
+  cancel-sazonal-folga5e-2       TIME_LIMIT  t= 600s | ipopt-scip -2.475e-09 (-0.0000%)
+  cancel-regular-folga5e-2       OPTIMAL     t= 521s | ipopt-scip +3.311e-01 (0.5754%)
+
+=== celula G ===
+  inov-cancel-regular    OPTIMAL    t= 36s | gap 1.07e-08 | ipopt-scip +1.03e+00
+  inov-T120              OPTIMAL    t= 20s | gap 1.60e-09 | ipopt-scip +1.04e-04

@@ -1,0 +1,43 @@
+PROPOSED CODE AND DATA AVAILABILITY STATEMENT
+(for the authors to adapt; not inserted into the manuscript automatically)
+
+Bracketed items must be resolved at release time; do not submit the statement with them
+unresolved. Claims are limited to what the replication package has verified for the submitted
+manuscript (verification/VERIFICATION_REPORT.md): every printed value is mapped to an archived
+record, and the sentence on regenerated results lists only the items whose printed values are
+regenerated from per-series or per-instance records. Table S2, Table S8 and the Section 5.5
+ranking diagnostics agree only with archived summary records and are not listed in it.
+
+-------------------------------------------------------------------------------------------
+
+Code and data availability
+
+SARIMAX.jl is open-source software released under the MIT licence and developed publicly at
+https://github.com/LAMPSPUC/Sarimax.jl. The replication package archived for this article
+[GitHub release ijf-2026-replication-v1.0.0; software DOI 10.5281/zenodo.XXXXXXX] contains the
+package source, the scripts and configuration files of the experiments, and a containerized
+computational environment with Julia, R, Python and the optimization solvers, all versions
+pinned [published as ghcr.io/lampspuc/sarimax-ijf-replication@sha256:...]. A single command,
+./reproduce.sh, verifies the environment and the archived inputs, runs small reference
+computations, regenerates the tables from the archived per-series results, and compares every
+value reported in this article with its archived source. Separate commands re-run the
+experiments from the original data.
+
+The archived experimental results are available at [data DOI 10.5281/zenodo.YYYYYYY]: the
+per-series forecasts, accuracy metrics and solver outcomes, and the scripts that produced them.
+Tables 2-7, S4 and S12-S16, Figures 2 and 3, and the admissibility results of Section 5.5 are
+regenerated from these records. The comparison of estimation objectives (Tables 5 and 6) was
+executed in full with the released version 1.0.0 under a single frozen protocol: every M4
+monthly, quarterly, yearly and weekly series under every objective. The other experiments were
+run with development revisions of the package that preceded the release; the replication
+materials record the revision and configuration of each result. The global-optimization grid
+(Tables S5-S7) and the 1,500-series initialization comparison (Table S9) were re-executed after
+their original per-instance records were lost, and the re-executions are archived as identified
+runs with their records and logs. Re-execution of the M4 campaigns, which requires several
+hundred CPU-hours, is supported but was not repeated for this archive.
+
+The M4 competition data are not redistributed. They are obtained from the organisers'
+repository (https://github.com/Mcompetitions/M4-methods) at a fixed revision and verified by
+checksum. The global solver SCIP 8.0.0 is distributed under the ZIB Academic License; it is not
+included in the container image, and the replication script downloads it from the Julia package
+registry, verified by content hash, on first use.

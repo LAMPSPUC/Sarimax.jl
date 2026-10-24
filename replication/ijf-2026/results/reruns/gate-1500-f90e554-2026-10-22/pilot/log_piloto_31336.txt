@@ -1,0 +1,215 @@
+
+******************************************************************************
+This program contains Ipopt, a library for large-scale nonlinear optimization.
+ Ipopt is released as open source code under the Eclipse Public License (EPL).
+         For more information visit https://github.com/coin-or/Ipopt
+******************************************************************************
+
+[ Info: lendo M4 monthly...
+┌ Warning: thread = 1 warning: only found 470 / 2795 columns around data row: 1. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 471 / 2795 columns around data row: 2. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 471 / 2795 columns around data row: 3. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 83 / 2795 columns around data row: 4. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 113 / 2795 columns around data row: 5. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 667 / 2795 columns around data row: 6. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 113 / 2795 columns around data row: 7. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 113 / 2795 columns around data row: 8. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 823 / 2795 columns around data row: 9. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 10. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 619 / 2795 columns around data row: 11. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 919 / 2795 columns around data row: 12. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 919 / 2795 columns around data row: 13. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 727 / 2795 columns around data row: 14. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 727 / 2795 columns around data row: 15. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 727 / 2795 columns around data row: 16. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 727 / 2795 columns around data row: 17. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 727 / 2795 columns around data row: 18. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 175 / 2795 columns around data row: 19. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 175 / 2795 columns around data row: 20. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 175 / 2795 columns around data row: 21. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 175 / 2795 columns around data row: 22. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 175 / 2795 columns around data row: 23. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 679 / 2795 columns around data row: 24. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 679 / 2795 columns around data row: 25. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 501 / 2795 columns around data row: 26. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 501 / 2795 columns around data row: 27. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 28. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 29. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 30. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 31. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 32. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 33. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 34. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 35. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 36. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 37. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 38. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 39. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 367 / 2795 columns around data row: 40. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 163 / 2795 columns around data row: 41. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 163 / 2795 columns around data row: 42. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 163 / 2795 columns around data row: 43. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 271 / 2795 columns around data row: 44. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 667 / 2795 columns around data row: 45. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 667 / 2795 columns around data row: 46. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 667 / 2795 columns around data row: 47. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 679 / 2795 columns around data row: 48. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 679 / 2795 columns around data row: 49. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 679 / 2795 columns around data row: 50. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 571 / 2795 columns around data row: 51. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 487 / 2795 columns around data row: 52. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 631 / 2795 columns around data row: 53. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 631 / 2795 columns around data row: 54. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 631 / 2795 columns around data row: 55. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 56. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 569 / 2795 columns around data row: 57. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 58. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 59. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 569 / 2795 columns around data row: 60. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 171 / 2795 columns around data row: 61. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 171 / 2795 columns around data row: 62. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 171 / 2795 columns around data row: 63. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 64. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 65. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 66. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 67. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 68. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 69. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 569 / 2795 columns around data row: 70. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 569 / 2795 columns around data row: 71. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 72. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 73. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 74. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 75. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 569 / 2795 columns around data row: 76. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 569 / 2795 columns around data row: 77. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 78. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 79. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 569 / 2795 columns around data row: 80. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 81. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 135 / 2795 columns around data row: 82. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 133 / 2795 columns around data row: 83. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 133 / 2795 columns around data row: 84. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 133 / 2795 columns around data row: 85. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 185 / 2795 columns around data row: 86. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 185 / 2795 columns around data row: 87. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 185 / 2795 columns around data row: 88. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 187 / 2795 columns around data row: 89. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 187 / 2795 columns around data row: 90. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 213 / 2795 columns around data row: 91. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 453 / 2795 columns around data row: 92. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 703 / 2795 columns around data row: 93. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 245 / 2795 columns around data row: 94. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 245 / 2795 columns around data row: 95. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 245 / 2795 columns around data row: 96. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 245 / 2795 columns around data row: 97. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 245 / 2795 columns around data row: 98. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 245 / 2795 columns around data row: 99. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 293 / 2795 columns around data row: 100. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1 warning: only found 245 / 2795 columns around data row: 101. Filling remaining columns with `missing`
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:592
+┌ Warning: thread = 1: too many warnings, silencing any further warnings
+└ @ CSV C:\Users\luizduarte\.julia\packages\CSV\LiiJM\src\file.jl:597
+[ Info: series no treino: 48000
+[ Info: PACOTE sarima.jl sha256=833072403a766069  (f90e554 = 833072403a766069)  init=innovations
+[ Info: pronto: piloto_31336.csv

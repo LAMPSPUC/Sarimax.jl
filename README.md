@@ -33,7 +33,7 @@ Pkg.add(url = "https://github.com/LAMPSPUC/Sarimax.jl")
 ```julia
 using Sarimax
 
-airp = load_dataset(AIR_PASSENGERS)          # monthly TimeArray, 204 obs
+airp = load_dataset(AIR_PASSENGERS)          # monthly TimeArray, 204 obs (fpp2's a10, see Datasets)
 
 model = auto(airp; seasonality = 12)         # Hyndman-Khandakar stepwise search
 print(model)
@@ -134,7 +134,8 @@ should know before comparing outputs:
    (R-compatible) are also available.
 
 **Verified against R** (`arima(log(y), order, seasonal, method = "CSS")`, this
-repository's AirPassengers data, `initialization = :warmup` — pinned in CI):
+repository's `AIR_PASSENGERS` data, which is fpp2's `a10` series rather than the
+Box-Jenkins airline series, `initialization = :warmup` — pinned in CI):
 
 | Specification | Coefficient | Sarimax.jl | R |
 |---|---|---|---|
@@ -201,6 +202,25 @@ equations.
 - **Plots.jl**: `plot(model)` (RecipesBase recipe).
 - **MLJ**: `SARIMAForecaster` (deterministic wrapper; exogenous variables via
   MLJ not yet supported).
+
+## Reproducing the IJF paper
+
+The experiments of *SARIMAX.jl: Open-Source Optimization-Based SARIMAX Modeling in Julia*
+(International Journal of Forecasting) can be verified and re-run from this repository with
+Docker as the only requirement:
+
+```bash
+git clone https://github.com/LAMPSPUC/Sarimax.jl.git
+cd Sarimax.jl
+./reproduce.sh
+```
+
+This checks the containerized environment and the archived inputs, runs small reference
+computations and rebuilds the tables from the archived per-series results.
+`./reproduce.sh full --experiment <id>` re-runs an experiment from the original data. See
+[replication/ijf-2026/README.md](replication/ijf-2026/README.md) and the
+[artifact guide](replication/ijf-2026/ARTIFACT_GUIDE.md). None of this affects using the
+package: `Pkg.add` installs the library as usual.
 
 ## Contributing
 

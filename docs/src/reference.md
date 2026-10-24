@@ -60,6 +60,8 @@ Sarimax.aicc
 Sarimax.bic
 Sarimax.criterionLoglike
 Sarimax.exactLoglike
+Sarimax.fittedExogMatrix
+Sarimax.armaxRegressionPath
 ```
 
 ## Regularization

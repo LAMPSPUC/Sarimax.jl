@@ -1,0 +1,114 @@
+# Historical objective campaigns of August 2026, :innovations cells (manifest id
+# m4_objectives_icarai_innovations): mse, huber, mae, ridge on M4 monthly, quarterly, yearly
+# and weekly, no per-fit cap, 3600 s orchestration deadline.
+#
+# Protocol: origin/paper/replication-staging-icarai, experiments/scripts/cell_worker.jl and
+# run_cell.jl (every keyword below is the value cell_worker.jl passed). The archived cells
+# ran on feature-branch commits 87f7bfb, 6a11698 and 5b2ec6b, which are not part of a
+# release. This configuration re-runs the SAME protocol on the release code; differences
+# from the archived per-series results are expected (huber's warm-start scale and ridge's
+# determinant factor changed before the release, see section 7 of these campaigns' REPRODUCE.md), so
+# a re-run is an execution of the historical protocol, not a reproduction of its numbers.
+
+id = "m4_objectives_icarai_innovations"
+kind = "m4"
+protocol_status = "archived"
+# The controlled campaign (m4_objectives) replaces these cells; `full --all` runs that one.
+superseded_by = "m4_objectives"
+protocol_source = "origin/paper/replication-staging-icarai: experiments/scripts/cell_worker.jl (b3e7c7a/e523509)"
+frequencies = ["monthly", "quarterly", "yearly", "weekly"]
+per_series_timeout_s = 3600.0
+max_failure_rate = 0.01
+
+[auto_defaults]
+initialization = "innovations"
+d = -1
+D = -1
+maxp = 5
+maxd = 2
+maxq = 5
+maxP = 2
+maxD = 1
+maxQ = 2
+maxOrder = 5
+informationCriteria = "aicc"
+allowMean = "nothing"
+allowDrift = "nothing"
+integrationTest = "kpssShort"
+seasonalIntegrationTest = "seas"
+assertStationarity = true
+assertInvertibility = true
+showLogs = false
+outlierDetection = false
+searchMethod = "stepwise"
+parallel = false
+seasonalForm = "multiplicative"
+multistart = false
+stationary = false
+stationarityMargin = 1e-6
+invertible = false
+invertibilityMargin = 1e-6
+constrainedRefit = false
+rootMargin = 1e-2
+optimizer = "Ipopt"
+warmStartFromBox = true
+maxTimeSeconds = "nothing"
+requireTermsWhenOverDifferenced = true
+requireMAWhenDoublyDifferenced = false
+# cell_worker.jl also passed cvarLevel = 0.9 to every objective; none of these four reads it
+# and the release refuses an unread level, so it is omitted.
+
+[[arms]]
+name = "mse"
+engine = "julia"
+auto = { objectiveFunction = "mse" }
+
+[[arms]]
+name = "huber"
+engine = "julia"
+auto = { objectiveFunction = "huber" }
+
+[[arms]]
+name = "mae"
+engine = "julia"
+auto = { objectiveFunction = "mae" }
+
+[[arms]]
+name = "ridge"
+engine = "julia"
+auto = { objectiveFunction = "ridge" }
+
+[[arms]]
+name = "naive2"
+engine = "r"
+method = "naive2"
+
+[archived.mse]
+file = "raw/m4-objectives-icarai-2026-08/campaigns/req_true_{freq}.csv.gz"
+by_frequency = { weekly = "raw/m4-objectives-icarai-2026-08/campaigns/obj_mse_innov_weekly.csv.gz" }
+order_columns = ["p", "d", "q", "P", "D", "Q"]
+smape_column = "smape_total"
+provenance = "August 2026 objective campaigns, commits 87f7bfb/5b2ec6b (weekly: obj_mse_innov_weekly at 6a11698)"
+
+[archived.huber]
+file = "raw/m4-objectives-icarai-2026-08/campaigns/obj_huber_innov_{freq}.csv.gz"
+order_columns = ["p", "d", "q", "P", "D", "Q"]
+smape_column = "smape_total"
+provenance = "August 2026 objective campaigns, commits 5b2ec6b/6a11698"
+
+[archived.mae]
+file = "raw/m4-objectives-icarai-2026-08/campaigns/obj_mae_innov_{freq}.csv.gz"
+order_columns = ["p", "d", "q", "P", "D", "Q"]
+smape_column = "smape_total"
+provenance = "August 2026 objective campaigns, commits 5b2ec6b/6a11698"
+
+[archived.ridge]
+file = "raw/m4-objectives-icarai-2026-08/campaigns/obj_ridge_innov_{freq}.csv.gz"
+order_columns = ["p", "d", "q", "P", "D", "Q"]
+smape_column = "smape_total"
+provenance = "August 2026 objective campaigns, commits 5b2ec6b/6a11698"
+
+[archived.naive2]
+file = "raw/m4-baselines-r-2026-07/{freq}/Naive/total.csv.gz"
+smape_column = "sMAPE"
+provenance = "M4 Naive2 code, R 4.4.1 via RCall, Windows, July 2026"

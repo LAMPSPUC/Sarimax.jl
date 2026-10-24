@@ -1,0 +1,6 @@
+$ julia --project=/opt/sarimax/replication/ijf-2026/environments/julia --startup-file=no --color=no /opt/sarimax/replication/ijf-2026/experiments/runners/battery/run_solver_scip_cert.jl
+T=8 -> OPTIMAL  obj=7.3685  bound=7.368518418438501  brute-force=7.3685 (agrees: true)  rt=6.94s  SCIP v8.0.0
+T=10 -> OPTIMAL  obj=8.5298  bound=8.529755235992559  brute-force=8.5298 (agrees: true)  rt=6.22s  SCIP v8.0.0
+T=20 -> OPTIMAL  obj=19.324  bound=19.32401396682493  brute-force=19.3241 (agrees: true)  rt=19.21s  SCIP v8.0.0
+T=40 -> OPTIMAL  obj=34.83  bound=34.82997241880006  brute-force=34.8301 (agrees: true)  rt=61.24s  SCIP v8.0.0
+scip_cert DONE -> /ijf/output/runs/battery_solver_comparison/full-all-limit1-2026-10-20/raw/battery-2026-07/solver/scip_cert_results.jsonl

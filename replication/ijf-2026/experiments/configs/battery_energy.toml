@@ -1,0 +1,59 @@
+# July 2026 battery: PJME daily load, rolling-origin forecasts (manifest id battery_energy, table
+# battery.energy = tab:energy_forecasting).
+#
+# Protocol: artifacts/original-scripts/battery-2026-07/scripts/run_energy_forecasting_{julia.jl,
+# python.py,r.R} and setup/gen_energy_data.py (= 74eb882^:experiments/scripts), whose archived
+# records were produced at commit 8ffc512 on Sarimax v0.3.0 (3f68017). The runners are ports to
+# the release API (deviations at their top and in experiments/runners/battery/PORTING.md); fit!
+# receives the v0.3.0 defaults the original relied on (initialization = :zeroed,
+# stationary = false).
+#
+# The table reads only the forecasting records (block "energy_forecasting"), so only those
+# steps run here. The archived energy block also holds energy/architecture_results.jsonl and
+# energy/solver_results.jsonl, which no table reads; their ported scripts
+# (experiments/runners/battery/run_energy_architecture.jl, run_energy_solver.jl, the latter
+# needing SCIP) can be run by hand with the same environment variables after the first two
+# steps.
+#
+# Needs the PJME load file: ./reproduce.sh fetch pjme. The first step checks
+# $IJF_PJME_DIR/PJME_hourly.csv against the SHA-256 archived with the battery and refuses to
+# continue otherwise; the second derives the daily series and compares it with the battery's
+# derived files (MATCH/MISMATCH in its log).
+
+id = "battery_energy"
+kind = "script"
+title = "Battery 2026-07: PJME daily load, rolling-origin forecasts of SARIMAX.jl vs statsmodels, R forecast and seasonal naive"
+protocol_status = "archived"
+protocol_source = "artifacts/original-scripts/battery-2026-07/scripts/run_energy_forecasting_{julia.jl,python.py,r.R}, setup/gen_energy_data.py (records of 8ffc512, Sarimax v0.3.0 = 3f68017)"
+tables_group = "battery"
+tables = ["battery.energy"]
+
+[[steps]]
+engine = "python"
+script = "experiments/runners/battery/check_pjme.py"
+args = []
+timeout_s = 300
+
+[[steps]]
+engine = "python"
+script = "experiments/runners/battery/setup/gen_energy_data.py"
+args = []
+timeout_s = 900
+
+[[steps]]
+engine = "julia"
+script = "experiments/runners/battery/run_energy_forecasting_julia.jl"
+args = []
+timeout_s = 1800
+
+[[steps]]
+engine = "python"
+script = "experiments/runners/battery/run_energy_forecasting_python.py"
+args = []
+timeout_s = 900
+
+[[steps]]
+engine = "r"
+script = "experiments/runners/battery/run_energy_forecasting_r.R"
+args = []
+timeout_s = 900

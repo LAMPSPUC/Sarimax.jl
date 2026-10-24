@@ -1,0 +1,14 @@
+=== REFUTACOES: SCIP achou ponto melhor, com certificado ===
+  id 44 | cancel-regular-folga5e-2   | modo zeroed      | OPTIMAL
+     Ipopt 57.868044  SCIP 57.536983  ->  SCIP melhor em 0.5754%
+     dual bound 57.536983 | gap do certificado 1.09e-09
+  id 45 | inov-cancel-regular        | modo innovations | OPTIMAL
+     Ipopt 54.706978  SCIP 53.681295  ->  SCIP melhor em 1.9107%
+     dual bound 53.681294 | gap do certificado 1.07e-08
+
+=== o gap e' confiavel? dual bound valido? ===
+cel  dual_ok
+E    False      1
+     True       3
+F    True       6
+G    True       2

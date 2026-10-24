@@ -2,8 +2,10 @@
 
 This walkthrough follows the classical Box-Jenkins cycle in the style of
 *Forecasting: Principles and Practice*: **identify → estimate → diagnose →
-forecast → validate**, using the monthly air-passengers series shipped with
-the package.
+forecast → validate**, using the monthly series shipped with the package as
+`AIR_PASSENGERS`. Despite the name, it is not the Box-Jenkins airline series: it is
+`fpp2::a10`, monthly anti-diabetic drug sales in Australia (July 1991 to June 2008),
+also available as `ANTIDIABETIC_DRUG_SALES`.
 
 ```julia
 using Sarimax

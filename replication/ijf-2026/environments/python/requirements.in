@@ -1,0 +1,7 @@
+# Top-level Python requirements of the replication package (resolved into requirements.lock).
+# statsmodels: Python comparison baseline (SARIMAX); numpy/matplotlib: table and figure generation.
+numpy==2.4.6
+pandas==2.3.3
+scipy==1.16.3
+statsmodels==0.14.6
+matplotlib==3.11.2

@@ -1,0 +1,16 @@
+\begin{tabular}{llrrrrr}
+\toprule
+Freq. & Arm & $N$ & sMAPE & MASE & OWA & $\Delta$OWA vs stat., normalized \\
+\midrule
+Monthly & stat., normalized & 48{,}000 & 13.491 & 0.928 & 0.9038 & -- \\
+ & free, normalized & 48{,}000 & 13.489 & 0.928 & 0.9039 & +0.0001 \\
+ & inv., normalized & 48{,}000 & 13.488 & 0.928 & 0.9038 & -0.0000 \\
+ & stat.+inv., normalized & 48{,}000 & 13.475 & 0.927 & 0.9031 & -0.0007 \\
+ & stat., not normalized & 48{,}000 & 13.525 & 0.937 & 0.9095 & +0.0057 \\
+ & free, not normalized & 48{,}000 & 13.545 & 0.940 & 0.9115 & +0.0077 \\
+ & inv., not normalized & 48{,}000 & 13.520 & 0.938 & 0.9094 & +0.0056 \\
+ & stat.+inv., not normalized & 48{,}000 & 13.527 & 0.937 & 0.9096 & +0.0058 \\
+\midrule
+\multicolumn{7}{l}{\footnotesize auto.arima OWA on the same series: monthly 0.9044} \\
+\bottomrule
+\end{tabular}

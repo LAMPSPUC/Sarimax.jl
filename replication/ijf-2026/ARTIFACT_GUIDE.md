@@ -25,7 +25,7 @@ replication/ijf-2026/
   scripts/ijf.py, scripts/ijflib/  orchestrator (check, smoke, tables, full, fetch, list)
   scripts/ijftables/               table generators (one module per table group)
   scripts/checks/                  environment checks run inside the image
-  scripts/maintainers/             bundle builder, expected-value extraction, lock generators
+  scripts/maintainers/             bundle builders, release staging and deposit, expected values, locks
   scripts/fingerprint.sh           source fingerprint (host and image)
   data/external_files.csv          pinned locations and SHA-256 of M4 and PJME
   data/fixtures/                   small committed inputs: smoke data, a 1 MB subset of the bundle
@@ -41,6 +41,7 @@ replication/ijf-2026/
   artifacts/   (not committed)     the extracted artifact bundle
   data/external/ (not committed)   fetched M4 and PJME files
   output/      (not committed)     everything a reproduction writes
+  dist/        (not committed)     the files of the Zenodo data record, staged by stage_release.py
 ```
 
 ## 2. How a command runs
@@ -333,14 +334,20 @@ The controlled comparison of objectives was produced by a separate workstream (2
 4. **Merge** the replication branch into `master` after review.
 5. **Archive the bundle.**
    * Part 1 already exists (its SHA-256 is in `artifacts.lock`); part 2 is rebuilt identically
-     with `build_artifact_part2.py`.
+     with `build_artifact_part2.py`. Both builders read the experiment workspaces; their
+     tarballs are then staged inside this package, so that the deposit reads nothing outside
+     it: `scripts/maintainers/stage_release.py --part1 FILE --part2 FILE` copies each tarball
+     into `dist/` (ignored by git and by the Docker build context) after checking its SHA-256
+     against `artifacts.lock` and every file it contains against its inventory, and writes the
+     bundle json the deposit reads; `--image FILE` stages the exported image; `--check`
+     re-verifies what is staged.
    * The August 2026 certification batch survives only as a reconstruction (raw outputs lost),
      archived in the repository (`results/historical/certification-2026-08/`) and checked by
      `check_certification_2026_08.py`; its 2026-10-21 re-run, with SCIP logs, is archived beside
      it (`results/reruns/certification-2026-08-rerun-2026-10-21/`, checked by
      `check_certification_rerun_2026_10.py`). Neither needs a further bundle part.
    * Upload both tarballs and their inventories to one Zenodo data record. Test in the Zenodo
-     Sandbox first: `scripts/maintainers/zenodo_deposit.py --bundle-dir DIR1 --part2-dir DIR2`.
+     Sandbox first: `scripts/maintainers/zenodo_deposit.py --bundle-dir dist/part1 --part2-dir dist/part2`.
    * Record the version DOI and each tarball's URL in `artifacts.lock`. This does not change
      the fingerprint.
 6. **Publish the image.** Build and push it with the manually triggered workflow

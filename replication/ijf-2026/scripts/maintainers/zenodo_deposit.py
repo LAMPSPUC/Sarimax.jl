@@ -9,9 +9,10 @@ metadata; it publishes ONLY with --publish, and refuses --publish against produc
     ZENODO_SANDBOX_TOKEN=... python zenodo_deposit.py --bundle-dir DIR --publish  # sandbox publish
     ZENODO_TOKEN=... python zenodo_deposit.py --production --bundle-dir DIR         # production draft
 
-DIR is the output directory of build_artifact_bundle.py (tarball, artifacts.sha256,
-bundle.json); --part2-dir DIR2 adds part 2 (build_artifact_part2.py) to the same record.
-Optional extra files (for example the exported image) via --extra FILE.
+DIR is dist/part1 and DIR2 dist/part2 as staged by stage_release.py (tarball, inventory and
+bundle json, each verified against artifacts.lock), or the output directories of the builders;
+--part2-dir DIR2 adds part 2 to the same record. Optional extra files (for example the
+exported image, dist/image/) via --extra FILE.
 After a successful publication, copy the printed DOI and file URL into artifacts.lock.
 """
 

@@ -60,9 +60,9 @@ counted as reproduced; the breakdown is in `verification/VERIFICATION_REPORT.md`
 | **total** | | **660** | **174** | **0** | **0** | **2** |
 
 The 23 statements of the text checked against the archive are in
-`results/manuscript/textual_claims.csv`: 17 supported, 2 contradicted by the source (C8, C9:
-the moving-average normalization of Supplementary Section S2) and 4 that need material not in
-the package (C3, C18-C20).
+`results/manuscript/textual_claims.csv`: all 23 supported, including the moving-average
+normalization of Section 3.5 and Supplementary Section S2 (C8, C9), the configuration of
+Table S3 (C3) and the archived records behind Tables S2, S8 and S9 (C18-C20).
 
 ## Experiments
 
@@ -241,9 +241,9 @@ What remains:
    comparison, and the per-seed table of the ten-seed study of Table S8
    (`reports/certification_batch_2026_08.md`). The
    certification batch and the 1,500-series initialization comparison were re-executed as
-   identified runs (`results/reruns/`); regenerated packages for the Supplementary Section S2
-   check, the ten-seed study and the AICc pairing were reported by their author but are not
-   deposited (`results/manuscript/textual_claims.csv`, C18-C20).
+   identified runs (`results/reruns/`). Regenerated runs of Table S2, the ten-seed study and the
+   AICc pairing are not deposited, and the text cites only the archived records
+   (`results/manuscript/textual_claims.csv`, C18-C20).
 2. **The census Manifest and the `fator=1` patch** behind its normalization-off cells
    (lost), needed to re-execute those arms.
 3. ~~The simulation scripts of the September 2026 revision analysis and their outputs~~:

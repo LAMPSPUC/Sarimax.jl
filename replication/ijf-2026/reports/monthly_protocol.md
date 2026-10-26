@@ -32,9 +32,9 @@ series. The runner calls `auto` with `objectiveFunction = "mse"`, `searchMethod 
 criterion (AICc), `maxTimeSeconds = 120.0`, `stationary = invertible = false` with
 `assertStationarity = assertInvertibility = true` and `rootMargin = 1e-2`,
 `warmStartFromBox = true`, `requireTermsWhenOverDifferenced = true`, and the initialization of
-the arm (`:innovations` or `:penalized`). Table S3 lists all of these except the warm start from
-the box and the over-differencing requirement; the second changes which orders the search may
-select (textual claim C3).
+the arm (`:innovations` or `:penalized`). Table S3 lists all of these, including the
+over-differencing requirement, which changes which orders the search may select (textual claim
+C3), except the warm start from the box, a starting-point setting.
 
 ## How much the protocol matters
 

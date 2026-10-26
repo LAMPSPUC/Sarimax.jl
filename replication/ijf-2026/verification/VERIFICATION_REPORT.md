@@ -6,16 +6,16 @@ re-obtained with it. The package is the directory `replication/ijf-2026/` of
 https://github.com/LAMPSPUC/Sarimax.jl (pull request LAMPSPUC/Sarimax.jl#34, branch
 `feature/ijf-replication`); the commit tested is given in section 6.
 
-## 1. The submitted manuscript
+## 1. The manuscript
 
 | | |
 |---|---|
 | title | SARIMAX.jl: Open-Source Optimization-Based SARIMAX Modeling in Julia |
 | venue | International Journal of Forecasting, special issue Advances in Open Source Forecasting Software |
-| manuscript PDF | SHA-256 `7d7d24585c24e59d190a110476bf425e39f52e49f6aa1c83f2351ff10d2f7a08` |
-| Supplementary Material PDF | SHA-256 `f18a2f6049e4630321b79e7605872541208b774f868b26067546137f01750e4c` |
-| LaTeX source archive | SHA-256 `5f57939a491b6581fe3b0a5da7352dca5ea6a57803e03c188666847f93142021` |
-| LaTeX source tree (55 files) | SHA-256 `071aa67fd8e8a9043304b04afc5f5558be1a0088dd4194d56e4d22564b271706` |
+| manuscript PDF (`SARIMAX_manuscript.pdf`) | SHA-256 `0ed0237a3261f10926d7ce1efb828a5cfb0e2115b9df4b47e48e0787b22fae34` |
+| Supplementary Material PDF (`SARIMAX_supplementary_material.pdf`) | SHA-256 `01dde2dca8564f657285ae0596d9748a1c9db5a5b7312a11de7927d4e42daddc` |
+| LaTeX source archive (`SARIMAX_latex_source.zip`) | SHA-256 `fc0c1722a6d208db3183e0ecb61055c571ad3ccc52e6f79a74529bf0181181f2` |
+| LaTeX source tree (52 files) | SHA-256 `023a5f452e960a76f22c4deb2fa66da3a629bf5432529438ecfb15bd056021de` |
 
 The mapping of printed values is bound to these files by their hashes
 (`results/manuscript/REVISION.toml`, which also states how the tree hash is computed), not to
@@ -23,8 +23,11 @@ a name. The printed values were read from the LaTeX source by
 `scripts/maintainers/transcribe_manuscript.py`: table cells from the `tabular` and `longtable`
 environments, figure annotations from the figure PDFs, and numbers quoted in the text located
 by their exact LaTeX text. Run again on the same source, it reproduces
-`results/manuscript/manuscript_values.csv` byte for byte. The source itself is not part of the
-repository (section 8).
+`results/manuscript/manuscript_values.csv` byte for byte. Every one of its 836 printed values is
+also found in the text of the two PDFs above (`pdftotext`), which ties the PDFs to that source.
+The archive's own `SOURCE_SNAPSHOT.toml` records the SHA-256 of an earlier compile of the main
+PDF (`3acbf7f9…`); the PDF bound here is the compile distributed with the archive. The source
+itself is not part of the repository (section 8).
 
 ## 2. Printed values
 
@@ -93,17 +96,17 @@ The provenance of every experiment, including this one, is in `reports/experimen
 ## 3. Statements of the text
 
 `results/manuscript/textual_claims.csv` checks 23 statements of the text against the archive and
-the code: 17 are supported, 2 differ from the implementation, and 4 need material that is not
-in the package.
+the code; all 23 are supported. Six of them are statements the final text restates to what the
+code and the archive support:
 
-| claim | statement | finding |
+| claim | statement | evidence |
 |---|---|---|
-| C8 | Supplementary Section S2: the complete MA normalization used for the multiplicative polynomial is D_reg(θ) D_seas(Θ) [R(θ, Θ; s)²]^(-1/T) | **differs**: the package applies D_reg D_seas without the resultant factor (section 4) |
-| C9 | Supplementary Section S2: for the additive seasonal specification the normalization is a function of the complete MA polynomial | **differs**: the package applies the same separate factors (section 4) |
-| C3 | Table S3: the 120-second monthly experiment uses MSE, `:innovations`, stepwise search, AICc, KPSS and seasonal-strength tests and root checks at margin 1e-2 | **needs verification**: its runners also set `requireTermsWhenOverDifferenced = true`, which Table S3 does not list |
-| C18 | a documented independent run reproduces the printed aggregates of Table S2 | **needs verification**: the nine values agree with the recovered aggregate; the independent run its author reports is not deposited |
-| C19 | the ten-seed aggregates were checked against recovered source states | **needs verification**: the printed medians follow from the archived per-seed table; the re-execution in reconstructed source states is not deposited, and the keywords those states used were never committed |
-| C20 | in the regenerated AICc pairing parameter counts agree for all 1,099 pairs | **needs verification**: the recovered aggregate reports 1,099 agreeing pairs; the regenerated pairing is not deposited |
+| C8 | Section 3.5 and Supplementary Section S2: the criterion uses the factorized MA normalization D_reg(θ) D_seas(Θ), which for mixed multiplicative MA models omits the resultant correction of the complete factor that S2 derives | the code, and the factor measured on the package (section 4) |
+| C9 | for additive seasonal models the implementation likewise does not evaluate the determinant of the complete MA polynomial | as above |
+| C3 | Table S3: the 120-second monthly experiment also excludes term-free orders when d + D ≥ 2 | the runner sets `requireTermsWhenOverDifferenced = true` (`reports/monthly_protocol.md`) |
+| C18 | Table S2: the printed aggregates agree with the archived summary of the original run; the per-replication records are unavailable | the recovered per-DGP aggregate |
+| C19 | Table S8: the printed medians are recomputed from the archived per-seed records | `check_certification_2026_08.py` |
+| C20 | Table S9: in the archived aggregate, parameter counts agree for all 1,099 pairs, while AICc differences remain, largest for mixed seasonal orders | the recovered aggregate: 0 of 1,099 pairs differ in parameter count; median AICc differences +8.76 and +14.83 for the mixed orders against at most +0.28 otherwise |
 
 The supported statements include the configuration of the six-frequency and controlled
 campaigns (C2, C4, C5), the Huber, ridge and warm-start settings (C7), the definition of the
@@ -112,15 +115,17 @@ iteration-ceiling share (C10), the global-optimization statements of Section 5.6
 
 ## 4. Mathematical consistency with the implementation
 
-### 4.1 The moving-average normalization (Supplementary Section S2)
+### 4.1 The moving-average normalization (Section 3.5, Supplementary Section S2)
 
-**What the supplement states.** With η_j the reflection coordinates of an MA polynomial,
+**What the supplement derives.** With η_j the reflection coordinates of an MA polynomial,
 D_reg(θ) = ∏_j [1 - η_j(θ)²]^(-j/T) for the regular polynomial (eq. app_d_reg), D_seas(Θ) =
 ∏_w [1 - η_w(Θ)²]^(-sw/T) for a pure seasonal one (eq. app_d_seas), and for the
 multiplicative polynomial θ(B)Θ(B^s) the complete factor D_MA = D_reg D_seas [R(θ, Θ; s)²]^(-1/T),
 R = Res(P_θ, Q_Θ) = ∏_i Θ(α_i^s) (eq. app_d_ma_complete); for the additive specification the
-factor of the complete polynomial 1 + Σθ_jB^j + ΣΘ_wB^(sw). The concentrated criterion is
-S_innov · D_MA.
+factor of the complete polynomial 1 + Σθ_jB^j + ΣΘ_wB^(sw). Section 3.5 and S2 state that the
+implemented criterion is S_innov · D_reg · D_seas, which omits the resultant correction for
+mixed multiplicative models and does not evaluate the complete polynomial's determinant for
+additive ones.
 
 **What the package does.** `src/models/sarima.jl`, in the `mse` objective under `:penalized` or
 `:innovations` (`objectiveFunction == "mse" && penalizado`): the MA block multiplies the sum of
@@ -147,17 +152,16 @@ supplement describes.
   multiplicative, three additive) and differs from the complete factor
   (`result_14dd581.txt`, `result_21903b5.txt`; 12/12 tests).
 
-**Discrepancy.** The objective the package minimizes omits [R²]^(-1/T) for multiplicative
+**Finding.** The text agrees with the implementation. The objective the package minimizes omits [R²]^(-1/T) for multiplicative
 models with both regular and seasonal MA terms, and uses separate factors instead of the
 complete polynomial's for additive ones. At T = 200 the omitted factor lies between 0.987 and
 1.010 (multiplicative) and between 0.994 and 1.039 (additive) over random invertible draws; for
 q = Q = 1, s = 12, θ₁ = 0.8, Θ₁ = -0.6 it is 1.00042. It affects fits with the `mse` objective
 under `:penalized` or `:innovations` whose model has both regular and seasonal MA terms, and,
 through the warm start, possibly the Huber fits started from them. The printed results are those of the
-implementation as it is (they are regenerated from its records, section 2); what differs is the
-description of the estimator. The authors record it as a known defect of the implementation:
-neither the text nor the estimator is changed in this release, and no experiment was re-run
-(`LIMITATIONS.md`, item 22).
+implementation as it is (they are regenerated from its records, section 2). The omission is
+recorded as a known defect of the estimator, which is not changed in this release, and no
+experiment was re-run (`LIMITATIONS.md`, item 22).
 
 ### 4.2 Other settings stated by the text
 
@@ -190,7 +194,8 @@ The text states the first two as properties of the release used by the controlle
 
 | command | result |
 |---|---|
-| `transcribe_manuscript.py --source <LaTeX source>` | 836 printed values; identical to the committed mapping |
+| `transcribe_manuscript.py --source <LaTeX source>` (the final archive) | 836 printed values; identical to the committed mapping |
+| the 836 printed values against the text of the two final PDFs (`pdftotext`) | 836 of 836 found |
 | `check_manuscript_mapping.py` and `--release` | raw-reproduced 660, derived-only 174, differing 0, no evidence 0, at run time 2; both PASS |
 | `check_package.py` | 30 experiments, 10 table groups, 836 manuscript values: consistent |
 | `check_certification_2026_08.py` | 45 received files verified; 44 per-instance rows match the per-batch tables; 61 derived values PASS |
@@ -241,7 +246,7 @@ package or the replication files.
 | **Re-executable from the original data** in the container, with series-by-series comparison to the archive | Table 2; Table 7 and the MA(1) certificates of Section 5.6; Tables 3, 4, S12, Figure 2, Section 5.3; Tables 5, 6, S4, S13, S14, Figure 3, Section 5.4 | `./reproduce.sh full`; exercised on subsets: `full --all --limit 1` PASS (2026-10-20); the controlled objective campaign reproduces the archive on all 359 weekly series per objective and on samples of the other frequencies. The complete M4 campaigns (several hundred CPU-hours) were not re-run for this archive |
 | **Regenerable from archived outputs** | the 660 raw-reproduced values, including Tables S15 and S16 and the admissibility results of Section 5.5 | `./reproduce.sh tables`: 9 table groups, every cell agrees (section 6) |
 | **Partial**: historical records, with identified re-executions where possible | Tables S5-S7 and the grid of Section 5.6 (August reconstruction; re-run with per-instance records and SCIP logs); Tables S8, S9 and the initialization results of Section 5.5 (per-seed table; re-run of the 1,500-series comparison); Table S2 and the ranking diagnostics (aggregates); Tables S10, S11 and Figure S1 (recovered script outputs); re-execution of Tables S15 and S16 (their runners need the original harness, and the Manifest and one patch of the normalization-off cells are lost) | section 2; `reports/provenance_gaps.md`; `REPRODUCIBILITY_STATUS.md` |
-| **Unresolved** | the text of Supplementary Section S2 against the code (C8, C9); Table S3 (C3); the independent runs cited for Table S2, the ten-seed study and the AICc pairing (C18-C20); the R and forecast versions of the archived `auto.arima` reference scores; the per-instance raw outputs of the August certification batch and the code of the ten-seed arms B and D | sections 3 and 4; `LIMITATIONS.md` |
+| **Unresolved** | the MA normalization defect of the estimator (stated in the text, not fixed: `LIMITATIONS.md`, item 22); the R and forecast versions of the archived `auto.arima` reference scores; the per-instance raw outputs of the August certification batch and the code of the ten-seed arms B and D | sections 3 and 4; `LIMITATIONS.md` |
 
 **Revisions and environments.** Each experiment's source revision, environment, runner and
 records are in `reports/experiment_provenance.md` (prose) and `experiment_manifest.csv`
@@ -267,12 +272,14 @@ pinned source, each verified by SHA-256 (`data/external_files.csv`).
 
 Decided by the authors:
 
-1. **Supplementary Section S2 (C8, C9):** a known defect of the implementation, documented in
-   `LIMITATIONS.md` (item 22); neither the text nor the estimator is changed in this release.
-2. **Table S3 (C3):** the over-differencing requirement of the 120-second experiment is added
-   to the table.
-3. **Independent runs cited by the text (C18-C20):** not deposited; the three sentences are
-   restated to what the archived records support.
+1. **The MA normalization (C8, C9):** a known defect of the estimator, documented in
+   `LIMITATIONS.md` (item 22) and not changed in this release; Section 3.5 and Supplementary
+   Section S2 of the final text distinguish the implemented factorized normalization from the
+   complete factor.
+2. **Table S3 (C3):** the final text lists the over-differencing requirement of the 120-second
+   experiment.
+3. **Independent runs cited by the text (C18-C20):** not deposited; the final text restates the
+   three sentences to what the archived records support.
 4. **Software version:** registering the `src/` fixes as 1.0.1 is on hold; the replication
    release identifies its code by commit.
 
@@ -280,9 +287,8 @@ Decided by the authors:
    replication script downloads them on the user's machine, verified by content hash, on first
    use (`reports/scip_licence.md`). The image itself can therefore be published.
 
-Items 2 and 3 change the manuscript: once the revised files exist, the mapping is transcribed
-again from their LaTeX source, `REVISION.toml` records their SHA-256, and claims C3 and C18-C20
-are checked again.
+The mapping is bound to the final files (section 1): transcribed again from their LaTeX source,
+it is unchanged, and the six restated claims are supported (section 3).
 
 Open:
 

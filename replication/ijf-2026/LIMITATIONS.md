@@ -28,15 +28,12 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
    * **Derived quantities** (`results/manuscript/derived_quantities.csv`): the Ipopt times of
      Table 7 at the precision of the archived record, the Stable-minus-MSE column of Table S15 and
      the improvement shares of Section 5.4 at the tolerance the text declares.
-   * **Statements the source contradicts or the package cannot yet show**
-     (`results/manuscript/textual_claims.csv`, `verification/VERIFICATION_REPORT.md`): the
-     multiplicative moving-average normalization of Supplementary Section S2 includes a resultant
-     cross factor that no revision of the package implements, and the additive specification is
-     not normalized by its complete MA polynomial (claims C8, C9; the supplement's identity is
-     exact, and the package applies the separate regular and seasonal factors); Table S3
-     describes the 120-second monthly protocol without the over-differencing requirement its
-     runners set (C3); the independent runs that the Supplementary text cites for Table S2, the
-     ten-seed diagnostic and the AICc pairing have not been deposited in the package (C18-C20).
+   * **Statements of the text** (`results/manuscript/textual_claims.csv`,
+     `verification/VERIFICATION_REPORT.md`): all 23 checked statements are supported. Section 3.5
+     and Supplementary Section S2 state that the implemented moving-average normalization omits
+     the resultant correction of the complete factor (claims C8, C9; item 22); Table S3 lists the
+     over-differencing requirement (C3); Tables S2, S8 and S9 are described by their archived
+     records only (C18-C20).
    * The reference scores of `forecast::auto.arima` are archived outputs whose R and package
      versions were not recorded. Figure 1 is an analytic illustration; the script that draws the
      stationarity regions was recovered (`results/historical/revision-2026-09/recovered/`), but
@@ -214,8 +211,9 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
     applies the separate factors (`verification/ma_normalization/package_factor.jl`, at `14dd581`
     and `21903b5`). It affects fits with both regular and seasonal MA terms; at T = 200 the omitted
     factor lies between 0.987 and 1.010 (multiplicative) and between 0.994 and 1.039 (additive).
-    The printed results are those of the implementation; neither the text nor the estimator is
-    changed in this release (textual claims C8, C9).
+    The printed results are those of the implementation; Section 3.5 and Supplementary Section S2
+    state the implemented factor and the omission, and the estimator is not changed in this
+    release (textual claims C8, C9).
 
 ## Third-party binaries fetched at run time
 

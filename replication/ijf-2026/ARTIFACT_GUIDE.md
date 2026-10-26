@@ -316,12 +316,10 @@ The controlled comparison of objectives was produced by a separate workstream (2
 
 ## 9. Release checklist (maintainers; every step needs the authors' approval)
 
-1. **Bind the mapping to the final manuscript** (`verification/VERIFICATION_REPORT.md`,
-   section 8). The authors revise Table S3 (claim C3) and restate three sentences (C18-C20);
-   with the revised LaTeX source, transcribe it again
-   (`scripts/maintainers/transcribe_manuscript.py --source DIR --write`), record the new SHA-256
-   in `results/manuscript/REVISION.toml` and update the status of those claims. C8 and C9 stay as
-   a documented known defect (`LIMITATIONS.md`, item 22).
+1. **The mapping is bound to the final manuscript** (`results/manuscript/REVISION.toml`,
+   `verification/VERIFICATION_REPORT.md`, section 1). If the manuscript changes again, transcribe
+   it from the revised LaTeX source (`scripts/maintainers/transcribe_manuscript.py --source DIR
+   --write`), record the new SHA-256 in `REVISION.toml` and check the textual claims again.
 
    Then run `scripts/maintainers/check_manuscript_mapping.py --release`: it must pass (it does
    for the submitted manuscript: no printed value differs from its source).

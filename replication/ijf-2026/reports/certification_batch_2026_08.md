@@ -161,8 +161,7 @@ Checked against the repository's history (every branch):
 * Table S5 and Section 5.6: the August batch's per-instance raw records are lost, and the
   2026-10-21 re-run stands in for them (with logs) for everything but load-dependent quantities
   (times, the gaps of time-limited instances, whether ids 34, 35 and 38 return).
-* Section 5.5 and Table S9: the ranking diagnostics survive as aggregates only; the regenerated
-  AICc pairing the manuscript mentions is not deposited (`results/manuscript/textual_claims.csv`,
-  C20).
+* Section 5.5 and Table S9: the ranking diagnostics survive as aggregates only, which is what the
+  text cites (`results/manuscript/textual_claims.csv`, C20).
 * Porting the batch's instances and the diagnostics' scripts to runners of this package
   (new executions, on approval).

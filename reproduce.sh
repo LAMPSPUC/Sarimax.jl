@@ -62,9 +62,8 @@ Options (all commands):
   --data-dir DIR     third-party input data, m4/ and pjme/ (default replication/ijf-2026/data/external)
   --output DIR       where generated outputs are written (default replication/ijf-2026/output)
   --offline          never download anything (missing inputs are reported, not fetched)
-  --from FILE        `fetch artifacts` (and the default run) take a bundle part from this local
-                     tarball instead of downloading it; it is verified the same way (repeatable:
-                     one --from per part)
+  --from FILE        `fetch artifacts` (and the default run) take the bundle from this local
+                     tarball instead of downloading it; it is verified the same way
   --allow-unverified-image
                      run even if the image was not built from this checkout (results are
                      labelled UNVERIFIED in every report)

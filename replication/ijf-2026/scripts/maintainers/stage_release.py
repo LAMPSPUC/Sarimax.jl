@@ -1,20 +1,18 @@
 """Stage the files of the Zenodo data record inside the replication package (maintainers only).
 
-    python stage_release.py [--part1 TARBALL] [--part2 TARBALL] [--image TARBALL]
+    python stage_release.py [--bundle TARBALL] [--image TARBALL]
     python stage_release.py --check
 
-Each bundle part's tarball is copied into replication/ijf-2026/dist/<part>/ after its SHA-256
-is checked against artifacts.lock and every file it contains against the part's committed
-inventory (artifacts.sha256, artifacts-part2.sha256). Next to it go the inventory and the
-bundle json that zenodo_deposit.py reads. An exported image (`docker save | gzip`) can be
-staged in dist/image/ with its SHA-256. dist/ is ignored by git and by the Docker build
-context.
+The bundle tarball is copied into replication/ijf-2026/dist/bundle/ after its SHA-256 is
+checked against artifacts.lock and every file it contains against the committed inventory
+(artifacts.sha256). Next to it go the inventory and the bundle json that zenodo_deposit.py
+reads. An exported image (`docker save | gzip`) can be staged in dist/image/ with its SHA-256.
+dist/ is ignored by git and by the Docker build context.
 
-The tarballs are the ones the builders wrote (build_artifact_bundle.py, build_artifact_part2.py,
-which read the experiment workspaces); once staged, the deposit reads nothing outside this
-package:
+The tarball is the one build_artifact_bundle.py wrote (it reads the experiment workspaces);
+once staged, the deposit reads nothing outside this package:
 
-    python zenodo_deposit.py --bundle-dir dist/part1 --part2-dir dist/part2 [--extra dist/image/FILE]
+    python zenodo_deposit.py --bundle-dir dist/bundle [--extra dist/image/FILE]
 
 `--check` verifies what is staged. Exit 0 when everything agrees, 1 otherwise.
 """
@@ -32,6 +30,7 @@ from pathlib import Path
 
 REPL = Path(__file__).resolve().parents[2]
 DIST = REPL / "dist"
+FOLDER = DIST / "bundle"
 
 
 def sha256(path: Path) -> str:
@@ -42,27 +41,23 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def parts() -> list[dict]:
-    """Part 1 is [bundle] of artifacts.lock, part 2 its [[parts]] entry, with their staging names."""
-    lock = tomllib.loads((REPL / "artifacts.lock").read_text(encoding="utf-8"))
-    p1, p2 = lock["bundle"], lock["parts"][0]
-    return [dict(p1, key="part1", json="bundle.json"), dict(p2, key="part2", json="bundle-part2.json")]
+def bundle() -> dict:
+    return tomllib.loads((REPL / "artifacts.lock").read_text(encoding="utf-8"))["bundle"]
 
 
-def inventory(part: dict) -> dict[str, str]:
+def inventory(lock: dict) -> dict[str, str]:
     out = {}
-    for line in (REPL / part["inventory"]).read_text(encoding="utf-8").splitlines():
+    for line in (REPL / lock["inventory"]).read_text(encoding="utf-8").splitlines():
         digest, name = line.split(maxsplit=1)
         out[name.strip().lstrip("*")] = digest
     return out
 
 
-def verify_tarball(tarball: Path, part: dict) -> list[str]:
-    """Problems with a part's tarball: its SHA-256, and every file against the inventory."""
-    problems = []
-    if sha256(tarball) != part["sha256"]:
-        return [f"{tarball.name}: SHA-256 differs from artifacts.lock ({part['sha256'][:16]}...)"]
-    want, seen = inventory(part), {}
+def verify_tarball(tarball: Path, lock: dict) -> list[str]:
+    """Problems with the tarball: its SHA-256, and every file against the inventory."""
+    if sha256(tarball) != lock["sha256"]:
+        return [f"{tarball.name}: SHA-256 differs from artifacts.lock ({lock['sha256'][:16]}...)"]
+    problems, want, seen = [], inventory(lock), {}
     with tarfile.open(tarball, "r:gz") as tar:
         for m in tar.getmembers():
             if not m.isfile():
@@ -79,23 +74,22 @@ def verify_tarball(tarball: Path, part: dict) -> list[str]:
     return problems
 
 
-def stage(source: Path, part: dict) -> list[str]:
-    problems = verify_tarball(source, part)
+def stage(source: Path, lock: dict) -> list[str]:
+    problems = verify_tarball(source, lock)
     if problems:
         return problems
-    folder = DIST / part["key"]
-    folder.mkdir(parents=True, exist_ok=True)
-    dest = folder / part["file"]
-    if not dest.exists() or sha256(dest) != part["sha256"]:
+    FOLDER.mkdir(parents=True, exist_ok=True)
+    dest = FOLDER / lock["file"]
+    if not dest.exists() or sha256(dest) != lock["sha256"]:
         shutil.copyfile(source, dest)
-    shutil.copyfile(REPL / part["inventory"], folder / Path(part["inventory"]).name)
+    shutil.copyfile(REPL / lock["inventory"], FOLDER / Path(lock["inventory"]).name)
     with tarfile.open(dest, "r:gz") as tar:
         members = [m for m in tar.getmembers() if m.isfile()]
-    meta = {"bundle": part["name"], "version": str(part["version"]), "files": len(members),
-            "bytes": sum(m.size for m in members), "tarball": part["file"], "tarball_sha256": part["sha256"],
-            "tarball_bytes": dest.stat().st_size, "inventory_sha256": part["inventory_sha256"]}
-    (folder / part["json"]).write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
-    print(f"staged {part['key']}: {dest.relative_to(REPL)}, {len(members)} files verified")
+    meta = {"bundle": lock["name"], "version": str(lock["version"]), "files": len(members),
+            "bytes": sum(m.size for m in members), "tarball": lock["file"], "tarball_sha256": lock["sha256"],
+            "tarball_bytes": dest.stat().st_size, "inventory_sha256": lock["inventory_sha256"]}
+    (FOLDER / "bundle.json").write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
+    print(f"staged bundle: {dest.relative_to(REPL)}, {len(members)} files verified")
     return []
 
 
@@ -109,22 +103,20 @@ def stage_image(source: Path) -> None:
     print(f"staged image: {dest.relative_to(REPL)} (SHA-256 {digest[:16]}...)")
 
 
-def check() -> list[str]:
+def check(lock: dict) -> list[str]:
     problems = []
-    for part in parts():
-        folder = DIST / part["key"]
-        tarball = folder / part["file"]
-        if not tarball.exists():
-            problems.append(f"{part['key']}: {tarball.relative_to(REPL)} not staged")
-            continue
-        problems += verify_tarball(tarball, part)
-        meta = json.loads((folder / part["json"]).read_text(encoding="utf-8"))
-        if meta["tarball_sha256"] != part["sha256"] or meta["inventory_sha256"] != part["inventory_sha256"]:
-            problems.append(f"{part['key']}: {part['json']} does not match artifacts.lock")
-        if (folder / Path(part["inventory"]).name).read_bytes() != (REPL / part["inventory"]).read_bytes():
-            problems.append(f"{part['key']}: staged inventory differs from the committed one")
+    tarball = FOLDER / lock["file"]
+    if not tarball.exists():
+        problems.append(f"{tarball.relative_to(REPL)} not staged")
+    else:
+        problems += verify_tarball(tarball, lock)
+        meta = json.loads((FOLDER / "bundle.json").read_text(encoding="utf-8"))
+        if meta["tarball_sha256"] != lock["sha256"] or meta["inventory_sha256"] != lock["inventory_sha256"]:
+            problems.append("bundle.json does not match artifacts.lock")
+        if (FOLDER / Path(lock["inventory"]).name).read_bytes() != (REPL / lock["inventory"]).read_bytes():
+            problems.append("staged inventory differs from the committed one")
         if not problems:
-            print(f"{part['key']}: {part['file']} and its {meta['files']} files verified")
+            print(f"bundle: {lock['file']} and its {meta['files']} files verified")
     image = DIST / "image" / "SHA256SUMS"
     if image.exists():
         digest, name = image.read_text(encoding="utf-8").split()
@@ -137,21 +129,18 @@ def check() -> list[str]:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--part1", type=Path)
-    ap.add_argument("--part2", type=Path)
+    ap.add_argument("--bundle", type=Path)
     ap.add_argument("--image", type=Path)
     ap.add_argument("--check", action="store_true")
     a = ap.parse_args()
-    p1, p2 = parts()
+    lock = bundle()
     problems = []
-    if a.part1:
-        problems += stage(a.part1, p1)
-    if a.part2:
-        problems += stage(a.part2, p2)
+    if a.bundle:
+        problems += stage(a.bundle, lock)
     if a.image:
         stage_image(a.image)
-    if a.check or not (a.part1 or a.part2 or a.image):
-        problems += check()
+    if a.check or not (a.bundle or a.image):
+        problems += check(lock)
     for p in problems:
         print("PROBLEM", p)
     return 1 if problems else 0

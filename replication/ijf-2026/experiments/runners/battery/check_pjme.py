@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""First step of the battery configurations that read the PJME load data (battery_energy,
-battery_global_value): check that $IJF_PJME_DIR/PJME_hourly.csv is present and is the file
-the July 2026 battery used.
+"""First step of the battery configuration that reads the PJME load data (battery_global_value):
+check that $IJF_PJME_DIR/PJME_hourly.csv is present and is the file the July 2026 battery used.
 
 The reference SHA-256 is the one archived with the original battery
 (artifacts/original-scripts/battery-2026-07/SHA256SUMS, entry

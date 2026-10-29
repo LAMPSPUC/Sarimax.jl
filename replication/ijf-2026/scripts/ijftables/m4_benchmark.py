@@ -19,8 +19,8 @@ import math
 from .common import BLOCK_NAMES, Cell, Context, fmean, read_csv, status_ok, write_text
 
 TITLE = "M4 headline comparison against auto.arima (campaign A)"
-RAW = "raw/m4-recreio-2026-08"
-BASE = "raw/m4-baselines-r-2026-07"
+RAW = "raw/m4-benchmark-2026-08"
+BASE = "raw/m4-baselines-2026-07"
 FREQS = ["daily", "hourly", "monthly", "quarterly", "weekly", "yearly"]   # make_table_m4 order
 
 INPUTS = ([f"{RAW}/m4_innovations_{f}.csv.gz" for f in FREQS]

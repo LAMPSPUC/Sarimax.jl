@@ -41,14 +41,12 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
 
 ## Provenance of the archived results
 
-2. **Several M4 campaigns ran on commits that are not part of a release.** The objective
-   campaigns of August 2026 (`m4_objectives_icarai_*`) ran on feature-branch commits
-   87f7bfb, 6a11698 and 5b2ec6b, with mixed commits inside some cells (monthly mse: 38,280
-   series at 87f7bfb, 9,720 at 5b2ec6b). Their tables regenerate exactly from the archived
-   per-series files, but a re-run executes the protocol on the release code, and the
-   estimators changed before the release (huber's warm-start scale, ridge's determinant
-   factor: the a1ebc0d re-run moved ridge's weekly OWA by +0.1431). These campaigns are
-   superseded by the controlled `m4_objectives` experiment.
+2. **Most archived campaigns ran on commits that are not a release.** Only the controlled
+   objective campaign ran on v1.0.0 (`14dd581`). Campaign A ran at aa68d57 and 3d7f883
+   (item 3), campaign F at 3d7f883, the September 2026 campaigns at fc2c482+PR26, a1ebc0d,
+   aa68d57 and 4e8cf11 (item 7), and the battery on a v0.3.0 working tree (item 5). Their
+   tables regenerate exactly from the archived files, but a re-run executes the protocol on
+   the release code.
 3. **The headline M4 campaign** (`m4_benchmark`, campaign A) ran at two commits
    (aa68d57 for five frequencies, 3d7f883 for monthly), both ancestors of the release, on
    Julia 1.9.4 with two MathOptInterface versions that were reconstructed, not recorded.
@@ -58,26 +56,25 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
    exactly R 4.4.1 and forecast 8.23.0.
 5. **The July 2026 battery** (tables `tab:*`) was produced on macOS arm64 with Julia 1.11.9,
    R 4.6.1 + forecast 9.0.2 and Python 3.9.6 from a v0.3.0 working tree whose Manifest
-   recorded a path, so uncommitted changes cannot be excluded; its solver-scaling table comes
-   from an earlier run (v0.1.3). The replication image uses Julia 1.10.12, R 4.4.1 and
+   recorded a path, so uncommitted changes cannot be excluded. The replication image uses Julia 1.10.12, R 4.4.1 and
    Python 3.12, and the release package: re-runs are expected to agree closely but not
    digit for digit where the estimator changed between v0.3.0 and v1.0.0.
-6. **Smaller studies** (contamination/CVaR, admissibility margins, initialization, order
-   search, multistart, isolation, axes) ran from un-versioned scripts in the ForecastTester
-   workspace; their package commits were not recorded. Their raw results and original
-   scripts are archived, but their runners were not ported (`full` is unavailable for them).
-7. **The September 2026 stable and admissibility campaigns** (stable objective on hourly, quarterly, daily and
-   monthly; the 2x2x2x2 stationarity x invertibility x log-det census; the over-differencing
-   guard) regenerate from their raw archive, `brutos_gavea.zip` (107,137,987 bytes, 177 files,
-   its own SHA256SUMS verified on receipt, shared on 2026-10-16), which is in bundle part 2
-   (the M4 test values in its `*_prev.csv` forecast files removed). The table group
-   `stable_admissibility_gavea` rebuilds the tables of 2026-10-17 from it (1,028 cells). They
-   cannot be re-executed: the campaigns ran on several commits (fc2c482+PR26, a1ebc0d, aa68d57,
-   4e8cf11) on macOS with Julia 1.12.3 (outside the package's compat) through their own
-   harness, and the census Manifest and the patch behind its normalization-off cells are lost.
+6. **Only the experiments behind printed values are archived.** The authors' workspace holds
+   further runs that support no value of the manuscript (other blocks of the July 2026
+   battery, exploratory M4 studies of August 2026); they are not part of the bundle or of this
+   package.
+7. **The September 2026 stable and admissibility campaigns** (stable objective on hourly,
+   quarterly, daily and monthly; the 2x2x2x2 stationarity x invertibility x log-det grid)
+   regenerate from their raw archive (177 files, shared on 2026-10-16; its own SHA256SUMS
+   verified on receipt and again by the bundle builder). The bundle holds the files of these
+   campaigns, with the M4 test values in the grid's `*_prev.csv` forecast files removed. The
+   table group `stable_admissibility` rebuilds the tables of 2026-10-17 from them (824 cells).
+   They cannot be re-executed: the campaigns ran on several commits (fc2c482+PR26, a1ebc0d,
+   aa68d57, 4e8cf11) on macOS with Julia 1.12.3 (outside the package's compat) through their own
+   harness, and the grid's Manifest and the patch behind its normalization-off cells are lost.
    The stable campaigns of hourly and quarterly stored MASE with the lag-1 naive denominator;
    the per-series ratio that converts it exactly to the M4 seasonal denominator is archived
-   in part 2 (computed from the official training series).
+   in the bundle (computed from the official training series).
 
 ## Global optimization evidence
 
@@ -92,9 +89,7 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
    certificate is classified as insufficient evidence, and whether a certificate closes
    within the limit depends on the platform. SCIP's reported objectives are sums of squares of
    residual variables that satisfy the model only to its feasibility tolerance; at SCIP's own
-   coefficients the exact objective is not below Ipopt's in any Table 7 instance. The July
-   2026 M4 yearly study ran SCIP with `limits/gap = 0.01`: its "OPTIMAL" rows are certified
-   only to a 1% relative gap. The global-optimization grid of Table S5 and the certified
+   coefficients the exact objective is not below Ipopt's in any Table 7 instance. The global-optimization grid of Table S5 and the certified
    instances of Section 5.6 (the August 2026 certification batch) survive only as a
    reconstruction from the session that ran them: status, time and certified gap per
    instance, objectives for 9 of 46, no node counts and no SCIP logs.
@@ -118,21 +113,17 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
     (Australian anti-diabetic drug sales, 204 monthly observations, 1991-07 to 2008-06), equal
     value for value; the airline series has 144 observations from 1949 to 1960. The package now
     documents it, exports `ANTIDIABETIC_DRUG_SALES` as the same dataset and pins its identity in
-    a test, without changing the data (`reports/airpassengers_dataset.md`). The validation,
-    forecasting and multistart experiments label it "airpassengers" or "AirPassengers"; the
+    a test, without changing the data (`reports/airpassengers_dataset.md`). The validation
+    and multistart experiments label it "airpassengers" or "AirPassengers"; the
     manuscript wording should change.
 
 ## This package
 
 13. **The container image and the artifact bundle are not published yet.** Publishing (GHCR,
     Zenodo) is a maintainer action at release time. Until then the image is built locally
-    and the bundle must be supplied with `--from`/`--artifacts`. The bundle has two parts.
-    Part 1 (535 files) has been built once, where all its sources are; 299 of its files were
-    rebuilt byte for byte natively on macOS and 446 on Windows, the rest come from experiment
-    workspaces that are not in the repository (the a1ebc0d re-run and the derived objective
-    distributions). Part 2 (368 files: the controlled objective campaign and the raw archive of
-    the September 2026 campaigns) was built twice, giving the same tarball byte for
-    byte. Both tarballs go into the same Zenodo record.
+    and the bundle must be supplied with `--from`/`--artifacts`. The bundle is one tarball
+    (385 files); it was built twice from the same sources, giving the same tarball byte for
+    byte.
 14. **`linux/arm64` is experimental.** The Dockerfile handles both architectures and CI builds
     and exercises arm64 on an arm64 runner, but only `linux/amd64` is the reference platform
     (see REPRODUCIBILITY_STATUS.md for the latest result). On Apple Silicon, Docker runs the
@@ -187,17 +178,15 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
     (`reports/exog_likelihood.md`). The replication image runs the checkout, so it now runs the
     fixed code; `fit!`'s use of undifferenced regressors in a differenced equation is
     unchanged and recorded there for the authors.
-19. **The archived PJME SARIMAX.jl numbers came from worse local optima.** On 3 of the 6
-    rolling origins the v0.3.0 solve stopped at a higher sum of squares; re-solving the
-    unscaled v0.3.0 problem reproduces the archived MAE/RMSE exactly, while the release's
-    internally rescaled solve finds lower-SSE fits (MAE 2396.26 against 2407.89; RMSE 2883.84
-    against 2869.13).
-20. **Fragile model selection in the architecture table.** The release's `auto` chooses
-    (2,1,2)(0,1,1)12 over the archived (1,1,1)(0,1,1)12; the two are 0.055 AICc apart.
+19. **statsmodels moves with scipy.** Re-running the validation block in the image (scipy
+    1.16.3 against the archived 1.13.1, on another platform) moves statsmodels' end point in 5
+    cells; its AirPassengers ARMA(1,0,1) fit sits on the MA unit root.
+20. **Solver statuses replace labels.** Where the archived solver-comparison table printed a
+    hard-coded label, the ported runners record the solver's termination status, so those
+    cells differ by design.
 21. **Definition changes since v0.3.0** move some battery cells by construction: `aic`/`bic`
-    use the exact likelihood (the CSS values are still recorded by the ported runners), and
-    `elastic_net` is a single-stage estimator. Every such change is listed in
-    `experiments/runners/battery/PORTING.md`.
+    use the exact likelihood (the CSS values are still recorded by the ported runners). Every
+    such change is listed in `experiments/runners/battery/PORTING.md`.
 
 ## Known defect of the estimator (documented; not changed in this release)
 

@@ -28,8 +28,8 @@ pays the compilation of the Ipopt/MOI code path.
 | PJME ARMA(1,0,1), SCIP | 601.8 s | 899.958 s | 900.0 | 900.1 s (time limit) |
 
 Sources: `results/historical/battery-2026-07-ecc4878/global_value_results.jsonl`;
-`raw/battery-2026-07/solver/global_value_results.jsonl` and `global_value_run.log` (bundle
-part 1); `results/reruns/full-all-limit1-2026-10-20/battery_global_value/`.
+`raw/battery-2026-07/solver/global_value_results.jsonl` and `global_value_run.log` (artifact
+bundle); `results/reruns/full-all-limit1-2026-10-20/battery_global_value/`.
 
 * Every time Table 7 prints is that of the `8ffc512` records, at the precision printed: the
   Ipopt times are the derived quantities `t7_ipopt_time|*` of

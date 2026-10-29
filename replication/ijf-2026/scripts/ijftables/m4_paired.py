@@ -33,8 +33,8 @@ import numpy as np
 from .common import Cell, Context, read_csv, status_ok, write_csv
 
 TITLE = "M4 paired differences and marginal distributions against auto.arima (campaign A)"
-RAW = "raw/m4-recreio-2026-08"
-BASE = "raw/m4-baselines-r-2026-07"
+RAW = "raw/m4-benchmark-2026-08"
+BASE = "raw/m4-baselines-2026-07"
 FREQS = ["yearly", "quarterly", "monthly", "weekly", "daily", "hourly"]   # manuscript order
 METRICS = [("MASE", "mase_total", "MASE"), ("sMAPE", "smape_total", "sMAPE")]
 METHODS = ["Sarimax.jl", "auto.arima"]

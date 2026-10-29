@@ -1,9 +1,9 @@
 """`fetch`: download and verify the archived artifact bundle and the third-party data.
 
-* artifacts - the Zenodo data record: one tarball per bundle part (location and SHA-256 of
-              each in artifacts.lock); `--from FILE` (repeatable) uses local copies instead.
-              Every extracted file is verified against its part's inventory (artifacts.sha256,
-              artifacts-part2.sha256) before the part is marked complete.
+* artifacts - the Zenodo data record: the bundle tarball (location and SHA-256 in
+              artifacts.lock); `--from FILE` uses a local copy instead. Every extracted file
+              is verified against the inventory (artifacts.sha256) before the bundle is
+              marked complete.
 * m4        - the official M4 files at a pinned commit of Mcompetitions/M4-methods
               (data/external_files.csv). M4 carries no licence, so it is fetched rather than
               redistributed; the SHA-256 proves the content is the official one.
@@ -228,6 +228,6 @@ def _frequencies_needed(paths: Paths, args) -> set[str]:
 
 
 def _needs_pjme(args) -> bool:
-    # battery_energy and battery_global_value (its third instance is PJME daily load)
-    return (any(("energy" in t or "global_value" in t) for t in (getattr(args, "experiment", []) or []))
+    # battery_global_value (its third instance is PJME daily load)
+    return (any("global_value" in t for t in (getattr(args, "experiment", []) or []))
             or getattr(args, "all", False))

@@ -1,12 +1,12 @@
 """Expected cells of the `m4_benchmark` group, parsed from
-historical-tables/m4-recreio-2026-08/table_m4.txt (campaign A's make_table_m4.jl, 2026-08-28)."""
+historical-tables/m4-benchmark-2026-08/table_m4.txt (campaign A's make_table_m4.jl, 2026-08-28)."""
 
 from __future__ import annotations
 
 import re
 from pathlib import Path
 
-REL = "historical-tables/m4-recreio-2026-08/table_m4.txt"
+REL = "historical-tables/m4-benchmark-2026-08/table_m4.txt"
 COLS = ["sMAPE.ours", "sMAPE.ref", "MASE.ours", "MASE.ref", "OWA.ours", "OWA.ref", "OWA.gap"]
 
 

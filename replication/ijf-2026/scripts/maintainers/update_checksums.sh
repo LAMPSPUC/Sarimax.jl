@@ -17,9 +17,9 @@ list_files() {
     # In a git checkout, the files in the index (committed or staged); untracked scratch files
     # are not part of the package. Outside git, every file under the listed paths.
     if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        git ls-files -- docker environments experiments scripts data results experiment_manifest.csv artifacts.sha256 artifacts-part2.sha256
+        git ls-files -- docker environments experiments scripts data results experiment_manifest.csv artifacts.sha256
     else
-        find docker environments experiments scripts data results experiment_manifest.csv artifacts.sha256 artifacts-part2.sha256 -type f
+        find docker environments experiments scripts data results experiment_manifest.csv artifacts.sha256 -type f
     fi
 }
 

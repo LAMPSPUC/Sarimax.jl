@@ -2,14 +2,14 @@
 # stable_weekly_yearly): three arms paired on the same series.
 #
 # Protocol: campaign F, experiments/scripts/run_stable.jl (stableConfig), commit
-# 3d7f883. The stable_090 arm was missing from the runner after the run and was RESTORED by
-# the authors of campaigns A-F (see their REPRODUCE.md, finding 1); its cvarLevel 0.9 is an
+# 3d7f883. The stable_090 arm was missing from the runner after the run and was restored to it
+# afterwards; its cvarLevel 0.9 is an
 # inference from the arm label and the default at that commit.
 
 id = "stable_weekly_yearly"
 kind = "m4"
 protocol_status = "archived"
-protocol_source = "origin/paper/replication-staging-recreio: experiments/scripts/run_stable.jl (campaign F)"
+protocol_source = "original-scripts/m4-benchmark-2026-08/scripts/run_stable.jl (campaign F, commit 052027a of this repository)"
 frequencies = ["weekly", "yearly"]
 per_series_timeout_s = 3600.0
 max_failure_rate = 0.01

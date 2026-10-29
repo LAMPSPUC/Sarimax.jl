@@ -9,10 +9,9 @@ the manuscript mapping compares those printed values with (source_kind = derived
 
     python derive_manuscript_quantities.py [--bundle DIR] [--write]
 
-`--bundle` is the extracted artifact bundle (both parts, as `./reproduce.sh fetch artifacts`
-writes them): part 1 holds the archived Table 7 record
-raw/battery-2026-07/solver/global_value_results.jsonl, part 2 the controlled campaign's
-per-series records raw/m4-objectives-controlled-2026-10/per_series/.
+`--bundle` is the extracted artifact bundle (as `./reproduce.sh fetch artifacts` writes it),
+which holds the archived Table 7 record raw/battery-2026-07/solver/global_value_results.jsonl
+and the controlled campaign's per-series records raw/m4-objectives-controlled-2026-10/per_series/.
 
 Without `--bundle` the committed rows of those two inputs are kept, with the SHA-256 of their
 inputs listed; without `--write` the script reports whether the committed file follows from

@@ -1,6 +1,6 @@
 # Controlled comparison of estimation objectives on M4 (manifest id m4_objectives).
 #
-# FINAL. The frozen protocol of the controlled campaign run on 2026-10-17/19 (archived in bundle part 2 under raw/m4-objectives-controlled-2026-10/, with the protocol file
+# FINAL. The frozen protocol of the controlled campaign run on 2026-10-17/19 (archived in the bundle under raw/m4-objectives-controlled-2026-10/, with the protocol file
 # itself as protocol/experiment_protocol.toml, SHA-256 de6d0bee...391821). Every keyword below is
 # the value that protocol passed to `Sarimax.auto`; only the objective varies between arms. The
 # protocol is the manuscript's Section 5.1 convention ("P2"): AR and MA estimated in their
@@ -15,7 +15,7 @@
 # series with the archived results.
 #
 # Reference: the archived run took auto.arima and Naive2 from the stored July 2026 baselines
-# (raw/m4-baselines-r-2026-07); the `naive2` arm below recomputes Naive2 so that a re-run can
+# (raw/m4-baselines-2026-07); the `naive2` arm below recomputes Naive2 so that a re-run can
 # report OWA on its own. The archived Table 5 never re-ran auto.arima, so it is not an arm here
 # (m4_benchmark re-runs it).
 
@@ -105,7 +105,7 @@ name = "naive2"
 engine = "r"
 method = "naive2"
 
-# Archived per-series results of the controlled campaign (bundle part 2), compared series by
+# Archived per-series results of the controlled campaign, compared series by
 # series with a re-run: same selected order and total sMAPE within the relative tolerance.
 [archived.mse]
 file = "raw/m4-objectives-controlled-2026-10/per_series/mse__{freq}.csv.gz"

@@ -12,9 +12,8 @@ replication/ijf-2026/
   CODE_AND_DATA_AVAILABILITY.txt   proposed statement for the manuscript
   experiment_manifest.csv          one row per experiment family: protocol, revision, status
   image.lock                       published image: repository, tag, digest (set at release)
-  artifacts.lock                   artifact bundle parts: file, SHA-256, DOI/URL (set at release)
-  artifacts.sha256                 SHA-256 of every file inside bundle part 1
-  artifacts-part2.sha256           SHA-256 of every file inside bundle part 2
+  artifacts.lock                   artifact bundle: file, SHA-256, DOI/URL (set at release)
+  artifacts.sha256                 SHA-256 of every file inside the bundle
   checksums.sha256                 SHA-256 of every committed file a computation reads
   compose.yaml                     Docker Compose equivalent of reproduce.sh
   docker/Dockerfile                the single replication image
@@ -25,7 +24,7 @@ replication/ijf-2026/
   scripts/ijf.py, scripts/ijflib/  orchestrator (check, smoke, tables, full, fetch, list)
   scripts/ijftables/               table generators (one module per table group)
   scripts/checks/                  environment checks run inside the image
-  scripts/maintainers/             bundle builders, release staging and deposit, expected values, locks
+  scripts/maintainers/             bundle builder, release staging and deposit, expected values, locks
   scripts/fingerprint.sh           source fingerprint (host and image)
   data/external_files.csv          pinned locations and SHA-256 of M4 and PJME
   data/fixtures/                   small committed inputs: smoke data, a 1 MB subset of the bundle
@@ -87,8 +86,8 @@ passed as a build argument; any mismatch fails the build.
 
 **Identity.** `scripts/fingerprint.sh` hashes (carriage returns stripped) `Project.toml`,
 `src/`, and `docker/`, `environments/`, `experiments/`, `scripts/`, `data/` (without
-`data/external/`), `results/`, `experiment_manifest.csv`, `artifacts.sha256`,
-`artifacts-part2.sha256` and `checksums.sha256` of this directory, excluding Markdown. The image stores it as the label
+`data/external/`), `results/`, `experiment_manifest.csv`, `artifacts.sha256` and
+`checksums.sha256` of this directory, excluding Markdown. The image stores it as the label
 `io.github.lampspuc.sarimax.ijf.fingerprint` and as `IJF_IMAGE_FINGERPRINT`; the commit it
 was built from is the label `org.opencontainers.image.revision`. `image.lock` and
 `artifacts.lock` are outside the fingerprint, so recording a published digest or DOI does
@@ -128,65 +127,47 @@ ends. `docker volume rm sarimax-ijf-scip` removes the fetched copy.
 
 ## 4. The artifact bundle
 
-The bundle is the Zenodo data record of the paper. It has **two parts**: two tarballs of the
-same record that extract into the same directory. Each part's files are listed with their
-SHA-256 in its own inventory, and `artifacts.lock` records each tarball's SHA-256 (and, at
-release, its DOI and URL).
+The bundle is the Zenodo data record of the paper: one tarball,
+`sarimax-ijf-2026-artifacts-v1.tar.gz` (377 MB, 385 files), built by
+`scripts/maintainers/build_artifact_bundle.py`. Its files are listed with their SHA-256 in
+`artifacts.sha256`, and `artifacts.lock` records the tarball's SHA-256 (and, at release, its
+DOI and URL). It holds the archived material behind the values printed in the submitted
+manuscript and nothing else; every file is selected explicitly by the builder. The bundle's own
+README describes it for readers of the data record (`scripts/maintainers/ARTIFACT_BUNDLE_README.md`).
 
-| Part | Tarball | Built by | Inventory |
-|---|---|---|---|
-| 1 | `sarimax-ijf-2026-artifacts-v1.tar.gz` (296 MB, 535 files) | `scripts/maintainers/build_artifact_bundle.py`, from the experiment workspaces | `artifacts.sha256` |
-| 2 | `sarimax-ijf-2026-artifacts-part2-v1.tar.gz` (299 MB, 368 files) | `scripts/maintainers/build_artifact_part2.py`, from the controlled campaign and the September 2026 raw archive | `artifacts-part2.sha256` |
+The sources are this repository's history (three pinned commits, below) and the ForecastTester
+experiment workspace (the path is an argument). The build is deterministic: gzip and tar carry
+no timestamps or owners.
 
-Part 1 comes from the repository history, the three `paper/replication-staging-*` branches,
-the ForecastTester experiment workspace and the `sarimax-replication` folder (the paths are
-arguments). Part 2 holds what was produced or received after part 1 was frozen: the
-controlled objective campaign and the raw archive of the September 2026 stable and admissibility
-campaigns. Part 2 does not modify
-part 1, so part 1's recorded SHA-256 stays valid. Both builds are deterministic: gzip and tar
-carry no timestamps or owners.
+| Directory | Content |
+|---|---|
+| `raw/battery-2026-07/` | July 2026 battery: validation and solver records (jsonl), the solver run logs, the simulated validation inputs and the recorded environment; PJME data omitted |
+| `raw/m4-benchmark-2026-08/` | campaign A (`m4_innovations_<freq>`, six frequencies) and campaign F (`stable_weekly_yearly`), `actual` removed, per-block metrics added |
+| `raw/m4-baselines-2026-07/` | auto.arima and Naive2 per-series metrics, all six M4 frequencies, four horizon blocks |
+| `raw/m4-objectives-controlled-2026-10/` | the controlled objective campaign: frozen protocol and environment; every per-series record of the 16 cells and of the weekly Table 3 protocol run (`test` removed, per-block metrics added); ledgers, audits, event logs, orchestrator logs; the same results in the per-series schema of `full` |
+| `raw/stable-admissibility-2026-09/` | the stable campaigns (monthly, quarterly, daily, hourly) and the 2x2x2x2 admissibility grid from the raw archive of the September 2026 campaigns (its SHA256SUMS verified by the builder), with the M4 test column `a` removed from the grid's forecast files |
+| `derived/stable-admissibility-2026-09/` | lag-1/seasonal MASE denominator ratios (hourly, quarterly) |
+| `historical-tables/` | the tables as generated at the time, source of `results/expected/`: the three battery tables, campaign A's `table_m4.txt`, the controlled campaign scorer's tables and the stable and admissibility tables of 2026-10-17 |
+| `original-scripts/` | verbatim runners, scoring and table scripts and environment files of each campaign |
+| `PROVENANCE.csv` | for each file: origin (git object or workspace file), original SHA-256, transform |
 
-| Directory | Part | Content |
-|---|---|---|
-| `raw/battery-2026-07/` | 1 | July 2026 battery: validation, forecasting, architecture, solver and energy records (jsonl), logs, simulated inputs; PJME data omitted |
-| `raw/m4-objectives-icarai-2026-08/` | 1 | 37 objective campaigns (cel_*, obj_*, req_*, censo_*, smoke_*), auto.arima/Naive2 baselines for M/Q/Y/W, campaign index, validity and probe files |
-| `raw/m4-objectives-rerun-a1ebc0d-2026-08/` | 1 | re-run of the huber and ridge cells at a1ebc0d, with logs |
-| `raw/m4-recreio-2026-08/` | 1 | campaigns A–F (`actual` redacted, per-block metrics added) and verification files |
-| `raw/m4-baselines-r-2026-07/` | 1 | auto.arima and Naive2 per-series metrics, all six M4 frequencies, four horizon blocks |
-| `raw/robust-cvar-monthly-2026-08/`, `raw/admissibility-2026-08/`, `raw/initialization-order-search-2026-08/`, `raw/scip-ipopt-yearly-2026-07/`, `raw/stable-admissibility-gavea-2026-09/tables/` | 1 | the smaller studies (see the manifest) |
-| `derived/m4-objective-distributions-2026-10/` | 1 | the per-series sets of the October 2026 objective-distribution evidence |
-| `historical-tables/` | 1 | the tables as generated at the time (source of `results/expected/`) |
-| `raw/m4-objectives-controlled-2026-10/` | 2 | the controlled objective campaign: frozen protocol and environment; every per-series record of the 16 cells and of the weekly Table 3 protocol run (`test` redacted, per-block metrics added); ledgers, audits, event logs, orchestrator logs; the same results in the per-series schema of `full` |
-| `derived/m4-objectives-controlled-2026-10/` | 2 | the independent scorer's tables, reconciliation and validity files, the reconciliation report and the manuscript update proposal (source of `results/expected/m4_objectives_controlled.csv`) |
-| `raw/stable-admissibility-gavea-2026-09/brutos_gavea/` | 2 | the raw archive of the September 2026 campaigns as received, with the M4 test column `a` removed from the forecast files |
-| `derived/stable-admissibility-gavea-2026-09/` | 2 | lag-1/seasonal MASE denominator ratios (hourly, quarterly) and the tables of 2026-10-17 (source of `results/expected/stable_admissibility_gavea.csv`) |
-| `original-scripts/` | 1, 2 | verbatim runners, table scripts, environment files and notes of each campaign |
-| `PROVENANCE.csv`, `part2/PROVENANCE.csv` | 1, 2 | for each file: origin (git object or workspace file), original SHA-256, transform |
+Every transform that changes content is recorded in `PROVENANCE.csv`:
 
-Every transform that changes content is recorded in the PROVENANCE files:
-
-* **M4 test values are removed** wherever an archived file carried them: campaign A–F `actual`, controlled-campaign `test` and the September 2026 archive's `a`. Before removal, the per-block sMAPE and MASE are computed from them:
-  * campaigns A–F use the definitions of campaign A's `make_table_m4.jl`;
+* **M4 test values are removed** wherever an archived file carried them: campaign A and F `actual`, controlled-campaign `test` and the September 2026 archive's `a`. Before removal, the per-block sMAPE and MASE are computed from them:
+  * campaigns A and F use the definitions of campaign A's `make_table_m4.jl`;
   * the controlled campaign uses `ijflib.m4data`, checked against the runner's own totals to 1e-9 for all 381,795 records.
-* **Part 2 adds derived files:** the per-series files in the `full` schema and the MASE denominator ratios.
+* **Derived files:** the per-series files in the `full` schema and the MASE denominator ratios.
+* **Row selection:** `historical-tables/m4-objectives-controlled-2026-10/table3_weekly_reconciliation.csv` keeps the rows of the three weekly MSE runs that the manuscript reports.
 
-The `m4_benchmark` and `m4_objectives_controlled` table groups regenerate the historical tables from the redacted files to the last printed digit. That also validates the transforms.
+The `m4_benchmark` and `m4_objectives_controlled` table groups regenerate the historical tables from the transformed files to the last printed digit. That also validates the transforms.
 
 **Determinism.**
 
-* **Part 1 sources are pinned.** Its git sources are pinned to the commits bundle v1 was built from: the tips of the three `paper/replication-staging-*` branches on 2026-10-17, and `308461e`, the last commit that tracked the July 2026 battery. Keep these commits reachable (tag them) before deleting those branches.
-* **Summation order is fixed.** The per-block metrics of the redacted campaign A–F files are summed left to right, because `sum()` became compensated in Python 3.12 and would change last bits.
-* **Part 1 was rebuilt in two other environments:**
-  * macOS arm64 (Python 3.14): 299 of its files matched byte for byte;
-  * Windows (Python 3.12), in the environment that ran the controlled campaign: 446 matched. There, 11 original scripts of the admissibility and contamination studies differ (later local edits) and 10 sources are missing.
+* **Git sources are pinned** to three commits: `308461e` (the last commit that tracked the July 2026 battery), `052027a` (campaigns A-F) and `3dae274` (the runners of the September 2026 campaigns). Keep them reachable (tag them) before deleting the branches that hold them.
+* **Summation order is fixed.** The per-block metrics of the campaign A and F files are summed left to right, because `sum()` became compensated in Python 3.12 and would change last bits.
+* **Two builds from the same sources give the same tarball SHA-256.** Every file built from the same original bytes as the earlier internal build of these campaigns is byte-identical to it, except the comment lines that the campaign A and F files carry about the removed column and the row selection above.
 
-  The remaining files come from experiment workspaces that are not in the repository.
-* **Part 2 was built twice**, with the same tarball SHA-256 both times.
-
-**Fetching.** `./reproduce.sh fetch artifacts` downloads each part from the location in `artifacts.lock`, checks its SHA-256, extracts it safely and verifies every file against its inventory. `--from FILE` (once per part) uses local tarballs instead. Completion markers:
-
-* a part is marked complete (`.complete`, `.complete-<part name>`) only after every one of its files has been verified;
-* the whole bundle is marked complete (`.complete-all`) only when every part is.
+**Fetching.** `./reproduce.sh fetch artifacts` downloads the tarball from the location in `artifacts.lock`, checks its SHA-256, extracts it safely and verifies every file against the inventory. `--from FILE` uses a local tarball instead. The bundle is marked complete (`.complete`) only after every file has been verified.
 
 ## 5. Third-party data
 
@@ -215,14 +196,11 @@ in the manifest, and regenerate `checksums.sha256`
 
 | Group | Rebuilds | Cells |
 |---|---|---|
-| battery | the seven July 2026 battery tables (`tab:*`) | 583 |
-| m4_benchmark | campaign A's `table_m4` (M4 vs auto.arima, six frequencies x four blocks) | 192 |
-| m4_paired | paired differences and marginal distributions against auto.arima (manuscript Tables 4 and S12, Figure 2); reference values in `results/historical/m4-paired-2026-09/` | 420 |
-| m4_objectives | Tables 1–2 of the August 2026 objective campaigns and `tabelas_paper` sections A and B | 880 |
-| m4_objective_distributions | October 2026 distributions of the historical objective campaigns (not reported): reproduction, 4a–4d, figures | 2,872 |
-| arms | the campaign B–F objective, multistart, isolation, axes and stable tables | 299 |
-| robust_cvar | contamination study (reference values transcribed from internal notes) | 19 |
-| scip_ipopt | SCIP vs Ipopt summaries of the July 2026 yearly study | 23 |
+| battery | the July 2026 battery's validation, solver-comparison and local-versus-global tables (manuscript Table 2, Section 5.6, Table 7) | 336 |
+| m4_benchmark | campaign A's `table_m4` (M4 vs auto.arima, six frequencies x four blocks; Table 3) | 192 |
+| m4_paired | paired differences and marginal distributions against auto.arima (Tables 4 and S12, Figure 2); reference values in `results/historical/m4-paired-2026-09/` | 420 |
+| m4_objectives_controlled | the controlled objective campaign: Tables 5 and 6, the paired and marginal quantiles (Tables S13 and S14), the weekly MSE runs (Table S4, Section 5.1) and Figure 3 | 760 |
+| stable_admissibility | the stable objective on six frequencies (Tables S15 and S16) and the 2x2x2x2 admissibility grid (Section 5.5) | 824 |
 
 **The manuscript.** `results/manuscript/manuscript_values.csv` lists the 836 numbers printed in
 the tables, figures and text of the submitted manuscript and its Supplementary Material, each
@@ -275,19 +253,16 @@ worker killed and replaced; an exception is recorded as `ERROR:<message>`; a dea
 `CRASH`. A task with more than `max_failure_rate` failures is reported FAIL; failures are
 never retried or dropped silently.
 
-## 8. Integration of `m4_objectives` (done 2026-10-20)
-
-The controlled comparison of objectives was produced by a separate workstream (2026-10-17/19). Each point of the integration contract was handled as follows.
+## 8. The controlled objective campaign (`m4_objectives`)
 
 1. **Protocol.** `experiments/configs/m4_objectives.toml` holds the frozen protocol, with
    `protocol_status = "final"`. Every keyword the campaign passed to `auto` is written out
    (copied from the archived `protocol/experiment_protocol.toml`, frozen before the first fit).
    * Ridge is the package's dedicated `"ridge"` objective, not an elastic-net re-expression.
    * The orchestration safety limit is the protocol's 21,600 s.
-   * The reference arm is `naive2`. The archived Table 5 took auto.arima from the stored
-     baselines and never re-ran it.
-2. **Code.** Every fit ran at `14dd581` (v1.0.0) from a clean worktree, but with the campaign's
-   own runner on Windows, not with this package's image. Two consequences follow.
+   * The reference arm is `naive2`; auto.arima is taken from the stored baselines.
+2. **Code.** Every fit ran at `14dd581` (v1.0.0) from a clean worktree, with the campaign's own
+   runner on Windows, not with this package's image. Two consequences follow.
    * The archived rows carry the campaign's fingerprint and protocol SHA-256, not this
      package's `source_fingerprint`.
    * The image's Julia environment was rebased on the campaign's Manifest (section 3), so a
@@ -299,20 +274,11 @@ The controlled comparison of objectives was produced by a separate workstream (2
    derives from them per-series files in the schema of section 7, one per objective and
    frequency (`per_series/<objective>__<frequency>.csv.gz`). They contain every series of
    every frequency.
-4. **Archive.** The results are in bundle part 2 under `raw/m4-objectives-controlled-2026-10/`
-   (section 4), rather than in a rebuilt part 1, so part 1's published checksum is unaffected.
-   The integration also added:
-   * the `[archived.<arm>]` entries in the configuration;
-   * the table group `scripts/ijftables/m4_objectives_controlled.py` (Tables 5 and 6, marginal
-     quantiles, the weekly reconciliation and the ECDF figure);
-   * the manifest row.
-
-   The expected values are parsed from the tables written by the campaign's independent
-   scorer. The manuscript's objective-comparison items (Tables 5, 6, S13, S14, Figure 3 and
-   Section 5.4) are compared with the cells this group regenerates.
-5. **Never mix.** The historical campaigns keep their own ids (`m4_objectives_icarai_*`) and
-   table groups. `m4_objectives_icarai_innovations` is marked `superseded_by = "m4_objectives"`,
-   so `full --all` runs the controlled experiment only. No table combines the two.
+4. **Tables.** The table group `scripts/ijftables/m4_objectives_controlled.py` rebuilds Tables 5
+   and 6, the marginal and paired quantiles, the weekly MSE comparison and the ECDF figure. The
+   expected values are parsed from the tables written by the campaign's independent scorer.
+   The manuscript's objective-comparison items (Tables 5, 6, S13, S14, Figure 3 and Section 5.4)
+   are compared with the cells this group regenerates.
 
 ## 9. Release checklist (maintainers; every step needs the authors' approval)
 
@@ -327,26 +293,25 @@ The controlled comparison of objectives was produced by a separate workstream (2
 2. **SCIP's licence** is settled by not shipping its binaries (section 3,
    `reports/scip_licence.md`); `ijf-image-publish.yml` checks the published image for their
    absence.
-3. **Tag the pinned commits.** Tag the commits of the `paper/replication-staging-*` branches
-   that the bundle builder pins (section 4) before those branches are deleted.
+3. **Tag the pinned commits.** Tag the three commits the bundle builder pins (section 4)
+   before the branches that hold them are deleted.
 4. **Merge** the replication branch into `master` after review.
 5. **Archive the bundle.**
-   * Part 1 already exists (its SHA-256 is in `artifacts.lock`); part 2 is rebuilt identically
-     with `build_artifact_part2.py`. Both builders read the experiment workspaces; their
-     tarballs are then staged inside this package, so that the deposit reads nothing outside
-     it: `scripts/maintainers/stage_release.py --part1 FILE --part2 FILE` copies each tarball
-     into `dist/` (ignored by git and by the Docker build context) after checking its SHA-256
-     against `artifacts.lock` and every file it contains against its inventory, and writes the
-     bundle json the deposit reads; `--image FILE` stages the exported image; `--check`
-     re-verifies what is staged.
+   * `build_artifact_bundle.py` reads the experiment workspaces and rebuilds the tarball
+     whose SHA-256 is in `artifacts.lock`. It is then staged inside this package, so that the
+     deposit reads nothing outside it: `scripts/maintainers/stage_release.py --bundle FILE`
+     copies it into `dist/bundle/` (ignored by git and by the Docker build context) after
+     checking its SHA-256 against `artifacts.lock` and every file it contains against the
+     inventory, and writes the bundle json the deposit reads; `--image FILE` stages the
+     exported image; `--check` re-verifies what is staged.
    * The August 2026 certification batch survives only as a reconstruction (raw outputs lost),
      archived in the repository (`results/historical/certification-2026-08/`) and checked by
      `check_certification_2026_08.py`; its 2026-10-21 re-run, with SCIP logs, is archived beside
      it (`results/reruns/certification-2026-08-rerun-2026-10-21/`, checked by
-     `check_certification_rerun_2026_10.py`). Neither needs a further bundle part.
-   * Upload both tarballs and their inventories to one Zenodo data record. Test in the Zenodo
-     Sandbox first: `scripts/maintainers/zenodo_deposit.py --bundle-dir dist/part1 --part2-dir dist/part2`.
-   * Record the version DOI and each tarball's URL in `artifacts.lock`. This does not change
+     `check_certification_rerun_2026_10.py`). Neither is part of the bundle.
+   * Upload the tarball and its inventory to the Zenodo data record. Test in the Zenodo
+     Sandbox first: `scripts/maintainers/zenodo_deposit.py --bundle-dir dist/bundle`.
+   * Record the version DOI and the tarball's URL in `artifacts.lock`. This does not change
      the fingerprint.
 6. **Publish the image.** Build and push it with the manually triggered workflow
    `ijf-image-publish.yml`; record the digest, fingerprint and revision in `image.lock`; make
@@ -390,13 +355,13 @@ touch the package or the replication files, and by hand. Full campaigns never ru
   SoPlex library, `check --offline` reports SCIP as a missing input, and `fetch scip` installs
   and verifies it; the default command without the
   unpublished bundle (smoke must pass; the run must end with exit 4, never SUCCESS); the
-  battery, robust-CVaR and SCIP/Ipopt tables from the committed fixture subset; a missing and
+  battery tables from the committed fixture subset; a missing and
   a corrupted archived input (exit 4); an image refused because the checkout changed after it
   was built (exit 3); `fetch m4` for the weekly files with SHA-256 verification;
   `m4_benchmark` on a random sample of 2 weekly series per arm, then `--resume` to 3 (the
   sample is nested); the controlled objective campaign (`m4_objectives`) on 3 weekly series
-  per arm, compared series by series with its archived run (the weekly per-series files of
-  bundle part 2 are in the fixture subset); and the battery's validation experiment (Julia,
+  per arm, compared series by series with its archived run (its weekly per-series files are
+  in the fixture subset); and the battery's validation experiment (Julia,
   Python and R steps). Reports are uploaded as workflow artifacts.
 
 `.github/workflows/ijf-image-publish.yml` builds and pushes the image to GHCR, pulls it back

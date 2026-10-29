@@ -36,10 +36,10 @@ On Windows, run the commands in Git Bash or WSL.
 
 > **Before the release.** The container image and the archived artifacts are published at
 > release time (see [Status](#status)). Until then `./reproduce.sh` builds the image from
-> the checkout (10 to 40 minutes, once). The artifact bundle has two parts (two tarballs of
-> one Zenodo record); pass them explicitly with
-> `./reproduce.sh fetch artifacts --from sarimax-ijf-2026-artifacts-v1.tar.gz --from sarimax-ijf-2026-artifacts-part2-v1.tar.gz`,
-> or point to an extracted copy of both with `--artifacts DIR`. Without the bundle, `check`
+> the checkout (10 to 40 minutes, once). Pass the artifact bundle (one tarball of the Zenodo
+> record) explicitly with
+> `./reproduce.sh fetch artifacts --from sarimax-ijf-2026-artifacts-v1.tar.gz`,
+> or point to an extracted copy with `--artifacts DIR`. Without the bundle, `check`
 > and `tables` report it as MISSING and the run fails, as it should.
 
 ## What this reproduces
@@ -146,7 +146,7 @@ cover are in [`verification/VERIFICATION_REPORT.md`](verification/VERIFICATION_R
 | Tables 3, 4, S12; Figure 2; Section 5.3 | `m4_benchmark` | regenerated from per-series records; re-runnable |
 | Tables 5, 6, S13, S14; Figure 3; Section 5.4 | `m4_objectives` (controlled campaign) | regenerated from per-series records; re-runnable; re-run checked series by series |
 | Table S4 | `m4_benchmark`, `m4_objectives` | regenerated, including the weekly re-execution under the six-frequency protocol |
-| Tables S15, S16 | `stable_admissibility_gavea` | regenerated from per-series records |
+| Tables S15, S16; Section 5.5 (admissibility grid) | `stable_admissibility`, `stable_weekly_yearly` | regenerated from per-series records |
 | Table 7; Section 5.6 (MA(1) certificates) | `battery_global_value`, `battery_solver_comparison` | regenerated; logged re-run with dual bounds |
 | Tables S5, S6, S7; Section 5.6 | `global_optimization_grid` | August summary record; identified re-run with per-instance records and SCIP logs |
 | Tables S8, S9; Section 5.5 (initialization) | `initialization_experiment` | ten-seed summary record; 1,500-series comparison re-run with per-series records |

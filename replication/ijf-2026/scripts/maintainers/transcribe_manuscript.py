@@ -38,8 +38,8 @@ RERUN = "results/reruns/certification-2026-08-rerun-2026-10-21/manuscript_source
 GATE = "results/reruns/gate-1500-f90e554-2026-10-22/manuscript_sources.csv"
 DERIVED = "results/manuscript/derived_quantities.csv"
 INVENTORY = "reports/global_certificate_inventory.csv"
-STABLE_SUM = "stable_admissibility_gavea/gavea.stable_objective.summary"
-STABLE_PAIR = "stable_admissibility_gavea/gavea.stable_objective.paired"
+STABLE_SUM = "stable_admissibility/stable_admissibility.stable_objective.summary"
+STABLE_PAIR = "stable_admissibility/stable_admissibility.stable_objective.paired"
 CONTROLLED = "m4_objectives_controlled/controlled.table5"
 
 # --------------------------------------------------------------------------------------------
@@ -445,7 +445,7 @@ def new_tables(cells: dict, src: Path, problems: list[str]) -> list[dict]:
         if c[1] == "Ipopt" and c[0] in names:
             out.append(row("Table 7", "tab:local_global_forecasts", f"{c[0]}|Ipopt", "Time (s)", c[8], "derived", DERIVED,
                            f"quantity=t7_ipopt_time|{names[c[0]]}", "value",
-                           "archived record (8ffc512, bundle part 1); the first solve of the process includes compilation"))
+                           "archived record (8ffc512, artifact bundle); the first solve of the process includes compilation"))
     return out
 
 

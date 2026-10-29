@@ -1,7 +1,7 @@
 # Global-optimization certificates: audit of the evidence
 
 Every SCIP result the manuscript relies on, checked against the records that exist. The
-per-record table is `global_certificate_inventory.csv` (255 rows), built from the records by
+per-record table is `global_certificate_inventory.csv` (21 rows), built from the records by
 `scripts/maintainers/build_global_certificates.py`; what is missing, and how to obtain it, is
 in `missing_global_artifacts.md`. Numbers below are copied from the inventory.
 
@@ -9,10 +9,9 @@ in `missing_global_artifacts.md`. Numbers below are copied from the inventory.
 
 | source | content | where |
 |---|---|---|
-| July 2026 battery, commit `8ffc512` (2026-07-12) | MA(1) certificates T = 8-40 (300 s), scaling study T = 40-200 (600 s), the three Table 7 instances (900 s) | bundle part 1, `raw/battery-2026-07/solver/*.jsonl` |
-| same battery, commit `ecc4878` (2026-07-11) | the records the solver logs show: MA(1) certificates and Table 7 (the scaling records are identical at both commits) | `results/historical/battery-2026-07-ecc4878/`; logs in the bundle (`refresh_scip.log`, `scip_scaling_run*.log`, `global_value_run.log`) |
+| July 2026 battery, commit `8ffc512` (2026-07-12) | MA(1) certificates T = 8-40 (300 s), the three Table 7 instances (900 s) | the artifact bundle, `raw/battery-2026-07/solver/*.jsonl` |
+| same battery, commit `ecc4878` (2026-07-11) | the records the solver logs show: MA(1) certificates and Table 7 | `results/historical/battery-2026-07-ecc4878/`; logs in the bundle (`refresh_scip.log`, `global_value_run.log`) |
 | re-run `full-all-limit1-2026-10-20` | a NEW execution of the Table 7 and MA(1)-certificate runners in the replication container, recording SCIP's dual bound, raw status and node count, with logs | `results/reruns/full-all-limit1-2026-10-20/` (`RUN.md`) |
-| July 2026 yearly study | SCIP against Ipopt through the package API on 100 short M4 yearly series (free and constrained runs) and two probes (size, gap limit) | bundle part 1, `raw/scip-ipopt-yearly-2026-07/` |
 | August 2026 certification batch | Table S5 and the seasonal-grid, near-cancellation and certified-instance numbers of Section 5.6 | **reconstructed** from the session that ran it (raw outputs lost): `results/historical/certification-2026-08/` (section 6) |
 
 All archived battery SCIP solves used SCIP 8.0.0 through SCIP.jl 0.11.6 (SCIP_jll 0.2.1+0), on
@@ -22,16 +21,14 @@ macOS arm64 with Julia 1.11.9; the re-run used the same SCIP build for Linux x86
 ## 2. Formulations, and what the package generates
 
 * **Table 7 and the MA(1) certificates** are models written directly in JuMP by the runners
-  (`experiments/runners/battery/run_solver_global_value.jl`, `run_solver_scip_cert.jl`,
-  `run_solver_scip_scaling.jl`, ports of the archived scripts), not built by `Sarimax.fit!`:
+  (`experiments/runners/battery/run_solver_global_value.jl` and `run_solver_scip_cert.jl`,
+  ports of the archived scripts), not built by `Sarimax.fit!`:
   `eps_1` fixed at 0, `y_t = c [+ phi y_(t-1)] + theta eps_(t-1) + eps_t` as equality
   constraints, objective `sum eps_t^2`, boxes `phi, theta in [-1, 1]`, `c` and `eps` free. No
   innovation bounds, no warm start from Ipopt, no lifting (the models are non-seasonal: there
   are no products of coefficients to lift). SCIP options: `display/verblevel = 0` and
   `limits/time`; every other setting, including `limits/gap = 0` and `numerics/feastol = 1e-6`,
   is SCIP's default and was not recorded.
-* **The July 2026 yearly study** went through the package API (`Sarimax.fit!` with a SCIP
-  optimizer, fixed non-seasonal orders) with `limits/gap = 0.01`.
 * **What the package generates for SCIP** (v1.0.0): the same nonlinear model it gives Ipopt.
   The multiplicative cross terms `phi_i Phi_k y_(t-i-sk)` and `theta_j Theta_w eps_(t-j-sw)` enter
   the fitted value as product expressions (`src/models/sarima.jl`, the `ŷ` expression after the
@@ -64,14 +61,10 @@ Elapsed time is not used to classify.
 | instance (manuscript) | records | verdict |
 |---|---|---|
 | MA(1), T = 8, 10, 20, 40 (Section 5.6: certified within 1.7-14.8 s) | `ecc4878` logged (1.21-14.35 s), `8ffc512` unlogged with identical objectives (1.27-14.83 s; 1.73-14.83 s over T = 8, 20, 40, the printed range), re-run with dual bounds (6.2-61.2 s) | **certified** in all three runs |
-| MA(1) scaling, T = 40-120, 600 s (not cited by the manuscript) | logged | **certified** |
-| MA(1) scaling, T = 150, 200, 600 s (not cited) | logged; `TIME_LIMIT`, relative gaps 1.02e-5 and 1.17e-5 | **feasible with open gap** |
 | Table 7, simulated MA(1), T = 80, 900 s | `ecc4878` logged (71.6 s), `8ffc512` (69.2 s, printed), re-run (338.3 s, dual bound 73.65312392) | **certified** in all three runs |
 | Table 7, simulated ARMA(1,0,1), T = 80, 900 s | `ecc4878` logged (393.1 s), `8ffc512` (385.4 s, printed): `OPTIMAL`; re-run: `TIME_LIMIT` at 900.1 s, relative gap 5.34e-6 | **certified** in the archived runs; **not reproduced** within 900 s in the re-run (open gap) |
 | **Table 7, PJME ARMA(1,0,1), T = 80, 900 s** ("Certified: yes", 900.0 s) | section 4.1 | **insufficient evidence** for a certificate; **feasible with open gap** is established |
 | Table S5; Section 5.6 seasonal grid, near-cancellation instance, certified instances 1 and 2 | reconstructed per-instance status, time and certified gap (44 of 46), objectives and dual bounds (7); no logs, no node counts | ids 44 and 45 **certified** (gaps 1.09e-9, 1.07e-8) and id 26 **improved feasible without certification** on the reconstructed record; the seasonal grid **feasible with open gap** (relative 1.9e-4 to 4.9e-1); not re-verifiable without logs (`certification_batch_2026_08.md`) |
-| July 2026 yearly study (not cited by the manuscript) | 195 per-series rows, `limits/gap = 0.01` | 183 **feasible with open gap** (≤ 1%), 8 **improved feasible without certification** (SCIP's objective 0.9% to 25.8% below Ipopt's), 4 **insufficient evidence** (`TIME_LIMIT`, no gap recorded) |
-| July 2026 size and gap-limit probes (not cited) | status and time only | 2 feasible with gap ≤ 1%, 6 insufficient evidence |
 
 ### 4.1 The PJME instance
 
@@ -142,17 +135,14 @@ the logged re-run of 2026-10-21; `missing_global_artifacts.md` G1 gives the rema
 ./reproduce.sh fetch pjme
 ./reproduce.sh full --experiment battery_solver_comparison   # MA(1) certificates T = 8-40 (300 s each)
 ./reproduce.sh full --experiment battery_global_value        # Table 7 (three SCIP solves, 900 s each)
-./reproduce.sh full --experiment battery_solver_scaling      # T = 40-200 (600 s each)
 ```
 
-Costs on the container run of 2026-10-20: about 2 min for the certificates, 36 min for Table 7;
-the scaling study runs sizes 40-300 at 600 s each and stops after two consecutive
-non-certified sizes (about 1.5 h of SCIP time on the archived machine). SCIP must run in the Linux container (the
-Windows SCIP_jll build crashes). Every record carries the dual bound, relative gap, raw status,
+Costs on the container run of 2026-10-20: about 2 min for the certificates, 36 min for Table 7.
+SCIP must run in the Linux container (the Windows SCIP_jll build crashes). Every record carries the dual bound, relative gap, raw status,
 node count and SCIP version. Rebuild the inventory with
 
 ```bash
 python3 replication/ijf-2026/scripts/maintainers/build_global_certificates.py \
-  --bundle <unpacked bundle part 1> \
+  --bundle <unpacked bundle> \
   --pjme-daily output/runs/battery_global_value/<run>/raw/battery-2026-07/energy/data/pjme_daily.csv
 ```

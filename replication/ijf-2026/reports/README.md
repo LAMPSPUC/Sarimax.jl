@@ -14,7 +14,7 @@ where a report quotes a printed value, the mapping is authoritative.
 |---|---|
 | `experiment_provenance.md` | per-experiment source revisions, environments and records; global-grid and initialization operational notes |
 | `global_certification_audit.md` | every SCIP result against its records; classification per record |
-| `global_certificate_inventory.csv` | the per-record table (255 rows), built by `scripts/maintainers/build_global_certificates.py` |
+| `global_certificate_inventory.csv` | the per-record table (21 rows), built by `scripts/maintainers/build_global_certificates.py` |
 | `missing_global_artifacts.md` | missing global-optimization evidence: what is needed, commands, costs, and what the manuscript states |
 | `table7_timing_reconciliation.md` | what the times of Table 7 measure and which records they come from |
 | `provenance_gaps.md` | the printed values that no table group regenerates, by kind of record, with what is missing |

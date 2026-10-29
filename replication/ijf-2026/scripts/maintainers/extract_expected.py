@@ -9,7 +9,7 @@ table, row, column, expected (the printed text), decimals (printed precision; em
 text) and source (the bundle file the value was read from).
 
 Usage (maintainers):
-    python extract_expected.py --bundle ../../artifacts [--group m4_objectives]
+    python extract_expected.py --bundle ../../artifacts [--group m4_benchmark]
 """
 
 from __future__ import annotations
@@ -22,9 +22,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 OUT = HERE.parents[1] / "results" / "expected"
-GROUPS = ["battery", "m4_benchmark", "m4_paired", "m4_objectives", "m4_objectives_controlled",
-          "m4_objective_distributions",
-          "arms", "robust_cvar", "scip_ipopt", "stable_admissibility_gavea"]
+GROUPS = ["battery", "m4_benchmark", "m4_paired", "m4_objectives_controlled", "stable_admissibility"]
 
 
 def main() -> int:

@@ -54,8 +54,8 @@ The options considered before this decision are kept below.
   keeping every other package pinned; check that JuMP 1.31.1 and MathOptInterface 1.52.0 still
   resolve.
 * Re-run, as NEW identified runs, everything that uses SCIP: the smoke test's SCIP global solve,
-  `battery_solver_comparison` (MA(1) certificates), `battery_global_value` (Table 7),
-  `battery_solver_scaling`; compare with the archived records and with the SCIP 8.0.0 re-run of
+  `battery_solver_comparison` (MA(1) certificates) and `battery_global_value` (Table 7);
+  compare with the archived records and with the SCIP 8.0.0 re-run of
   2026-10-20. Solve times and, near the time limit, the certificates themselves can change
   (`global_certification_audit.md` §5.2); objectives and coefficients should agree to the
   solver's tolerance.

@@ -12,18 +12,18 @@ listed below). Nothing here is regenerated from raw data unless a table group sa
 | `revision-2026-09/` | same export, written by `efg_figures.py` from `efg_julia_experiments.jl` (cases E, F, G) | consistency check of manuscript Table S10, Figure S1 and Table S11. The simulation script and its outputs were recovered on 2026-10-20 and are in `revision-2026-09/recovered/` (its `PROVENANCE.md`); `check_recovered_2026_09.py` recomputes the three tables from them |
 | `battery-2026-07-ecc4878/` | the July 2026 battery's solver records at commit `ecc4878`, copied byte for byte from the repository history (its `PROVENANCE.md`) | the records the archived solver logs show; compared with the bundle's `8ffc512` records in `reports/global_certification_audit.md` |
 | `certification-2026-08/` | `scip_agosto_reconstrucao_21-10.zip` (5,186,807 bytes, SHA-256 `3aefb26af94ccb66…`), received 2026-10-21: the August 2026 certification batch and the records of Table S2 and Section 5.5, RECONSTRUCTED from the session that produced them (its `PROVENANCE.md`) | consistency check of Table S5, Section 5.6, Table S2 and Section 5.5 (`manuscript_sources.csv`, recomputed by `check_certification_2026_08.py`) |
-| `updated-2026-10-17/` | `resultados_atualizados_20261017.zip` (65,560 bytes, SHA-256 `44075fadd0a8965f…`): the tables, table scripts and reports of the update of 2026-10-17 | the stable-objective, admissibility-grid and guard tables, which the `stable_admissibility_gavea` table group REGENERATES from the raw archive in bundle part 2 (its reference values are parsed from the copies of these tables archived there) |
+| `updated-2026-10-17/` | `resultados_atualizados_20261017.zip` (65,560 bytes, SHA-256 `44075fadd0a8965f…`): the tables, table scripts and reports of the update of 2026-10-17 | the stable-objective and admissibility-grid tables, which the `stable_admissibility` table group REGENERATES from the campaigns' raw files in the artifact bundle (its reference values are parsed from the copies of these tables archived there, `historical-tables/stable-admissibility-2026-09/`) |
 
 The 2026-10-17 tables were computed from `brutos_gavea.zip` (107,137,987 bytes, 177 files
 verified against its own SHA256SUMS, shared on 2026-10-16), the raw archive of the September 2026
 stable and admissibility campaigns, together with campaign F and the stored auto.arima/Naive2 baselines. That
-raw archive is in bundle part 2 (`raw/stable-admissibility-gavea-2026-09/brutos_gavea/`), and
-the `stable_admissibility_gavea` table group rebuilds these tables from it (1,028 cells; see
-`experiment_manifest.csv`). Two facts recorded in
+archive's files of the stable campaigns and of the 2x2x2x2 grid are in the artifact bundle
+(`raw/stable-admissibility-2026-09/`), and the `stable_admissibility` table group rebuilds these
+tables from them (824 cells; see `experiment_manifest.csv`). Two facts recorded in
 `updated-2026-10-17/gavea_archive_audit.md` matter when reading them: the stable campaigns of
 the hourly and quarterly frequencies stored MASE with the lag-1 naive denominator, which the
 tables convert exactly to the M4 seasonal denominator; and the arms of different frequencies
-come from different commits and hosts, so they are compared within a row, not across rows.
+come from different commits and machines, so they are compared within a row, not across rows.
 
 | File | SHA-256 of the original | SHA-256 after LF normalization |
 |---|---|---|

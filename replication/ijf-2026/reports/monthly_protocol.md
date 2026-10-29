@@ -10,11 +10,11 @@ configuration.
 
 Campaign A (`m4_benchmark`): monthly at commit `3d7f883` (48,000 series), the other five
 frequencies at `aa68d57`. Its runner states every keyword explicitly
-(`original-scripts/m4-recreio-2026-08/scripts/run_m4.jl`, function `m4Config`, bundle part 1):
+(`original-scripts/m4-benchmark-2026-08/scripts/run_m4.jl`, function `m4Config`, in the artifact bundle):
 
 | setting | archived value | Section 5.1 |
 |---|---|---|
-| per-fit time limit | `maxTimeSeconds = CAP`, with `CAP = nothing` unless a fifth argument is given; the campaign ran without it: "`maxTimeSeconds = nothing` (**no cap**)" (`REPRODUCE.md` of campaigns A-F, section A; the per-frequency table says "n/a — no cap" for every frequency) | no per-series time cap |
+| per-fit time limit | `maxTimeSeconds = CAP`, with `CAP = nothing` unless a fifth argument is given (the runner: "Pass 0 for NO CAP, which is what the published runs used"); the archived per-fit times (column `seconds` of the raw files) exceed 120 s in 59 fits, up to 1,733 s | no per-series time cap |
 | AR stationarity | `stationary = true`: imposed during estimation by the reflection parameterization, domain margin `1e-6` | reflection coordinates, margin 10^-6 |
 | MA invertibility | `invertible = false`: coefficients in their box, not imposed | MA coefficients in finite boxes |
 | post-fit checks | `assertStationarity = true`, `assertInvertibility = true`, `rootMargin = 1e-2`: candidates with a root within `1e-2` of the unit circle are rejected | AR/MA root checks at margin 10^-2 |
@@ -38,8 +38,8 @@ C3), except the warm start from the box, a starting-point setting.
 
 ## How much the protocol matters
 
-* **Time limit.** In campaign A, 16 monthly fits ran longer than 120 s (`REPRODUCE.md`: "fits
-  exceeding 120 s: hourly 22 (5.3%), quarterly 17, monthly 16, daily 3, yearly 1, weekly 0").
+* **Time limit.** In campaign A, 16 monthly fits ran longer than 120 s (the archived per-fit
+  times, column `seconds`: hourly 22, quarterly 17, monthly 16, daily 3, yearly 1, weekly 0).
   With a 120 s limit those fits would have stopped early; nothing was censored in the archived
   run.
 * **Stationarity.** The controlled objective comparison checks roots after estimation instead

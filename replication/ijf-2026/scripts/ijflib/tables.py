@@ -29,13 +29,8 @@ GROUPS = [
     "battery",
     "m4_benchmark",
     "m4_paired",
-    "m4_objectives",
     "m4_objectives_controlled",
-    "m4_objective_distributions",
-    "arms",
-    "robust_cvar",
-    "scip_ipopt",
-    "stable_admissibility_gavea",
+    "stable_admissibility",
 ]
 
 

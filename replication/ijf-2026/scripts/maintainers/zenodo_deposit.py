@@ -5,13 +5,12 @@ that are discarded. The script creates a draft deposition, uploads the files and
 metadata; it publishes ONLY with --publish, and refuses --publish against production unless
 --i-have-approval is also given. It never reads a token from anywhere but the environment.
 
-    ZENODO_SANDBOX_TOKEN=... python zenodo_deposit.py --bundle-dir DIR --part2-dir DIR2   # sandbox draft
+    ZENODO_SANDBOX_TOKEN=... python zenodo_deposit.py --bundle-dir DIR            # sandbox draft
     ZENODO_SANDBOX_TOKEN=... python zenodo_deposit.py --bundle-dir DIR --publish  # sandbox publish
     ZENODO_TOKEN=... python zenodo_deposit.py --production --bundle-dir DIR         # production draft
 
-DIR is dist/part1 and DIR2 dist/part2 as staged by stage_release.py (tarball, inventory and
-bundle json, each verified against artifacts.lock), or the output directories of the builders;
---part2-dir DIR2 adds part 2 to the same record. Optional extra files (for example the
+DIR is dist/bundle as staged by stage_release.py (tarball, inventory and bundle json, verified
+against artifacts.lock), or the output directory of the builder. Optional extra files (for example the
 exported image, dist/image/) via --extra FILE.
 After a successful publication, copy the printed DOI and file URL into artifacts.lock.
 """
@@ -60,8 +59,6 @@ def api(base: str, token: str, method: str, path: str, body=None, data: bytes | 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--bundle-dir", type=Path, required=True)
-    ap.add_argument("--part2-dir", type=Path, default=None,
-                    help="output directory of build_artifact_part2.py (tarball, artifacts-part2.sha256, bundle-part2.json)")
     ap.add_argument("--extra", type=Path, action="append", default=[])
     ap.add_argument("--production", action="store_true", help="use zenodo.org instead of the sandbox")
     ap.add_argument("--publish", action="store_true", help="publish the deposition (irreversible on zenodo.org)")
@@ -80,20 +77,12 @@ def main() -> int:
         raise SystemExit("set ZENODO_SANDBOX_TOKEN (or ZENODO_TOKEN with --production)")
 
     meta = json.loads((args.bundle_dir / "bundle.json").read_text())
-    files = [args.bundle_dir / meta["tarball"], args.bundle_dir / "artifacts.sha256"]
-    parts = [(files[0], meta)]
-    if args.part2_dir:
-        meta2 = json.loads((args.part2_dir / "bundle-part2.json").read_text())
-        files += [args.part2_dir / meta2["tarball"], args.part2_dir / "artifacts-part2.sha256"]
-        parts.append((args.part2_dir / meta2["tarball"], meta2))
-    files += args.extra
+    files = [args.bundle_dir / meta["tarball"], args.bundle_dir / "artifacts.sha256"] + args.extra
     for f in files:
         if not f.exists():
             raise SystemExit(f"missing {f}")
-    for tar, m in parts:
-        if hashlib.sha256(tar.read_bytes()).hexdigest() != m["tarball_sha256"]:
-            raise SystemExit(f"{tar.name}: SHA-256 differs from its bundle json; rebuild it")
-    tar_sha = meta["tarball_sha256"]
+    if hashlib.sha256(files[0].read_bytes()).hexdigest() != meta["tarball_sha256"]:
+        raise SystemExit(f"{files[0].name}: SHA-256 differs from its bundle json; rebuild it")
 
     dep = api(base, token, "POST", "/deposit/depositions", {})
     print(f"draft deposition {dep['id']} created on {base}")
@@ -111,8 +100,8 @@ def main() -> int:
         "keywords": ["M4 competition", "SARIMAX", "forecasting", "reproducibility", "optimization"],
         "license": "cc-by-4.0",
         "access_right": "open",
-        "notes": "; ".join(f"{m['tarball']}: SHA-256 {m['tarball_sha256']}, {m['files']} files" for _, m in parts)
-                 + "; inventories in artifacts.sha256 and artifacts-part2.sha256.",
+        "notes": f"{meta['tarball']}: SHA-256 {meta['tarball_sha256']}, {meta['files']} files; "
+                 "inventory in artifacts.sha256.",
         "related_identifiers": [{"identifier": "https://github.com/LAMPSPUC/Sarimax.jl", "relation": "isSupplementTo",
                                  "scheme": "url", "resource_type": "software"}],
     }
@@ -127,11 +116,10 @@ def main() -> int:
     pub = api(base, token, "POST", f"/deposit/depositions/{dep['id']}/actions/publish")
     doi = pub.get("doi") or pub.get("metadata", {}).get("doi")
     record = pub.get("record_id") or pub.get("id") or dep["id"]
-    # the public download URL of each tarball, the form artifacts.lock records
+    # the public download URL of the tarball, the form artifacts.lock records
     print(f"published: DOI {doi}\n  record {pub['links']['html']}")
-    for tar, _ in parts:
-        print(f"  {tar.name}: {base[:-len('/api')]}/records/{record}/files/{tar.name}?download=1")
-    print("Record the doi and each tarball's url in replication/ijf-2026/artifacts.lock ([bundle], [[parts]]).")
+    print(f"  {files[0].name}: {base[:-len('/api')]}/records/{record}/files/{files[0].name}?download=1")
+    print("Record the doi and the tarball's url in replication/ijf-2026/artifacts.lock ([bundle]).")
     return 0
 
 

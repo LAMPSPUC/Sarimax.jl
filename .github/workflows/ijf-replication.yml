@@ -264,7 +264,7 @@ jobs:
           set +e
           ./reproduce.sh tables --no-build --platform "$PLATFORM" \
             --artifacts replication/ijf-2026/data/fixtures/bundle-subset --output "$RUNNER_TEMP/out-fixtures" \
-            --group battery --group robust_cvar --group scip_ipopt
+            --group battery
           code=$?
           set -e
           echo "tables exited with $code"
@@ -272,7 +272,7 @@ jobs:
           import csv, sys
           rows = list(csv.DictReader(open(f"{sys.argv[1]}/tables.csv")))
           groups = {r["stage"]: r for r in rows if r["stage"] != "manuscript"}
-          for g in ("battery", "robust_cvar", "scip_ipopt"):
+          for g in ("battery",):
               r = groups[g]
               print(g, r["status"], r["expected"], r["generated"], r["difference"])
               assert r["status"] == "PASS", f"{g}: {r['status']} {r['note']}"
@@ -353,7 +353,7 @@ jobs:
       - name: Other runners on samples (controlled objective campaign vs its archive, battery script experiment)
         run: |
           # The controlled campaign's weekly per-series files are in the fixture subset, so the
-          # re-run is compared series by series with the archived run (bundle part 2).
+          # re-run is compared series by series with the archived run.
           ./reproduce.sh full --experiment m4_objectives --frequency weekly --sample 3 --jobs 2 \
             --run-id ci --offline --no-build --platform "$PLATFORM" \
             --artifacts replication/ijf-2026/data/fixtures/bundle-subset

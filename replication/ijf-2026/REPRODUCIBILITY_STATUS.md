@@ -71,19 +71,10 @@ Table S3 (C3) and the archived records behind Tables S2, S8 and S9 (C18-C20).
 | battery_validation | Table 2 | VERIFIED | EXECUTABLE | re-run (Julia, Python): 100/119 non-timing cells agree; AIC/BIC now exact-likelihood by definition |
 | battery_global_value | Table 7 | VERIFIED | EXECUTABLE | Ipopt rows 18/18 re-run; needs `fetch pjme`; the Ipopt times are printed at the precision of the archived record. Re-run 2026-10-20 with dual bounds and logs (`results/reruns/`): MA(1) certified, both ARMA(1,1) instances at the 900 s limit; PJME certificate classified as insufficient evidence (`reports/global_certification_audit.md`) |
 | battery_solver_comparison | Section 5.6 | VERIFIED | EXECUTABLE | Ipopt rows 27/30 re-run (labels replaced by solver statuses); the MA(1) certificates T = 8-40 re-run with dual bounds (certified, 6.2-61.2 s) |
-| battery_forecasting, battery_architecture, battery_solver_scaling, battery_energy | not reported | VERIFIED | EXECUTABLE | July 2026 battery; kept for the record |
 | m4_benchmark | Tables 3, 4, S12, S4; Figure 2; Section 5.3 | VERIFIED | EXECUTABLE | subset re-runs reproduce archived series |
-| **m4_objectives** (controlled) | Tables 5, 6, S13, S14, S4; Figure 3; Section 5.4 | **VERIFIED** (544 cells) | **EXECUTABLE** | complete archived run with the release: 381,436 fits, every series under every objective, none failed (bundle part 2); the package's runner re-runs it and compares series by series: every weekly series (359/359 per objective) and samples of quarterly (40), yearly (40) and monthly (12) reproduce the archive in the image; included in `full --all` |
-| m4_objectives_icarai_innovations | not reported (historical campaign) | VERIFIED | EXECUTABLE | feature-branch commits, guard on; **superseded by m4_objectives** (left out of `full --all`) |
-| m4_objective_distributions | not reported (historical campaigns) | VERIFIED | NOT APPLICABLE | analysis of the historical campaign files; superseded by m4_objectives |
-| m4_objectives_icarai_zeroed | not reported | VERIFIED | EXECUTABLE | historical |
-| objectives_monthly_sample, multistart_monthly_sample, axes_weekly | not reported | VERIFIED | PARTIAL | runners need the ForecastTester harness |
-| isolation_weekly_yearly | not reported | VERIFIED | BLOCKED | the v0_6 wrapper is a reconstruction of an uncommitted tree |
-| stable_weekly_yearly | weekly and yearly rows of Tables S15, S16 (through stable_admissibility_gavea) | VERIFIED | EXECUTABLE | |
-| robust_cvar_contamination | not reported | VERIFIED (internal reference) | PARTIAL | reference values transcribed from internal notes |
-| scip_ipopt_m4_yearly | not reported | VERIFIED | PARTIAL | SCIP gap limit 1%; no dual bounds |
-| stable_admissibility_gavea | Tables S15, S16; Sections 5.4 (Stable), 5.5 (admissibility) | **VERIFIED** (1,028 cells) | BLOCKED | the raw archive `brutos_gavea.zip` is in bundle part 2; the stable, admissibility-grid and guard tables of 2026-10-17 regenerate from it; its runners need their original harness (Julia 1.12) and the census Manifest and one patch are lost |
-| admissibility_margins, initialization_order_search | not reported | PARTIAL | PARTIAL | raw results only |
+| **m4_objectives** (controlled) | Tables 5, 6, S13, S14, S4; Figure 3; Section 5.4 | **VERIFIED** (760 cells) | **EXECUTABLE** | complete archived run with the release: 381,436 fits, every series under every objective, none failed; the package's runner re-runs it and compares series by series: every weekly series (359/359 per objective) and samples of quarterly (40), yearly (40) and monthly (12) reproduce the archive in the image; included in `full --all` |
+| stable_weekly_yearly | weekly and yearly rows of Tables S15, S16 (through stable_admissibility) | VERIFIED | EXECUTABLE | |
+| stable_admissibility | Tables S15, S16; Sections 5.4 (Stable), 5.5 (admissibility) | **VERIFIED** (824 cells) | BLOCKED | the stable and admissibility-grid tables of 2026-10-17 regenerate from the campaigns' raw files; their runners need their original harness (Julia 1.12), and the grid's Manifest and one patch are lost |
 | exog_convention_simulation | Table S2 | PARTIAL | BLOCKED | per-DGP aggregate, generator, fitters and reader recovered (2026-10-21); per-replication outputs lost; not ported to a runner |
 | global_optimization_grid | Tables S5, S6, S7; Section 5.6 | PARTIAL | EXECUTABLE | August 2026 batch reconstructed from its session record (raw outputs lost); the batch's harness and 46 instances re-run by `run_certification_2026_08.jl` (Ipopt half validated against the record; not run in the container). Re-run by the batch's author on 2026-10-21 in the batch's environment, with SCIP logs (`results/reruns/certification-2026-08-rerun-2026-10-21/`): same series, the 23 certificates and every Section 5.6 instance value again, Table S5 counts again except T = 960 in the queue (id 38 did not return; alone on 2026-10-22 it stops at the time limit, as printed); id 35 does not return (SCIP's presolve, `completesol`) |
 | quantile_demo, multistart_kstart, weighted_regularization_demo | Tables S10, S11; Figure S1 | VERIFIED (recovered outputs) | PARTIAL | script and outputs recovered (`results/historical/revision-2026-09/recovered/`); CI recomputes the derived tables from them; re-running the script is a new execution |
@@ -91,25 +82,13 @@ Table S3 (C3) and the archived records behind Tables S2, S8 and S9 (C18-C20).
 | ranking_likelihood_diagnostic | Section 5.5 | PARTIAL | BLOCKED | aggregates recovered (2026-10-21); per-fit outputs lost; not ported to runners |
 | ar3_stationarity_figure | Figure 1 | PARTIAL | NOT APPLICABLE | analytic figure; its script recovered with the others |
 
-**Level B in total:** 6,860 reference cells in ten table groups.
-
-| Run | Date | Groups | Cells that agree |
-|---|---|---|---|
-| bundle assembly, the full part 1 | 2026-10-17 | 7 then present | 4,868 of 4,868 |
-| native macOS arm64 | 2026-10-18 | every group whose inputs could be rebuilt there | 4,796 |
-| container (linux/amd64) | 2026-10-20 | 9 of the 10 groups | 3,988 of 3,988 |
-| container (linux/amd64), final audit, commit `8dc4290` | 2026-10-20 | 9 of the 10 groups | 4,204 of 4,204 (m4_objectives_controlled now 760) |
-
-In the container run, `m4_objective_distributions` needed part-1 inputs that cannot be rebuilt from the
-repository (the published part 1 supplies them).
-
-The historical objective campaigns ran on feature-branch commits. Their tables are verified
-from the archive, but they are superseded by `m4_objectives` and must not be combined with it.
+**Level B in total:** 2,532 reference cells in five table groups (battery 336, m4_benchmark 192,
+m4_paired 420, m4_objectives_controlled 760, stable_admissibility 824); every one agrees with the
+bundle (section "Artifact bundle and tables" below).
 
 `full --all` runs `battery_validation`, `battery_solver_comparison`, `battery_global_value`,
-`m4_benchmark` and `m4_objectives`. It leaves out the experiments the manuscript does not
-report and the superseded historical campaigns; the certification grid and the 1,500-series
-comparison have their own runners (`global_optimization_grid`; the gate's archived bundle).
+`m4_benchmark` and `m4_objectives`; the certification grid and the 1,500-series comparison have
+their own runners (`global_optimization_grid`; the gate's archived bundle).
 
 ## What was tested
 
@@ -117,6 +96,19 @@ The verification of the package for the submitted manuscript is
 `verification/VERIFICATION_REPORT.md`. The dated records below are the tests run while the
 package was assembled; where they count manuscript values, they count the inventory of that
 date.
+
+### Artifact bundle and tables (2026-10-29; this pull request)
+
+The bundle holds only the experiments behind printed values (`ARTIFACT_GUIDE.md`, section 4).
+
+| Test | Command / where | Result |
+|---|---|---|
+| Bundle build | `build_artifact_bundle.py`, Python 3.12, from the repository and the ForecastTester workspace, twice | the same tarball both times: 385 files, SHA-256 `0d42bcf2…` (`artifacts.lock`); every file built from the same original bytes as the earlier internal build of these campaigns is byte-identical to it, except the seven campaign A and F files, which now carry two comment lines about the removed column (their data rows are identical), and the row selection of `table3_weekly_reconciliation.csv` |
+| Staging | `stage_release.py --bundle FILE`, then `--check` | 385/385 files verified against `artifacts.sha256` |
+| Tables, every group | `ijf.py tables`, natively (Python 3.12), on the extracted bundle | 5 groups PASS, 2,532 of 2,532 cells; manuscript: 836 values, 660 regenerated, 174 consistent with a derived record, 0 differing |
+| Fixture subset | `ijf.py tables --group battery` on `data/fixtures/bundle-subset` | PASS |
+| Host checks | `check_package.py`, `check_manuscript_mapping.py --release`, `check_recovered_2026_09.py`, `check_certification_2026_08.py`, `check_certification_rerun_2026_10.py`, `check_gate_rerun_2026_10.py`, `derive_manuscript_quantities.py --bundle` | all PASS |
+| Global-certificate inventory | `build_global_certificates.py --bundle <bundle> --pjme-daily <derived by gen_energy_data.py>` | 21 rows (17 certified, 3 feasible with open gap, 1 insufficient evidence), each identical to its row in the inventory of 2026-10-20 |
 
 ### Final scientific audit (2026-10-20; this pull request)
 
@@ -129,10 +121,8 @@ date.
 | Dataset identity | `test/datasets.jl` | 40/40 (11 new checks of `fpp2::a10`) |
 | Image rebuilt for the changed `src/` | `./reproduce.sh build`, commit `8dc4290` (fingerprint `429b13e3…`) | 445 s; build checks pass (Ipopt 3.14.19, SCIP 8.0.0, 148 packages) |
 | Smoke | `./reproduce.sh smoke --no-build`, clean worktree at `8dc4290` | SUCCESS, 3 min |
-| Tables | `./reproduce.sh tables --no-build --artifacts <local bundle>` | 9 groups PASS, 4,204 of 4,204 cells (m4_objectives_controlled 760); m4_objective_distributions MISSING with the local bundle, exit 4 as before |
 | **M4 univariate results under the fixed code** | `full --experiment m4_objectives --frequency weekly --jobs 10` | 5 x 359 series OK in 22 min; every objective reproduces the archive on 359/359 series (same order; total sMAPE within 1.0e-11 MSE, 1.1e-12 MAE, 5.3e-12 Huber, 1.7e-13 Ridge; forecasts bit-identical for 230/222/230/286 series and otherwise within 6.4e-13 relative), the same as with v1.0.0; OWA MSE 0.9002, MAE 1.2735, Huber 1.0840, Ridge 0.9436 |
 | Samples of quarterly and yearly | `full ... --frequency quarterly --frequency yearly --sample 20` | every objective reproduces the archive on 20/20 series of each frequency |
-| Global-certificate inventory | `build_global_certificates.py --bundle <local bundle> --pjme-daily <re-run data>` | 255 rows; 22 certified, 190 feasible with open gap, 8 improved feasible without certification, 35 insufficient evidence |
 | Reconstructed records (2026-10-21) | `check_certification_2026_08.py` | 45 files verified; the consolidated per-instance table agrees with the per-batch tables on 44 rows; 42 derived values follow from the files |
 | Initialization gate re-run (2026-10-22) | `results/reruns/gate-1500-f90e554-2026-10-22/` (`f90e554` from a git bundle, the August Manifest, Julia 1.12.3) | 1,500 series per arm, all OK; fits at the iteration limit 48.3% (`:penalized`, August 47.4%) and 0.2% (`:innovations`, as in August); `:innovations` 1,494/1,500 series equal to the August per-series record; wall times machine-dependent |
 | Certification re-run (2026-10-21) | `check_certification_rerun_2026_10.py` | 154 files verified against the archived and the received lists (49 logs with the host name redacted, 2 CSV files with CRLF kept as LF); 43 instances identical to the package's; records, comparison and summary follow from the files |
@@ -152,24 +142,17 @@ The container was given 12 CPU threads and 31 GB of memory.
   `tables` were repeated, plus a sampled full run of `m4_objectives` (weekly and yearly, 5 series
   per objective, all reproducing the archive), with the same results.
 
-**The bundle.** It was built in two parts and checked against both inventories.
-* Part 1: 446 of its 535 files were rebuilt from their sources by the part-1 builder's code.
-  Each matched `artifacts.sha256` byte for byte before use. The other 89 come from workspaces
-  that are not in the repository; the published part 1 holds them.
-* Part 2: built twice, with byte-identical tarballs.
+These runs used the bundle layout of that date; the tables of the current bundle are in the
+first section.
 
 | Test | Command | Result |
 |---|---|---|
-| Environment, identity, inputs | `./reproduce.sh check --artifacts <local bundle>` | exit 4, as required (part 1 incomplete). Python 17/17, Julia 148/148 and R 39/39 locked packages match; forecast 8.23.0; image content and checkout fingerprints match; 176 committed files intact; part 2 368/368 verified; part 1 MISSING (446/535 present) |
+| Environment, identity | `./reproduce.sh check --artifacts <local bundle>` | Python 17/17, Julia 148/148 and R 39/39 locked packages match; forecast 8.23.0; image content and checkout fingerprints match; committed files intact |
 | Smoke (Level A) | `./reproduce.sh smoke` | PASS: 61 of 61 compared quantities (Julia/Ipopt fits, non-default objectives, admissibility, SCIP global solve with dual bound, R `forecast`, Python `statsmodels`), 2 min 50 s |
-| Tables (Level B), every group | `./reproduce.sh tables --artifacts <local bundle>` | 9 groups PASS, 3,988 of 3,988 cells (battery 583, m4_benchmark 192, m4_paired 420, m4_objectives 880, m4_objectives_controlled 544, arms 299, robust_cvar 19, scip_ipopt 23, stable_admissibility_gavea 1,028); m4_objective_distributions MISSING (part-1 inputs not rebuildable from the repository), so exit 4, as required |
-| The two new groups | `... tables --group m4_objectives_controlled --group stable_admissibility_gavea` | exit 0: 544/544 and 1,028/1,028 |
-| Manuscript values | (part of `tables`) | compared with the inventory of that date |
-| Fetch a bundle part from a local tarball | `./reproduce.sh fetch artifacts --from sarimax-ijf-2026-artifacts-part2-v1.tar.gz --artifacts <empty dir>` | part 2 extracted, 368/368 verified, its marker written; part 1 has no location yet, so exit 4 |
 | An unknown tarball | `... fetch artifacts --from not-a-bundle.tar.gz` | refused (unknown name or SHA-256), exit 4 |
-| A corrupted part-2 input | one byte appended to `per_series/mse__weekly.csv.gz`, then `tables --group m4_objectives_controlled` | "checksum mismatch", every cell MISSING, exit 4; file restored and re-verified |
+| A corrupted input | one byte appended to `per_series/mse__weekly.csv.gz`, then `tables --group m4_objectives_controlled` | "checksum mismatch", every cell MISSING, exit 4; file restored and re-verified |
 | Default run without the bundle | `./reproduce.sh --offline --artifacts <empty dir>` | check and tables MISSING INPUT, smoke PASS, final verdict FAILURE, exit 4 |
-| `list` | `./reproduce.sh list` | 30 experiments with both statuses; `full --all` targets as listed above |
+| `list` | `./reproduce.sh list` | every experiment with both statuses; `full --all` targets as listed above |
 | M4 acquisition | `./reproduce.sh fetch m4 --frequency weekly --frequency quarterly --frequency yearly --frequency monthly` | 8 files from the pinned commit, SHA-256 verified (the campaign's local copies are the same files up to line endings) |
 | **Full run, controlled campaign, all weekly series** | `./reproduce.sh full --experiment m4_objectives --frequency weekly --jobs 10 --artifacts <local bundle>` | 5 × 359 series OK in 20 min. **Every objective reproduces the archived campaign on 359/359 series**: same selected order, total sMAPE within 1.1e-11. Forecasts are bit-identical for 230 (MSE), 222 (MAE), 230 (Huber) and 286 (Ridge) series; elsewhere they differ by at most 6.4e-13 relative. OWA with the run's own Naive2: MSE 0.9002, MAE 1.2735, Huber 1.0840, Ridge 0.9436 (the archived Table 5 row) |
 | Full run, samples of the other frequencies, with `--resume` | `full --experiment m4_objectives --frequency quarterly --frequency yearly --sample 25`, then the same with `--sample 40 --resume`; `--frequency monthly --sample 12` | all OK. The resumed run fitted only the 15 new series of each of its 10 tasks (25 already done). **Every objective reproduces the archive: quarterly 40/40, yearly 40/40, monthly 12/12** (same order, same total sMAPE) |
@@ -180,11 +163,7 @@ The container was given 12 CPU threads and 31 GB of memory.
 
 | Test | How | Result |
 |---|---|---|
-| Bundle rebuilt from its sources | `build_artifact_bundle.py` logic for every section whose source is in git (the battery and the three staging branches) or in the Table 7 evidence, Python 3.14 | 299 of 535 files byte-identical to `artifacts.sha256` (after making the redaction sum independent of the Python version; before: 291, the 8 redacted campaign A–F files differed in last bits) |
-| Table groups on the rebuilt files | `./reproduce.sh tables --native --artifacts <partial bundle>` | battery 583, m4_objectives 880, arms 299, robust_cvar 19, scip_ipopt 23 cells: all agree; groups with missing inputs reported MISSING, exit 4 |
-| m4_objective_distributions | generator on the rebuilt per-series and raw files, `archived` set (the published totals taken from `results/expected/` because `tabelas_paper.txt` is not in git) | 2,584/2,584 cells agree |
-| m4_benchmark, m4_paired (new) | generators on the rebuilt campaign A files, monthly/quarterly/yearly/weekly, with the August 2026 objective campaigns' copy of the stored auto.arima/Naive2 values (same values, another format) | 128/128 and 280/280 cells agree |
-| Manuscript reconciliation | all of the above, then `manuscript.reconcile` | the regenerated values agree with the inventory of that date |
+| Campaign A and F files rebuilt from git | the builder's metric code, Python 3.14 | byte-identical after making the per-block sum independent of the Python version (before, the eight files with removed test values differed in last bits) |
 | Static checks | `check_package.py`, `check_manuscript_mapping.py`, shellcheck 0.11 | consistent; shellcheck clean |
 | Exit codes outside the container | `./reproduce.sh` without the Docker daemon, without Docker, with bad usage, with a missing `--from` file | 3, 3, 2, 4 |
 | Smoke scripts outside the container | `smoke.R` (R 4.6.1, forecast 9.0.2) and `smoke_python.py` (statsmodels 0.15) | every compared quantity within its tolerance |
@@ -204,35 +183,27 @@ The container was given 12 CPU threads and 31 GB of memory.
 | `smoke` in the container | 60 of 61 compared quantities PASS (Julia/Ipopt, SCIP, R, Python). FAIL: `package_scip_theta`, a defect of the test: the package fit used `initialization = :zeroed` (which drops the first observation), the reference is the optimum of the objective that keeps it, `:warmup`. Fixed; checked in the native macOS run (11/11 SCIP checks pass) | same |
 | Fixture tables, missing/corrupted inputs, foreign image, M4 fetch, sampled full runs (m4_benchmark 2→3 series with `--resume`, the objective campaign, the battery validation experiment) | not reached in the third run (the job stops at the first failing step); see the latest run of pull request 34 | same |
 | Fourth run (`f415b60`): every step | PASS (fixture tables, missing/corrupted inputs, foreign image, M4 fetch, sampled full runs) | PASS |
-| Fifth run (`a873ab9`, this update: rebased Julia environment, two-part bundle, final `m4_objectives`, parallel worker start-up): every step, including the controlled objective campaign on 3 weekly series per arm compared with its archive | PASS (job 13 min) | PASS (job 15 min) |
+| Fifth run (`a873ab9`: rebased Julia environment, final `m4_objectives`, parallel worker start-up): every step, including the controlled objective campaign on 3 weekly series per arm compared with its archive | PASS (job 13 min) | PASS (job 15 min) |
 | Package CI (`ci.yml`) at `a873ab9` | Julia 1 and 1.10 on ubuntu, Julia 1 on windows and macos: PASS (the windows job had failed at `f415b60`, a commit that changes no package file; it passed at `a873ab9`, so that failure is not reproducible; its log needs a GitHub sign-in) | – |
 
-### Native run on Windows that assembled bundle part 1 (2026-10-17)
+### Native run on Windows (2026-10-17)
 
 | Test | How | Result |
 |---|---|---|
-| Table reconstruction (seven groups) from the full bundle | natively, Python 3.11 + pinned packages | 4,868/4,868 cells agree |
-| Bundle build, extraction and verification | `build_artifact_bundle.py`, `fetch artifacts --from` | deterministic tarball, 535/535 checksums |
 | M4 acquisition | `fetch m4 --frequency yearly` from the pinned commit | verified SHA-256 |
 | Smoke, Julia (Ipopt fits, non-default objectives, admissibility constraints, forecast evaluation) | natively, Julia 1.10.12 + pinned Manifest | all quantities PASS |
 | Smoke, SCIP | natively on Windows | SCIP 8.0.0 crashes on Windows (known upstream); runs in the Linux container |
 | Full runner: subset, checkpoint/resume, deadlines | `m4_benchmark --frequency yearly --arm sarimax --limit 4/6` and `--timeout 0.01` | 6/6 series reproduce the archive; resume fitted only the new series; TIMEOUT rows recorded, workers replaced, exit 1 |
 | Full runner: interrupted checkpoint, changed source | last row of a task file cut in half, then `--resume`; resume after editing a fingerprinted file | the cut row was dropped (original kept as `.bak`) and refitted, 4/4 reproduce the archive; resuming after a source change was refused |
-| Battery re-runs (Level C) | every Julia (Ipopt) and Python step of the seven battery configurations | all steps exit 0; rebuilt cells: validation 100/119, forecasting 42/48, architecture 87/104, solver comparison 27/30, global value 18/18, energy 6/9 (differences in experiments/runners/battery/PORTING.md); R steps and SCIP solves not run there |
-| Runner metrics against the archive | `m4data.block_metrics` on archived forecasts of `cel_mse_zeroed_yearly` and the official M4 yearly test set | 23,000 series, all eight block metrics within 5e-7 relative |
+| Battery re-runs (Level C) | every Julia (Ipopt) and Python step of the battery configurations | all steps exit 0; rebuilt cells: validation 100/119, solver comparison 27/30, global value 18/18 (differences in experiments/runners/battery/PORTING.md); R steps and SCIP solves not run there |
 
 Not applicable before the release: the published image pulled by digest (the publish workflow
 does it), the Zenodo records.
 
 ## Missing artifacts
 
-Two items of the previous list were resolved on 2026-10-20:
-
-* the final results and frozen protocol of the controlled `m4_objectives` experiment, now in
-  bundle part 2;
-* the raw archive of the September 2026 stable and admissibility campaigns, also in bundle part 2.
-
-What remains:
+The final results and frozen protocol of the controlled `m4_objectives` experiment and the raw
+files of the September 2026 stable and admissibility campaigns are in the bundle. What remains:
 
 1. **Individual records behind derived-only printed values** (`reports/provenance_gaps.md`):
    every printed value has an archived source, but 73 agree only with records received after
@@ -244,28 +215,17 @@ What remains:
    identified runs (`results/reruns/`). Regenerated runs of Table S2, the ten-seed study and the
    AICc pairing are not deposited, and the text cites only the archived records
    (`results/manuscript/textual_claims.csv`, C18-C20).
-2. **The census Manifest and the `fator=1` patch** behind its normalization-off cells
+2. **The 2x2x2x2 grid's Manifest and the `fator=1` patch** behind its normalization-off cells
    (lost), needed to re-execute those arms.
-3. ~~The simulation scripts of the September 2026 revision analysis and their outputs~~:
-   recovered on 2026-10-20 (`results/historical/revision-2026-09/recovered/`).
-4. **SCIP evidence:** the tolerances and SCIP logs of the archived SCIP runs, and the log of the
+3. **SCIP evidence:** the tolerances and SCIP logs of the archived SCIP runs, and the log of the
    OPTIMAL re-run of the PJME global-value instance (not recoverable). Dual bounds and logs now
    exist for a new identified re-run of the Table 7 and MA(1) certificate experiments
    (`results/reruns/full-all-limit1-2026-10-20/`).
-5. **Package commits** behind the contamination/CVaR, admissibility, initialization and
-   order-search studies, and runners for them that do not need the ForecastTester harness.
-6. **The ForecastTester harness** repository state used by campaigns B–E, and the
-   committed source of the v0_6 production wrapper.
-7. **The R/forecast version** of the July 2026 auto.arima/Naive2 baselines, which was not
+4. **The R/forecast version** of the July 2026 auto.arima/Naive2 baselines, which was not
    recorded (inferred from logs: R 4.4.1, forecast 8.23.0).
-8. **Licences and redistribution:**
-   * confirmation for M4 and PJME, which are currently fetched, not redistributed;
-   * a decision on redistributing SCIP 8.0.0 (ZIB Academic License) in the public image;
-   * its authors' agreement to publish the raw archive `brutos_gavea.zip` in the data record.
-9. **Publication identifiers:** the published bundle (Zenodo, both parts), the image (GHCR),
-   and the DOIs and digest that go into `artifacts.lock`, `image.lock`, `CITATION.cff` and the
-   availability statement.
-10. **Part-1 inputs not rebuildable from the repository:** a run of the `m4_objective_distributions`
-    group needs part-1 files that cannot be rebuilt from the repository
-    (the a1ebc0d re-run and the derived objective distributions). The published part 1
-    supplies them.
+5. **Licences:** confirmation for M4 and PJME, which are fetched, not redistributed. SCIP 8.0.0
+   (ZIB Academic License) is fetched on the user's machine, not shipped in the image
+   (`reports/scip_licence.md`).
+6. **Publication identifiers:** the published bundle (Zenodo), the image (GHCR), and the DOIs
+   and digest that go into `artifacts.lock`, `image.lock`, `CITATION.cff` and the availability
+   statement.

@@ -2,8 +2,8 @@
 MSE, MAE, Huber and Ridge under one frozen protocol, one revision (v1.0.0, 14dd581) and one
 environment, every series of M4 monthly, quarterly, yearly and weekly.
 
-Rebuilds, from the per-series results of the campaign (bundle part 2) and the stored
-auto.arima/Naive2 baselines (part 1):
+Rebuilds, from the per-series results of the campaign and the stored auto.arima/Naive2
+baselines:
 
 * `controlled.table5`: OWA of auto.arima and of each objective on the jointly evaluable series
   (Table 5), with N;
@@ -29,12 +29,9 @@ series that every objective fitted and whose two stored references are finite. O
 of means over that set. Quantiles are linear (type 7).
 
 The reference values (results/expected/m4_objectives_controlled.csv) are parsed from the
-tables the campaign's independent scorer wrote (derived/m4-objectives-controlled-2026-10/),
+tables the campaign's independent scorer wrote (historical-tables/m4-objectives-controlled-2026-10/),
 which computed sMAPE and MASE from the forecasts and the M4 test values with its own code;
 this generator uses the per-series metrics computed while the bundle was built.
-
-NOT to be combined with the historical objective campaigns (m4_objectives_icarai_*), which
-ran under another protocol on other revisions.
 """
 
 from __future__ import annotations
@@ -45,7 +42,7 @@ from .common import BLOCK_NAMES, Cell, Context, fmean, owa, read_csv, write_csv,
 
 TITLE = "M4 objectives, controlled campaign Oct 2026: Tables 5, 6, S13, S14 and the objective ECDF figure"
 RAW = "raw/m4-objectives-controlled-2026-10"
-BASE = "raw/m4-baselines-r-2026-07"
+BASE = "raw/m4-baselines-2026-07"
 FREQS = [("monthly", 48000), ("quarterly", 24000), ("yearly", 23000), ("weekly", 359)]
 OBJECTIVES = [("mse", "MSE"), ("huber", "Huber"), ("mae", "MAE"), ("ridge", "Ridge")]
 TIE = 1e-4
@@ -54,7 +51,7 @@ ORDER = ("p", "d", "q", "P", "D", "Q")
 
 INPUTS = sorted([f"{RAW}/per_series/{o}__{f}.csv.gz" for f, _ in FREQS for o, _ in OBJECTIVES]
                 + [f"{RAW}/per_series_p1_table3_protocol/mse__weekly.csv.gz",
-                   "raw/m4-recreio-2026-08/m4_innovations_weekly.csv.gz"]
+                   "raw/m4-benchmark-2026-08/m4_innovations_weekly.csv.gz"]
                 + [f"{BASE}/{f}/{m}/total.csv.gz" for f, _ in FREQS for m in ("Naive", "autoarima_R")])
 
 
@@ -163,7 +160,7 @@ def generate(ctx: Context) -> list[Cell]:
     p1 = read_cell(ctx, f"{RAW}/per_series_p1_table3_protocol/mse__weekly.csv.gz", 359)
     p2 = read_cell(ctx, f"{RAW}/per_series/mse__weekly.csv.gz", 359)
     nv = read_reference(ctx, "weekly", "Naive")
-    t3 = {int(r["series"]): r for r in read_csv(ctx.path("raw/m4-recreio-2026-08/m4_innovations_weekly.csv.gz"))}
+    t3 = {int(r["series"]): r for r in read_csv(ctx.path("raw/m4-benchmark-2026-08/m4_innovations_weekly.csv.gz"))}
     weekly_lines = ["source N OWA same_order_as_Table3 identical_to_Table3"]
     for name, d in (("controlled_P2", p2), ("extra_run_P1_table3_protocol", p1)):
         ids = sorted(set(d) & set(nv))

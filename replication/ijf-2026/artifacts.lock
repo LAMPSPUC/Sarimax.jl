@@ -1,35 +1,20 @@
 # Location of the archived artifact bundle (the Zenodo data record of the IJF paper).
 #
-# The bundle has two parts, two tarballs of the same Zenodo record that extract into the same
-# directory: part 1 (build_artifact_bundle.py, the experiment workspaces and the staging branches)
-# and part 2 (build_artifact_part2.py: the controlled m4_objectives campaign and
-# the raw archive of the September 2026 campaigns). The CONTENT of each part is pinned by its inventory (artifacts.sha256,
-# artifacts-part2.sha256: one SHA-256 per file), which is part of the image fingerprint. This
-# file only says where to download the tarballs from; it is filled in when the Zenodo record is
+# One tarball (build_artifact_bundle.py). Its CONTENT is pinned by its inventory
+# (artifacts.sha256: one SHA-256 per file), which is part of the image fingerprint. This file
+# only says where to download the tarball from; it is filled in when the Zenodo record is
 # published, after the image is built, and is deliberately outside the fingerprint. Until
-# then, provide the tarballs with
-#   ./reproduce.sh fetch artifacts --from sarimax-ijf-2026-artifacts-v1.tar.gz \
-#                                  --from sarimax-ijf-2026-artifacts-part2-v1.tar.gz
-# or point --artifacts at an extracted copy of both.
+# then, provide the tarball with
+#   ./reproduce.sh fetch artifacts --from sarimax-ijf-2026-artifacts-v1.tar.gz
+# or point --artifacts at an extracted copy.
 
 [bundle]
 name = "sarimax-ijf-2026-artifacts"
 version = "1"
 file = "sarimax-ijf-2026-artifacts-v1.tar.gz"
-sha256 = "f1f73726294af8fb0b3634d3f80d425f7a645a4c42c449c7ba90f9d632a1bee8"
-bytes = 296087734
+sha256 = "0d42bcf2c122fa28356fcddea44969cf51fc016f4586ca8797efa6ce861d475d"
+bytes = 377049495
 inventory = "artifacts.sha256"
-inventory_sha256 = "998ec67bfc8559a0c879301bd6a11adf58675cfe746208e0c58ad85d731e4333"
+inventory_sha256 = "bc2b2313c170197c212ee5dd8afbc21ed0b82c8155eba5eb3279a65e3b3abd5f"
 doi = ""          # version DOI of the Zenodo data record, once published
 url = ""          # direct download URL of the tarball in that record, once published
-
-[[parts]]
-name = "sarimax-ijf-2026-artifacts-part2"
-version = "1"
-file = "sarimax-ijf-2026-artifacts-part2-v1.tar.gz"
-sha256 = "7da2dbeda488bcb051aec3ccfad2baa1df417f7f82377d3785943078388794f2"
-bytes = 298933470
-inventory = "artifacts-part2.sha256"
-inventory_sha256 = "f82c39c0b2c9915c1172da0a6221c1fe321ee8214909f2b7b21dad0b1756cbc9"
-doi = ""          # the same Zenodo record as part 1, once published
-url = ""

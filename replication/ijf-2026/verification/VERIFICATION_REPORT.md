@@ -197,7 +197,7 @@ The text states the first two as properties of the release used by the controlle
 | `transcribe_manuscript.py --source <LaTeX source>` (the final archive) | 836 printed values; identical to the committed mapping |
 | the 836 printed values against the text of the two final PDFs (`pdftotext`) | 836 of 836 found |
 | `check_manuscript_mapping.py` and `--release` | raw-reproduced 660, derived-only 174, differing 0, no evidence 0, at run time 2; both PASS |
-| `check_package.py` | 30 experiments, 10 table groups, 836 manuscript values: consistent |
+| `check_package.py` | 15 experiments, 5 table groups, 836 manuscript values: consistent |
 | `check_certification_2026_08.py` | 45 received files verified; 44 per-instance rows match the per-batch tables; 61 derived values PASS |
 | `check_certification_rerun_2026_10.py` | 154 files and the 15 of the 2026-10-22 correction verified; 43 instances identical to the package's; records, comparison and sources PASS |
 | `check_gate_rerun_2026_10.py` | 24 files verified; aggregates recomputed from the per-series records; PASS |
@@ -244,7 +244,7 @@ package or the replication files.
 | status | results | evidence |
 |---|---|---|
 | **Re-executable from the original data** in the container, with series-by-series comparison to the archive | Table 2; Table 7 and the MA(1) certificates of Section 5.6; Tables 3, 4, S12, Figure 2, Section 5.3; Tables 5, 6, S4, S13, S14, Figure 3, Section 5.4 | `./reproduce.sh full`; exercised on subsets: `full --all --limit 1` PASS (2026-10-20); the controlled objective campaign reproduces the archive on all 359 weekly series per objective and on samples of the other frequencies. The complete M4 campaigns (several hundred CPU-hours) were not re-run for this archive |
-| **Regenerable from archived outputs** | the 660 raw-reproduced values, including Tables S15 and S16 and the admissibility results of Section 5.5 | `./reproduce.sh tables`: 9 table groups, every cell agrees (section 6) |
+| **Regenerable from archived outputs** | the 660 raw-reproduced values, including Tables S15 and S16 and the admissibility results of Section 5.5 | `./reproduce.sh tables`: 5 table groups, every cell agrees (section 6) |
 | **Partial**: historical records, with identified re-executions where possible | Tables S5-S7 and the grid of Section 5.6 (August reconstruction; re-run with per-instance records and SCIP logs); Tables S8, S9 and the initialization results of Section 5.5 (per-seed table; re-run of the 1,500-series comparison); Table S2 and the ranking diagnostics (aggregates); Tables S10, S11 and Figure S1 (recovered script outputs); re-execution of Tables S15 and S16 (their runners need the original harness, and the Manifest and one patch of the normalization-off cells are lost) | section 2; `reports/provenance_gaps.md`; `REPRODUCIBILITY_STATUS.md` |
 | **Unresolved** | the MA normalization defect of the estimator (stated in the text, not fixed: `LIMITATIONS.md`, item 22); the R and forecast versions of the archived `auto.arima` reference scores; the per-instance raw outputs of the August certification batch and the code of the ten-seed arms B and D | sections 3 and 4; `LIMITATIONS.md` |
 
@@ -295,7 +295,7 @@ Open:
 6. **The LaTeX source:** whether to deposit it (it allows anyone to re-run the transcription;
    its archive contains editorial notes that would have to be removed first).
 7. **Publication:** the image on GHCR and, exported, in the Zenodo data record; the Zenodo data
-   record (both bundle parts); the DOIs and digest in `artifacts.lock`, `image.lock`,
+   record (the artifact bundle); the DOIs and digest in `artifacts.lock`, `image.lock`,
    `CITATION.cff` and the availability statement; the creator lists of `CITATION.cff`,
    `.zenodo.json` and the data record; a permanent identifier of the manuscript for
    `REVISION.toml` once one exists.

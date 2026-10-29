@@ -1,7 +1,7 @@
 """Expected cells of the `m4_objectives_controlled` group, parsed from the tables that the
 controlled campaign's independent scorer (original-scripts/m4-objectives-controlled-2026-10/
-scoring/score_campaign.py) wrote on 2026-10-19, archived in bundle part 2 under
-derived/m4-objectives-controlled-2026-10/:
+scoring/score_campaign.py) wrote on 2026-10-19, archived in the bundle under
+historical-tables/m4-objectives-controlled-2026-10/:
 
 * table5_controlled.tex (OWA at the 4 printed decimals, N) and table5_controlled.csv (mean
   sMAPE/MASE, kept here to 6 decimals);
@@ -21,7 +21,7 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-D = "derived/m4-objectives-controlled-2026-10"
+D = "historical-tables/m4-objectives-controlled-2026-10"
 FREQS = ("monthly", "quarterly", "yearly", "weekly")
 LABELS = ("MSE", "Huber", "MAE", "Ridge")
 

@@ -109,6 +109,7 @@ The bundle holds only the experiments behind printed values (`ARTIFACT_GUIDE.md`
 | Fixture subset | `ijf.py tables --group battery` on `data/fixtures/bundle-subset` | PASS |
 | Host checks | `check_package.py`, `check_manuscript_mapping.py --release`, `check_recovered_2026_09.py`, `check_certification_2026_08.py`, `check_certification_rerun_2026_10.py`, `check_gate_rerun_2026_10.py`, `derive_manuscript_quantities.py --bundle` | all PASS |
 | Global-certificate inventory | `build_global_certificates.py --bundle <bundle> --pjme-daily <derived by gen_energy_data.py>` | 21 rows (17 certified, 3 feasible with open gap, 1 insufficient evidence), each identical to its row in the inventory of 2026-10-20 |
+| Container (linux/amd64), clean worktree of `7110fd8` | `./reproduce.sh build`, then `./reproduce.sh --no-build --artifacts <bundle>` | build 4 min; **SUCCESS**, exit 0, in 4.7 min: check PASS (locks, identity, the bundle's 385 files, SCIP 8.0.0), smoke 61/61, tables 2,532 of 2,532 cells, manuscript 662 regenerated + 174 consistent, 0 differing |
 
 ### Final scientific audit (2026-10-20; this pull request)
 

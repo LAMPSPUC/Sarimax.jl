@@ -190,7 +190,8 @@ The text states the first two as properties of the release used by the controlle
 
 ## 6. Checks run for this report
 
-**On the host** (Windows x86_64, Python 3.12.4, Julia 1.10.12), 2026-10-24:
+**On the host** (Windows x86_64, Python 3.12.4, Julia 1.10.12), 2026-10-24; the Python checks
+were run again on 2026-10-29, after the artifact bundle was rebuilt, with the same results:
 
 | command | result |
 |---|---|
@@ -203,35 +204,34 @@ The text states the first two as properties of the release used by the controlle
 | `check_gate_rerun_2026_10.py` | 24 files verified; aggregates recomputed from the per-series records; PASS |
 | `check_recovered_2026_09.py` | 14 files; Table S10 30 values, Figure S1 60 values, Table S11 96 values recomputed: OK |
 | `derive_manuscript_quantities.py --bundle <bundle>` | the 24 derived quantities follow from their inputs |
-| `update_checksums.sh` | 460 committed files listed and verified |
+| `update_checksums.sh` | 411 committed files listed and verified |
+| `build_artifact_bundle.py`, twice (2026-10-29) | the same tarball both times: 385 files, SHA-256 `0d42bcf2…` (`artifacts.lock`) |
+| `stage_release.py --bundle FILE`, `--check` | 385/385 files verified against `artifacts.sha256` |
+| `ijf.py tables` natively on the extracted bundle | 5 table groups PASS, 2,532 of 2,532 cells; manuscript: 662 equal to their regenerated cell, 174 consistent with their derived record, 0 differing |
+| `build_global_certificates.py --bundle <bundle> --pjme-daily <file>` | 21 rows, identical to `reports/global_certificate_inventory.csv` |
 | `verification/ma_normalization/check_ma_normalization.py` | PASS (section 4.1) |
 | `verification/ma_normalization/package_factor.jl` at `14dd581` and `21903b5` | 12/12 each (section 4.1) |
 | `verification/defect_tests/run.jl` at `14dd581` | 13 pass, 3 broken (section 5) |
 
-**In the container** (linux/amd64, Docker 27.2.0), from a clean worktree of commit
-`fe5c3c7` (source fingerprint `1950cf97…e7f5`; this report is outside the fingerprint), with an
-empty SCIP volume and a local copy of the artifact bundle (part 2 complete; part 1 with 446 of
-its 535 files, the other 89 coming from workspaces that are not in the repository), 2026-10-24:
+**In the container** (linux/amd64, Docker 27.2.0), from a clean worktree of commit `7110fd8`
+(source fingerprint `2bbe2fe3…2417`; this report is outside the fingerprint), with the extracted
+artifact bundle, 2026-10-29:
 
 | command | result |
 |---|---|
-| `./reproduce.sh build` | PASS (216 s); no file of the image is a SCIP or SoPlex library, and its Julia layer is about 90 MB smaller than with them (the two artifacts) |
-| `./reproduce.sh check --offline --artifacts <bundle>` (before fetching SCIP) | exit 4: the SCIP binaries MISSING (and the incomplete part 1), the Julia load checks SKIPPED, nothing FAIL |
-| `./reproduce.sh fetch scip` | SCIP_jll and SCIP_PaPILO_jll installed in the volume and verified against their content hashes (4 s of download) |
-| `./reproduce.sh check --artifacts <bundle>` | exit 4, as required with an incomplete part 1: Julia 1.10.12 and its 148, R's 39 and Python's 17 locked packages match their locks, Ipopt 3.14.19 and SCIP 8.0.0 load; the SCIP binaries installed; image content and code match the checkout; committed files intact; part 2 368/368 files verified; part 1 MISSING |
-| `./reproduce.sh smoke` | PASS: 61 of 61 compared quantities (Julia/Ipopt fits, non-default objectives, admissibility, a SCIP global solve with dual bound, R `forecast`, Python `statsmodels`) |
-| `./reproduce.sh tables --artifacts <bundle>` | 9 table groups PASS, 4,204 of 4,204 cells (battery 583, m4_benchmark 192, m4_paired 420, m4_objectives 880, m4_objectives_controlled 760, arms 299, robust_cvar 19, scip_ipopt 23, stable_admissibility_gavea 1,028); manuscript: 836 printed values, 662 equal to their regenerated cell, 174 consistent with their derived record, 0 differing; `m4_objective_distributions` MISSING, so exit 4 |
+| `./reproduce.sh build` | PASS (4 min) |
+| `./reproduce.sh --no-build --artifacts <bundle>` (check, smoke, tables) | **SUCCESS**, exit 0, in 4.7 min |
+| check | PASS: Julia 1.10.12 and its 148, R's 39 and Python's 17 locked packages match their locks; Ipopt 3.14.19 and SCIP 8.0.0 load; image content and code match the checkout; committed files intact; the bundle's 385 files verified; the SCIP binaries present (fetched into their volume) |
+| smoke | PASS: 61 of 61 compared quantities (Julia/Ipopt fits, non-default objectives, admissibility, a SCIP global solve with dual bound, R `forecast`, Python `statsmodels`) |
+| tables | 5 table groups PASS, 2,532 of 2,532 cells (battery 336, m4_benchmark 192, m4_paired 420, m4_objectives_controlled 760, stable_admissibility 824); manuscript: 836 printed values, 662 equal to their regenerated cell, 174 consistent with their derived record, 0 differing |
 
-At the previous commit `e644e9f` (the same image apart from two messages), the same sequence
-passed, and `full --experiment battery_solver_comparison --offline` ran its SCIP certificate
+On 2026-10-24, at commit `fe5c3c7` with the bundle layout of that date, the same image build
+was checked to contain no SCIP or SoPlex library; `check --offline` with an empty SCIP volume
+reported the binaries as MISSING and ran no Julia stage; `fetch scip` installed and verified
+them; and `full --experiment battery_solver_comparison --offline` ran its SCIP certificate
 runner on the fetched binaries (5 min; 58 of 70 cells agree, as in the earlier re-runs; the
 other 12 are timing cells and the definition changes listed in
 `experiments/runners/battery/PORTING.md`).
-
-The group that needs the missing part-1 files, `m4_objective_distributions`, concerns the
-historical objective campaigns: no printed value of the manuscript depends on it. A run on the
-complete part 1 (the seven groups that then existed, `m4_objective_distributions` among them,
-4,868 of 4,868 cells, 2026-10-17) is recorded in `REPRODUCIBILITY_STATUS.md`.
 
 **In continuous integration.** The workflow `IJF replication` of the pull request runs the host
 checks above (except the LaTeX transcription and the scripts of `verification/`), the release

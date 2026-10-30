@@ -2,11 +2,22 @@
   "title": "SARIMAX.jl: Open-Source Optimization-Based SARIMAX Modeling in Julia (replication package)",
   "version": "ijf-2026-replication-v1.0.0",
   "upload_type": "software",
-  "description": "<p>Replication package of the article <em>SARIMAX.jl: Open-Source Optimization-Based SARIMAX Modeling in Julia</em> (International Journal of Forecasting, special issue Advances in Open Source Forecasting Software): the source code of Sarimax.jl at the release commit, the containerized replication environment, the experiment configurations and runners, the mapping of every value printed in the article to its archived record, and the verification report (replication/ijf-2026). The archived experimental results are a separate Zenodo record, linked below.</p><p>Sarimax.jl estimates SARIMA and SARIMAX models by formulating them as explicit JuMP optimization problems, with user-selectable objective functions, coefficient constraints, regularization and solvers (local, such as Ipopt, or global, such as SCIP).</p>",
+  "description": "<p>Replication package of the article <em>SARIMAX.jl: Open-Source Optimization-Based SARIMAX Modeling in Julia</em>, submitted to the International Journal of Forecasting (special issue Advances in Open Source Forecasting Software): the source code of Sarimax.jl at the release commit, the containerized replication environment, the experiment configurations and runners, the mapping of every value printed in the article to its archived record, and the verification report (replication/ijf-2026). The archived experimental results are a separate Zenodo record, linked below.</p><p>Sarimax.jl estimates SARIMA and SARIMAX models by formulating them as explicit JuMP optimization problems, with user-selectable objective functions, coefficient constraints, regularization and solvers (local, such as Ipopt, or global, such as SCIP).</p>",
   "creators": [
     {
-      "name": "Duarte, Luiz Fernando Cunha",
-      "affiliation": "Industrial Engineering Department, Pontifical Catholic University of Rio de Janeiro (PUC-Rio)"
+      "name": "Duarte, Luiz Fernando",
+      "affiliation": "Industrial Engineering Department, Pontifical Catholic University of Rio de Janeiro (PUC-Rio)",
+      "orcid": "0009-0003-7694-3443"
+    },
+    {
+      "name": "Valladão, Davi",
+      "affiliation": "Industrial Engineering Department, Pontifical Catholic University of Rio de Janeiro (PUC-Rio)",
+      "orcid": "0000-0002-1084-6881"
+    },
+    {
+      "name": "Street, Alexandre",
+      "affiliation": "Electrical Engineering Department, Pontifical Catholic University of Rio de Janeiro (PUC-Rio)",
+      "orcid": "0000-0003-1569-030X"
     }
   ],
   "license": "MIT",
@@ -20,6 +31,5 @@
     "JuMP",
     "Julia",
     "reproducibility"
-  ],
-  "notes": "Before the release: confirm the creator list and affiliations (only the package author recorded in Project.toml is listed; other contributors appear in the git history), add the version DOI of the experimental-artifact record (relation isSupplementedBy) and the article DOI once assigned (relation isSupplementTo). For a later software-only release, restore the software title."
+  ]
 }

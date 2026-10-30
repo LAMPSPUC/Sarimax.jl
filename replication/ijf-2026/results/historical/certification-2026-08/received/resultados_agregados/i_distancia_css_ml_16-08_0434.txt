@@ -1,0 +1,2 @@
+seasonalPresamplePrior=false  n=14  distancia CSS->ML: mediana 21.61  media 49.52  max 198.71
+seasonalPresamplePrior=true  n=12  distancia CSS->ML: mediana 3.30  media 8.58  max 27.88

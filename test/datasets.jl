@@ -15,6 +15,25 @@
                 @test values(airPassengersData)[end] == 19.43174
             end
 
+            # The file is fpp2's `a10` (Australian anti-diabetic drug sales), not the
+            # Box-Jenkins airline series that the name AIR_PASSENGERS suggests (144 values
+            # from 1949 starting at 112). Identity pinned by length, calendar and values.
+            @testset "ANTIDIABETIC_DRUG_SALES (fpp2::a10)" begin
+                @test ANTIDIABETIC_DRUG_SALES === AIR_PASSENGERS
+                a10 = load_dataset(ANTIDIABETIC_DRUG_SALES)
+                @test values(a10) == values(load_dataset(AIR_PASSENGERS))
+                ts = timestamp(a10)
+                @test length(ts) == 204
+                @test first(ts) == Date(1991, 7, 1)
+                @test last(ts) == Date(2008, 6, 1)
+                @test ts == collect(Date(1991, 7, 1):Month(1):Date(2008, 6, 1))
+                v = values(a10)
+                @test v[1:4] == [3.526591, 3.180891, 3.252221, 3.611003]
+                @test minimum(v) == 2.81452 && ts[argmin(v)] == Date(1992, 2, 1)
+                @test maximum(v) == 29.665356 && ts[argmax(v)] == Date(2008, 1, 1)
+                @test sum(v) ≈ 2181.66363476 atol = 1e-6
+            end
+
             @testset "GDPC1" begin
                 GDPC1Data = load_dataset(GDPC1)
                 @test size(GDPC1Data, 1) == 344

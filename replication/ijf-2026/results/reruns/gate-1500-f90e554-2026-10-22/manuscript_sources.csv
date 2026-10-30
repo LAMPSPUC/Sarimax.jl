@@ -1,0 +1,18 @@
+quantity,value,rule
+gate_rerun_penalized_smape,13.881246370666668,"mean sMAPE over the 1500 paired series, :penalized"
+gate_rerun_penalized_mase,0.9512022560000001,"mean MASE over the 1500 paired series, :penalized"
+gate_rerun_penalized_ceiling_pct,48.266666666666666,"percentage of searches (series) whose iterMax, the largest candidate iteration count, is >= 200"
+gate_rerun_penalized_ok,1500,series with status OK
+gate_rerun_innovations_smape,13.9496837,"mean sMAPE over the 1500 paired series, :innovations"
+gate_rerun_innovations_mase,0.9476056473333333,"mean MASE over the 1500 paired series, :innovations"
+gate_rerun_innovations_ceiling_pct,0.2,"percentage of searches (series) whose iterMax, the largest candidate iteration count, is >= 200"
+gate_rerun_innovations_ok,1500,series with status OK
+gate_rerun_paired,1500,series in both arms
+gate_rerun_innovations_identical,1494,series whose order and sMAPE/MASE (6 decimals) equal the August per-series record
+gate_rerun_innovations_divergent,6,series that differ: 9350 25520 26926 27908 31336 34822
+gate_august_penalized_smape,13.9000,"mean sMAPE, :penalized, August aggregate (per-series outputs lost)"
+gate_august_penalized_mase,0.9528,"mean MASE, :penalized, August aggregate"
+gate_august_penalized_ceiling_pct,47.4,"percentage of searches at the 200-iteration ceiling, :penalized, August aggregate"
+gate_august_innovations_smape,13.9395,"mean sMAPE, :innovations, August aggregate (per-series outputs lost)"
+gate_august_innovations_mase,0.9471,"mean MASE, :innovations, August aggregate"
+gate_august_innovations_ceiling_pct,0.2,"percentage of searches at the 200-iteration ceiling, :innovations, August aggregate"

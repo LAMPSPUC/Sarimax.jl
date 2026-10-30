@@ -1,0 +1,46 @@
+# July 2026 battery, block 1: validation against statsmodels and R forecast (manifest id
+# battery_validation, table battery.validation = tab:validation_implementations).
+#
+# Protocol: artifacts/original-scripts/battery-2026-07/scripts/run_validation_{julia.jl,
+# python.py,r.R} and setup/gen_sim_data.py (= 74eb882^:experiments/scripts), whose archived
+# records were produced at commit 8ffc512 on Sarimax v0.3.0 (3f68017). The runners in
+# experiments/runners/battery/ are ports of those scripts to the release API; every deviation is
+# listed at the top of each file and in experiments/runners/battery/PORTING.md. In short: fit!
+# receives the v0.3.0 defaults the scripts relied on (initialization = :zeroed,
+# stationary = false), and the release's aic/bic score the exact Gaussian likelihood where the
+# archived values used the CSS one, so the SARIMAX.jl AIC/BIC cells differ by definition.
+#
+# The first step regenerates the simulated series with the original seeded generator into the
+# run directory and compares them with the archived copies (MATCH/MISMATCH in its log).
+
+id = "battery_validation"
+kind = "script"
+title = "Battery 2026-07, block 1: SARIMAX.jl vs statsmodels and R forecast::Arima on simulated and AirPassengers series"
+protocol_status = "archived"
+protocol_source = "artifacts/original-scripts/battery-2026-07/scripts/run_validation_{julia.jl,python.py,r.R}, setup/gen_sim_data.py (records of 8ffc512, Sarimax v0.3.0 = 3f68017)"
+tables_group = "battery"
+tables = ["battery.validation"]
+
+[[steps]]
+engine = "python"
+script = "experiments/runners/battery/setup/gen_sim_data.py"
+args = []
+timeout_s = 600
+
+[[steps]]
+engine = "julia"
+script = "experiments/runners/battery/run_validation_julia.jl"
+args = []
+timeout_s = 1800
+
+[[steps]]
+engine = "python"
+script = "experiments/runners/battery/run_validation_python.py"
+args = []
+timeout_s = 900
+
+[[steps]]
+engine = "r"
+script = "experiments/runners/battery/run_validation_r.R"
+args = []
+timeout_s = 900

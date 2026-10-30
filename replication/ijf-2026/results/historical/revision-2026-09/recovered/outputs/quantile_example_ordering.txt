@@ -1,0 +1,2 @@
+replications = 200
+fitted in-sample location ordered q0.1 <= q0.5 <= q0.9 in 200 of 200

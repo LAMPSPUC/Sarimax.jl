@@ -1,0 +1,39 @@
+| id | cel | rotulo | modo | T | status | t(s) | gap cert | Ipopt−SCIP | piso |
+|---|---|---|---|---:|---|---:|---:|---:|---|
+| 1 | A | fronteira-T | zeroed | 30 | OPTIMAL | 21 | 1.80e-08 | +3.17e-05 | True |
+| 2 | A | fronteira-T | zeroed | 30 | OPTIMAL | 20 | 5.11e-09 | +2.83e-05 | True |
+| 3 | A | fronteira-T | zeroed | 30 | OPTIMAL | 9 | 1.26e-08 | +2.85e-05 | True |
+| 4 | A | fronteira-T | zeroed | 60 | OPTIMAL | 17 | 3.46e-09 | +4.96e-05 | True |
+| 5 | A | fronteira-T | zeroed | 60 | OPTIMAL | 9 | 4.44e-09 | +1.37e-04 | True |
+| 6 | A | fronteira-T | zeroed | 60 | OPTIMAL | 8 | 4.98e-09 | +2.51e-05 | True |
+| 7 | A | fronteira-T | zeroed | 120 | OPTIMAL | 173 | 7.65e-11 | -2.84e-14 | True |
+| 8 | A | fronteira-T | zeroed | 120 | OPTIMAL | 59 | 2.89e-09 | +9.59e-05 | True |
+| 9 | A | fronteira-T | zeroed | 120 | OPTIMAL | 15 | 8.19e-11 | -4.69e-13 | True |
+| 10 | A | fronteira-T | zeroed | 240 | OPTIMAL | 116 | 7.41e-11 | -1.67e-09 | True |
+| 11 | A | fronteira-T | zeroed | 240 | OPTIMAL | 134 | 4.82e-11 | +2.27e-10 | True |
+| 12 | A | fronteira-T | zeroed | 240 | OPTIMAL | 67 | 3.44e-11 | -3.41e-13 | True |
+| 13 | B | sazonal | zeroed | 36 | TIME_LIMIT | 604 | 1.94e-04 | -1.16e-12 | True |
+| 14 | B | sazonal | zeroed | 36 | TIME_LIMIT | 600 | 4.48e-03 | +1.77e-09 | True |
+| 15 | B | sazonal-fronteira | zeroed | 36 | TIME_LIMIT | 600 | 5.74e-04 | +2.49e-09 | True |
+| 16 | B | sazonal | zeroed | 60 | TIME_LIMIT | 600 | 1.23e-02 | +3.18e-11 | True |
+| 17 | B | sazonal | zeroed | 60 | TIME_LIMIT | 604 | 2.26e-01 | +1.49e-13 | True |
+| 18 | B | sazonal-fronteira | zeroed | 60 | TIME_LIMIT | 600 | 1.87e-01 | -9.81e-11 | True |
+| 19 | B | sazonal | zeroed | 36 | TIME_LIMIT | 600 | 1.79e-02 | +2.75e-10 | True |
+| 20 | B | sazonal | zeroed | 36 | TIME_LIMIT | 600 | 2.44e-04 | -5.63e-10 | True |
+| 21 | B | sazonal-fronteira | zeroed | 36 | TIME_LIMIT | 604 | 6.77e-03 | +2.52e-09 | True |
+| 22 | B | sazonal | zeroed | 60 | TIME_LIMIT | 600 | 4.01e-01 | -2.24e-10 | True |
+| 23 | B | sazonal | zeroed | 60 | TIME_LIMIT | 600 | 4.90e-01 | -5.26e-13 | True |
+| 24 | B | sazonal-fronteira | zeroed | 60 | TIME_LIMIT | 600 | 3.50e-01 | +4.70e-10 | True |
+| 25 | C | quase-cancelamento-regular | zeroed | 60 | OPTIMAL | 24 | 9.28e-09 | +5.70e-05 | True |
+| 26 | C | quase-cancelamento-sazonal | zeroed | 60 | TIME_LIMIT | 600 | 3.22e-01 | +1.35e+00 | True |
+| 27 | C | MA-quase-nao-inversivel | zeroed | 60 | OPTIMAL | 25 | 3.12e-09 | +2.16e-04 | True |
+| 28 | C | M4-real | zeroed | 70 | TIME_LIMIT | 600 | 1.64e-01 | +4.89e-11 | False |
+| 29 | C | M4-real | zeroed | 69 | TIME_LIMIT | 604 | 1.19e-01 | +2.50e-09 | False |
+| 30 | C | M4-real | zeroed | 71 | TIME_LIMIT | 600 | 2.71e-01 | +3.85e-11 | False |
+| 31 | D | modo-inovacoes | innovations | 60 | OPTIMAL | 41 | 7.81e-09 | +5.72e-05 | True |
+| 32 | D | modo-inovacoes | innovations | 60 | OPTIMAL | 30 | 1.05e-08 | +4.54e-05 | True |
+
+=== OS TRES QUE FALHARAM O PISO ===
+  id 28 | C M4-real | T=70 | sid=2772 | obj_scip=17.1264 | piso=17.2500
+  id 29 | C M4-real | T=69 | sid=7389 | obj_scip=4.7526 | piso=17.0000
+  id 30 | C M4-real | T=71 | sid=7510 | obj_scip=5.4716 | piso=17.5000

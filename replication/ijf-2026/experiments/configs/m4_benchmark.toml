@@ -1,0 +1,86 @@
+# M4 headline comparison (manifest id m4_benchmark).
+# SARIMAX.jl with the mse objective and :innovations initialization against
+# forecast::auto.arima, with Naive2 as the OWA reference, on all six M4 frequencies.
+#
+# Protocol: campaign A, experiments/scripts/run_m4.jl, function m4Config, run at
+# commits aa68d57 (yearly, quarterly, weekly, hourly, daily) and 3d7f883 (monthly). Every
+# keyword below is the value that runner passed, written out explicitly.
+
+id = "m4_benchmark"
+kind = "m4"
+protocol_status = "archived"
+protocol_source = "original-scripts/m4-benchmark-2026-08/scripts/run_m4.jl (campaign A, commit 052027a of this repository)"
+frequencies = ["yearly", "quarterly", "monthly", "weekly", "daily", "hourly"]
+# Orchestration deadline per series. The archived run had NO per-fit cap (maxTimeSeconds =
+# nothing); this limit only stops a fit that never returns, and is recorded as TIMEOUT.
+per_series_timeout_s = 3600.0
+# Share of series allowed to end in ERROR/TIMEOUT/CRASH before a task is reported FAIL.
+max_failure_rate = 0.01
+
+[auto_defaults]
+objectiveFunction = "mse"
+initialization = "innovations"
+seasonalForm = "multiplicative"
+stationary = true
+stationarityMargin = 1e-6
+invertible = false
+invertibilityMargin = 1e-6
+assertStationarity = true
+assertInvertibility = true
+rootMargin = 1e-2
+constrainedRefit = false
+searchMethod = "stepwise"
+informationCriteria = "aicc"
+integrationTest = "kpssShort"
+seasonalIntegrationTest = "seas"
+d = -1
+D = -1
+maxd = 2
+maxD = 1
+maxp = 5
+maxq = 5
+maxP = 2
+maxQ = 2
+maxOrder = 5
+multistart = false
+warmStartFromBox = false
+maxTimeSeconds = "nothing"
+parallel = false
+outlierDetection = false
+requireTermsWhenOverDifferenced = false
+requireMAWhenDoublyDifferenced = false
+optimizer = "Ipopt"
+# The archived runner also passed cvarLevel = 0.9, which "mse" never reads. The release
+# refuses a level passed to an objective that does not read it, so it is omitted; the
+# estimator is unchanged.
+
+[[arms]]
+name = "sarimax"
+engine = "julia"
+
+[[arms]]
+name = "auto_arima"
+engine = "r"
+method = "auto_arima"
+
+[[arms]]
+name = "naive2"
+engine = "r"
+method = "naive2"
+
+# Archived per-series results, compared series by series after a run.
+[archived.sarimax]
+file = "raw/m4-benchmark-2026-08/m4_innovations_{freq}.csv.gz"
+order_columns = ["p", "d", "q", "P", "D", "Q"]
+smape_column = "smape_total"
+provenance = "campaign A (commits aa68d57/3d7f883, Julia 1.9.4, Windows)"
+
+[archived.auto_arima]
+file = "raw/m4-baselines-2026-07/{freq}/autoarima_R/total.csv.gz"
+smape_column = "sMAPE"
+provenance = "forecast 8.23.0, R 4.4.1 via RCall, Windows, July 2026"
+
+[archived.naive2]
+file = "raw/m4-baselines-2026-07/{freq}/Naive/total.csv.gz"
+smape_column = "sMAPE"
+provenance = "M4 Naive2 code, R 4.4.1 via RCall, Windows, July 2026"

@@ -1,0 +1,2 @@
+{"time": "2026-10-20T05:20:24+00:00", "event": "run_start", "experiment": "battery_solver_comparison", "limit": 1, "sample": 0, "seed": 20261018, "jobs": 4, "resume": false}
+{"time": "2026-10-20T05:24:30+00:00", "event": "run_end", "experiment": "battery_solver_comparison", "ok": true}

@@ -1,0 +1,25 @@
+PROGRAMA SCIP — 1 casos nesta fatia (de 46), limite 600s, SCIP 8.0.0
+CARIMBO rerun 21/10: 2026-10-21T20:02:05.301 host=[redacted] julia=1.12.3 manifest_sha256=05f0db2d79f5de7c4e3826d4de1fef9af4251dcde0c7aff677f16bdc251a4dcf git_head=14dd581 loadavg=[7.65869140625, 8.2421875, 8.30126953125]
+  [37] ipopt...
+
+******************************************************************************
+This program contains Ipopt, a library for large-scale nonlinear optimization.
+ Ipopt is released as open source code under the Eclipse Public License (EPL).
+         For more information visit https://github.com/coin-or/Ipopt
+******************************************************************************
+
+  [37] ipopt OK em 1.6s (obj 938.4454); scip...
+feasible solution found by completesol heuristic after 600.1 seconds, objective value 9.384454e+02
+presolving:
+presolving (0 rounds: 0 fast, 0 medium, 0 exhaustive):
+ 0 deleted vars, 0 deleted constraints, 0 added constraints, 0 tightened bounds, 0 added holes, 0 changed sides, 0 changed coefficients
+ 0 implications, 0 cliques
+presolving was interrupted.
+Presolving Time: 600.08
+
+SCIP Status        : solving was interrupted [time limit reached]
+Solving Time (sec) : 600.09
+Solving Nodes      : 0
+Primal Bound       : +9.38445436090139e+02 (1 solutions)
+ 37 E  fronteira-estendida        P0Q0 T960  zeroed       | ip   938.4454  scip   938.4454  TIME_LIMIT      602.7s  gapcert +1.07e+17
+fatia pronta: /Users/davi/dev/paper/rerun_scip_21-10/saida/caso_37.csv

@@ -1,0 +1,4 @@
+sid,ordem_igual,smape_reg,smape_ref,mase_reg,mase_ref,igual_6casas,status_reg,iterMax_reg
+10541,True,0.0,0.0,0.0,0.0,True,OK,8
+43309,True,4.769311,4.769311,1.347836,1.347836,True,OK,8
+31336,False,12.788174,13.116791,1.362339,1.393613,False,OK,63

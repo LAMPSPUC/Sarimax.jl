@@ -1,0 +1,30 @@
+\begin{tabular}{llrrrrrrr}
+\toprule
+ & & & \multicolumn{4}{c}{MASE, $\Delta$ vs MSE} & \multicolumn{2}{c}{sMAPE, $\Delta$ vs MSE} \\
+\cmidrule(lr){4-7}\cmidrule(lr){8-9}
+Freq. & Method & $N$ & Median & $q_{05}$ & $q_{95}$ & \% lower & Median & \% lower \\
+\midrule
+Yearly & stable $\alpha=0.5$ & 23{,}000 & 0.000 & -0.964 & 0.781 & 40.7 & 0.000 & 40.7 \\
+ & stable $\alpha=0.9$ & 23{,}000 & 0.000 & -1.670 & 2.194 & 36.1 & 0.000 & 36.0 \\
+ & auto.arima & 23{,}000 & 0.000 & -0.577 & 0.460 & 18.5 & -0.000 & 20.1 \\
+\addlinespace
+Quarterly & stable $\alpha=0.5$ & 23{,}945 & 0.000 & -0.338 & 0.346 & 42.6 & 0.000 & 42.9 \\
+ & auto.arima & 23{,}945 & -0.000 & -0.323 & 0.266 & 35.1 & -0.000 & 36.8 \\
+\addlinespace
+Monthly & stable $\alpha=0.9$ & 4{,}997 & 0.000 & -0.326 & 0.542 & 41.4 & 0.000 & 41.3 \\
+ & auto.arima & 4{,}997 & 0.000 & -0.295 & 0.290 & 46.1 & 0.000 & 46.5 \\
+\addlinespace
+Monthly (alpha=0.5 subset) & stable $\alpha=0.5$ & 923 & 0.000 & -0.192 & 0.175 & 41.5 & 0.000 & 41.5 \\
+ & auto.arima & 923 & 0.000 & -0.336 & 0.329 & 44.5 & 0.000 & 45.1 \\
+\addlinespace
+Weekly & stable $\alpha=0.5$ & 359 & 0.000 & -0.436 & 0.769 & 43.5 & 0.001 & 43.7 \\
+ & stable $\alpha=0.9$ & 359 & 0.000 & -0.720 & 1.175 & 45.4 & 0.000 & 45.7 \\
+ & auto.arima & 359 & 0.000 & -0.573 & 0.509 & 39.6 & 0.000 & 40.9 \\
+\addlinespace
+Daily & stable $\alpha=0.5$ & 3{,}979 & 0.000 & -0.215 & 0.176 & 36.6 & 0.000 & 36.5 \\
+ & auto.arima & 3{,}979 & -0.000 & -0.257 & 0.176 & 31.8 & -0.000 & 31.4 \\
+\addlinespace
+Hourly & stable $\alpha=0.5$ & 411 & 0.001 & -0.187 & 0.242 & 43.6 & 0.003 & 44.0 \\
+ & auto.arima & 411 & -0.002 & -0.319 & 0.247 & 54.5 & -0.001 & 50.6 \\
+\bottomrule
+\end{tabular}

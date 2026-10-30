@@ -177,6 +177,13 @@ Exact Gaussian log-likelihood of the FITTED model, evaluated at the estimated co
 Differencing and deterministic terms are removed first: the likelihood is that of the
 differenced series minus the deterministic part, which is the `stats::arima` convention.
 
+Regressors are removed according to the semantics the model was fitted under
+(`metadata["exogDynamics"]`), using the regressors as `fit!` used them
+([`fittedExogMatrix`](@ref)): `X_t'b` under `:regression_errors`, the filtered path
+[`armaxRegressionPath`](@ref) under `:armax`. Up to 1.0.0 both semantics were scored as
+regression with ARMA errors on regressors differenced with the series' `d` and `D`, and a
+single one-dimensional regressor made the likelihood unavailable (CSS fallback).
+
 NOTE on evaluating away from the MLE: the coefficients come from the objective the user chose
 (which may be `mae`, `ridge`, `huber`, ...), not from the maximum of this function. As a
 statistic for COMPARING candidates that is legitimate as long as the same function scores all
@@ -252,13 +259,71 @@ function exactLoglike(model::SARIMAModel)
         z = z .- model.trend .* driftReg
     end
     if !isnothing(model.exog) && !isnothing(model.exogCoefficients)
-        try
-            X = Float64.(values(differentiate(model.exog, model.d, model.D, s)))
-            β = Float64.([model.exogCoefficients...])
-            size(X, 1) == length(z) && length(β) == size(X, 2) && (z = z .- X * β)
-        catch
-            return nothing
+        X = fittedExogMatrix(model, diffY)
+        isnothing(X) && return nothing
+        β = Float64.([model.exogCoefficients...])
+        (size(X, 1) == length(z) && size(X, 2) == length(β)) || return nothing
+        xβ = X * β
+        if get(model.metadata, "exogDynamics", "armax") == "regression_errors"
+            z = z .- xβ
+        else
+            path = armaxRegressionPath(xβ, ar)
+            isnothing(path) && return nothing
+            z = z .- path
         end
     end
     return exactGaussianLogLikelihood(z, ar, ma)
+end
+
+"""
+    fittedExogMatrix(model, diffY) -> Union{Matrix{Float64},Nothing}
+
+The regressors exactly as `fit!` used them, aligned with the differenced series `diffY`:
+`model.exog` as supplied (or transformed by `automatic_differentiation` when the fit was asked
+to), joined to `diffY` on the timestamps. `fit!` does NOT difference the regressors with the
+series' own `d` and `D`, so neither does this; rows of `model.exog` beyond the sample (future
+values supplied for forecasting) drop out of the join, as they do in `fit!`.
+
+Returns `nothing` when the join does not cover every observation of `diffY`, rather than a
+likelihood of misaligned data.
+"""
+function fittedExogMatrix(model::SARIMAModel, diffY::TimeArray)
+    exog = get(model.metadata, "automaticExogDifferentiation", false) ?
+        first(automatic_differentiation(model.exog; seasonalPeriod = model.seasonality)) :
+        model.exog
+    joined = TimeSeries.merge(diffY, exog)
+    size(values(joined), 1) == length(diffY) || return nothing
+    return Float64.(values(joined)[:, 2:end])
+end
+
+"""
+    armaxRegressionPath(xβ, ar) -> Union{Vector{Float64},Nothing}
+
+Deterministic part contributed by the regressors under `exogDynamics = :armax`.
+
+The fitted equation is `phi*(B) z_t = c + X_t'b + theta*(B) e_t`, with `phi*(B) = 1 - sum ar_j B^j`
+the expanded autoregressive polynomial: the regressors enter BESIDE the AR terms, so their
+contribution to the level of `z` is the filtered path `mu_t = X_t'b + sum_j ar_j mu_(t-j)`, not
+`X_t'b`. The likelihood is that of the ARMA process `z_t - mu_t`. The path needs values before
+the sample; they are set at the steady state of the first observation, `mu_t = X_1'b / phi*(1)`
+for `t <= 0`, the same convention that turns the constant into the level `c / phi*(1)` above
+(a constant regressor and `c` therefore give the same likelihood). With no AR terms the path
+is `X_t'b` and the two semantics coincide, as they do in `fit!`.
+
+Returns `nothing` when `phi*(1)` is 0 (a unit root: the steady state does not exist).
+"""
+function armaxRegressionPath(xβ::Vector{Fl}, ar::Vector{Fl}) where {Fl<:AbstractFloat}
+    isempty(ar) && return xβ
+    denom = 1 - sum(ar)
+    abs(denom) <= 1e-8 && return nothing
+    μ0 = xβ[1] / denom
+    μ = similar(xβ)
+    for t in eachindex(xβ)
+        acc = xβ[t]
+        for j in eachindex(ar)
+            acc += ar[j] * (t - j >= 1 ? μ[t-j] : μ0)
+        end
+        μ[t] = acc
+    end
+    return all(isfinite, μ) ? μ : nothing
 end

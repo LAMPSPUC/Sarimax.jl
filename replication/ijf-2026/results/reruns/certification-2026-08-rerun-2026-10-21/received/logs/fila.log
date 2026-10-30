@@ -1,0 +1,101 @@
+inicio 2026-10-21 19:19:30 caso=1
+fim    2026-10-21 19:20:01 caso=1 rc=0
+lancamento 2026-10-21 19:20:23 4 workers, loadavg { 5.71 5.57 9.10 }
+inicio 2026-10-21 19:20:23 caso=14
+inicio 2026-10-21 19:20:23 caso=16
+inicio 2026-10-21 19:20:23 caso=15
+inicio 2026-10-21 19:20:23 caso=13
+fim    2026-10-21 19:30:47 caso=16 rc=0
+inicio 2026-10-21 19:30:47 caso=17
+fim    2026-10-21 19:30:48 caso=15 rc=0
+inicio 2026-10-21 19:30:48 caso=18
+fim    2026-10-21 19:30:50 caso=13 rc=0
+inicio 2026-10-21 19:30:50 caso=19
+fim    2026-10-21 19:30:50 caso=14 rc=0
+inicio 2026-10-21 19:30:50 caso=20
+fim    2026-10-21 19:41:07 caso=17 rc=0
+inicio 2026-10-21 19:41:07 caso=21
+fim    2026-10-21 19:41:09 caso=18 rc=0
+inicio 2026-10-21 19:41:09 caso=22
+fim    2026-10-21 19:41:11 caso=20 rc=0
+inicio 2026-10-21 19:41:11 caso=23
+fim    2026-10-21 19:41:12 caso=19 rc=0
+inicio 2026-10-21 19:41:12 caso=24
+fim    2026-10-21 19:51:26 caso=22 rc=0
+inicio 2026-10-21 19:51:26 caso=26
+fim    2026-10-21 19:51:27 caso=21 rc=0
+inicio 2026-10-21 19:51:27 caso=28
+fim    2026-10-21 19:51:28 caso=23 rc=0
+inicio 2026-10-21 19:51:28 caso=29
+fim    2026-10-21 19:51:29 caso=24 rc=0
+inicio 2026-10-21 19:51:29 caso=30
+fim    2026-10-21 20:01:47 caso=26 rc=0
+inicio 2026-10-21 20:01:47 caso=34
+fim    2026-10-21 20:01:55 caso=28 rc=0
+inicio 2026-10-21 20:01:55 caso=35
+fim    2026-10-21 20:01:56 caso=29 rc=0
+inicio 2026-10-21 20:01:56 caso=37
+fim    2026-10-21 20:01:57 caso=30 rc=0
+inicio 2026-10-21 20:01:57 caso=38
+fim    2026-10-21 20:12:15 caso=37 rc=0
+inicio 2026-10-21 20:12:15 caso=39
+fim    2026-10-21 20:16:47 caso=34 rc=137
+inicio 2026-10-21 20:16:47 caso=41
+fim    2026-10-21 20:16:55 caso=35 rc=137
+inicio 2026-10-21 20:16:55 caso=43
+fim    2026-10-21 20:16:57 caso=38 rc=137
+inicio 2026-10-21 20:16:57 caso=2
+fim    2026-10-21 20:17:45 caso=2 rc=0
+inicio 2026-10-21 20:17:45 caso=3
+fim    2026-10-21 20:18:16 caso=3 rc=0
+inicio 2026-10-21 20:18:16 caso=4
+fim    2026-10-21 20:18:52 caso=4 rc=0
+inicio 2026-10-21 20:18:52 caso=5
+fim    2026-10-21 20:19:21 caso=5 rc=0
+inicio 2026-10-21 20:19:21 caso=6
+fim    2026-10-21 20:19:50 caso=6 rc=0
+inicio 2026-10-21 20:19:50 caso=7
+fim    2026-10-21 20:22:38 caso=39 rc=0
+inicio 2026-10-21 20:22:38 caso=8
+fim    2026-10-21 20:22:47 caso=7 rc=0
+inicio 2026-10-21 20:22:47 caso=9
+fim    2026-10-21 20:23:23 caso=9 rc=0
+inicio 2026-10-21 20:23:23 caso=10
+fim    2026-10-21 20:23:45 caso=8 rc=0
+inicio 2026-10-21 20:23:45 caso=11
+fim    2026-10-21 20:25:34 caso=10 rc=0
+inicio 2026-10-21 20:25:34 caso=12
+fim    2026-10-21 20:25:53 caso=11 rc=0
+inicio 2026-10-21 20:25:53 caso=25
+fim    2026-10-21 20:26:40 caso=25 rc=0
+inicio 2026-10-21 20:26:40 caso=27
+fim    2026-10-21 20:26:52 caso=12 rc=0
+inicio 2026-10-21 20:26:52 caso=31
+fim    2026-10-21 20:27:08 caso=41 rc=0
+inicio 2026-10-21 20:27:08 caso=32
+fim    2026-10-21 20:27:12 caso=27 rc=0
+inicio 2026-10-21 20:27:12 caso=33
+fim    2026-10-21 20:27:15 caso=43 rc=0
+inicio 2026-10-21 20:27:15 caso=36
+fim    2026-10-21 20:27:34 caso=31 rc=0
+inicio 2026-10-21 20:27:34 caso=40
+fim    2026-10-21 20:27:44 caso=32 rc=0
+inicio 2026-10-21 20:27:44 caso=42
+fim    2026-10-21 20:28:26 caso=42 rc=0
+inicio 2026-10-21 20:28:26 caso=44
+fim    2026-10-21 20:29:17 caso=40 rc=0
+inicio 2026-10-21 20:29:17 caso=45
+fim    2026-10-21 20:30:41 caso=45 rc=0
+inicio 2026-10-21 20:30:41 caso=46
+fim    2026-10-21 20:31:21 caso=33 rc=0
+fim    2026-10-21 20:31:31 caso=46 rc=0
+fim    2026-10-21 20:31:40 caso=44 rc=0
+fim    2026-10-21 20:35:20 caso=36 rc=0
+FILA COMPLETA Wed Oct 21 19:20:23 -03 2026
+MEDICAO COMPLEMENTAR 2026-10-21 20:40:26: casos 34 35 38 com relogio externo 3600 s, fora do PREREG (900 s preservados em *_clock900)
+inicio 2026-10-21 20:40:26 caso=34
+inicio 2026-10-21 20:40:26 caso=35
+inicio 2026-10-21 20:40:26 caso=38
+fim    2026-10-21 21:40:26 caso=35 rc=137
+fim    2026-10-21 21:40:26 caso=38 rc=137
+fim    2026-10-21 21:40:26 caso=34 rc=137

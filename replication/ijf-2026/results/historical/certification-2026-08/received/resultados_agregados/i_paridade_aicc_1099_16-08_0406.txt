@@ -1,0 +1,21 @@
+PARIDADE DE CRITERIO NA GRADE PxQ — n=1099 ajustes pareados
+
+  contagem k difere em 0 de 1099
+
+DELTA DE AICc (nosso - R), so onde a exata FOI usada (sem recuo)
+   P  Q     n   mediana       p25       p75
+   0  0   196    +0.003    +0.001    +0.018
+   0  1   195    +0.118    +0.029    +0.346
+   1  0   168    +0.091    +0.022    +0.515
+   1  1    90    +8.757    +3.424   +20.019
+   2  0   133    +0.277    +0.062    +1.845
+   2  1    86   +14.826    +8.931   +29.717
+
+O QUE DECIDE: preferencia por P=2 contra P=0, na mesma serie e mesmo Q
+  Q=0: n= 132   nos preferimos P=2 em 61.4%   R em 71.2%   delta -9.8%
+  Q=1: n=  85   nos preferimos P=2 em 10.6%   R em 45.9%   delta -35.3%
+
+MESMO, mas Q=1 contra Q=0 com P fixo (a outra metade da interacao)
+  P=0: n= 195   nos preferimos Q=1 em 73.3%   R em 76.9%   delta -3.6%
+  P=1: n=  88   nos preferimos Q=1 em 18.2%   R em 50.0%   delta -31.8%
+  P=2: n=  81   nos preferimos Q=1 em 14.8%   R em 43.2%   delta -28.4%

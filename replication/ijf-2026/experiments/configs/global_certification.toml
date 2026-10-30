@@ -1,0 +1,35 @@
+# Global-optimization certificates (manifest id global_optimization_grid; Table S5 =
+# tab:global_experiment and the certified instances of Section 5.6 = sec:global_diagnostics).
+#
+# The August 2026 certification batch, re-run with its own harness
+# (results/historical/certification-2026-08/received/harness/scip_prog_lote2_22-08_1435.jl,
+# loaded verbatim by experiments/runners/global/run_certification_2026_08.jl) on its own 46
+# instances (experiments/configs/certification_2026_08_instances.csv, written by
+# certification_2026_08_instances.jl under Julia >= 1.11: MersenneTwister's seeding changed in
+# 1.11, and the batch ran on 1.12.3). Ipopt, then SCIP 8.0.0 with the lifted products, the
+# innovation bounds and the Ipopt warm start, 600 s per SCIP solve; every case in its own process,
+# killed after 900 s (the batch's external clock). Unlike the batch, the run records SCIP's raw
+# status, node count, coefficients and one log per case, and Ipopt's status and coefficients.
+#
+# The three real M4 series (ids 28-30) need the M4 monthly training file: ./reproduce.sh fetch m4.
+# Use --jobs N: one process per case, N at a time (SCIP is single-threaded). Times and the gaps of
+# time-limited instances depend on the machine and on N. Linux container only (the Windows SCIP
+# build crashes); --ipopt-only in the runner's arguments checks the data on any platform.
+
+id = "global_optimization_grid"
+kind = "script"
+title = "Global certificates: the August 2026 certification batch (Ipopt against SCIP, lifted bilinear formulation) re-run with its harness"
+protocol_status = "archived"
+protocol_source = "the batch's harness and instances (received 2026-10-21, results/historical/certification-2026-08/); manuscript Sections 3.2 and 5.6 and Table S5"
+
+[[steps]]
+engine = "julia"
+script = "experiments/runners/global/run_certification_2026_08.jl"
+args = ["experiments/configs/certification_2026_08_instances.csv", "--hard-limit", "900"]
+# 46 cases: about 4.6 h of solver time in all (21 stop at 600 s, 2 at the 900 s clock), divided by --jobs
+timeout_s = 28800
+
+[[steps]]
+engine = "python"
+script = "experiments/runners/global/compare_certification_2026_08.py"
+timeout_s = 600

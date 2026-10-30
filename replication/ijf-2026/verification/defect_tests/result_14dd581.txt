@@ -1,0 +1,16 @@
+Run of run.jl against a checkout of commit 14dd58164867ef025d87468f266f36f1930ca61f (v1.0.0),
+Julia 1.10.12, Windows x86_64, 2026-10-24:
+
+Test Summary:         | Pass  Broken  Total   Time
+targeted defect tests |   13       3     16  57.3s
+
+The three Broken results are the @test_broken assertions of the correct behaviour, which fail
+at that commit, so each defect reproduces:
+  search_incumbent.jl:39   the stepwise search does not move from its incumbent when the first
+                           candidate is inadmissible and the null model is adopted (C1)
+  criterion_scoring.jl:41  the ranking likelihood of a drift model with AR terms omits the level
+                           the drift implies (C2)
+  criterion_scoring.jl:74  the ranking likelihood of a model with regressors under :armax
+                           evaluates the regression-with-errors model (fixed after 14dd581,
+                           src/exact_likelihood.jl; test/exog_likelihood.jl)
+The 13 Pass results pin the values the release computes in those cases.

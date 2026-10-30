@@ -1,0 +1,15 @@
+DISCRIMINADOR — a equacao do pacote e ARMAX, e nao regressao-com-erros-ARIMA?
+
+  erros-ARIMA:  y_t = X_t'b + eta_t,      phi(B)Phi(B^s) eta_t = theta(B) e_t   [o que o R ajusta]
+  ARMAX:        phi(B)Phi(B^s) y_t = X_t'b + theta(B) e_t                        [sarima.jl:1489]
+  coincidem SSE o polinomio AR e 1  (p = P = 0)
+
+  PREDICAO:  erros_arima -> R ganha larga;  ma_puro -> empatam;  armax -> nos ganhamos larga
+
+DGP            RMSE nosso      RMSE R   dlog medio   beta nosso               beta R                  
+erros_arima        2.4686      1.6069      +0.4262   [2.1, -1.587, 0.876]     [1.999, -1.501, 0.81]   
+ma_puro            1.1212      1.1102      +0.0112   [1.99, -1.499, 0.788]    [1.989, -1.499, 0.796]  
+armax              1.6582      2.4586      -0.4002   [1.991, -1.495, 0.806]   [0.882, -0.624, 0.36]   
+
+  dlog < 0 => nosso melhor;  dlog > 0 => R melhor;  ~0 => equivalentes
+  beta verdadeiro = [2.0, -1.5, 0.8]

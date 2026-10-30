@@ -1,0 +1,32 @@
+% Updated results, 2026-10-17. Numbers come from the generated .csv/.tex files; nothing typed by hand.
+% Generator: paper_results_revision/scripts/y_updated_results.py
+
+% ---- Table: stable (CVaR) objective, six frequencies -------------------------------------------
+% stable_objective_summary.tex / stable_objective_paired_differences.tex / stable_objective_union_tail.tex
+\caption{M4 forecasting accuracy of the \texttt{stable} (CVaR) objective against MSE, with
+\texttt{initialization = :innovations} and no time cap. Each frequency is paired within its own
+campaign: the MSE and \texttt{stable} arms of a row fit the same series with the same settings,
+and the reference \texttt{forecast::auto.arima} is evaluated on those series. OWA is a ratio of
+means against Naive2; $\Delta$ is \texttt{stable} minus MSE; lower is better. Yearly and weekly:
+the MSE arm is the Table~3 cell. Quarterly: 55 \texttt{stable} fits that did not solve are
+excluded from both arms. Monthly: a 5{,}000-series random subsample ($\alpha=0.9$; 3 failures
+excluded) and the 923 series on which the $\alpha=0.5$ arm finished. Daily: 229 \texttt{stable}
+fits censored by solver aborts or time caps and 19 errors are excluded from both arms. Hourly: 3
+series with a non-finite Naive2 reference are excluded.}
+\label{tab:stable}
+
+% ---- Table: admissible region and MA normalization (Section 5.5) -------------------------------
+% admissibility_grid_summary.tex / admissibility_grid_paired_differences.tex
+\caption{M4 monthly accuracy (48{,}000 series) under the eight combinations of
+reflection-coordinate stationarity, reflection-coordinate invertibility and the Gaussian MA
+normalization of Eq.~(16), MSE objective, \texttt{initialization = :innovations}, the
+over-differencing guard on and a 120\,s limit per fit. Paired differences are against the
+stationary, normalized configuration. The four configurations without the normalization were
+produced with a code path that is not part of any released revision.}
+\label{tab:admissibility}
+
+% ---- Table: over-differencing guard ------------------------------------------------------------
+% require_terms_guard_summary.tex / require_terms_guard_paired_differences.tex
+\caption{Effect of \texttt{requireTermsWhenOverDifferenced} on the MSE fit: the same series and
+settings with the guard off and on. Hourly: 3 series with a non-finite Naive2 reference excluded.}
+\label{tab:guard}

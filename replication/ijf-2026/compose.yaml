@@ -1,0 +1,35 @@
+# Docker Compose definition of the IJF replication environment.
+#
+# ./reproduce.sh is the supported entry point (it verifies the image identity, fetches and
+# checks inputs, and maps your user id). This file is an equivalent for people who prefer
+# Compose. From the repository root:
+#
+#   export IJF_SOURCE_FINGERPRINT="$(bash replication/ijf-2026/scripts/fingerprint.sh)"
+#   docker compose -f replication/ijf-2026/compose.yaml build
+#   docker compose -f replication/ijf-2026/compose.yaml run --rm ijf quick
+#   docker compose -f replication/ijf-2026/compose.yaml run --rm ijf full --experiment m4_benchmark --jobs 4 --resume
+#
+# Without a build, the published image is used (set IJF_IMAGE to its digest reference from
+# image.lock, e.g. ghcr.io/lampspuc/sarimax-ijf-replication@sha256:...).
+name: sarimax-ijf
+
+services:
+  ijf:
+    image: ${IJF_IMAGE:-sarimax-ijf-replication:compose}
+    platform: linux/amd64
+    build:
+      context: ../..
+      dockerfile: replication/ijf-2026/docker/Dockerfile
+      args:
+        SOURCE_FINGERPRINT: ${IJF_SOURCE_FINGERPRINT:?export IJF_SOURCE_FINGERPRINT first, or use ./reproduce.sh build}
+        SOURCE_REVISION: ${IJF_SOURCE_REVISION:-unknown}
+    # Computations need no network; `fetch` does (run it through ./reproduce.sh fetch).
+    network_mode: none
+    init: true
+    environment:
+      IJF_IMAGE_REF: ${IJF_IMAGE:-sarimax-ijf-replication:compose}
+      IJF_IMAGE_STATUS: COMPOSE
+    volumes:
+      - ./output:/ijf/output
+      - ./artifacts:/ijf/artifacts:ro
+      - ./data/external:/ijf/data:ro

@@ -1,0 +1,77 @@
+{
+  "AR(2)": {
+    "interior_samples": 200000,
+    "interior_tolerance": 0.001,
+    "interior_failing_root_condition": 0,
+    "interior_min_root_modulus": 1.0000061902033732,
+    "interior_max_inverse_root_modulus": 0.999993809834945,
+    "boundary_samples": 20000,
+    "boundary_max_abs(min|root|-1)": 2.3092638912203256e-13,
+    "box_samples": 200000,
+    "box_stationary_fraction": 0.09631,
+    "box_disagreements_roots_vs_inverse_map": 0,
+    "box_disagreements_not_on_boundary": 0,
+    "convexity_pairs_tested": 200000,
+    "convexity_nonstationary_midpoints": 0
+  },
+  "AR(3)": {
+    "interior_samples": 200000,
+    "interior_tolerance": 0.001,
+    "interior_failing_root_condition": 0,
+    "interior_min_root_modulus": 1.000000099313544,
+    "interior_max_inverse_root_modulus": 0.9999999006864646,
+    "boundary_samples": 20000,
+    "boundary_max_abs(min|root|-1)": 9.990008820182084e-12,
+    "box_samples": 200000,
+    "box_stationary_fraction": 0.01991,
+    "box_disagreements_roots_vs_inverse_map": 0,
+    "box_disagreements_not_on_boundary": 0,
+    "convexity_pairs_tested": 200000,
+    "convexity_nonstationary_midpoints": 3988,
+    "convexity_counterexample": {
+      "phi_a": [
+        -1.911913,
+        -1.858715,
+        -0.824371
+      ],
+      "phi_b": [
+        1.063805,
+        -0.991718,
+        0.925701
+      ],
+      "midpoint": [
+        -0.424054,
+        -1.425216,
+        0.050665
+      ],
+      "midpoint_min_root_modulus": 0.8329407255026844,
+      "a_min_root_modulus": 1.0242785052242225,
+      "b_min_root_modulus": 1.001189434767263
+    },
+    "face_equation_max_residual": {
+      "kappa1=+1": 4.440892098500626e-16,
+      "kappa1=-1": 4.440892098500626e-16,
+      "kappa2=-1": 4.440892098500626e-16
+    },
+    "vertex_chord_witness": {
+      "A": [
+        3.0,
+        -3.0,
+        1.0
+      ],
+      "D": [
+        -3.0,
+        -3.0,
+        -1.0
+      ],
+      "midpoint": [
+        0.0,
+        -3.0,
+        0.0
+      ],
+      "A_min_root_modulus": 0.9999967148036553,
+      "D_min_root_modulus": 0.9999967109713557,
+      "midpoint_min_root_modulus": 0.5773502691896258
+    }
+  }
+}

@@ -1,0 +1,129 @@
+"""Prepare (and only on request publish) the Zenodo data record of the IJF artifact bundle.
+
+Default target is the Zenodo SANDBOX (https://sandbox.zenodo.org), which mints test DOIs
+that are discarded. The script creates a draft deposition, uploads the files and sets the
+metadata; it publishes ONLY with --publish, and refuses --publish against production unless
+--i-have-approval is also given. It never reads a token from anywhere but the environment.
+
+    ZENODO_SANDBOX_TOKEN=... python zenodo_deposit.py --bundle-dir DIR            # sandbox draft
+    ZENODO_SANDBOX_TOKEN=... python zenodo_deposit.py --bundle-dir DIR --publish  # sandbox publish
+    ZENODO_TOKEN=... python zenodo_deposit.py --production --bundle-dir DIR         # production draft
+
+DIR is dist/bundle as staged by stage_release.py (tarball, inventory and bundle json, verified
+against artifacts.lock), or the output directory of the builder. Optional extra files (for example the
+exported image, dist/image/) via --extra FILE.
+After a successful publication, copy the printed DOI and file URL into artifacts.lock.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import sys
+import urllib.request
+from pathlib import Path
+
+DESCRIPTION = (
+    "<p>Archived experimental results of the article <em>SARIMAX.jl: Open-Source Optimization-Based "
+    "SARIMAX Modeling in Julia</em> (International Journal of Forecasting, special issue Advances in "
+    "Open Source Forecasting Software): for every experiment behind the values the article prints, "
+    "the raw results and run logs, the files the table generators read, the tables as they were "
+    "generated at the time, the original runners and environment files, and a provenance record of "
+    "every file.</p>"
+    "<p>It is the input of <code>./reproduce.sh tables</code> in the Sarimax.jl repository (branch "
+    "ijf-2026-replication, replication/ijf-2026), which rebuilds the tables from these files and "
+    "compares each cell with its historical value. M4 competition data and PJM load data are not redistributed (their "
+    "licences are not established); the replication package downloads them from pinned sources and "
+    "verifies them. See README.md inside the bundle and LIMITATIONS.md in the repository.</p>"
+)
+
+
+# The article's authors and affiliation (the submitted manuscript); TO CONFIRM by the authors
+# before publishing, together with the licence.
+AUTHORS = ["Duarte, Luiz Fernando", "Valladão, Davi", "Street, Alexandre"]
+AFFILIATION = "Industrial Engineering Department, Pontifical Catholic University of Rio de Janeiro (PUC-Rio)"
+
+
+def api(base: str, token: str, method: str, path: str, body=None, data: bytes | None = None,
+        content_type: str = "application/json"):
+    url = path if path.startswith("http") else f"{base}{path}"
+    payload = data if data is not None else (json.dumps(body).encode() if body is not None else None)
+    req = urllib.request.Request(url, data=payload, method=method,
+                                 headers={"Authorization": f"Bearer {token}", "Content-Type": content_type})
+    with urllib.request.urlopen(req, timeout=600) as r:
+        text = r.read().decode()
+        return json.loads(text) if text else {}
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--bundle-dir", type=Path, required=True)
+    ap.add_argument("--extra", type=Path, action="append", default=[])
+    ap.add_argument("--production", action="store_true", help="use zenodo.org instead of the sandbox")
+    ap.add_argument("--publish", action="store_true", help="publish the deposition (irreversible on zenodo.org)")
+    ap.add_argument("--i-have-approval", action="store_true",
+                    help="required with --production --publish: the authors approved this publication")
+    ap.add_argument("--version", default="ijf-2026-replication-v1.0.0",
+                    help="the replication release this record belongs to")
+    ap.add_argument("--related-software-doi", default="", help="version DOI of the archived software release")
+    args = ap.parse_args()
+
+    if args.production and args.publish and not args.i_have_approval:
+        raise SystemExit("refusing to publish on zenodo.org without --i-have-approval")
+    base = "https://zenodo.org/api" if args.production else "https://sandbox.zenodo.org/api"
+    token = os.environ.get("ZENODO_TOKEN" if args.production else "ZENODO_SANDBOX_TOKEN")
+    if not token:
+        raise SystemExit("set ZENODO_SANDBOX_TOKEN (or ZENODO_TOKEN with --production)")
+
+    meta = json.loads((args.bundle_dir / "bundle.json").read_text())
+    files = [args.bundle_dir / meta["tarball"], args.bundle_dir / "artifacts.sha256"] + args.extra
+    for f in files:
+        if not f.exists():
+            raise SystemExit(f"missing {f}")
+    if hashlib.sha256(files[0].read_bytes()).hexdigest() != meta["tarball_sha256"]:
+        raise SystemExit(f"{files[0].name}: SHA-256 differs from its bundle json; rebuild it")
+
+    dep = api(base, token, "POST", "/deposit/depositions", {})
+    print(f"draft deposition {dep['id']} created on {base}")
+    bucket = dep["links"]["bucket"]
+    for f in files:
+        print(f"  uploading {f.name} ({f.stat().st_size} bytes)")
+        api(base, token, "PUT", f"{bucket}/{f.name}", data=f.read_bytes(), content_type="application/octet-stream")
+    metadata = {
+        "title": "Archived experimental results for: SARIMAX.jl: Open-Source Optimization-Based "
+                 "SARIMAX Modeling in Julia",
+        "upload_type": "dataset",
+        "description": DESCRIPTION,
+        "version": args.version,
+        "creators": [{"name": name, "affiliation": AFFILIATION} for name in AUTHORS],
+        "keywords": ["M4 competition", "SARIMAX", "forecasting", "reproducibility", "optimization"],
+        "license": "cc-by-4.0",
+        "access_right": "open",
+        "notes": f"{meta['tarball']}: SHA-256 {meta['tarball_sha256']}, {meta['files']} files; "
+                 "inventory in artifacts.sha256.",
+        "related_identifiers": [{"identifier": "https://github.com/LAMPSPUC/Sarimax.jl/tree/ijf-2026-replication",
+                                 "relation": "isSupplementTo",
+                                 "scheme": "url", "resource_type": "software"}],
+    }
+    if args.related_software_doi:
+        metadata["related_identifiers"].append({"identifier": args.related_software_doi, "relation": "isSupplementTo",
+                                                "scheme": "doi", "resource_type": "software"})
+    api(base, token, "PUT", f"/deposit/depositions/{dep['id']}", {"metadata": metadata})
+    print("  metadata set (creators and licence TO CONFIRM by the authors before publishing)")
+    if not args.publish:
+        print(f"draft ready for review: {dep['links']['html']}")
+        return 0
+    pub = api(base, token, "POST", f"/deposit/depositions/{dep['id']}/actions/publish")
+    doi = pub.get("doi") or pub.get("metadata", {}).get("doi")
+    record = pub.get("record_id") or pub.get("id") or dep["id"]
+    # the public download URL of the tarball, the form artifacts.lock records
+    print(f"published: DOI {doi}\n  record {pub['links']['html']}")
+    print(f"  {files[0].name}: {base[:-len('/api')]}/records/{record}/files/{files[0].name}?download=1")
+    print("Record the doi and the tarball's url in replication/ijf-2026/artifacts.lock ([bundle]).")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,399 @@
+# Validation of the IJF replication package (replication/ijf-2026, ./reproduce.sh).
+#
+# Runs on changes to the package source or to the replication files. It builds the replication
+# image from the checkout and exercises the reviewer's commands inside it, on small inputs only:
+# full M4 campaigns never run here. The image is not pushed anywhere (see ijf-image-publish.yml).
+#
+#   host       shellcheck, usage/missing-Docker exit codes, checksums, manifest consistency,
+#              the recovered and reconstructed records, the identified re-runs and the derived
+#              manuscript quantities
+#   manuscript release check: every printed manuscript value against its source (fails on a
+#              numerical mismatch; reports missing evidence and the textual claims to verify)
+#   container  image build, default quick run without the (unpublished) bundle, tables on the
+#              committed fixture subset, missing/corrupted inputs, an image from other code,
+#              M4 fetch with SHA-256 check, m4_benchmark on a random sample of 2 then (--resume)
+#              3 weekly series, the controlled objective campaign on 3 weekly series (compared
+#              series by series with its archive) and the battery's
+#              validation experiment (linux/amd64 is the reference; linux/arm64 is experimental)
+name: IJF replication
+
+on:
+  pull_request:
+    paths:
+      - "Project.toml"
+      - "src/**"
+      - "reproduce.sh"
+      - "replication/**"
+      - ".dockerignore"
+      - ".gitattributes"
+      - ".github/workflows/ijf-replication.yml"
+  push:
+    branches: ["ijf-2026-replication"]
+    paths:
+      - "Project.toml"
+      - "src/**"
+      - "reproduce.sh"
+      - "replication/**"
+      - ".dockerignore"
+      - ".gitattributes"
+      - ".github/workflows/ijf-replication.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ijf-replication-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NO_COLOR: "1"
+
+jobs:
+  host:
+    name: Host-side checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: shellcheck
+        run: |
+          shellcheck --severity=warning reproduce.sh replication/ijf-2026/scripts/*.sh \
+            replication/ijf-2026/scripts/maintainers/*.sh replication/ijf-2026/docker/*.sh
+
+      - name: Exit codes without Docker and on bad usage
+        run: |
+          expect() {  # expect CODE command...
+            local want="$1"; shift
+            set +e; "$@" > /tmp/out.txt 2>&1; local got=$?; set -e
+            if [ "$got" -ne "$want" ]; then
+              cat /tmp/out.txt; echo "::error::'$*' exited with $got, expected $want"; exit 1
+            fi
+            echo "ok ($got): $*"
+          }
+          expect 0 ./reproduce.sh help
+          expect 2 ./reproduce.sh no-such-command
+          expect 2 ./reproduce.sh full
+          expect 2 ./reproduce.sh check --no-such-option
+          expect 4 ./reproduce.sh fetch artifacts --from /nonexistent/bundle.tar.gz
+          expect 3 env IJF_DOCKER_BIN=/nonexistent/docker ./reproduce.sh check
+          grep -q "Docker is not installed" /tmp/out.txt
+
+      - name: Committed files match checksums.sha256
+        working-directory: replication/ijf-2026
+        run: sha256sum --check --quiet checksums.sha256
+
+      - name: checksums.sha256 is up to date
+        run: |
+          bash replication/ijf-2026/scripts/maintainers/update_checksums.sh
+          git diff --exit-code -- replication/ijf-2026/checksums.sha256
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Python packages for the static checks (the table generators import numpy)
+        run: python -m pip install --quiet numpy==2.4.6
+
+      - name: Manifest, table groups and manuscript mapping are consistent
+        run: python replication/ijf-2026/scripts/maintainers/check_package.py
+
+      - name: Derived tables of the September 2026 revision follow from the recovered outputs
+        run: python replication/ijf-2026/scripts/maintainers/check_recovered_2026_09.py
+
+      - name: The August 2026 certification batch's records and its 2026-10-21 re-run
+        run: |
+          python replication/ijf-2026/scripts/maintainers/check_certification_2026_08.py
+          python replication/ijf-2026/scripts/maintainers/check_certification_rerun_2026_10.py
+
+      - name: The 1,500-series initialization re-run and the derived manuscript quantities
+        run: |
+          python replication/ijf-2026/scripts/maintainers/check_gate_rerun_2026_10.py
+          python replication/ijf-2026/scripts/maintainers/derive_manuscript_quantities.py
+
+  manuscript:
+    name: Manuscript release check
+    # Separate from `host` so that a printed value that differs from its source fails this check
+    # without stopping the container tests. A numerical mismatch is an error unless it has been
+    # established as an error of the manuscript and registered, with the proposed correction, in
+    # results/manuscript/errata.csv; a register entry that no longer differs is an error too.
+    # The release gate (registered errata fail as well) is enforced by ijf-image-publish.yml and
+    # shown here for information. Missing evidence is reported, not failed.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Printed values against their sources
+        run: |
+          python replication/ijf-2026/scripts/maintainers/check_manuscript_mapping.py \
+            --report manuscript_mapping.csv --markdown manuscript_traceability.md
+
+      - name: Release gate (enforced when the image is published; informational here)
+        continue-on-error: true
+        run: |
+          python replication/ijf-2026/scripts/maintainers/check_manuscript_mapping.py --release \
+            --markdown manuscript_release_gate.md
+
+      - name: Traceability report
+        if: always()
+        run: cat manuscript_traceability.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: manuscript-mapping
+          path: |
+            manuscript_mapping.csv
+            manuscript_traceability.md
+            manuscript_release_gate.md
+          if-no-files-found: ignore
+
+  container:
+    name: Container (${{ matrix.platform }})
+    needs: host
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.experimental }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+            experimental: false
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            experimental: true
+    env:
+      PLATFORM: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space for the image (about 6 GB, twice while it is loaded)
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/share/swift || true
+          docker system prune --all --force > /dev/null || true
+          df -h /
+
+      - name: Source fingerprint
+        id: fp
+        run: |
+          fp="$(bash replication/ijf-2026/scripts/fingerprint.sh .)"
+          echo "fingerprint=$fp" >> "$GITHUB_OUTPUT"
+          echo "tag=sarimax-ijf-replication:local-${fp:0:12}" >> "$GITHUB_OUTPUT"
+          echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      # The same Dockerfile and build arguments as `./reproduce.sh build`; buildx adds a layer
+      # cache, and the image is loaded under the tag reproduce.sh looks for, so every command
+      # below runs exactly as on a reviewer's machine after a local build.
+      - name: Build the replication image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: replication/ijf-2026/docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            SOURCE_FINGERPRINT=${{ steps.fp.outputs.fingerprint }}
+            SOURCE_REVISION=${{ steps.fp.outputs.revision }}
+          tags: ${{ steps.fp.outputs.tag }}
+          load: true
+          cache-from: type=gha,scope=ijf-${{ matrix.runner }}
+          cache-to: type=gha,mode=max,scope=ijf-${{ matrix.runner }}
+
+      - name: Image size and identity labels
+        run: |
+          docker image inspect "${{ steps.fp.outputs.tag }}" --format \
+            'size {{.Size}} bytes; fingerprint {{ index .Config.Labels "io.github.lampspuc.sarimax.ijf.fingerprint" }}; revision {{ index .Config.Labels "org.opencontainers.image.revision" }}'
+          df -h /
+
+      # SCIP 8.0.0 and SoPlex (ZIB Academic License) must not be in the image: the build removes
+      # them in the layer that installs them, and `fetch scip` installs them on the user's machine.
+      - name: The image contains no SCIP binaries; fetch scip installs and verifies them
+        run: |
+          if docker run --rm --entrypoint bash "${{ steps.fp.outputs.tag }}" -c \
+              'find / -xdev \( -name "libscip.*" -o -name "libsoplex*" \) 2>/dev/null | grep .'; then
+            echo "::error::the image contains SCIP or SoPlex binaries"; exit 1
+          fi
+          set +e
+          ./reproduce.sh check --offline --no-build --platform "$PLATFORM" > "$RUNNER_TEMP/scip-absent.log" 2>&1
+          set -e
+          grep "SCIP 8.0.0 binaries" replication/ijf-2026/output/reports/check.md | grep -q MISSING
+          ./reproduce.sh fetch scip --no-build --platform "$PLATFORM"
+
+      - name: Default run without the artifact bundle (check + smoke + tables; must report MISSING)
+        run: |
+          set +e
+          ./reproduce.sh --offline --no-build --platform "$PLATFORM"
+          code=$?
+          set -e
+          out=replication/ijf-2026/output/reports
+          cat "$out/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          # The bundle is not published yet, so the run must fail with a missing-input code and
+          # must not claim success; smoke must pass on its own.
+          test "$code" -eq 4 || { echo "::error::default run exited with $code, expected 4"; exit 1; }
+          grep -q "FAILURE" "$out/summary.md"
+          python3 - "$out" <<'EOF'
+          import csv, sys
+          out = sys.argv[1]
+          smoke = list(csv.DictReader(open(f"{out}/smoke.csv")))
+          bad = [r for r in smoke if r["status"] not in ("PASS", "INFO")]
+          for r in bad:
+              print("smoke:", r["artifact"], r["status"], r["note"])
+          check = list(csv.DictReader(open(f"{out}/check.csv")))
+          missing = [r for r in check if r["status"] == "MISSING"]
+          other = [r for r in check if r["status"] == "FAIL"]
+          print(f"smoke: {len(smoke)} rows, {len(bad)} not passing; check: {len(missing)} MISSING, {len(other)} FAIL")
+          for r in other:
+              print("check:", r["artifact"], r["note"])
+          assert not bad, "smoke tests failed"
+          assert missing and not other, "check must report the absent bundle as MISSING and nothing else as failing"
+          EOF
+
+      - name: Tables from the committed fixture subset of the bundle
+        run: |
+          set +e
+          ./reproduce.sh tables --no-build --platform "$PLATFORM" \
+            --artifacts replication/ijf-2026/data/fixtures/bundle-subset --output "$RUNNER_TEMP/out-fixtures" \
+            --group battery
+          code=$?
+          set -e
+          echo "tables exited with $code"
+          python3 - "$RUNNER_TEMP/out-fixtures/reports" <<'EOF'
+          import csv, sys
+          rows = list(csv.DictReader(open(f"{sys.argv[1]}/tables.csv")))
+          groups = {r["stage"]: r for r in rows if r["stage"] != "manuscript"}
+          for g in ("battery",):
+              r = groups[g]
+              print(g, r["status"], r["expected"], r["generated"], r["difference"])
+              assert r["status"] == "PASS", f"{g}: {r['status']} {r['note']}"
+          for r in rows:
+              if r["stage"] == "manuscript":
+                  print("manuscript", r["artifact"], r["status"], r["note"])
+          EOF
+          # Exit 0, or 1 when a printed manuscript value differs from the archive (reported above).
+          test "$code" -le 1
+
+      - name: Missing and corrupted archived inputs are detected
+        run: |
+          cp -r replication/ijf-2026/data/fixtures/bundle-subset "$RUNNER_TEMP/missing"
+          rm "$RUNNER_TEMP/missing/raw/battery-2026-07/solver/global_value_results.jsonl"
+          set +e
+          ./reproduce.sh tables --no-build --platform "$PLATFORM" --artifacts "$RUNNER_TEMP/missing" \
+            --output "$RUNNER_TEMP/out-missing" --group battery
+          code=$?
+          set -e
+          test "$code" -eq 4 || { echo "::error::missing input: exit $code, expected 4"; exit 1; }
+          grep -q "missing raw/battery-2026-07/solver/global_value_results.jsonl" "$RUNNER_TEMP/out-missing/reports/tables.md"
+
+          cp -r replication/ijf-2026/data/fixtures/bundle-subset "$RUNNER_TEMP/corrupt"
+          printf ' ' >> "$RUNNER_TEMP/corrupt/raw/battery-2026-07/validation/julia_results.jsonl"
+          set +e
+          ./reproduce.sh tables --no-build --platform "$PLATFORM" --artifacts "$RUNNER_TEMP/corrupt" \
+            --output "$RUNNER_TEMP/out-corrupt" --group battery
+          code=$?
+          set -e
+          test "$code" -eq 4 || { echo "::error::corrupted input: exit $code, expected 4"; exit 1; }
+          grep -q "checksum mismatch raw/battery-2026-07/validation/julia_results.jsonl" "$RUNNER_TEMP/out-corrupt/reports/tables.md"
+
+      - name: An image built from other code is refused
+        run: |
+          echo "# local edit" >> replication/ijf-2026/scripts/ijflib/summary.py
+          set +e
+          ./reproduce.sh check --offline --no-build --platform "$PLATFORM" --image "${{ steps.fp.outputs.tag }}" \
+            --output "$RUNNER_TEMP/out-identity" > "$RUNNER_TEMP/identity.log" 2>&1
+          code=$?
+          set -e
+          git checkout -- replication/ijf-2026/scripts/ijflib/summary.py
+          cat "$RUNNER_TEMP/identity.log"
+          test "$code" -eq 3 || { echo "::error::foreign image: exit $code, expected 3"; exit 1; }
+          grep -q "not built from this checkout" "$RUNNER_TEMP/identity.log"
+
+      - name: Fetch the weekly M4 files (pinned commit, SHA-256 checked)
+        run: ./reproduce.sh fetch m4 --frequency weekly --no-build --platform "$PLATFORM"
+
+      - name: Full-run entry point on a random sample of series, then --resume to a larger one
+        run: |
+          ./reproduce.sh full --experiment m4_benchmark --frequency weekly --sample 2 --jobs 2 \
+            --run-id ci --offline --no-build --platform "$PLATFORM"
+          ./reproduce.sh full --experiment m4_benchmark --frequency weekly --sample 3 --jobs 2 \
+            --run-id ci --resume --offline --no-build --platform "$PLATFORM"
+          run=replication/ijf-2026/output/runs/m4_benchmark/ci
+          ls -la "$run"
+          python3 - "$run" <<'EOF'
+          import csv, json, sys
+          from pathlib import Path
+          run = Path(sys.argv[1])
+          meta = json.loads((run / "run.json").read_text())
+          print(json.dumps(meta["tasks"], indent=1))
+          series = None
+          for task in ("sarimax__weekly", "auto_arima__weekly", "naive2__weekly"):
+              rows = list(csv.DictReader(open(run / f"{task}.csv")))
+              ids = sorted(r["series"] for r in rows)
+              assert len(ids) == 3 and len(set(ids)) == 3, f"{task}: {ids}"
+              assert all(r["status"] == "OK" for r in rows), f"{task}: {[r['status'] for r in rows]}"
+              assert series in (None, ids), f"arms fitted different series: {series} vs {ids}"
+              series = ids
+          events = [json.loads(l) for l in open(run / "events.jsonl")]
+          starts = [e for e in events if e.get("event") == "run_start"]
+          assert len(starts) == 2 and starts[1].get("resume"), "the second invocation must be a resume"
+          print(f"sampled series {series}; 3 per arm, all OK; the resumed run added one per arm")
+          EOF
+          cat replication/ijf-2026/output/reports/full.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Other runners on samples (controlled objective campaign vs its archive, battery script experiment)
+        run: |
+          # The controlled campaign's weekly per-series files are in the fixture subset, so the
+          # re-run is compared series by series with the archived run.
+          ./reproduce.sh full --experiment m4_objectives --frequency weekly --sample 3 --jobs 2 \
+            --run-id ci --offline --no-build --platform "$PLATFORM" \
+            --artifacts replication/ijf-2026/data/fixtures/bundle-subset
+          cat replication/ijf-2026/output/reports/full.md >> "$GITHUB_STEP_SUMMARY"
+          python3 - replication/ijf-2026/output <<'EOF'
+          import csv, os, sys
+          from pathlib import Path
+          out = Path(sys.argv[1])
+          run = out / "runs" / "m4_objectives" / "ci"
+          for arm in ("mse", "mae", "huber", "ridge", "naive2"):
+              rows = list(csv.DictReader(open(run / f"{arm}__weekly.csv")))
+              assert len(rows) == 3 and all(r["status"] == "OK" for r in rows), f"{arm}: {[r['status'] for r in rows]}"
+          report = list(csv.DictReader(open(out / "reports" / "full.csv")))
+          cmp = [r for r in report if "vs archived per-series results" in r["artifact"]]
+          for r in cmp:
+              print(r["artifact"], r["status"], r["generated"], r["note"])
+          assert len(cmp) == 4, f"expected a comparison with the archive for each objective, got {len(cmp)}"
+          # On the reference platform the image reproduces the archived campaign series by series
+          # (every weekly series did in a complete local run); arm64 is experimental and only reported.
+          if os.environ.get("PLATFORM") == "linux/amd64":
+              assert all(r["status"] == "PASS" for r in cmp), "a sampled series does not reproduce the archive"
+          EOF
+          ./reproduce.sh full --experiment battery_validation --run-id ci --offline --no-build --platform "$PLATFORM"
+          cat replication/ijf-2026/output/reports/full.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Outputs are written to the host and owned by the calling user
+        run: |
+          out=replication/ijf-2026/output
+          test -s "$out/reports/summary.md"
+          test -s "$out/reports/smoke.md"
+          owner="$(stat -c %u "$out/reports/smoke.md")"
+          test "$owner" -eq "$(id -u)" || { echo "::error::outputs owned by uid $owner, not $(id -u)"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ijf-reports-${{ matrix.runner }}
+          path: |
+            replication/ijf-2026/output/reports
+            replication/ijf-2026/output/smoke
+            replication/ijf-2026/output/runs/*/ci
+            ${{ runner.temp }}/out-fixtures/reports
+          if-no-files-found: warn

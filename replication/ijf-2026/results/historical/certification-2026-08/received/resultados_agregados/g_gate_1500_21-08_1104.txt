@@ -1,0 +1,11 @@
+GATE DAS 1.500 — pareado, mesmas series, commit f90e554
+
+braco                 sMAPE       MASE   wall (s) teto 200 (%)  status OK
+:penalized          13.9000     0.9528      0.848        47.4%      1500
+:innovations        13.9395     0.9471      0.609         0.2%      1500
+
+  delta sMAPE:  media +0.0395  IC95 [-0.1264, +0.2373]  mediana +0.0000  melhora 504/1500 (33.6%)
+
+  delta MASE:  media -0.0056  IC95 [-0.0130, +0.0010]  mediana +0.0000  melhora 505/1500 (33.7%)
+
+  n pareado = 1500   |  tempo total: 1273s vs 914s

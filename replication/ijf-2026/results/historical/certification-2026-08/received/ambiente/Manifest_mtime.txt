@@ -1,0 +1,3 @@
+-rw-r--r--@ 1 davi  staff  44924 Aug 20 10:49:31 2026 /Users/davi/dev/Sarimax.jl/Manifest.toml
+SCIP_versionnumber() medido em 21/10/2026 neste ambiente: 8.0.0 (julia 1.12.3, --project=~/dev/Sarimax.jl)
+Project.toml e mais novo que o Manifest (Pkg avisa 'changed since the manifest was last resolved'): o Manifest e o de agosto e e ele que carrega. Nenhum resolve foi feito.

@@ -1,0 +1,15 @@
+# Build context of replication/ijf-2026/docker/Dockerfile (the only image built from this
+# repository). Generated outputs, fetched inputs and VCS metadata never enter the image; the
+# replication scripts compare the image's source fingerprint with the checkout instead.
+.git
+.github
+.vscode
+docs/build
+**/__pycache__
+**/*.pyc
+**/.DS_Store
+replication/ijf-2026/artifacts
+replication/ijf-2026/output
+replication/ijf-2026/output-*
+replication/ijf-2026/data/external
+replication/ijf-2026/dist

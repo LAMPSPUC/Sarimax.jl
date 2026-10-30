@@ -1,0 +1,7 @@
+=== integridade ===
+  linhas: 48000   sids distintos: 48000   sem duplicata
+
+   48001 /tmp/m4s/m4_inov_full.csv
+
+=== telemetria de convergencia, n=48.000 ===
+  teto de 200 iteracoes: 0.1%   status OK: 48000/48000

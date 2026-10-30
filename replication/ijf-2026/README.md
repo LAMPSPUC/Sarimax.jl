@@ -14,10 +14,14 @@ downloads it through Julia's package manager, verified by its content hash, into
 volume `sarimax-ijf-scip` (about 90 MB, once).
 
 ```bash
-git clone https://github.com/LAMPSPUC/Sarimax.jl.git
+git clone --branch ijf-2026-replication https://github.com/LAMPSPUC/Sarimax.jl.git
 cd Sarimax.jl
 ./reproduce.sh
 ```
+
+The replication package is on the branch `ijf-2026-replication` of the repository (and, once
+published, on its release tag `ijf-2026-replication-v1.0.0`); the default branch holds the
+library only.
 
 `./reproduce.sh` runs three stages and ends with a one-line verdict:
 

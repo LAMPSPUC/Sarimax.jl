@@ -28,7 +28,7 @@ on:
       - ".gitattributes"
       - ".github/workflows/ijf-replication.yml"
   push:
-    branches: ["master"]
+    branches: ["ijf-2026-replication"]
     paths:
       - "Project.toml"
       - "src/**"

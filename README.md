@@ -210,13 +210,14 @@ The experiments of *SARIMAX.jl: Open-Source Optimization-Based SARIMAX Modeling 
 Docker as the only requirement:
 
 ```bash
-git clone https://github.com/LAMPSPUC/Sarimax.jl.git
+git clone --branch ijf-2026-replication https://github.com/LAMPSPUC/Sarimax.jl.git
 cd Sarimax.jl
 ./reproduce.sh
 ```
 
-This checks the containerized environment and the archived inputs, runs small reference
-computations and rebuilds the tables from the archived per-series results.
+The replication package is on the branch `ijf-2026-replication` (the default branch holds the
+library only). `./reproduce.sh` checks the containerized environment and the archived inputs,
+runs small reference computations and rebuilds the tables from the archived per-series results.
 `./reproduce.sh full --experiment <id>` re-runs an experiment from the original data. See
 [replication/ijf-2026/README.md](replication/ijf-2026/README.md) and the
 [artifact guide](replication/ijf-2026/ARTIFACT_GUIDE.md). None of this affects using the

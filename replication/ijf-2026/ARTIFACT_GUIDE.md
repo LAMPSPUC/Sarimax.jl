@@ -295,7 +295,9 @@ never retried or dropped silently.
    absence.
 3. **Tag the pinned commits.** Tag the three commits the bundle builder pins (section 4)
    before the branches that hold them are deleted.
-4. **Merge** the replication branch into `master` after review.
+4. **Merge** the pull request into `ijf-2026-replication`, the branch that holds the replication
+   package (created from v1.0.0, `14dd581`); it is never merged into `master`. The three fixes of
+   `src/` reach `master` through their own pull request.
 5. **Archive the bundle.**
    * `build_artifact_bundle.py` reads the experiment workspaces and rebuilds the tarball
      whose SHA-256 is in `artifacts.lock`. It is then staged inside this package, so that the
@@ -317,7 +319,7 @@ never retried or dropped silently.
    `ijf-image-publish.yml`; record the digest, fingerprint and revision in `image.lock`; make
    the GHCR package public. The image contains no SCIP binaries, so the exported image
    (`docker save | gzip`) can also be archived in the Zenodo data record.
-7. **Tag the release.** Tag the replication release commit `ijf-2026-replication-v1.0.0` and
+7. **Tag the release.** Tag the replication release commit on `ijf-2026-replication` as `ijf-2026-replication-v1.0.0` and
    publish the GitHub release under the article's title; the Zenodo GitHub integration archives
    it and mints the software DOI (`.zenodo.json`). `src/` differs from v1.0.0 by three fixes that
    no printed result depends on (the information-criterion fix for models with regressors, the
@@ -329,7 +331,7 @@ never retried or dropped silently.
 
 ## 10. Continuous integration
 
-`.github/workflows/ijf-replication.yml` runs on pull requests and pushes to `master` that
+`.github/workflows/ijf-replication.yml` runs on pull requests and on pushes to `ijf-2026-replication` that
 touch the package or the replication files, and by hand. Full campaigns never run in CI.
 
 * **Host checks** (no Docker): shellcheck; the usage and missing-Docker exit codes;

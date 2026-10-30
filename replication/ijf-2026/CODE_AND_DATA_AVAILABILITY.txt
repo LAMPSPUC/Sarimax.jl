@@ -14,7 +14,8 @@ Code and data availability
 
 SARIMAX.jl is open-source software released under the MIT licence and developed publicly at
 https://github.com/LAMPSPUC/Sarimax.jl. The replication package archived for this article
-[GitHub release ijf-2026-replication-v1.0.0; software DOI 10.5281/zenodo.XXXXXXX] contains the
+[GitHub release ijf-2026-replication-v1.0.0, on the branch ijf-2026-replication; software DOI
+10.5281/zenodo.XXXXXXX] contains the
 package source, the scripts and configuration files of the experiments, and a containerized
 computational environment with Julia, R, Python and the optimization solvers, all versions
 pinned [published as ghcr.io/lampspuc/sarimax-ijf-replication@sha256:...]. A single command,

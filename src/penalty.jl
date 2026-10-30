@@ -436,6 +436,13 @@ penalty never reads the loss.
 
 The auxiliary variables that linearize `|psi_j|` are created here, so calling this twice on
 one JuMP model would create two sets of them; call it once per fit.
+
+They are created only for coefficients whose L1 weight `alpha * lambda_j` is positive. An
+auxiliary with weight zero has nothing in the objective holding it down and no upper bound,
+so the interior-point barrier drives it to infinity: the problem has no minimizer in that
+variable, and Ipopt ends on a status that depends on floating-point details (measured on this
+model class: `OTHER_ERROR` at `lambda = 10, alpha = 0`, and at `lambda = 0` on some CPUs only).
+Leaving those auxiliaries out is the same problem in the coefficients.
 """
 function elasticNetPenalty!(
     jumpModel::Model,
@@ -446,15 +453,18 @@ function elasticNetPenalty!(
     spec = penaltySpec(jumpModel, model, penaltyTarget, model.lambda, defaultLambda)
     isempty(spec.vars) && return nothing
     α = isnothing(model.alpha) ? 0.5 : model.alpha
-    absShrunk = penaltyAbsoluteVariables!(jumpModel, spec)
     if penaltyIsUniform(spec)
         # HISTORICAL expression, emitted verbatim: lambda factored out of both terms,
         # exactly as before coefficient-specific weights existed.
         λ = spec.weights[1]
+        α * λ == 0 && return λ * ((1 - α) / 2 * sum(spec.vars .^ 2))
+        absShrunk = penaltyAbsoluteVariables!(jumpModel, spec)
         return λ * (α * sum(absShrunk) + (1 - α) / 2 * sum(spec.vars .^ 2))
     end
     w = spec.weights
     idx = eachindex(spec.vars)
-    return α * sum(w[i] * absShrunk[i] for i in idx) +
+    l1 = [i for i in idx if α * w[i] > 0]
+    absShrunk = penaltyAbsoluteVariables!(jumpModel, PenaltySpec(spec.names[l1], spec.vars[l1], w[l1]))
+    return α * sum(w[l1[k]] * absShrunk[k] for k in eachindex(l1); init = zero(AffExpr)) +
            (1 - α) / 2 * sum(w[i] * spec.vars[i]^2 for i in idx)
 end

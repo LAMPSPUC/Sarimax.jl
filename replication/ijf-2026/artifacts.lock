@@ -16,5 +16,5 @@ sha256 = "0d42bcf2c122fa28356fcddea44969cf51fc016f4586ca8797efa6ce861d475d"
 bytes = 377049495
 inventory = "artifacts.sha256"
 inventory_sha256 = "bc2b2313c170197c212ee5dd8afbc21ed0b82c8155eba5eb3279a65e3b3abd5f"
-doi = ""          # version DOI of the Zenodo data record, once published
-url = ""          # direct download URL of the tarball in that record, once published
+doi = "10.5281/zenodo.23792948"          # version DOI of the Zenodo data record, once published
+url = "https://zenodo.org/records/23792948/files/sarimax-ijf-2026-artifacts-v1.tar.gz"          # direct download URL of the tarball in that record, once published

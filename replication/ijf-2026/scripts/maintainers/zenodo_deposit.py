@@ -28,12 +28,13 @@ from pathlib import Path
 DESCRIPTION = (
     "<p>Archived experimental results of the article <em>SARIMAX.jl: Open-Source Optimization-Based "
     "SARIMAX Modeling in Julia</em> (International Journal of Forecasting, special issue Advances in "
-    "Open Source Forecasting Software): original per-series results and logs of every campaign, the "
-    "derived datasets and historical tables used for the article's numbers, the original runners and "
-    "notes, and a provenance record of every file.</p>"
-    "<p>It is the input of <code>./reproduce.sh tables</code> in the Sarimax.jl repository "
-    "(replication/ijf-2026), which rebuilds every table from these files and compares each cell with "
-    "its historical value. M4 competition data and PJM load data are not redistributed (their "
+    "Open Source Forecasting Software): for every experiment behind the values the article prints, "
+    "the raw results and run logs, the files the table generators read, the tables as they were "
+    "generated at the time, the original runners and environment files, and a provenance record of "
+    "every file.</p>"
+    "<p>It is the input of <code>./reproduce.sh tables</code> in the Sarimax.jl repository (branch "
+    "ijf-2026-replication, replication/ijf-2026), which rebuilds the tables from these files and "
+    "compares each cell with its historical value. M4 competition data and PJM load data are not redistributed (their "
     "licences are not established); the replication package downloads them from pinned sources and "
     "verifies them. See README.md inside the bundle and LIMITATIONS.md in the repository.</p>"
 )
@@ -102,7 +103,8 @@ def main() -> int:
         "access_right": "open",
         "notes": f"{meta['tarball']}: SHA-256 {meta['tarball_sha256']}, {meta['files']} files; "
                  "inventory in artifacts.sha256.",
-        "related_identifiers": [{"identifier": "https://github.com/LAMPSPUC/Sarimax.jl", "relation": "isSupplementTo",
+        "related_identifiers": [{"identifier": "https://github.com/LAMPSPUC/Sarimax.jl/tree/ijf-2026-replication",
+                                 "relation": "isSupplementTo",
                                  "scheme": "url", "resource_type": "software"}],
     }
     if args.related_software_doi:

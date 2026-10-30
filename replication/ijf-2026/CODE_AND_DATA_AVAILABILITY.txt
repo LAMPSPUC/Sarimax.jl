@@ -18,7 +18,8 @@ https://github.com/LAMPSPUC/Sarimax.jl. The replication package archived for thi
 10.5281/zenodo.XXXXXXX] contains the
 package source, the scripts and configuration files of the experiments, and a containerized
 computational environment with Julia, R, Python and the optimization solvers, all versions
-pinned [published as ghcr.io/lampspuc/sarimax-ijf-replication@sha256:...]. A single command,
+pinned (published as ghcr.io/lampspuc/sarimax-ijf-replication@sha256:ffb9d6bbde694cd9227ff761d232dc6b731c45abc924b2e7bdf3961b746f1637,
+and archived with the experimental results). A single command,
 ./reproduce.sh, verifies the environment and the archived inputs, runs small reference
 computations, regenerates the tables from the archived per-series results, and compares every
 value reported in this article with its archived source. Separate commands re-run the

@@ -1,15 +1,15 @@
 # Published replication image. Read by reproduce.sh; KEY=VALUE lines only.
 #
-# IMAGE_DIGEST is empty until the image is pushed to GitHub Container Registry at release
-# time (an explicit maintainer action, .github/workflows/ijf-image-publish.yml). While it is
-# empty, ./reproduce.sh builds the image locally from this checkout. Once it is set, the image
-# is pulled by this immutable digest and its source fingerprint (a label of the image) must
-# equal this checkout's, or reproduce.sh refuses to run it.
+# The image was published to GitHub Container Registry by .github/workflows/ijf-image-publish.yml
+# when the release tag ijf-2026-replication-v1.0.0 was pushed (built from that tag's commit).
+# ./reproduce.sh pulls it by this immutable digest; its source fingerprint (a label of the image)
+# must equal this checkout's, or reproduce.sh refuses to run it. With IMAGE_DIGEST empty,
+# ./reproduce.sh builds the image locally from the checkout instead.
 #
 # This file is outside the source fingerprint on purpose: recording the digest of an image
 # must not change the fingerprint of that image.
 IMAGE_REPOSITORY=ghcr.io/lampspuc/sarimax-ijf-replication
 IMAGE_TAG=ijf-2026-replication-v1.0.0
-IMAGE_DIGEST=
-SOURCE_FINGERPRINT=
-SOURCE_REVISION=
+IMAGE_DIGEST=sha256:ffb9d6bbde694cd9227ff761d232dc6b731c45abc924b2e7bdf3961b746f1637
+SOURCE_FINGERPRINT=5108fe72fb4492595cbaf52a55104de782c7af8c754432db92aa328189fe6826
+SOURCE_REVISION=440ea3f46237d46bd1450bd0d112d1e65ef75477

@@ -294,12 +294,15 @@ Open:
 
 6. **The LaTeX source:** whether to deposit it (it allows anyone to re-run the transcription;
    its archive contains editorial notes that would have to be removed first).
-7. **Publication:** the image on GHCR and, exported, in the Zenodo data record; the Zenodo data
-   record (the artifact bundle); the DOIs and digest in `artifacts.lock`, `image.lock`,
-   `CITATION.cff` and the availability statement; the creator lists of `CITATION.cff`,
-   `.zenodo.json` and the data record; a permanent identifier of the manuscript for
+7. **Publication:** the image is published (release tag `ijf-2026-replication-v1.0.0`, commit
+   `440ea3f`; `ghcr.io/lampspuc/sarimax-ijf-replication@sha256:ffb9d6bbde694cd9227ff761d232dc6b731c45abc924b2e7bdf3961b746f1637`, recorded in `image.lock`;
+   the publication workflow pulled it back anonymously by digest, checked its fingerprint and the
+   absence of SCIP, and ran the smoke tests in it). Still open: the Zenodo data record (the
+   artifact bundle and the exported image); the DOIs in `artifacts.lock`, `CITATION.cff` and the
+   availability statement; the GitHub release; a permanent identifier of the manuscript for
    `REVISION.toml` once one exists.
 8. **Author statements:** the AI-use declaration and the other statements the journal requires
    are not part of this package.
 
-Nothing was merged, tagged, published or uploaded.
+With the authors' approval, the package was merged into its branch `ijf-2026-replication`
+(never into `master`), tagged `ijf-2026-replication-v1.0.0` and its image published.

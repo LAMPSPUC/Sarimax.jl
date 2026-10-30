@@ -227,6 +227,6 @@ files of the September 2026 stable and admissibility campaigns are in the bundle
 5. **Licences:** confirmation for M4 and PJME, which are fetched, not redistributed. SCIP 8.0.0
    (ZIB Academic License) is fetched on the user's machine, not shipped in the image
    (`reports/scip_licence.md`).
-6. **Publication identifiers:** the published bundle (Zenodo), the image (GHCR), and the DOIs
-   and digest that go into `artifacts.lock`, `image.lock`, `CITATION.cff` and the availability
-   statement.
+6. **Publication identifiers:** the published bundle (Zenodo) and the DOIs that go into
+   `artifacts.lock`, `CITATION.cff` and the availability statement. The image is published and
+   its digest is in `image.lock`.

@@ -119,11 +119,10 @@ assembling it. Each is also recorded per experiment in `experiment_manifest.csv`
 
 ## This package
 
-13. **The container image and the artifact bundle are not published yet.** Publishing (GHCR,
-    Zenodo) is a maintainer action at release time. Until then the image is built locally
-    and the bundle must be supplied with `--from`/`--artifacts`. The bundle is one tarball
-    (385 files); it was built twice from the same sources, giving the same tarball byte for
-    byte.
+13. **The artifact bundle is not published yet.** The image is published (`image.lock`); the
+    Zenodo data record is a maintainer action at release time, and until then the bundle must be
+    supplied with `--from`/`--artifacts`. The bundle is one tarball (385 files); it was built
+    twice from the same sources, giving the same tarball byte for byte.
 14. **`linux/arm64` is experimental.** The Dockerfile handles both architectures and CI builds
     and exercises arm64 on an arm64 runner, but only `linux/amd64` is the reference platform
     (see REPRODUCIBILITY_STATUS.md for the latest result). On Apple Silicon, Docker runs the

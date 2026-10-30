@@ -298,34 +298,38 @@ never retried or dropped silently.
 4. **Merge** the pull request into `ijf-2026-replication`, the branch that holds the replication
    package (created from v1.0.0, `14dd581`); it is never merged into `master`. The three fixes of
    `src/` reach `master` through their own pull request.
-5. **Archive the bundle.**
+5. **Tag the release and publish the image.** Tag the replication release commit on
+   `ijf-2026-replication` as `ijf-2026-replication-v1.0.0` and push the tag: it runs
+   `ijf-image-publish.yml`, which builds the image from that commit, pushes it to GHCR, pulls
+   it back by digest, checks its fingerprint and runs the smoke tests in it. Record the digest,
+   fingerprint and revision it prints in `image.lock` and make the GHCR package public. The image
+   contains no SCIP binaries, so its export (`docker save | gzip` of the published digest) is
+   archived in the Zenodo data record with the bundle.
+6. **Archive the bundle.**
    * `build_artifact_bundle.py` reads the experiment workspaces and rebuilds the tarball
      whose SHA-256 is in `artifacts.lock`. It is then staged inside this package, so that the
      deposit reads nothing outside it: `scripts/maintainers/stage_release.py --bundle FILE`
      copies it into `dist/bundle/` (ignored by git and by the Docker build context) after
      checking its SHA-256 against `artifacts.lock` and every file it contains against the
      inventory, and writes the bundle json the deposit reads; `--image FILE` stages the
-     exported image; `--check` re-verifies what is staged.
+     exported image in `dist/image/`; `--check` re-verifies what is staged.
    * The August 2026 certification batch survives only as a reconstruction (raw outputs lost),
      archived in the repository (`results/historical/certification-2026-08/`) and checked by
      `check_certification_2026_08.py`; its 2026-10-21 re-run, with SCIP logs, is archived beside
      it (`results/reruns/certification-2026-08-rerun-2026-10-21/`, checked by
      `check_certification_rerun_2026_10.py`). Neither is part of the bundle.
-   * Upload the tarball and its inventory to the Zenodo data record. Test in the Zenodo
-     Sandbox first: `scripts/maintainers/zenodo_deposit.py --bundle-dir dist/bundle`.
+   * Upload the tarball, its inventory and the exported image to the Zenodo data record:
+     `scripts/maintainers/zenodo_deposit.py --production --bundle-dir dist/bundle --extra
+     dist/image/FILE` creates a draft (the Zenodo Sandbox, without `--production`, can test the
+     script first); review it on zenodo.org, then publish.
    * Record the version DOI and the tarball's URL in `artifacts.lock`. This does not change
      the fingerprint.
-6. **Publish the image.** Build and push it with the manually triggered workflow
-   `ijf-image-publish.yml`; record the digest, fingerprint and revision in `image.lock`; make
-   the GHCR package public. The image contains no SCIP binaries, so the exported image
-   (`docker save | gzip`) can also be archived in the Zenodo data record.
-7. **Tag the release.** Tag the replication release commit on `ijf-2026-replication` as `ijf-2026-replication-v1.0.0` and
-   publish the GitHub release under the article's title; the Zenodo GitHub integration archives
-   it and mints the software DOI (`.zenodo.json`). `src/` differs from v1.0.0 by three fixes that
-   no printed result depends on (the information-criterion fix for models with regressors, the
-   elastic-net fix for L1 weights of zero and the dataset alias, CHANGELOG "Unreleased");
-   registering them as 1.0.1 is a separate decision that the replication release does not need,
-   since the package identifies its code by commit.
+7. **Publish the GitHub release** from the tag, under the article's title; the Zenodo GitHub
+   integration archives it and mints the software DOI (`.zenodo.json`). `src/` differs from
+   v1.0.0 by three fixes that no printed result depends on (the information-criterion fix for
+   models with regressors, the elastic-net fix for L1 weights of zero and the dataset alias,
+   CHANGELOG "Unreleased"); registering them as 1.0.1 is a separate decision that the
+   replication release does not need, since the package identifies its code by commit.
 8. **Link the records.** Software → `isSupplementedBy` the data record; both → `isSupplementTo`
    the article DOI once assigned. Then update `CITATION.cff` and the availability statement.
 
@@ -368,7 +372,8 @@ touch the package or the replication files, and by hand. Full campaigns never ru
 
 `.github/workflows/ijf-image-publish.yml` builds and pushes the image to GHCR, pulls it back
 by digest on a clean runner, checks its fingerprint against the checkout, runs the smoke
-tests in it and prints the lines for `image.lock`. It runs only when started by hand.
+tests in it and prints the lines for `image.lock`. It runs when a release tag
+`ijf-2026-replication-v*` is pushed.
 
 The Dockerfile declares the identity build arguments (`SOURCE_FINGERPRINT`,
 `SOURCE_REVISION`) just before the final layer: a build argument invalidates every later

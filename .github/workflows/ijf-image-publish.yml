@@ -1,7 +1,9 @@
 # Publishes the IJF replication image to GitHub Container Registry.
 #
-# MANUAL ONLY: it never runs on push or pull request. Start it from the Actions tab on the
-# release commit (the tag cited by the paper), after the authors have approved publication.
+# It runs when a release tag `ijf-2026-replication-v*` is pushed (the tag cited by the paper, on the
+# branch ijf-2026-replication), and never on branch pushes or pull requests. A manual start from the
+# Actions tab is also declared, but GitHub offers it only for workflows on the default branch, which
+# does not hold the replication package. Push the tag only after the authors approve publication.
 # It builds the image from that commit, pushes it, pulls it back by its immutable digest on a
 # clean runner, verifies its source fingerprint against the checkout and runs the smoke tests
 # in it. The digest to record in replication/ijf-2026/image.lock is printed in the run summary.
@@ -14,6 +16,8 @@
 name: IJF replication image (publish)
 
 on:
+  push:
+    tags: ["ijf-2026-replication-v*"]
   workflow_dispatch:
     inputs:
       tag:
@@ -92,11 +96,11 @@ jobs:
         with:
           context: .
           file: replication/ijf-2026/docker/Dockerfile
-          platforms: ${{ inputs.platforms }}
+          platforms: ${{ inputs.platforms || 'linux/amd64' }}
           build-args: |
             SOURCE_FINGERPRINT=${{ steps.fp.outputs.fingerprint }}
             SOURCE_REVISION=${{ steps.fp.outputs.revision }}
-          tags: ${{ env.IMAGE }}:${{ inputs.tag }}
+          tags: ${{ env.IMAGE }}:${{ inputs.tag || github.ref_name }}
           push: true
           provenance: false
           cache-from: type=gha,scope=ijf-ubuntu-latest
@@ -135,7 +139,7 @@ jobs:
             echo "### Record in replication/ijf-2026/image.lock"
             echo '```'
             echo "IMAGE_REPOSITORY=${IMAGE}"
-            echo "IMAGE_TAG=${{ inputs.tag }}"
+            echo "IMAGE_TAG=${{ inputs.tag || github.ref_name }}"
             echo "IMAGE_DIGEST=${{ needs.publish.outputs.digest }}"
             echo "SOURCE_FINGERPRINT=${{ needs.publish.outputs.fingerprint }}"
             echo "SOURCE_REVISION=${{ needs.publish.outputs.revision }}"

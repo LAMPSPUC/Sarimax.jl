@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Dependencies
+- **`SCIP` compat widened to `0.11.6, 0.12`** (was `^0.11.6`). The 0.11 series ships SCIP 8
+  binaries that do not run on Windows: with `SCIP_jll` 800.0.301 the process dies with
+  `EXCEPTION_ACCESS_VIOLATION` when the first variable is created, and with 800.100.0 a
+  one-variable LP never returns from `optimize!`. SCIP.jl 0.11's own build script warns
+  that segfaults are likely on Windows. Under the old bound the default `mipSolver` and the
+  `optimizer = SCIP.Optimizer` path were therefore unusable on Windows. SCIP.jl 0.12.8
+  (SCIP 10.0.3) solves the same models there, and with it the full suite passes on Windows
+  including the opt-in global-solve test (`SARIMAX_TEST_SCIP=true`). No source change.
+
 ## [1.0.0] - 2026-09-12
 
 First stable release. It accompanies the paper describing the package and freezes
